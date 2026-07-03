@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>키워드 분석 — 에너가드컴퍼니</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f8f9fb; --card: #fff; --ink: #1a1f2e; --sub: #5a6378;
+    --line: #e8ecf2; --dark: #05070b; --dark-tint: #eef0f3;
+    --accent: #e85d2f; --accent-dark: #d04420; --accent-tint: #fdeee7;
+    --gray-badge: #eef0f3; --danger: #dc2626;
+    --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+    --font-main: "Pretendard Variable", Pretendard, -apple-system, sans-serif;
+    --radius: 6px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: var(--font-main);
+    background: var(--bg); color: var(--ink); font-size: 15px; line-height: 1.55;
+  }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 28px 20px 80px; }
+  header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 20px; }
+  header h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; }
+  header .tag { font-size: 12px; font-weight: 600; color: var(--dark); background: var(--dark-tint); padding: 2px 8px; border-radius: 20px; }
+  header .desc { font-size: 13px; color: var(--sub); margin-left: auto; }
+
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }
+
+  /* 검색 폼 */
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 13px; font-weight: 700; margin-bottom: 6px; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip {
+    padding: 8px 14px; border: 1.5px solid var(--line); border-radius: 4px;
+    background: #fff; font-size: 14px; font-weight: 600; cursor: pointer;
+    color: var(--sub); transition: all .12s;
+  }
+  .chip:hover { border-color: #c8cdd4; }
+  .chip.active { border-color: var(--dark); color: #fff; background: var(--dark); }
+  .chip-input {
+    padding: 8px 12px; border: 1.5px solid var(--line); border-radius: 4px;
+    font-size: 14px; font-family: inherit; width: 160px;
+  }
+  .chip-input:focus { outline: none; border-color: var(--dark); }
+  .form-row { display: flex; gap: 10px; align-items: center; }
+  input#keyword {
+    flex: 1; max-width: 340px; padding: 10px 12px;
+    border: 1.5px solid var(--line); border-radius: 4px; font-size: 14.5px; font-family: inherit;
+  }
+  input#keyword:focus { outline: none; border-color: var(--dark); }
+  select#range {
+    padding: 9px 12px; border: 1.5px solid var(--line); border-radius: 4px;
+    font-size: 14px; font-family: inherit; background: #fff; cursor: pointer;
+  }
+  button#searchBtn {
+    padding: 10px 26px; border: none; border-radius: 4px;
+    background: var(--accent); color: #fff; font-size: 15px; font-weight: 700;
+    font-family: inherit; cursor: pointer; transition: background .12s, transform .12s;
+  }
+  button#searchBtn:hover { background: var(--accent-dark); transform: translateY(-1px); }
+  button#searchBtn:active { transform: translateY(0); }
+  button#searchBtn:disabled { background: #f0b8a1; cursor: wait; transform: none; }
+
+  /* 인사이트 카드 */
+  #insight { display: none; margin-top: 18px; }
+  .ins-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 10px;
+  }
+  .ins-card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 6px;
+    padding: 13px 15px;
+  }
+  .ins-label { font-size: 11.5px; font-weight: 700; color: var(--sub); margin-bottom: 4px; }
+  .ins-value { font-family: var(--font-mono); font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+  .ins-value small { font-family: var(--font-main); font-size: 11.5px; font-weight: 600; color: var(--sub); }
+  .ins-note { font-size: 11px; color: var(--sub); margin-top: 2px; }
+  .ins-warn { margin-top: 8px; font-size: 12px; color: var(--accent); }
+
+  /* 섹션 카드 공통 */
+  .sec { display: none; margin-top: 16px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  .sec-head { display: flex; align-items: center; gap: 10px; padding: 13px 18px; border-bottom: 1px solid var(--line); }
+  .sec-title { font-size: 15px; font-weight: 800; }
+  .sec-meta { font-size: 12px; color: var(--sub); }
+
+  /* 내 스토어 순위 행 */
+  .row { display: flex; align-items: center; gap: 14px; padding: 12px 18px; border-bottom: 1px solid var(--line); }
+  .row:last-child { border-bottom: none; }
+  .rank-badge {
+    min-width: 64px; text-align: center; padding: 6px 4px; border-radius: 4px;
+    font-weight: 800; font-size: 15px; font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+    background: var(--gray-badge); color: var(--sub);
+  }
+  .rank-badge small { display: block; font-family: var(--font-main); font-size: 10.5px; font-weight: 600; margin-top: 1px; }
+  .rank-badge.p1 { background: var(--accent-tint); color: var(--accent-dark); }
+  .rank-badge.p23 { background: var(--dark-tint); color: var(--ink); }
+  .row img { width: 44px; height: 44px; border-radius: 4px; object-fit: cover; border: 1px solid var(--line); }
+  .row .info { min-width: 0; flex: 1; }
+  .row .title { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .title a { color: inherit; text-decoration: none; }
+  .row .title a:hover { text-decoration: underline; }
+  .row .subtxt { font-size: 12.5px; color: var(--sub); font-variant-numeric: tabular-nums; }
+  .empty-row { padding: 16px 18px; font-size: 13.5px; color: var(--danger); }
+
+  /* TOP10 */
+  .top-row { display: flex; align-items: center; gap: 12px; padding: 10px 18px; border-bottom: 1px solid #f4f5f7; font-size: 13px; }
+  .top-row:last-child { border-bottom: none; }
+  .top-row.mine { background: var(--accent-tint); }
+  .top-rank { min-width: 34px; text-align: center; font-weight: 800; font-family: var(--font-mono); color: var(--sub); background: var(--gray-badge); border-radius: 4px; padding: 4px 0; font-size: 12.5px; }
+  .top-row.mine .top-rank { background: #f8d3bd; color: var(--accent-dark); }
+  .top-row img { width: 40px; height: 40px; border-radius: 4px; object-fit: cover; border: 1px solid var(--line); }
+  .top-mall { min-width: 105px; font-weight: 700; color: var(--ink); font-size: 12.5px; }
+  .top-mall .star { color: var(--accent); font-size: 11px; }
+  .top-title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--sub); }
+  .top-title a { color: inherit; text-decoration: none; }
+  .top-title a:hover { text-decoration: underline; }
+  .top-price { color: var(--accent); font-weight: 700; white-space: nowrap; font-size: 12.5px; font-family: var(--font-mono); }
+
+  /* 연관 키워드 */
+  .rel-table { width: 100%; border-collapse: collapse; }
+  .rel-table th, .rel-table td { padding: 9px 18px; text-align: left; font-size: 13px; border-bottom: 1px solid #f4f5f7; }
+  .rel-table th { background: var(--dark); font-size: 11.5px; color: rgba(255,255,255,0.85); font-weight: 700; letter-spacing: 0.02em; }
+  .rel-table tr:last-child td { border-bottom: none; }
+  .rel-table td.num { font-variant-numeric: tabular-nums; font-family: var(--font-mono); color: var(--ink); }
+  .rel-kw { font-weight: 700; color: var(--accent); cursor: pointer; }
+  .rel-kw:hover { text-decoration: underline; }
+  .comp-badge { font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 10px; }
+  .comp-낮음 { background: var(--accent-tint); color: var(--accent-dark); }
+  .comp-중간 { background: var(--dark-tint); color: var(--ink); }
+  .comp-높음 { background: #fdecec; color: var(--danger); }
+
+  /* 판매자 점유율 */
+  .sel-row { display: flex; align-items: center; gap: 12px; padding: 9px 18px; border-bottom: 1px solid #f4f5f7; font-size: 13px; }
+  .sel-row:last-child { border-bottom: none; }
+  .sel-row.mine { background: var(--accent-tint); }
+  .sel-rank { min-width: 26px; text-align: center; font-family: var(--font-mono); font-weight: 700; font-size: 12px; color: var(--sub); background: var(--gray-badge); border-radius: 4px; padding: 3px 0; }
+  .sel-row.mine .sel-rank { background: var(--accent); color: #fff; }
+  .sel-mall { min-width: 130px; font-weight: 700; }
+  .sel-mall .star { color: var(--accent); font-size: 11px; }
+  .sel-mall a { color: inherit; text-decoration: none; }
+  .sel-mall a:hover { color: var(--accent); text-decoration: underline; }
+  .sel-bar-wrap { flex: 1; height: 8px; background: var(--gray-badge); border-radius: 4px; overflow: hidden; }
+  .sel-bar { height: 100%; background: var(--dark); border-radius: 4px; }
+  .sel-row.mine .sel-bar { background: var(--accent); }
+  .sel-share { min-width: 96px; font-family: var(--font-mono); font-size: 12px; color: var(--ink); text-align: right; white-space: nowrap; }
+  .sel-share b { color: var(--accent); }
+  .sel-detail { min-width: 150px; font-size: 11.5px; color: var(--sub); text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* 경쟁강도 배지 */
+  .cr-badge { font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 10px; font-family: var(--font-mono); }
+  .cr-low  { background: #e7f6ec; color: #16a34a; }
+  .cr-mid  { background: #fdf3e0; color: #b45309; }
+  .cr-high { background: #fdecec; color: var(--danger); }
+  .niche-badge { font-size: 10px; font-weight: 800; color: #16a34a; background: #e7f6ec; padding: 1px 7px; border-radius: 10px; margin-left: 6px; }
+
+  /* 인기 쇼핑 키워드 위젯 */
+  #trendWidget { margin-top: 16px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  .tr-head { display: flex; align-items: center; gap: 10px; padding: 13px 18px; cursor: pointer; user-select: none; }
+  .tr-head:hover { background: #fafbfd; }
+  .tr-title { font-size: 15px; font-weight: 800; }
+  .tr-meta { font-size: 12px; color: var(--sub); }
+  .tr-caret { margin-left: auto; font-size: 12px; color: var(--sub); transition: transform .15s; }
+  #trendWidget.open .tr-caret { transform: rotate(180deg); }
+  .tr-body { display: none; border-top: 1px solid var(--line); }
+  #trendWidget.open .tr-body { display: block; }
+  .tr-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 12px 18px; border-bottom: 1px solid var(--line); }
+  .tr-cat {
+    padding: 6px 12px; border: 1.5px solid var(--line); border-radius: 4px;
+    background: #fff; font-size: 12.5px; font-weight: 600; color: var(--sub); cursor: pointer;
+  }
+  .tr-cat.active { border-color: var(--dark); background: var(--dark); color: #fff; }
+  .tr-units { margin-left: auto; display: flex; gap: 2px; background: var(--gray-badge); border-radius: 4px; padding: 2px; }
+  .tr-unit { padding: 4px 12px; border: none; border-radius: 3px; background: transparent; font-size: 12px; font-weight: 700; color: var(--sub); cursor: pointer; }
+  .tr-unit.active { background: #fff; color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+  .tr-list { column-count: 2; column-gap: 0; padding: 8px 0; }
+  .tr-row { display: flex; align-items: center; gap: 10px; padding: 7px 18px; break-inside: avoid; font-size: 13px; }
+  .tr-rank { min-width: 26px; text-align: center; font-family: var(--font-mono); font-weight: 700; font-size: 12px; color: var(--sub); background: var(--gray-badge); border-radius: 4px; padding: 2px 0; }
+  .tr-kw { font-weight: 700; color: var(--ink); cursor: pointer; }
+  .tr-kw:hover { color: var(--accent); text-decoration: underline; }
+  .tr-chg { font-size: 11px; font-weight: 700; font-family: var(--font-mono); }
+  .tr-chg.up { color: #16a34a; }
+  .tr-chg.down { color: var(--danger); }
+  .tr-chg.same { color: #c3c9d4; }
+  .tr-chg.new { color: var(--accent); font-size: 10px; background: var(--accent-tint); padding: 1px 6px; border-radius: 10px; }
+  .tr-status { padding: 16px 18px; font-size: 12.5px; color: var(--sub); }
+  @media (max-width: 600px) { .tr-list { column-count: 1; } }
+
+  footer { margin-top: 36px; font-size: 12px; color: var(--sub); text-align: center; }
+  @media (max-width: 560px) { header .desc { display: none; } .row img, .top-row img { display: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>키워드 분석</h1>
+    <span class="tag">쇼핑 순위 + 시장 데이터</span>
+    <span class="desc">가격비교 제외 · 최대 1,000위 · 검색광고 키워드도구 연동</span>
+  </header>
+
+  <div class="card">
+    <div class="field">
+      <label>내 스토어</label>
+      <div class="chips" id="storeChips">
+        <button type="button" class="chip active" data-store="한국 단열">한국 단열</button>
+        <button type="button" class="chip" data-store="에너가드컴퍼니">에너가드컴퍼니</button>
+        <input type="text" class="chip-input" id="customStore" placeholder="직접 입력 (경쟁사 등)">
+      </div>
+    </div>
+    <div class="field">
+      <label>키워드</label>
+      <div class="form-row">
+        <input type="text" id="keyword" placeholder="예: 아이소핑크" onkeydown="if(event.key==='Enter')runSearch()">
+        <select id="range">
+          <option value="100">100위</option>
+          <option value="400" selected>400위</option>
+          <option value="1000">1,000위</option>
+        </select>
+        <button id="searchBtn" onclick="runSearch()">분석</button>
+      </div>
+    </div>
+    <div id="statusLine" style="display:none;font-size:13px;color:var(--sub);margin-top:4px;"></div>
+  </div>
+
+  <!-- 인기 쇼핑 키워드 (데이터랩) -->
+  <div id="trendWidget" class="open">
+    <div class="tr-head" onclick="trToggle()">
+      <span class="tr-title">인기 쇼핑 키워드</span>
+      <span class="tr-meta" id="trMeta">데이터랩 쇼핑인사이트 기준</span>
+      <span class="tr-caret">▼</span>
+    </div>
+    <div class="tr-body">
+      <div class="tr-controls">
+        <button class="tr-cat active" data-cat="생활/건강" onclick="trSetCat(this)">생활/건강</button>
+        <button class="tr-cat" data-cat="가구/인테리어" onclick="trSetCat(this)">가구/인테리어</button>
+        <button class="tr-cat" data-cat="스포츠/레저" onclick="trSetCat(this)">스포츠/레저</button>
+        <div class="tr-units">
+          <button class="tr-unit active" data-unit="date" onclick="trSetUnit(this)">일간</button>
+          <button class="tr-unit" data-unit="week" onclick="trSetUnit(this)">주간</button>
+          <button class="tr-unit" data-unit="month" onclick="trSetUnit(this)">월간</button>
+        </div>
+      </div>
+      <div id="trContent"><div class="tr-status">불러오는 중...</div></div>
+    </div>
+  </div>
+
+  <!-- 인사이트 -->
+  <div id="insight">
+    <div class="ins-grid" id="insGrid"></div>
+    <div class="ins-warn" id="adWarn" style="display:none;"></div>
+  </div>
+
+  <!-- 연관 키워드 -->
+  <div class="sec" id="secRel">
+    <div class="sec-head">
+      <span class="sec-title">연관 키워드</span>
+      <span class="sec-meta">월간 검색량 기준 상위 15개 · 클릭하면 해당 키워드 분석</span>
+    </div>
+    <table class="rel-table">
+      <thead><tr><th>키워드</th><th style="width:110px">월간 검색량</th><th style="width:100px">상품수</th><th style="width:100px">경쟁강도</th><th style="width:80px">광고경쟁</th></tr></thead>
+      <tbody id="relBody"></tbody>
+    </table>
+  </div>
+
+  <!-- 내 스토어 순위 -->
+  <div class="sec" id="secStore">
+    <div class="sec-head">
+      <span class="sec-title">내 스토어 순위</span>
+      <span class="sec-meta" id="storeMeta"></span>
+    </div>
+    <div id="storeBody"></div>
+  </div>
+
+  <!-- TOP 10 -->
+  <div class="sec" id="secTop">
+    <div class="sec-head">
+      <span class="sec-title">TOP 10</span>
+      <span class="sec-meta">내 스토어는 ★ 표시</span>
+    </div>
+    <div id="topBody"></div>
+
+
+  </div>
+
+  <!-- 판매자 점유율 -->
+  <div class="sec" id="secSellers">
+    <div class="sec-head">
+      <span class="sec-title">검색 노출 분석</span>
+      <span class="sec-meta" id="sellersMeta"></span>
+    </div>
+    <div id="sellersBody"></div>
+  </div>
+
+
+  <footer>네이버 쇼핑 검색 API + 검색광고 키워드도구 기준 · 순위는 광고 제외라 실제 화면과 1~3위 차이가 있을 수 있습니다.</footer>
+</div>
+
+<script>
+/* ───────── 설정 ───────── */
+const SUPABASE_URL = "https://eukwfypbfqojbaihfqye.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_MiBvlf3d6ulcVBsi7Odcgw_PTXSmXKj";
+const FN_URL = SUPABASE_URL + "/functions/v1/naver-rank";
+
+const MY_STORES = ["한국단열", "에너가드"];
+
+/* 스토어명 → 스마트스토어 홈 (경쟁사 + 내 스토어) */
+const STORE_HOME = {
+  "한국 단열": "hkdy",       "벽산단열재": "kis114",    "단열코리아": "sp14011",
+  "극동씨앤씨": "kdongcnc",  "산일상사": "sanil",       "나라단열": "ddutong",
+  "낭만홈즈": "romancehomes","DY SHOP": "kdystory",     "집코리아": "foamworld",
+  "프라임랩": "primemade",   "디비바": "dbbamall",      "은동이샵": "nine",
+  "HOMEGLOW": "alljun",      "베스트파트너": "bestpartner",
+};
+function storeLink(mall, fallback) {
+  const norm = mall.replace(/\s/g, "");
+  for (const [name, id] of Object.entries(STORE_HOME)) {
+    if (norm.includes(name.replace(/\s/g, ""))) return "https://smartstore.naver.com/" + id;
+  }
+  return fallback || null;
+}
+
+/* ───────── 스토어 선택 ───────── */
+let selectedStore = "한국 단열";
+const chips = document.querySelectorAll("#storeChips .chip");
+const customStore = document.getElementById("customStore");
+chips.forEach(chip => chip.addEventListener("click", () => {
+  chips.forEach(c => c.classList.remove("active"));
+  chip.classList.add("active");
+  selectedStore = chip.dataset.store;
+  customStore.value = "";
+}));
+customStore.addEventListener("input", () => {
+  if (customStore.value.trim()) {
+    chips.forEach(c => c.classList.remove("active"));
+    selectedStore = customStore.value.trim();
+  }
+});
+
+/* ───────── 분석 실행 ───────── */
+const btn = document.getElementById("searchBtn");
+const statusLine = document.getElementById("statusLine");
+
+async function runSearch(kwOverride) {
+  const store = customStore.value.trim() || selectedStore;
+  const kwInput = document.getElementById("keyword");
+  if (kwOverride) kwInput.value = kwOverride;
+  const keyword = kwInput.value.trim();
+  const maxRank = Number(document.getElementById("range").value);
+  if (!keyword) return alert("키워드를 입력해주세요.");
+
+  btn.disabled = true;
+  statusLine.style.display = "block";
+  statusLine.innerHTML = `"<b>${esc(keyword)}</b>" ${maxRank}위까지 분석 중...`;
+  ["insight","secStore","secTop","secRel","secSellers"].forEach(id => document.getElementById(id).style.display = "none");
+
+  try {
+    const res = await fetch(FN_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + SUPABASE_ANON_KEY,
+        "apikey": SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({ storeName: store, keyword, maxRank, withInsight: true }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || res.status);
+    statusLine.style.display = "none";
+    render(data);
+  } catch (e) {
+    statusLine.innerHTML = `분석 실패: ${esc(e.message || "네트워크 오류")}`;
+  }
+  btn.disabled = false;
+}
+
+/* ───────── 렌더링 ───────── */
+function render(d) {
+  trCollapse();
+  /* 인사이트 카드 */
+  const g = [];
+  if (d.stats) {
+    g.push(card("상품수", d.stats.totalProducts.toLocaleString(), "전체 검색결과"));
+    if (d.ad && d.ad.monthlyTotal != null) {
+      g.push(card("월간 검색량", d.ad.monthlyTotal.toLocaleString(),
+        `PC ${d.ad.monthlyPc.toLocaleString()} · 모바일 ${d.ad.monthlyMobile.toLocaleString()}`));
+      g.push(card("경쟁강도", d.ad.compRatio != null ? d.ad.compRatio : "-", "상품수 ÷ 검색량 (낮을수록 유리)"));
+    }
+    g.push(card("시장 가격대", `${fmtWon(d.stats.priceMin)}~${fmtWon(d.stats.priceMax)}`, `평균 ${d.stats.priceAvg.toLocaleString()}원 · 상위 ${d.stats.scanned}개 기준`));
+    const myPrices = (d.results || []).map(r => r.price).filter(p => p > 0).sort((a, b) => a - b);
+    if (myPrices.length) {
+      const myAvg = Math.round(myPrices.reduce((s, v) => s + v, 0) / myPrices.length);
+      g.push(card("내 스토어 가격대", `${fmtWon(myPrices[0])}~${fmtWon(myPrices[myPrices.length - 1])}`, `평균 ${myAvg.toLocaleString()}원 · ${myPrices.length}개 상품`));
+    }
+    g.push(card("가격비교 비율", d.stats.catalogRatio + "%", "카탈로그 매칭 상품"));
+    if (d.stats.topCategory) g.push(card("주요 카테고리", `<small>${esc(d.stats.topCategory)}</small>`, ""));
+  }
+  document.getElementById("insGrid").innerHTML = g.join("");
+  const adWarn = document.getElementById("adWarn");
+  if (d.adError) { adWarn.textContent = "검색량 조회 불가: " + d.adError; adWarn.style.display = "block"; }
+  else adWarn.style.display = "none";
+  document.getElementById("insight").style.display = "block";
+
+  /* 내 스토어 순위 */
+  const sb = document.getElementById("storeBody");
+  document.getElementById("storeMeta").textContent =
+    `${esc(d.storeName)} · ${d.maxRank}위 내 ${d.matchCount}개`;
+  if (!d.results.length) {
+    sb.innerHTML = `<div class="empty-row">"${esc(d.keyword)}" ${d.maxRank}위 안에 ${esc(d.storeName)} 상품이 없습니다 (이탈).</div>`;
+  } else {
+    sb.innerHTML = d.results.map(r => {
+      const cls = r.rank <= 40 ? "p1" : r.rank <= 120 ? "p23" : "";
+      return `<div class="row">
+        <div class="rank-badge ${cls}">${r.rank}위<small>${r.page}페이지</small></div>
+        ${r.image ? `<img src="${esc(r.image)}" loading="lazy" alt="">` : ""}
+        <div class="info">
+          <div class="title"><a href="${esc(r.link)}" target="_blank" rel="noopener">${esc(r.title)}</a></div>
+          <div class="subtxt">${esc(r.mallName)} · ${r.price.toLocaleString()}원</div>
+        </div>
+      </div>`;
+    }).join("");
+  }
+  document.getElementById("secStore").style.display = "block";
+
+  /* TOP 10 */
+  document.getElementById("topBody").innerHTML = (d.top || []).map(t => {
+    const mine = MY_STORES.some(s => t.mall.replace(/\s/g, "").includes(s));
+    return `<div class="top-row${mine ? " mine" : ""}">
+      <span class="top-rank">${t.rank}</span>
+      ${t.image ? `<img src="${esc(t.image)}" loading="lazy" alt="">` : ""}
+      <span class="top-mall">${esc(t.mall)}${mine ? ' <span class="star">★</span>' : ""}</span>
+      <span class="top-title"><a href="${esc(t.link)}" target="_blank" rel="noopener">${esc(t.title)}</a></span>
+      <span class="top-price">${t.price ? t.price.toLocaleString() + "원" : ""}</span>
+    </div>`;
+  }).join("");
+  document.getElementById("secTop").style.display = "block";
+
+  /* 검색 노출 분석 (전문셀러 기준) */
+  if (d.sellers && d.sellers.length) {
+    const maxInf = d.sellers[0].influence || 1;
+    const meta = d.sellerMeta || {};
+    document.getElementById("sellersMeta").textContent =
+      `상위 ${meta.base || 200}위 · 오픈마켓 제외(노출 비중 ${meta.openMarketShare != null ? meta.openMarketShare : "-"}%) · 영향력 = 순위 가중 비중`;
+    document.getElementById("sellersBody").innerHTML = d.sellers.map((s, i) => {
+      const mine = MY_STORES.some(m => s.mall.replace(/\s/g, "").includes(m));
+      const url = storeLink(s.mall, s.link);
+      const mallHtml = url
+        ? `<a href="${esc(url)}" target="_blank" rel="noopener" title="${STORE_HOME[s.mall] || Object.keys(STORE_HOME).some(n => s.mall.replace(/\s/g,'').includes(n.replace(/\s/g,''))) ? '스토어 홈으로 이동' : '최고 순위 상품으로 이동'}">${esc(s.mall)}</a>`
+        : esc(s.mall);
+      return `<div class="sel-row${mine ? " mine" : ""}">
+        <span class="sel-rank">${i + 1}</span>
+        <span class="sel-mall">${mallHtml}${mine ? ' <span class="star">★</span>' : ""}</span>
+        <span class="sel-bar-wrap"><span class="sel-bar" style="display:block;width:${Math.max(3, s.influence / maxInf * 100)}%"></span></span>
+        <span class="sel-share"><b>영향력 ${s.influence}%</b></span>
+        <span class="sel-share">노출 ${s.count}개 · ${s.share}%</span>
+        <span class="sel-detail">최고 ${s.bestRank}위 · 평균 ${s.avgPrice.toLocaleString()}원</span>
+      </div>`;
+    }).join("");
+    document.getElementById("secSellers").style.display = "block";
+  }
+
+  /* 연관 키워드 */
+  const rel = (d.ad && d.ad.related) || [];
+  if (rel.length) {
+    // 니치 판정: 검색량 100+ 이면서 경쟁강도가 가장 낮은 3개
+    const nicheSet = new Set(
+      rel.filter(k => k.compRatio != null && k.total >= 100)
+         .sort((a, b) => a.compRatio - b.compRatio)
+         .slice(0, 3).map(k => k.keyword)
+    );
+    document.getElementById("relBody").innerHTML = rel.map(k => `
+      <tr>
+        <td><span class="rel-kw" onclick="runSearch('${esc(k.keyword)}')">${esc(k.keyword)}</span>${nicheSet.has(k.keyword) ? '<span class="niche-badge">기회</span>' : ''}</td>
+        <td class="num" title="PC ${k.pc.toLocaleString()} · 모바일 ${k.mobile.toLocaleString()}"><b>${k.total.toLocaleString()}</b></td>
+        <td class="num">${k.products != null ? k.products.toLocaleString() : "-"}</td>
+        <td>${crBadge(k.compRatio)}</td>
+        <td>${compBadge(k.compIdx)}</td>
+      </tr>`).join("");
+    document.getElementById("secRel").style.display = "block";
+  }
+}
+
+function card(label, value, note) {
+  return `<div class="ins-card">
+    <div class="ins-label">${label}</div>
+    <div class="ins-value">${value}</div>
+    ${note ? `<div class="ins-note">${note}</div>` : ""}
+  </div>`;
+}
+function crBadge(r) {
+  if (r == null) return "-";
+  const cls = r <= 0.8 ? "cr-low" : r <= 3 ? "cr-mid" : "cr-high";
+  return `<span class="cr-badge ${cls}">${r}</span>`;
+}
+function compBadge(idx) {
+  if (!idx) return "-";
+  return `<span class="comp-badge comp-${esc(idx)}">${esc(idx)}</span>`;
+}
+function fmtWon(n) {
+  if (n >= 10000) return Math.round(n / 1000) / 10 + "만";
+  return n.toLocaleString();
+}
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+/* ───────── 인기 쇼핑 키워드 위젯 ───────── */
+const TREND_FN_URL = SUPABASE_URL + "/functions/v1/shopping-trend";
+let trCat = "생활/건강";
+let trUnit = "date";
+const trCache = {};
+
+function trToggle() {
+  document.getElementById("trendWidget").classList.toggle("open");
+}
+function trCollapse() {
+  document.getElementById("trendWidget").classList.remove("open");
+}
+function trSetCat(btn) {
+  trCat = btn.dataset.cat;
+  document.querySelectorAll(".tr-cat").forEach(b => b.classList.toggle("active", b === btn));
+  trLoad();
+}
+function trSetUnit(btn) {
+  trUnit = btn.dataset.unit;
+  document.querySelectorAll(".tr-unit").forEach(b => b.classList.toggle("active", b === btn));
+  trLoad();
+}
+
+async function trLoad() {
+  const key = trCat + "|" + trUnit;
+  const content = document.getElementById("trContent");
+  if (trCache[key]) { trRender(trCache[key]); return; }
+  content.innerHTML = '<div class="tr-status">불러오는 중...</div>';
+  try {
+    const res = await fetch(TREND_FN_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + SUPABASE_ANON_KEY,
+        "apikey": SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({ category: trCat, timeUnit: trUnit, count: 20 }),
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || ("HTTP " + res.status));
+    trCache[key] = data;
+    trRender(data);
+  } catch (e) {
+    content.innerHTML = `<div class="tr-status">인기 키워드를 불러오지 못했습니다: ${esc(e.message || "오류")}</div>`;
+  }
+}
+
+function trRender(d) {
+  document.getElementById("trMeta").textContent =
+    `${d.category} · ${d.period.start === d.period.end ? d.period.start : d.period.start + " ~ " + d.period.end}`;
+  document.getElementById("trContent").innerHTML =
+    '<div class="tr-list">' + d.keywords.map(k => {
+      let chg;
+      if (k.change === "up")        chg = `<span class="tr-chg up">▲${k.delta}</span>`;
+      else if (k.change === "down") chg = `<span class="tr-chg down">▼${Math.abs(k.delta)}</span>`;
+      else if (k.change === "new")  chg = `<span class="tr-chg new">NEW</span>`;
+      else                          chg = `<span class="tr-chg same">-</span>`;
+      return `<div class="tr-row">
+        <span class="tr-rank">${k.rank}</span>
+        ${chg}
+        <span class="tr-kw" onclick="runSearch('${esc(k.keyword)}')">${esc(k.keyword)}</span>
+      </div>`;
+    }).join("") + "</div>";
+}
+
+document.addEventListener("DOMContentLoaded", trLoad);
+</script>
+</body>
+</html>
