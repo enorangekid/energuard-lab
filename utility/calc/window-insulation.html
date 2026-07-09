@@ -1,0 +1,289 @@
+﻿<script>if(!window.KankanRouter)location.replace('../index.html');</script>
+<main class="main-content">
+  <style>
+    /* ── 단열재/두께 커스텀 드롭다운 행 ── */
+    .material-select-row {
+      display: grid;
+      grid-template-columns: 1fr 24px 1fr;
+      align-items: end;
+      gap: 12px;
+    }
+  </style>
+
+      <div class="page-header">
+        <nav class="breadcrumb" aria-label="breadcrumb">
+          <a href="../index.html">홈</a>
+          <span class="bc-sep">›</span>
+          <span>창호/도어/유리</span>
+          <span class="bc-sep">›</span>
+          <span class="bc-current">창문 단열재 견적 계산기</span>
+        </nav>
+        <h1 class="page-title">창문 단열재 견적 계산기</h1>
+      </div>
+
+      <div class="calc-wrapper">
+        <div class="calc-main-wrap">
+
+          <div class="calc-card-main" id="calcForm">
+
+            <!-- Row 1: 단열재 종류 / 두께 -->
+            <div class="material-select-row">
+
+              <!-- 단열재 종류 드롭다운 -->
+              <div class="field-group">
+                <label class="field-label">단열재 종류</label>
+                <div class="custom-select-wrap" id="materialWrap">
+                  <button class="custom-select-btn" id="materialBtn" type="button">
+                    <span id="materialBtnText">백색 스티로폼</span>
+                    <svg class="custom-select-arrow" width="10" height="6" viewBox="0 0 10 6" fill="none" stroke="#aaa" stroke-width="1.8" stroke-linecap="round"><polyline points="1 1 5 5 9 1"/></svg>
+                  </button>
+                  <ul class="custom-select-list" id="materialList">
+                    <li class="custom-select-item active" data-value="백색 스티로폼">백색 스티로폼</li>
+                    <li class="custom-select-item" data-value="아이소핑크">아이소핑크</li>
+                  </ul>
+                  <input type="hidden" id="materialValue" value="백색 스티로폼" />
+                </div>
+              </div>
+
+              <div></div>
+
+              <!-- 두께 드롭다운 -->
+              <div class="field-group">
+                <label class="field-label">두께</label>
+                <div class="custom-select-wrap" id="thicknessWrap">
+                  <button class="custom-select-btn" id="thicknessBtn" type="button">
+                    <span id="thicknessBtnText">50T</span>
+                    <svg class="custom-select-arrow" width="10" height="6" viewBox="0 0 10 6" fill="none" stroke="#aaa" stroke-width="1.8" stroke-linecap="round"><polyline points="1 1 5 5 9 1"/></svg>
+                  </button>
+                  <ul class="custom-select-list" id="thicknessList">
+                    <li class="custom-select-item" data-value="40T">40T</li>
+                    <li class="custom-select-item active" data-value="50T">50T</li>
+                    <li class="custom-select-item" data-value="60T">60T</li>
+                    <li class="custom-select-item" data-value="70T">70T</li>
+                    <li class="custom-select-item" data-value="80T">80T</li>
+                    <li class="custom-select-item" data-value="90T">90T</li>
+                    <li class="custom-select-item" data-value="100T">100T</li>
+                    <li class="custom-select-item" data-value="110T">110T</li>
+                  </ul>
+                  <input type="hidden" id="thicknessValue" value="50T" />
+                </div>
+              </div>
+
+            </div>
+
+            <!-- Row 2: 가로 × 세로 -->
+            <div class="field-row">
+              <div class="field-group">
+                <label class="field-label">가로 (너비)</label>
+                <div class="field-input-wrap">
+                  <input type="number" class="field-input" id="winWidth" value="500" min="1" step="1" />
+                  <div class="unit-select-wrap">
+                    <select class="unit-select" id="winWidthUnit">
+                      <option value="mm">mm</option>
+                      <option value="cm">cm</option>
+                      <option value="m">m</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div class="field-dot">×</div>
+              <div class="field-group">
+                <label class="field-label">세로 (높이)</label>
+                <div class="field-input-wrap">
+                  <input type="number" class="field-input" id="winHeight" value="900" min="1" step="1" />
+                  <div class="unit-select-wrap">
+                    <select class="unit-select" id="winHeightUnit">
+                      <option value="mm">mm</option>
+                      <option value="cm">cm</option>
+                      <option value="m">m</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Row 3: 주문 수량 -->
+            <div class="field-row">
+              <div class="field-group">
+                <label class="field-label">주문 수량</label>
+                <div class="field-input-wrap">
+                  <input type="number" class="field-input" id="winQty" value="1" min="1" step="1" />
+                  <div class="unit-select-wrap unit-fixed">
+                    <span class="unit-label">개</span>
+                  </div>
+                </div>
+              </div>
+              <div class="field-dot"></div>
+              <div class="field-group"></div>
+            </div>
+
+            <!-- 버튼 -->
+            <div class="btn-row">
+              <button class="btn-calc" id="btnCalc" type="button">계산하기</button>
+              <button class="btn-reset" id="btnReset" type="button">초기화</button>
+            </div>
+
+          </div><!-- /calc-card-main -->
+
+          <!-- 결과 패널 -->
+          <div class="calc-right-col">
+          <div class="result-panel" id="resultPanel" style="display:none;">
+            <div class="result-main-row">
+              <div class="result-main-card">
+                <div class="result-main-sub" id="resMainSub">— 총 견적가</div>
+                <div class="result-main-count">
+                  <span class="result-main-num" id="resMainNum">—</span>
+                  <span class="result-main-unit">원</span>
+                </div>
+                <div class="result-main-desc" id="resMainDesc">—</div>
+              </div>
+              <div class="result-detail-card">
+                <div class="result-detail-icon">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    <line x1="3" y1="9" x2="21" y2="9"/>
+                    <line x1="9" y1="9" x2="9" y2="21"/>
+                  </svg>
+                </div>
+                <div class="result-detail-metrics">
+                  <div class="result-metric">
+                    <div class="result-metric-label">단열재</div>
+                    <div class="result-metric-value" id="resMaterial">—</div>
+                  </div>
+                  <div class="result-metric">
+                    <div class="result-metric-label">1개 단가</div>
+                    <div class="result-metric-value" id="resUnitPrice">—</div>
+                  </div>
+                  <div class="result-metric">
+                    <div class="result-metric-label">결제 수량</div>
+                    <div class="result-metric-value" id="resPayQty">—</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="result-note" id="resultNote"></div>
+          </div>
+
+          <!-- 확인해주세요 + 관련 계산기 -->
+          <div class="tip-related-wrap">
+            <div class="tip-box">
+              <div class="tip-title">확인해주세요.</div>
+              <ul class="tip-list">
+                <li>견적기에서 확인한 가로·세로 사이즈와 주문 수량을 직접 선택하신 후 구매해 주세요.</li>
+                <li>요청하신 사이즈가 커서 부피 문제로 택배 배송이 어려울 경우, 부득이하게 화물로 배송되며 배송비가 추가 부과될 수 있습니다.</li>
+                <li>작은 사이즈 다량 주문 시 재단비가 발생할 수 있습니다.</li>
+                <li>단열재 제작이 시작된 이후에는 사양 변경이나 취소가 어렵습니다.</li>
+                <li>사이즈는 창문 안쪽 유리면 기준으로 측정하세요. 창틀 포함 시 단열재가 맞지 않을 수 있습니다.</li>
+              </ul>
+            <div class="related-section">
+              <h3 class="related-title">이런 계산기는 어때요?</h3>
+              <div class="related-tags">
+                <a href="insulation-board.html" class="related-tag">판상형 단열재 수량 계산기</a>
+                <a href="reflective-insulation.html" class="related-tag">열반사 단열재 소요량 계산기</a>
+                <a href="gypsum.html" class="related-tag">석고보드 수량 계산기</a>
+                <a href="thermal-wallpaper.html" class="related-tag">단열벽지 소요량 계산기</a>
+              </div>
+            </div>
+            </div>
+          </div>
+
+        </div><!-- /calc-right-col -->
+        </div><!-- /calc-main-wrap -->
+
+        <!-- SEO 영역 -->
+        <div class="seo-wrap">
+
+          <div class="seo-section">
+            <h2 class="seo-title">창문형 단열재, 에어컨 냉방 효율을 70%까지 높이는 가장 쉬운 방법</h2>
+            <p class="seo-body">건축물의 열에너지 손실과 유입은 유리창을 통해 가장 많이 발생합니다. 창문형 단열재 하나만으로 실내 열손실의 약 70%를 막을 수 있으며, 에어컨·냉방 효율 극대화는 물론 직사광선 차단과 암막 효과로 쾌적한 수면 환경까지 만들어 줍니다.</p>
+          </div>
+
+          <div class="seo-section">
+            <h2 class="seo-title">창문 단열재의 주요 효과</h2>
+            <ol class="seo-list seo-list--ol">
+              <li><strong>열차단 및 냉방 효율 극대화</strong><span>직사광선과 외부 냉기를 동시에 차단해 에어컨·난방기의 에너지 소비를 크게 줄여줍니다.</span></li>
+              <li><strong>암막 효과로 꿀잠 보장</strong><span>두꺼운 단열재가 빛을 차단해 커튼 없이도 암막 효과를 발휘합니다.</span></li>
+              <li><strong>쉽고 빠른 설치</strong><span>접착제 없이 사이즈에 맞게 제작된 단열재를 창문에 끼워 넣기만 하면 시공 완료. 언제든 탈부착이 가능합니다.</span></li>
+              <li><strong>창문형 에어컨 마감 해결</strong><span>창문형·이동식 에어컨 설치 시 생기는 틈새 마감 문제를 깔끔하게 해결합니다.</span></li>
+            </ol>
+          </div>
+
+          <div class="seo-section">
+            <h2 class="seo-title">창문 단열재 구조 및 소재</h2>
+            <p class="seo-body">창문형 단열재는 외부·내부를 단열벽지로 깔끔하게 마감하고, 중간에 스티로폼(EPS) 또는 아이소핑크(XPS) 단열재를 삽입한 샌드위치 구조입니다. 다양한 벽지 디자인을 선택할 수 있어 인테리어 훼손 없이 설치할 수 있습니다.</p>
+            <div class="seo-table-wrap">
+              <table class="seo-table">
+                <thead>
+                  <tr>
+                    <th>구분</th>
+                    <th>백색 스티로폼 (EPS)</th>
+                    <th>아이소핑크 (XPS)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td>열전도율</td><td>약 0.037 W/mK</td><td>약 0.027 W/mK</td></tr>
+                  <tr><td>내습성</td><td>보통</td><td>우수 (흡수율 낮음)</td></tr>
+                  <tr><td>단열 성능</td><td>표준</td><td>동일 두께 대비 더 우수</td></tr>
+                  <tr><td>가격</td><td>저렴</td><td>중간~높음</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="seo-section">
+            <h2 class="seo-title">900×1800mm를 초과하는 대형 사이즈는 분할 제작됩니다</h2>
+            <p class="seo-body">단열재 원자재의 기본 규격은 900×1800mm입니다. 가로 또는 세로 중 한쪽이 이 기준을 초과하는 사이즈를 주문하면 균등하게 나눠 여러 장으로 분할 제작해 납품됩니다. 분할된 각 조각을 현장에서 맞춰 끼우는 방식이므로, 설치 전 분할 수량과 배치 순서를 미리 확인해 주세요.</p>
+            <div class="seo-formula">
+              <div class="seo-formula-label"><span class="badge-orange">분할 제작 기준</span></div>
+              <div class="seo-formula-body">가로 또는 세로 중 한쪽이 1800mm 초과 시 → 균등 분할하여 여러 장으로 제작 납품</div>
+              <div class="seo-formula-example">예시: 900×2400mm 주문 → <strong>900×1200mm 2장</strong>으로 분할 제작 납품 / 설치는 고객이 직접 진행</div>
+            </div>
+          </div>
+
+          <div class="seo-section">
+            <h2 class="seo-title">올바른 설치 방법 — 여름철 유리 파손 주의</h2>
+            <div class="seo-checklist">
+              <div class="seo-check-item">
+                <div class="seo-check-title">유리창과 단열재 사이 간격 유지 필수</div>
+                <p class="seo-check-body">뜨거운 여름철, 단열재를 유리에 직접 붙이면 열이 갇혀 유리가 파손될 수 있습니다. 반드시 유리와 단열재 사이에 최소 2~5cm 이상 간격을 두세요.</p>
+              </div>
+              <div class="seo-check-item">
+                <div class="seo-check-title">상하단 통기 공간 확보</div>
+                <p class="seo-check-body">단열재와 창문 사이 상하단에 2~10cm 이상의 통기 공간을 확보해야 내부 열기가 자연스럽게 빠져나갑니다. 통기 공간을 둬도 유리와 단열재 사이에 형성된 공기층이 열전달을 늦춰 더 안전한 단열 구조가 만들어집니다.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="seo-section">
+            <h2 class="seo-title">자주 묻는 질문 (FAQ)</h2>
+            <div class="seo-faq">
+              <div class="seo-faq-item">
+                <div class="seo-faq-q">통기 공간을 둬도 단열 효과가 유지되나요?</div>
+                <div class="seo-faq-a">네, 오히려 유리와 단열재 사이에 형성된 공기층이 열전달을 늦춰 더 안전한 단열 구조를 만듭니다. 잘못된 밀착 설치가 단열 효과보다 유리 파손 위험을 높이므로 올바른 간격 설치를 권장합니다.</div>
+              </div>
+              <div class="seo-faq-item">
+                <div class="seo-faq-q">한번 설치하면 떼어낼 수 없나요?</div>
+                <div class="seo-faq-a">아닙니다. 접착제로 붙이는 방식이 아니라 창문에 끼워 넣는 방식이므로 언제든 필요한 곳에 탈부착이 가능합니다. 계절에 따라 설치하고 보관하는 방식으로 반영구적으로 사용할 수 있습니다.</div>
+              </div>
+              <div class="seo-faq-item">
+                <div class="seo-faq-q">사이즈가 맞지 않으면 어떻게 하나요?</div>
+                <div class="seo-faq-a">창문별로 사이즈가 각각 다르기 때문에 원하는 사이즈에 맞게 주문 제작합니다. 위 견적 계산기에서 창문 안쪽 유리면 기준 가로·세로 사이즈를 정확히 측정해 입력하시면 됩니다.</div>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /seo-wrap -->
+
+      </div><!-- /calc-wrapper -->
+
+      <footer class="site-footer">
+        <div class="footer-links">
+          <a href="#">개인정보처리방침</a>
+          <a href="#">이용약관</a>
+          <a href="#">문의하기</a>
+        </div>
+        <p class="footer-copy">© 에너가드컴퍼니</p>
+      </footer>
+
+      <script src="window-insulation.js"></script>
+</main>

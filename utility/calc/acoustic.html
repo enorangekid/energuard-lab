@@ -1,0 +1,293 @@
+﻿<script>if(!window.KankanRouter)location.replace('../index.html');</script>
+<main class="main-content">
+
+      <div class="page-header">
+        <nav class="breadcrumb" aria-label="breadcrumb">
+          <a href="../index.html">홈</a>
+          <span class="bc-sep">›</span>
+          <span>단열재/목공/보드</span>
+          <span class="bc-sep">›</span>
+          <span class="bc-current">방음/흡음재 수량 계산기</span>
+        </nav>
+        <h1 class="page-title">방음/흡음재 수량 계산기</h1>
+      </div>
+
+      <div class="calc-wrapper">
+        <div class="calc-main-wrap">
+
+          <div class="calc-card-main" id="calcForm">
+
+            <!-- 시공 면적 가로 × 세로 -->
+            <div class="field-row">
+              <div class="field-group">
+                <label class="field-label">시공 면적 가로</label>
+                <div class="field-input-wrap">
+                  <input type="number" class="field-input" id="wallWidth" value="3000" min="1" step="1" />
+                  <div class="unit-select-wrap">
+                    <select class="unit-select" id="wallWidthUnit">
+                      <option value="mm">mm</option>
+                      <option value="cm">cm</option>
+                      <option value="m">m</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div class="field-dot">×</div>
+              <div class="field-group">
+                <label class="field-label">시공 면적 세로</label>
+                <div class="field-input-wrap">
+                  <input type="number" class="field-input" id="wallHeight" value="2400" min="1" step="1" />
+                  <div class="unit-select-wrap">
+                    <select class="unit-select" id="wallHeightUnit">
+                      <option value="mm">mm</option>
+                      <option value="cm">cm</option>
+                      <option value="m">m</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 흡음재 가로 × 세로 -->
+            <div class="field-row">
+              <div class="field-group">
+                <label class="field-label">흡음재 가로</label>
+                <div class="field-input-wrap">
+                  <input type="number" class="field-input" id="matWidth" value="500" min="1" step="1" />
+                  <div class="unit-select-wrap">
+                    <select class="unit-select" id="matWidthUnit">
+                      <option value="mm">mm</option>
+                      <option value="cm">cm</option>
+                      <option value="m">m</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div class="field-dot">×</div>
+              <div class="field-group">
+                <label class="field-label">흡음재 세로</label>
+                <div class="field-input-wrap">
+                  <input type="number" class="field-input" id="matHeight" value="500" min="1" step="1" />
+                  <div class="unit-select-wrap">
+                    <select class="unit-select" id="matHeightUnit">
+                      <option value="mm">mm</option>
+                      <option value="cm">cm</option>
+                      <option value="m">m</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 할증률 -->
+            <div class="field-row">
+              <div class="field-group">
+                <label class="field-label">할증률 (로스)</label>
+                <div class="field-input-wrap">
+                  <input type="number" class="field-input" id="lossRate" value="5" min="0" max="50" step="1" />
+                  <div class="unit-select-wrap unit-fixed">
+                    <span class="unit-label">%</span>
+                  </div>
+                </div>
+              </div>
+              <div class="field-dot"></div>
+              <div class="field-group"></div>
+            </div>
+
+            <!-- 차감 면적 -->
+            <div class="field-row deduction-row">
+              <span class="field-label-inline">차감할 면적이 있나요</span>
+              <div class="radio-group">
+                <label class="radio-label">
+                  <input type="radio" name="hasDeduction" value="yes" />
+                  <span class="radio-custom"></span>
+                  예
+                </label>
+                <label class="radio-label">
+                  <input type="radio" name="hasDeduction" value="no" checked />
+                  <span class="radio-custom"></span>
+                  아니오
+                </label>
+              </div>
+            </div>
+
+            <div class="deduction-inputs" id="deductionInputs" style="display:none;">
+              <div id="deductionList"></div>
+            </div>
+
+            <!-- 버튼 -->
+            <div class="btn-row">
+              <button class="btn-calc" id="btnCalc" type="button">계산하기</button>
+              <button class="btn-reset" id="btnReset" type="button">초기화</button>
+            </div>
+
+          </div><!-- /calc-card-main -->
+
+          <!-- 결과 패널 -->
+          <div class="calc-right-col">
+          <div class="result-panel" id="resultPanel" style="display:none;">
+            <div class="result-main-row">
+              <div class="result-main-card">
+                <div class="result-main-sub" id="resMainSub">필요한 흡음재 수량</div>
+                <div class="result-main-count">
+                  <span class="result-main-num" id="resMainNum">—</span>
+                  <span class="result-main-unit">장</span>
+                </div>
+                <div class="result-main-desc" id="resMainDesc">—</div>
+              </div>
+              <div class="result-detail-card">
+                <div class="result-detail-icon">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    <line x1="3" y1="9" x2="21" y2="9"/>
+                    <line x1="9" y1="9" x2="9" y2="21"/>
+                  </svg>
+                </div>
+                <div class="result-detail-metrics">
+                  <div class="result-metric">
+                    <div class="result-metric-label">시공 면적</div>
+                    <div class="result-metric-value" id="resNetArea">—</div>
+                  </div>
+                  <div class="result-metric">
+                    <div class="result-metric-label">자재 1장 면적</div>
+                    <div class="result-metric-value" id="resMatArea">—</div>
+                  </div>
+                  <div class="result-metric">
+                    <div class="result-metric-label">㎡당 수량</div>
+                    <div class="result-metric-value" id="resPerSqm">—</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="result-note" id="resultNote"></div>
+          </div>
+
+          <!-- 확인해주세요 + 관련 계산기 -->
+          <div class="tip-related-wrap">
+            <div class="tip-box">
+              <div class="tip-title">확인해주세요.</div>
+              <ul class="tip-list">
+                <li>확실한 방음 효과를 위해서는 무거운 '차음재(고무판)'를 먼저 붙여 소리를 막고, 그 위에 '흡음재'를 붙여 울림을 잡는 이중 시공이 정석입니다.</li>
+                <li>소리는 바늘구멍 같은 작은 틈으로도 새어 나갑니다. 자재 사이의 이음매와 모서리 틈새를 실리콘이나 조이너로 완벽하게 기밀 시공해야 합니다.</li>
+                <li>계란판 스펀지형 흡음재는 주로 내부의 소리 울림(에코)을 잡는 용도이며, 옆집이나 윗집의 외부 소음을 완벽히 차단하기에는 부족할 수 있습니다.</li>
+                <li>차음재는 무게가 상당히 무겁습니다. 천장이나 벽면에 시공 시 시간이 지나 떨어지지 않도록 강력 접착제와 타카 등으로 튼튼하게 보강 고정하세요.</li>
+                <li>임대 주택의 벽지 위에 바로 시공하면 나중에 원상복구가 어렵습니다. 벽지 위에 마스킹 테이프를 먼저 바르고 그 위에 실리콘으로 부착하는 방법을 추천합니다.</li>
+              </ul>
+            <div class="related-section">
+              <h3 class="related-title">이런 계산기는 어때요?</h3>
+              <div class="related-tags">
+                <a href="gypsum.html" class="related-tag">석고보드 수량 계산기</a>
+                <a href="insulation-board.html" class="related-tag">판상형 단열재 수량 계산기</a>
+                <a href="tex.html" class="related-tag">천장재(텍스) 수량 계산기</a>
+              </div>
+            </div>
+            </div>
+          </div>
+
+        </div><!-- /calc-right-col -->
+        </div><!-- /calc-main-wrap -->
+
+        <!-- SEO 영역 -->
+        <div class="seo-wrap">
+
+          <div class="seo-section">
+            <h2 class="seo-title">방음/흡음재 수량 계산기, 차음재·아트보드·계란판 물량 산출 가이드</h2>
+            <p class="seo-body">방음 시공의 핵심은 빈틈없는 기밀성입니다. 자재가 부족하여 조각조각 이어 붙이면 그 미세한 틈새로 소리가 새어 나가 방음 효과가 급격히 저하됩니다. 시공할 벽면의 면적과 사용할 흡음재 규격을 입력하면, 할증률(로스)과 창문 등 차감 면적을 고려하여 소음 차단 성능을 극대화할 수 있는 정밀 소요량을 산출해 드립니다.</p>
+          </div>
+
+          <div class="seo-section">
+            <h2 class="seo-title">방음/흡음재 수량 계산 공식</h2>
+            <p class="seo-body">전체 시공 면적을 자재 한 장의 유효 면적으로 나누어 산출합니다.</p>
+            <div class="seo-formula">
+              <div class="seo-formula-label"><span class="badge-orange">총 소요 수량</span></div>
+              <div class="seo-formula-body">필요 수량(장) = {(시공 면적 − 차감 면적) ÷ 자재 한 장 면적} × (1 + 할증률 / 100)</div>
+            </div>
+            <div class="seo-formula" style="margin-top:10px;">
+              <div class="seo-formula-label"><span class="badge-orange">㎡당 기준 수량</span></div>
+              <div class="seo-formula-body">㎡당 수량(장) = 1 ÷ 자재 한 장 면적(㎡)</div>
+              <div class="seo-formula-example">시공할 공간의 단위 면적(㎡)당 필요한 기본 장수를 먼저 파악하면 자재 발주가 훨씬 수월합니다.</div>
+            </div>
+          </div>
+
+          <div class="seo-section">
+            <h2 class="seo-title">계산기 입력 항목 상세 가이드</h2>
+            <p class="seo-body">정확한 견적을 위해 시공 부위의 실측 데이터와 자재 사양을 확인해 주세요.</p>
+            <ol class="seo-list seo-list--ol">
+              <li><strong>시공 면적 가로, 높이</strong><span>방음재를 부착할 벽면 또는 천장의 전체 너비와 높이를 입력합니다. 지그재그 시공을 고려해 가장 긴 구간을 기준으로 실측하세요.</span></li>
+              <li><strong>흡음재 종류 및 규격</strong><span>자재마다 표준 규격이 다릅니다. 아트보드(600×600/1200), 계란판(500×500), 차음재(1000×1000) 등 시공할 자재의 가로/세로를 입력하세요.</span></li>
+              <li><strong>할증률 및 차감 면적</strong><span>재단 로스는 보통 5~10%를 권장하며, 창문이나 문처럼 자재가 붙지 않는 공간의 면적은 차감 면적에 입력하여 정확도를 높이세요.</span></li>
+            </ol>
+          </div>
+
+          <div class="seo-section">
+            <h2 class="seo-title">자재별 특징 및 비교 가이드</h2>
+            <div class="seo-table-wrap">
+              <table class="seo-table">
+                <thead>
+                  <tr>
+                    <th>구분</th>
+                    <th>아트보드 / 폴리에스터</th>
+                    <th>계란판 / 흡음 스폰지</th>
+                    <th>차음재 / 고무 시트</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td>주기능</td><td>흡음 및 인테리어 마감</td><td>고성능 흡음 (내부 울림)</td><td>소리 투과 차단 (차음)</td></tr>
+                  <tr><td>내구성</td><td>우수함 (형태 유지)</td><td>보통 (찢어짐 주의)</td><td>반영구적 (무게 높음)</td></tr>
+                  <tr><td>시공법</td><td>실리콘 / 글루건</td><td>접착제 / 스티커</td><td>매우 튼튼한 접착 필요</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="seo-section">
+            <h2 class="seo-title">전문가 노하우 및 체크리스트</h2>
+            <div class="seo-checklist">
+              <div class="seo-check-item">
+                <div class="seo-check-title">차음재 + 흡음재 이중 시공</div>
+                <p class="seo-check-body">확실한 소음 차단을 위해 고밀도 차음재를 먼저 벽에 붙여 소리 투과를 막고, 그 위에 흡음재를 덧붙여 소리의 울림을 흡수하는 것이 방음 시공의 정석입니다.</p>
+              </div>
+              <div class="seo-check-item">
+                <div class="seo-check-title">기밀 시공 (틈새 완벽 차단)</div>
+                <p class="seo-check-body">소리는 아주 작은 틈으로도 새어 나갑니다. 자재 사이나 모서리 틈새는 실리콘이나 전용 조이너로 꼼꼼하게 마감해야 고주파음까지 잡아낼 수 있습니다.</p>
+              </div>
+              <div class="seo-check-item">
+                <div class="seo-check-title">전용 접착제 및 보강 사용</div>
+                <p class="seo-check-body">간편한 점착형 제품도 좋지만, 거친 벽면에는 실리콘과 글루건을 병행하세요. 특히 무거운 차음재는 시공 시 하중을 견딜 수 있도록 튼튼하게 보강해야 낙하를 방지할 수 있습니다.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="seo-section">
+            <h2 class="seo-title">자주 묻는 질문 (FAQ)</h2>
+            <div class="seo-faq">
+              <div class="seo-faq-item">
+                <div class="seo-faq-q">계란판 스폰지만 붙여도 옆집 소음이 차단될까요?</div>
+                <div class="seo-faq-a">스폰지형 흡음재는 주로 내부 울림을 잡아주는 용도입니다. 외부 소음을 막으려면 무거운 고무 재질의 차음재를 먼저 시공한 뒤 흡음재를 붙여야 효과적입니다.</div>
+              </div>
+              <div class="seo-faq-item">
+                <div class="seo-faq-q">임대 주택 벽지 위에 바로 시공해도 되나요?</div>
+                <div class="seo-faq-a">가능하지만 퇴거 시 벽지 손상 위험이 큽니다. 원상복구가 중요하다면 벽지에 마스킹 테이프를 넓게 바른 후 그 위에 접착 시공하는 것을 권장합니다.</div>
+              </div>
+              <div class="seo-faq-item">
+                <div class="seo-faq-q">천장에도 이 계산기를 사용해도 되나요?</div>
+                <div class="seo-faq-a">네, 천장 가로/세로 면적을 입력하시면 동일하게 계산됩니다. 다만 천장 시공 시에는 자재 무게에 의한 낙하 위험이 있으므로 가벼운 소재 위주로 선택하시기 바랍니다.</div>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /seo-wrap -->
+
+      </div><!-- /calc-wrapper -->
+
+      <footer class="site-footer">
+        <div class="footer-links">
+          <a href="#">개인정보처리방침</a>
+          <a href="#">이용약관</a>
+          <a href="#">문의하기</a>
+        </div>
+        <p class="footer-copy">© 에너가드컴퍼니</p>
+      </footer>
+
+      <script src="acoustic.js"></script>
+</main>

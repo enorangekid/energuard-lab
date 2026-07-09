@@ -1,0 +1,271 @@
+﻿<script>if(!window.KankanRouter)location.replace('../index.html');</script>
+<main class="main-content">
+
+      <div class="page-header">
+        <nav class="breadcrumb" aria-label="breadcrumb">
+          <a href="../index.html">홈</a>
+          <span class="bc-sep">›</span>
+          <span>마감/인테리어</span>
+          <span class="bc-sep">›</span>
+          <span class="bc-current">우레탄폼 폼본드 소요량 계산기</span>
+        </nav>
+        <h1 class="page-title">우레탄폼 폼본드 소요량 계산기</h1>
+      </div>
+
+      <div class="calc-wrapper">
+        <div class="calc-main-wrap">
+
+          <div class="calc-card-main" id="calcForm">
+
+            <!-- Row 1: 단열재 규격 프리셋 -->
+            <div class="field-row">
+              <div class="field-group">
+                <label class="field-label">단열재 규격 (프리셋)</label>
+                <input type="hidden" id="presetType" value="custom" />
+                <div class="custom-select-wrap" id="presetTypeWrap">
+                  <button class="custom-select-btn" type="button" id="presetTypeBtn">
+                    <span class="custom-select-text" id="presetTypeText">직접 입력</span>
+                    <svg class="custom-select-arrow" width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 1l4 4 4-4" stroke="#999" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </button>
+                  <ul class="custom-select-list" id="presetTypeList">
+                    <li class="custom-select-item active" data-value="custom" data-w="" data-h="">직접 입력</li>
+                    <li class="custom-select-item" data-value="900x1800" data-w="900" data-h="1800">900 × 1800 mm</li>
+                    <li class="custom-select-item" data-value="600x900" data-w="600" data-h="900">600 × 900 mm</li>
+                    <li class="custom-select-item" data-value="500x1000" data-w="500" data-h="1000">500 × 1000 mm</li>
+                    <li class="custom-select-item" data-value="400x900" data-w="400" data-h="900">400 × 900 mm</li>
+                  </ul>
+                </div>
+              </div>
+              <div class="field-dot"></div>
+              <div class="field-group">
+                <label class="field-label">시공 수량</label>
+                <div class="field-input-wrap">
+                  <input type="number" class="field-input" id="boardCount" value="10" min="1" step="1" />
+                  <div class="unit-select-wrap unit-fixed">
+                    <span class="unit-label">장</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Row 2: 단열재 가로 / 세로 -->
+            <div class="field-row">
+              <div class="field-group">
+                <label class="field-label">단열재 가로</label>
+                <div class="field-input-wrap">
+                  <input type="number" class="field-input" id="boardW" value="900" min="1" step="1" />
+                  <div class="unit-select-wrap">
+                    <select class="unit-select" id="boardWUnit">
+                      <option value="mm">mm</option>
+                      <option value="cm">cm</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div class="field-dot">×</div>
+              <div class="field-group">
+                <label class="field-label">단열재 세로</label>
+                <div class="field-input-wrap">
+                  <input type="number" class="field-input" id="boardH" value="1800" min="1" step="1" />
+                  <div class="unit-select-wrap">
+                    <select class="unit-select" id="boardHUnit">
+                      <option value="mm">mm</option>
+                      <option value="cm">cm</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Row 3: 1캔 시공 면적 고정 / 할증률 -->
+            <div class="field-row">
+              <div class="field-group">
+                <label class="field-label">1캔 시공 가능 면적</label>
+                <div class="field-input-wrap">
+                  <input type="text" class="field-input" value="16 ㎡ / 캔 (고정)" disabled style="color: var(--color-text-muted); background: #f4f4f4;" />
+                </div>
+              </div>
+              <div class="field-dot"></div>
+              <div class="field-group">
+                <label class="field-label">할증율(로스)</label>
+                <div class="field-input-wrap">
+                  <input type="number" class="field-input" id="lossRate" value="10" min="0" max="50" step="1" />
+                  <div class="unit-select-wrap unit-fixed">
+                    <span class="unit-label">%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 버튼 -->
+            <div class="btn-row">
+              <button class="btn-calc" id="btnCalc" type="button">
+                <span class="btn-calc-icon">≡</span> 계산하기
+              </button>
+              <button class="btn-reset" id="btnReset" type="button">
+                <span class="btn-reset-icon">C</span> 초기화
+              </button>
+            </div>
+
+          </div><!-- /calc-card-main -->
+
+          <!-- 결과 패널 -->
+          <div class="calc-right-col">
+          <div class="result-panel" id="resultPanel" style="display:none;">
+            <div class="result-main-row">
+
+              <div class="result-main-card">
+                <div class="result-main-sub" id="resMainSub">— 장 시공에 필요한 폼본드</div>
+                <div class="result-main-count">
+                  <span class="result-main-num" id="resMainNum">—</span>
+                  <span class="result-main-unit">개</span>
+                </div>
+                <div class="result-main-desc" id="resMainDesc">할증율 —%</div>
+              </div>
+
+              <div class="result-detail-card">
+                <div class="result-detail-icon">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    <line x1="3" y1="9" x2="21" y2="9"/>
+                    <line x1="3" y1="15" x2="21" y2="15"/>
+                    <line x1="9" y1="9" x2="9" y2="21"/>
+                    <line x1="15" y1="9" x2="15" y2="21"/>
+                  </svg>
+                </div>
+                <div class="result-detail-metrics">
+                  <div class="result-metric">
+                    <div class="result-metric-label">전체 시공 면적</div>
+                    <div class="result-metric-value" id="resTotalArea">—</div>
+                  </div>
+                  <div class="result-metric">
+                    <div class="result-metric-label">장당 소요량</div>
+                    <div class="result-metric-value" id="resPerBoard">—</div>
+                  </div>
+                  <div class="result-metric">
+                    <div class="result-metric-label">1캔 시공 면적</div>
+                    <div class="result-metric-value" id="resTotalGram">—</div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+            <div class="result-note" id="resultNote"></div>
+          </div>
+
+          <!-- 확인해주세요 + 관련 계산기 -->
+          <div class="tip-related-wrap">
+            <div class="tip-box">
+              <div class="tip-title">확인해주세요.</div>
+              <ul class="tip-list">
+                <li>캔을 뒤집어서 발포합니다. 분사 전 상하로 20회 이상 흔들어 주세요.</li>
+                <li>분사 후 일정 시간 뒤 접착면에 부착하고, 완전히 고정될 때까지 움직이지 않도록 눌러주세요.</li>
+                <li>접착 고정 후 1시간 정도면 단단한 접착력이 형성됩니다. 완전 경화 전까지 절대 만지지 마세요.</li>
+                <li>폼건 전용 제품은 캔과 건을 분리하지 말고 조절 밸브를 잠가두면 3~6개월 재사용이 가능합니다.</li>
+                <li>시공 방법과 단열재 종류·두께에 따라 실제 소요량은 달라질 수 있습니다.</li>
+              </ul>
+            <div class="related-section">
+              <h3 class="related-title">이런 계산기는 어때요?</h3>
+              <div class="related-tags">
+                <a href="insulation-board.html" class="related-tag">판상형 단열재 수량 계산기</a>
+                <a href="foam-2k.html" class="related-tag">우레탄폼 이액형[대용량] 소요량 계산기</a>
+                <a href="foam-spray.html" class="related-tag">우레탄폼 스프레이폼[소량] 소요량 계산기</a>
+                <a href="sealant.html" class="related-tag">실리콘/줄눈 소요량 계산기</a>
+              </div>
+            </div>
+            </div>
+          </div>
+
+        </div><!-- /calc-right-col -->
+        </div><!-- /calc-main-wrap -->
+
+        <!-- SEO 콘텐츠 -->
+        <div class="seo-wrap">
+
+          <div class="seo-section">
+            <h2 class="seo-title">우레탄폼 폼본드 소요량 계산기</h2>
+            <p class="seo-body">폼본드는 각종 단열재를 벽면에 고정할 때 사용하는 접착제입니다. 기존 합성수지계 접착제(G2본드)의 무게와 냄새 문제를 해결한 깔끔하고 간편한 제품으로, 1캔으로 최대 16㎡ 시공이 가능합니다. 단열재 규격과 수량을 입력하면 필요한 폼본드 개수를 정확하게 산출해 드립니다.</p>
+          </div>
+
+          <div class="seo-section">
+            <h2 class="seo-title">소요량 계산 공식</h2>
+            <p class="seo-body">1캔당 시공 가능 면적(16㎡)을 기준으로 필요 캔 수를 산출합니다.</p>
+            <ol class="seo-list seo-list--ol">
+              <li><strong>전체 시공 면적</strong><span>단열재 1장 면적(㎡) × 시공 수량(장)</span></li>
+              <li><strong>필요 캔 수</strong><span>올림(전체 면적 ÷ 16㎡ × (1 + 할증률/100))</span></li>
+            </ol>
+            <div class="seo-formula">
+              <div class="seo-formula-label"><span class="badge-orange">필요 캔 수 산출 공식</span></div>
+              <div class="seo-formula-body">캔 수 = 올림{ 단열재면적 × 수량 ÷ 16 × (1 + 할증률/100) }</div>
+            </div>
+            <div class="seo-formula-example">예시: 900×1800mm 단열재 10장, 할증 10% → 전체 면적 16.2㎡ → <strong>2개</strong> 주문 권장</div>
+          </div>
+
+          <div class="seo-section">
+            <h2 class="seo-title">폼본드 특징 및 적용 가능 피착면</h2>
+            <div class="seo-table-wrap">
+              <table class="seo-table">
+                <thead>
+                  <tr>
+                    <th>구분</th>
+                    <th>내용</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>1캔 시공 가능 면적</td>
+                    <td>16 ㎡</td>
+                  </tr>
+                  <tr>
+                    <td>접착 가능 피착면</td>
+                    <td>PE·PP·테프론·실리콘 제외 모든 면</td>
+                  </tr>
+                  <tr>
+                    <td>초기 고정 시간</td>
+                    <td>약 1시간</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="seo-section">
+            <h2 class="seo-title">사용 순서</h2>
+            <ol class="seo-list seo-list--ol">
+              <li><strong>시공면 청소</strong><span>분사면 및 충진부의 먼지를 충분히 제거합니다.</span></li>
+              <li><strong>흔들기</strong><span>제품을 뒤집어 상하로 20회 이상 흔든 후 폼건과 결합합니다.</span></li>
+              <li><strong>분사</strong><span>분사면에 제품을 일정한 크기로 분사합니다.</span></li>
+              <li><strong>접착</strong><span>분사 후 일정 시간 뒤 접착면에 부착하고 움직이지 않도록 고정합니다.</span></li>
+              <li><strong>경화 확인</strong><span>접착 고정 후 1시간이면 단단한 접착력이 형성됩니다. 불필요한 부분은 완전 경화 후 커터칼로 제거합니다.</span></li>
+            </ol>
+          </div>
+
+          <div class="seo-section">
+            <h2 class="seo-title">자주 묻는 질문 (FAQ)</h2>
+            <div class="seo-faq">
+              <div class="seo-faq-item">
+                <div class="seo-faq-q">G2본드와 비교해서 어떤 점이 좋은가요?</div>
+                <div class="seo-faq-a">기존 G2본드는 무겁고 냄새가 강해 작업 환경이 열악했습니다. 폼본드는 가볍고 냄새가 적으며 분사 방식이라 작업이 훨씬 간편합니다.</div>
+              </div>
+              <div class="seo-faq-item">
+                <div class="seo-faq-q">남은 제품을 재사용할 수 있나요?</div>
+                <div class="seo-faq-a">폼건 전용 제품은 캔과 건을 분리하지 않고 조절 밸브를 잠가두면 약 3~6개월 재사용이 가능합니다.</div>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /seo-wrap -->
+
+      </div><!-- /calc-wrapper -->
+
+      <footer class="site-footer">
+        <div class="footer-links">
+          <a href="#">개인정보처리방침</a>
+          <a href="#">이용약관</a>
+          <a href="#">문의하기</a>
+        </div>
+        <p class="footer-copy">© 에너가드컴퍼니</p>
+      </footer>
+
+      <script src="foam-bond.js"></script>
+</main>

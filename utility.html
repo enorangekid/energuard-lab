@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>유틸리티 — ENERGUARD LAB</title>
+  <base href="utility/" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css?v=20260706-topbar2" />
+  <link rel="stylesheet" href="calc/calc.css?v=20260706-topbar2" />
+  <link rel="stylesheet" href="../common.css?v=20260706-topbar2" />
+  <style>
+    :root {
+      --bg: #f8f9fb;
+      --card: #fff;
+      --ink: #1a1f2e;
+      --sub: #5a6378;
+      --line: #e8ecf2;
+      --dark: #05070b;
+      --dark-tint: #eef0f3;
+      --accent: #e85d2f;
+      --accent-dark: #d04420;
+      --accent-tint: #fdeee7;
+      --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+      --font-main: "Pretendard Variable", Pretendard, -apple-system, sans-serif;
+      --radius: 6px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body.utility-page {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--font-main);
+      font-size: 15px;
+      line-height: 1.55;
+    }
+
+    /* 상단바(.topbar 계열)는 ../common.css 공용 스타일을 그대로 사용합니다. 이 페이지 전용 중복 정의는 제거했습니다. */
+
+    .main-content {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 64px 0 80px;
+      background: transparent;
+      overflow-x: visible;
+    }
+
+    .page-header,
+    .calc-wrapper {
+      width: 100%;
+      max-width: 1180px;
+      margin-left: auto;
+      margin-right: auto;
+      padding-left: 0 !important;
+      padding-right: 0 !important;
+    }
+
+    .utility-head {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    .utility-head h1 {
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin: 0;
+    }
+
+    .utility-tag {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--dark);
+      background: var(--dark-tint);
+      padding: 2px 8px;
+      border-radius: 20px;
+    }
+
+    .utility-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 12px;
+    }
+
+    .utility-card {
+      display: flex;
+      min-height: 112px;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--card);
+      text-decoration: none;
+      color: inherit;
+      transition: border-color .14s, box-shadow .14s, transform .14s;
+    }
+
+    .utility-card:hover {
+      border-color: rgba(232, 93, 47, .42);
+      box-shadow: 0 10px 24px rgba(26, 31, 46, .08);
+      transform: translateY(-2px);
+    }
+
+    .utility-card small {
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--sub);
+    }
+
+    .utility-card strong {
+      display: block;
+      font-size: 16px;
+      font-weight: 800;
+      line-height: 1.35;
+      letter-spacing: 0;
+    }
+
+    .utility-arrow {
+      align-self: flex-end;
+      width: 26px;
+      height: 26px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background: var(--dark);
+      color: #fff;
+      font-family: var(--font-mono);
+      font-size: 14px;
+    }
+
+    .history-panel {
+      display: none;
+    }
+
+    @media (max-width: 720px) {
+      .main-content { padding: 42px 16px 64px; }
+      .page-header,
+      .calc-wrapper {
+        padding-left: 0;
+        padding-right: 0;
+      }
+      .utility-head { padding-top: 0; }
+      .utility-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+      .utility-card { min-height: 118px; padding: 14px; }
+      .utility-card strong { font-size: 14px; }
+    }
+  </style>
+</head>
+<body class="utility-page">
+  <header class="topbar" data-topbar></header>
+
+  <main class="main-content">
+    <section class="utility-head">
+      <h1>유틸리티</h1>
+      <span class="utility-tag">계산기 도구</span>
+    </section>
+
+    <section class="utility-grid" aria-label="계산기 목록">
+      <a class="utility-card" href="calc/insulation-board.html"><small>단열/보온</small><strong>판상형 단열재 수량 계산기</strong><span class="utility-arrow">→</span></a>
+      <a class="utility-card" href="calc/reflective-insulation.html"><small>단열/보온</small><strong>열반사 단열재 소요량 계산기</strong><span class="utility-arrow">→</span></a>
+      <a class="utility-card" href="calc/insulation-board-camp.html"><small>단열/보온</small><strong>캠핑 단열재 소요량 계산기</strong><span class="utility-arrow">→</span></a>
+      <a class="utility-card" href="calc/ice-fishing-mat.html"><small>단열/보온</small><strong>빙어낚시 매트 소요량 계산기</strong><span class="utility-arrow">→</span></a>
+      <a class="utility-card" href="calc/insulation-thickness.html"><small>단열/보온</small><strong>단열재 두께 계산기</strong><span class="utility-arrow">→</span></a>
+      <a class="utility-card" href="calc/heating-film-insulation.html"><small>단열/보온</small><strong>전기난방필름 소요량 계산기</strong><span class="utility-arrow">→</span></a>
+      <a class="utility-card" href="calc/window-insulation.html"><small>단열/보온</small><strong>창문 단열재 견적 계산기</strong><span class="utility-arrow">→</span></a>
+      <a class="utility-card" href="calc/gypsum.html"><small>목공/보드</small><strong>석고보드 수량 계산기</strong><span class="utility-arrow">→</span></a>
+      <a class="utility-card" href="calc/tex.html"><small>목공/보드</small><strong>천장재[텍스] 수량 계산기</strong><span class="utility-arrow">→</span></a>
+      <a class="utility-card" href="calc/acoustic.html"><small>목공/보드</small><strong>방음/흡음재 수량 계산기</strong><span class="utility-arrow">→</span></a>
+      <a class="utility-card" href="calc/thermal-wallpaper.html"><small>마감/인테리어</small><strong>단열벽지 소요량 계산기</strong><span class="utility-arrow">→</span></a>
+      <a class="utility-card" href="calc/thermal-base-wallpaper.html"><small>마감/인테리어</small><strong>단열초배지 소요량 계산기</strong><span class="utility-arrow">→</span></a>
+      <a class="utility-card" href="calc/interior-film.html"><small>마감/인테리어</small><strong>인테리어필름/시트지 소요량 계산기</strong><span class="utility-arrow">→</span></a>
+      <a class="utility-card" href="calc/flooring.html"><small>마감/인테리어</small><strong>장판 소요량 계산기</strong><span class="utility-arrow">→</span></a>
+      <a class="utility-card" href="calc/sealant.html"><small>마감/인테리어</small><strong>실리콘/줄눈 소요량 계산기</strong><span class="utility-arrow">→</span></a>
+      <a class="utility-card" href="calc/blind.html"><small>마감/인테리어</small><strong>블라인드 사이즈 계산기</strong><span class="utility-arrow">→</span></a>
+      <a class="utility-card" href="calc/foam-2k.html"><small>시공 보조</small><strong>우레탄폼 이액형[대용량] 소요량 계산기</strong><span class="utility-arrow">→</span></a>
+      <a class="utility-card" href="calc/foam-spray.html"><small>시공 보조</small><strong>우레탄폼 스프레이형[소량] 소요량 계산기</strong><span class="utility-arrow">→</span></a>
+      <a class="utility-card" href="calc/foam-bond.html"><small>시공 보조</small><strong>우레탄폼 폼본드 소요량 계산기</strong><span class="utility-arrow">→</span></a>
+      <a class="utility-card" href="calc/freight.html"><small>시공 보조</small><strong>단열재 적재·운임 계산기</strong><span class="utility-arrow">→</span></a>
+      <a class="utility-card" href="calc/freight-load.html"><small>시공 보조</small><strong>단열재 차량별 적재량 확인</strong><span class="utility-arrow">→</span></a>
+      <a class="utility-card" href="calc/thermal-conductivity.html"><small>참고 자료</small><strong>재료별 열전도율 표</strong><span class="utility-arrow">→</span></a>
+      <a class="utility-card" href="calc/u-value-table.html"><small>참고 자료</small><strong>지역별 부위별 허용 열관류율</strong><span class="utility-arrow">→</span></a>
+    </section>
+  </main>
+
+  <aside class="history-panel" id="historyPanel">
+    <div class="history-header">계산한 내역</div>
+    <div class="history-list" id="historyList"></div>
+  </aside>
+
+  <script src="../common.js?v=20260706-ranktrack"></script>
+  <script src="sidebar.js"></script>
+  <script src="history.js"></script>
+  <script src="router.js?v=20260706-routefix"></script>
+</body>
+</html>

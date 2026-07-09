@@ -1,0 +1,302 @@
+﻿<script>if(!window.KankanRouter)location.replace('../index.html');</script>
+<main class="main-content">
+
+      <div class="page-header">
+        <nav class="breadcrumb" aria-label="breadcrumb">
+          <a href="../index.html">홈</a>
+          <span class="bc-sep">›</span>
+          <span>단열재/목공/보드</span>
+          <span class="bc-sep">›</span>
+          <span class="bc-current">천장재(텍스) 수량 계산기</span>
+        </nav>
+        <h1 class="page-title">천장재(텍스) 수량 계산기</h1>
+      </div>
+
+      <div class="calc-wrapper">
+        <div class="calc-main-wrap">
+
+          <div class="calc-card-main" id="calcForm">
+
+            <!-- 천장 가로 × 세로 -->
+            <div class="field-row">
+              <div class="field-group">
+                <label class="field-label">천장 가로 길이</label>
+                <div class="field-input-wrap">
+                  <input type="number" class="field-input" id="ceilWidth" value="4000" min="1" step="1" />
+                  <div class="unit-select-wrap">
+                    <select class="unit-select" id="ceilWidthUnit">
+                      <option value="mm">mm</option>
+                      <option value="cm">cm</option>
+                      <option value="m">m</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div class="field-dot">×</div>
+              <div class="field-group">
+                <label class="field-label">천장 세로 길이</label>
+                <div class="field-input-wrap">
+                  <input type="number" class="field-input" id="ceilHeight" value="5000" min="1" step="1" />
+                  <div class="unit-select-wrap">
+                    <select class="unit-select" id="ceilHeightUnit">
+                      <option value="mm">mm</option>
+                      <option value="cm">cm</option>
+                      <option value="m">m</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 텍스 가로 × 세로 -->
+            <div class="field-row">
+              <div class="field-group">
+                <label class="field-label">천장재 텍스 가로 길이</label>
+                <div class="field-input-wrap">
+                  <input type="number" class="field-input" id="texWidth" value="300" min="1" step="1" />
+                  <div class="unit-select-wrap">
+                    <select class="unit-select" id="texWidthUnit">
+                      <option value="mm">mm</option>
+                      <option value="cm">cm</option>
+                      <option value="m">m</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div class="field-dot">×</div>
+              <div class="field-group">
+                <label class="field-label">천장재 텍스 세로 길이</label>
+                <div class="field-input-wrap">
+                  <input type="number" class="field-input" id="texHeight" value="600" min="1" step="1" />
+                  <div class="unit-select-wrap">
+                    <select class="unit-select" id="texHeightUnit">
+                      <option value="mm">mm</option>
+                      <option value="cm">cm</option>
+                      <option value="m">m</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 박스당 수량 / 할증률 -->
+            <div class="field-row">
+              <div class="field-group">
+                <label class="field-label">박스 당 수량</label>
+                <div class="field-input-wrap">
+                  <input type="number" class="field-input" id="boxQty" value="18" min="1" step="1" />
+                  <div class="unit-select-wrap unit-fixed">
+                    <span class="unit-label">장</span>
+                  </div>
+                </div>
+              </div>
+              <div class="field-dot"></div>
+              <div class="field-group">
+                <label class="field-label">할증률 (로스)</label>
+                <div class="field-input-wrap">
+                  <input type="number" class="field-input" id="lossRate" value="5" min="0" max="50" step="1" />
+                  <div class="unit-select-wrap unit-fixed">
+                    <span class="unit-label">%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 차감 면적 -->
+            <div class="deduction-row">
+              <span class="field-label-inline">차감할 면적이 있나요</span>
+              <div class="radio-group">
+                <label class="radio-label">
+                  <input type="radio" name="hasDeduction" value="yes" />
+                  <span class="radio-custom"></span>
+                  예
+                </label>
+                <label class="radio-label">
+                  <input type="radio" name="hasDeduction" value="no" checked />
+                  <span class="radio-custom"></span>
+                  아니오
+                </label>
+              </div>
+            </div>
+
+            <div class="deduction-inputs" id="deductionInputs" style="display:none;">
+              <div id="deductionList"></div>
+            </div>
+
+            <!-- 버튼 -->
+            <div class="btn-row">
+              <button class="btn-calc" id="btnCalc" type="button">계산하기</button>
+              <button class="btn-reset" id="btnReset" type="button">초기화</button>
+            </div>
+
+          </div><!-- /calc-card-main -->
+
+          <!-- 결과 패널 -->
+          <div class="calc-right-col">
+          <div class="result-panel" id="resultPanel" style="display:none;">
+            <div class="result-main-row">
+              <div class="result-main-card">
+                <div class="result-main-sub" id="resMainSub">필요한 주문 박스 수</div>
+                <div class="result-main-count">
+                  <span class="result-main-num" id="resMainNum">—</span>
+                  <span class="result-main-unit">박스</span>
+                </div>
+                <div class="result-main-desc" id="resMainDesc">—</div>
+              </div>
+              <div class="result-detail-card">
+                <div class="result-detail-icon">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    <line x1="3" y1="9" x2="21" y2="9"/>
+                    <line x1="9" y1="9" x2="9" y2="21"/>
+                  </svg>
+                </div>
+                <div class="result-detail-metrics">
+                  <div class="result-metric">
+                    <div class="result-metric-label">총 소요 장수</div>
+                    <div class="result-metric-value" id="resTotalPcs">—</div>
+                  </div>
+                  <div class="result-metric">
+                    <div class="result-metric-label">시공 면적</div>
+                    <div class="result-metric-value" id="resNetArea">—</div>
+                  </div>
+                  <div class="result-metric">
+                    <div class="result-metric-label">텍스 1장 면적</div>
+                    <div class="result-metric-value" id="resTexArea">—</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="result-note" id="resultNote"></div>
+          </div>
+
+          <!-- 확인해주세요 + 관련 계산기 -->
+          <div class="tip-related-wrap">
+            <div class="tip-box">
+              <div class="tip-title">확인해주세요.</div>
+              <ul class="tip-list">
+                <li>텍스는 낱장이 아닌 박스 단위(보통 18장/1평)로만 판매됩니다. 계산된 총 장수를 박스 단위로 올림하여 주문하셔야 합니다.</li>
+                <li>천장 중심선에서 양쪽으로 나누어 시공(와리 나누기)해야 양쪽 끝부분 쪽판 크기가 일정해져 마감이 깔끔하게 나옵니다.</li>
+                <li>300×600 규격 텍스는 처짐 방지를 위해 한 장당 나사 6개를 고정하는 '6발 시공'이 원칙입니다. (엠바 M-Bar 공법)</li>
+                <li>매입등 타공이나 에어컨 자리, 벽면 마감 부분에서 파손 로스가 많이 발생하므로 할증률을 5~10% 정도 여유 있게 잡으세요.</li>
+                <li>기존 텍스 위에 덧방 시공은 하중 문제로 천장이 처질 위험이 큽니다. 가급적 철거 후 경량 철골부터 재시공하는 것을 권장합니다.</li>
+              </ul>
+            <div class="related-section">
+              <h3 class="related-title">이런 계산기는 어때요?</h3>
+              <div class="related-tags">
+                <a href="gypsum.html" class="related-tag">석고보드 수량 계산기</a>
+                <a href="insulation-board.html" class="related-tag">판상형 단열재 수량 계산기</a>
+                <a href="interior-film.html" class="related-tag">인테리어필름 소요량 계산기</a>
+              </div>
+            </div>
+            </div>
+          </div>
+
+        </div><!-- /calc-right-col -->
+        </div><!-- /calc-main-wrap -->
+
+        <!-- SEO 영역 -->
+        <div class="seo-wrap">
+
+          <div class="seo-section">
+            <h2 class="seo-title">천장 텍스 수량 계산기, 아미텍스·집텍스·석고텍스 물량 산출 가이드</h2>
+            <p class="seo-body">사무실, 학교, 상가 천장 마감재로 가장 많이 쓰이는 텍스(Tex) 시공을 준비 중이신가요? 텍스는 낱장으로 판매되지 않고 박스 단위로만 판매되기 때문에, 정확한 박스 수량을 산출하는 것이 중요합니다. 이 계산기는 천장 면적과 텍스 규격, 박스당 포장 수량을 입력하면 할증률과 차감 면적을 고려하여 실제 필요한 주문 박스 수량을 정확하게 계산해 드립니다.</p>
+          </div>
+
+          <div class="seo-section">
+            <h2 class="seo-title">천장 텍스 수량 계산 공식</h2>
+            <p class="seo-body">전체 시공 면적을 자재 한 장의 유효 면적으로 나눈 후 박스 단위로 환산합니다.</p>
+            <div class="seo-formula">
+              <div class="seo-formula-label"><span class="badge-orange">총 소요 장수</span></div>
+              <div class="seo-formula-body">필요 장수 = {(천장 면적 − 차감 면적) ÷ 텍스 한 장 면적} × (1 + 할증률 / 100)</div>
+            </div>
+            <div class="seo-formula" style="margin-top:10px;">
+              <div class="seo-formula-label"><span class="badge-orange">주문 박스 수량</span></div>
+              <div class="seo-formula-body">주문 박스 수 = 올림(총 소요 장수 ÷ 박스 당 포장 수량)</div>
+              <div class="seo-formula-example">텍스는 박스 단위로만 출고되므로 소수점은 무조건 올림 처리합니다.</div>
+            </div>
+          </div>
+
+          <div class="seo-section">
+            <h2 class="seo-title">계산기 입력 항목 상세 가이드</h2>
+            <p class="seo-body">정확한 자재 산출을 위해 각 항목을 확인해 주세요.</p>
+            <ol class="seo-list seo-list--ol">
+              <li><strong>천장 가로, 세로 길이</strong><span>시공할 천장의 전체 너비와 길이를 입력합니다. 천장에 기둥이 있거나 구조가 복잡한 경우 구역을 나누어 합산해 주세요.</span></li>
+              <li><strong>텍스 규격 및 박스 수량</strong><span>사용하려는 텍스 한 장의 크기와 한 박스에 들어있는 장수(PCS)를 입력합니다. 집텍스/석고텍스는 보통 300×600 규격이며 18장(약 1평분)이 한 박스입니다.</span></li>
+              <li><strong>할증률</strong><span>천장은 조명 타공이나 벽면 마감 로스가 많으므로 5~10% 정도 여유를 두는 것이 좋습니다.</span></li>
+              <li><strong>차감 면적</strong><span>전등 기구나 에어컨 등 텍스가 시공되지 않는 공간이 있다면 면적을 입력하여 불필요한 자재 낭비를 방지하세요.</span></li>
+            </ol>
+          </div>
+
+          <div class="seo-section">
+            <h2 class="seo-title">주요 천장 텍스 종류 및 특징</h2>
+            <div class="seo-table-wrap">
+              <table class="seo-table">
+                <thead>
+                  <tr>
+                    <th>종류</th>
+                    <th>통상 규격 (mm)</th>
+                    <th>박스 수량</th>
+                    <th>주요 용도</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td>집텍스 / 석고텍스</td><td>300 × 600</td><td>18장 (3.24㎡)</td><td>사무실, 상가 천장 표준 마감</td></tr>
+                  <tr><td>아미텍스 (무석면)</td><td>300 × 600</td><td>18장 (3.24㎡)</td><td>내구성이 좋으며 구형 텍스 보수용</td></tr>
+                  <tr><td>마이톤 (T-Bar용)</td><td>603 × 603</td><td>10~12장 (가변)</td><td>고급 사무실 및 흡음 전용 천장</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="seo-section">
+            <h2 class="seo-title">전문가 노하우 및 체크리스트</h2>
+            <div class="seo-checklist">
+              <div class="seo-check-item">
+                <div class="seo-check-title">중심선 기준 와리 나누기</div>
+                <p class="seo-check-body">천장 정중앙에 중심선을 긋고 양쪽으로 배분하며 시공해야 끝부분의 쪽판 크기가 일정해져 미관상 보기 좋습니다.</p>
+              </div>
+              <div class="seo-check-item">
+                <div class="seo-check-title">6발 고정 원칙 (M-Bar 공법)</div>
+                <p class="seo-check-body">300×600 규격 텍스는 한 장당 6개의 나사를 박는 것이 정석입니다. 나사가 부족하면 시간이 지나 텍스가 처질 위험이 있습니다.</p>
+              </div>
+              <div class="seo-check-item">
+                <div class="seo-check-title">조명 타공 로스 고려</div>
+                <p class="seo-check-body">매입등이나 에어컨 설치를 위해 텍스를 타공하는 과정에서 파손이 발생할 수 있습니다. 할증률을 넉넉히 설정해 주세요.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="seo-section">
+            <h2 class="seo-title">자주 묻는 질문 (FAQ)</h2>
+            <div class="seo-faq">
+              <div class="seo-faq-item">
+                <div class="seo-faq-q">텍스 한 박스로 몇 평이나 시공할 수 있나요?</div>
+                <div class="seo-faq-a">가장 많이 쓰이는 300×600 규격 18장 포장 제품은 면적이 3.24㎡로, 약 1평을 시공할 수 있는 분량입니다.</div>
+              </div>
+              <div class="seo-faq-item">
+                <div class="seo-faq-q">엠바(M-bar)와 티바(T-bar)의 차이가 무엇인가요?</div>
+                <div class="seo-faq-a">엠바는 나사로 텍스를 고정하는 방식이고, 티바는 틀 위에 텍스를 얹어 놓는 방식으로 추후 부분 교체가 매우 쉽습니다.</div>
+              </div>
+              <div class="seo-faq-item">
+                <div class="seo-faq-q">기존 텍스 위에 덧방 시공해도 되나요?</div>
+                <div class="seo-faq-a">가능은 하지만 노후된 텍스가 무게를 견디지 못해 천장이 처질 위험이 있으므로 철거 후 재시공을 권장합니다.</div>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /seo-wrap -->
+
+      </div><!-- /calc-wrapper -->
+
+      <footer class="site-footer">
+        <div class="footer-links">
+          <a href="#">개인정보처리방침</a>
+          <a href="#">이용약관</a>
+          <a href="#">문의하기</a>
+        </div>
+        <p class="footer-copy">© 에너가드컴퍼니</p>
+      </footer>
+
+      <script src="tex.js"></script>
+</main>

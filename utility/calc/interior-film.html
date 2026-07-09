@@ -1,0 +1,323 @@
+﻿<script>if(!window.KankanRouter)location.replace('../index.html');</script>
+<main class="main-content">
+
+      <!-- 페이지 헤더 -->
+      <div class="page-header">
+        <nav class="breadcrumb" aria-label="breadcrumb">
+          <a href="../index.html">홈</a>
+          <span class="bc-sep">›</span>
+          <span>마감/인테리어</span>
+          <span class="bc-sep">›</span>
+          <span class="bc-current">인테리어 필름/시트지 소요량 계산기</span>
+        </nav>
+        <h1 class="page-title">인테리어 필름/시트지 소요량 계산기</h1>
+      </div>
+
+      <!-- 계산기 카드 -->
+      <div class="calc-wrapper">
+
+        <div class="calc-main-wrap">
+
+          <!-- 입력 섹션 -->
+          <div class="calc-card-main" id="calcForm">
+
+            <!-- Row 1: 부착면 가로 / 세로 -->
+            <div class="field-row">
+              <div class="field-group">
+                <label class="field-label">부착면 가로 길이</label>
+                <div class="field-input-wrap">
+                  <input type="number" class="field-input" id="wallWidth" value="3600" min="0" step="1" />
+                  <div class="unit-select-wrap">
+                    <select class="unit-select" id="wallWidthUnit">
+                      <option value="mm" selected>mm</option>
+                      <option value="cm">cm</option>
+                      <option value="m">m</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div class="field-dot">×</div>
+              <div class="field-group">
+                <label class="field-label">부착면 세로 길이</label>
+                <div class="field-input-wrap">
+                  <input type="number" class="field-input" id="wallHeight" value="4500" min="0" step="1" />
+                  <div class="unit-select-wrap">
+                    <select class="unit-select" id="wallHeightUnit">
+                      <option value="mm" selected>mm</option>
+                      <option value="cm">cm</option>
+                      <option value="m">m</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Row 2: 필름 폭 / 마감 여유분 -->
+            <div class="field-row">
+              <div class="field-group">
+                <label class="field-label">필름 폭</label>
+                <div class="field-input-wrap">
+                  <input type="number" class="field-input" id="filmWidth" value="1220" min="1" step="1" />
+                  <div class="unit-select-wrap">
+                    <select class="unit-select" id="filmWidthUnit">
+                      <option value="mm" selected>mm</option>
+                      <option value="cm">cm</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div class="field-dot"></div>
+              <div class="field-group">
+                <label class="field-label">마감 여유분</label>
+                <div class="field-input-wrap">
+                  <input type="number" class="field-input" id="margin" value="100" min="0" step="10" />
+                  <div class="unit-select-wrap">
+                    <select class="unit-select" id="marginUnit">
+                      <option value="mm" selected>mm</option>
+                      <option value="cm">cm</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Row 3: 필름 종류 / 할증률 -->
+            <div class="field-row">
+              <div class="field-group">
+                <label class="field-label">필름 종류</label>
+                <input type="hidden" id="filmType" value="solid" />
+                <div class="custom-select-wrap" id="filmTypeWrap">
+                  <button class="custom-select-btn" type="button" id="filmTypeBtn">
+                    <span class="custom-select-text" id="filmTypeText">단색 (무늬 없음)</span>
+                    <svg class="custom-select-arrow" width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 1l4 4 4-4" stroke="#999" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </button>
+                  <ul class="custom-select-list" id="filmTypeList">
+                    <li class="custom-select-item active" data-value="solid">단색 (무늬 없음)</li>
+                    <li class="custom-select-item" data-value="wood">우드/결이 있는 필름</li>
+                    <li class="custom-select-item" data-value="metal">메탈/패턴 필름</li>
+                  </ul>
+                </div>
+              </div>
+              <div class="field-dot"></div>
+              <div class="field-group">
+                <label class="field-label">할증율(로스)</label>
+                <div class="field-input-wrap">
+                  <input type="number" class="field-input" id="lossRate" value="15" min="0" max="50" step="1" />
+                  <div class="unit-select-wrap unit-fixed">
+                    <span class="unit-label">%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 버튼 -->
+            <div class="btn-row">
+              <button class="btn-calc" id="btnCalc" type="button">
+                <span class="btn-calc-icon">≡</span> 계산하기
+              </button>
+              <button class="btn-reset" id="btnReset" type="button">
+                <span class="btn-reset-icon">C</span> 초기화
+              </button>
+            </div>
+
+          </div><!-- /calc-card-main -->
+
+          <!-- 결과 패널 -->
+          <div class="calc-right-col">
+          <div class="result-panel" id="resultPanel" style="display:none;">
+            <div class="result-main-row">
+
+              <!-- 왼쪽: 메인 결과 카드 -->
+              <div class="result-main-card">
+                <div class="result-main-sub" id="resMainSub">— m²에 필요한 필름 소요량</div>
+                <div class="result-main-count">
+                  <span class="result-main-num" id="resMainNum">—</span>
+                  <span class="result-main-unit">m</span>
+                </div>
+                <div class="result-main-desc" id="resMainDesc">할증율 —%, — m 포함</div>
+              </div>
+
+              <!-- 오른쪽: 세부 지표 카드 -->
+              <div class="result-detail-card">
+                <div class="result-detail-icon">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    <line x1="3" y1="9" x2="21" y2="9"/>
+                    <line x1="3" y1="15" x2="21" y2="15"/>
+                    <line x1="9" y1="9" x2="9" y2="21"/>
+                    <line x1="15" y1="9" x2="15" y2="21"/>
+                  </svg>
+                </div>
+                <div class="result-detail-metrics">
+                  <div class="result-metric">
+                    <div class="result-metric-label">필요 폭 수 (Strip)</div>
+                    <div class="result-metric-value" id="resStripCount">—</div>
+                  </div>
+                  <div class="result-metric">
+                    <div class="result-metric-label">순 부착 면적</div>
+                    <div class="result-metric-value" id="resBoardArea">—</div>
+                  </div>
+                  <div class="result-metric">
+                    <div class="result-metric-label">할증 포함 면적</div>
+                    <div class="result-metric-value" id="resLossArea">—</div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+            <div class="result-note" id="resultNote"></div>
+          </div>
+
+          <!-- 확인해주세요 + 관련 계산기 -->
+          <div class="tip-related-wrap">
+            <div class="tip-box">
+              <div class="tip-title">확인해주세요.</div>
+              <ul class="tip-list">
+                <li>필름지는 폭이 보통 1220mm로 고정되어 있습니다. 부착할 면의 가로·세로 중 짧은 쪽을 기준으로 배치 방향을 결정하세요.</li>
+                <li>굴곡이 있거나 마감 면을 감싸야 하는 경우, 실제 치수보다 상하좌우 각 50mm 이상의 여유가 있어야 안정적인 커팅이 가능합니다.</li>
+                <li>기존 가구의 유분기나 먼지를 탈지제(알코올 등)로 완벽히 제거해야 시간이 지나도 모서리가 들뜨지 않습니다.</li>
+                <li>프라이머 도포 후 '지촉 건조(손으로 만졌을 때 끈적일 때)' 상태에서 붙여야 가장 강력한 접착력을 발휘합니다.</li>
+                <li>기포가 생겼을 경우 칼끝으로 미세하게 구멍을 내어 공기를 빼내되, 헤라질은 중앙에서 바깥 방향으로 밀어주세요.</li>
+              </ul>
+            <div class="related-section">
+              <h3 class="related-title">이런 계산기는 어때요?</h3>
+              <div class="related-tags">
+                <a href="thermal-wallpaper.html" class="related-tag">단열벽지 소요량 계산기</a>
+                <a href="thermal-base-wallpaper.html" class="related-tag">단열초배지 소요량 계산기</a>
+                <a href="flooring.html" class="related-tag">장판 소요량 계산기</a>
+                <a href="foam-bond.html" class="related-tag">우레탄폼 폼본드 소요량 계산기</a>
+                <a href="sealant.html" class="related-tag">실리콘/줄눈 소요량 계산기</a>
+              </div>
+            </div>
+            </div>
+          </div><!-- /tip-related-wrap -->
+          </div><!-- /calc-right-col -->
+
+        </div><!-- /calc-main-wrap -->
+
+        <!-- ── SEO 콘텐츠 블록 ── -->
+        <div class="seo-wrap">
+
+          <div class="seo-section">
+            <h2 class="seo-title">인테리어 필름/시트지 소요량 계산기, 가구·방문·싱크대 리폼 견적 가이드</h2>
+            <p class="seo-body">싱크대 상하부장을 다 붙이려면 필름이 몇 미터나 필요할까요? 인테리어 필름은 한 번 붙이면 수정하기 어렵고, 자재가 부족해 추가 주문하면 롯(Lot)별 색상 차이가 발생할 수 있어 처음에 정확하게 계산하는 것이 중요합니다. 이 계산기는 부착면 크기와 필름 폭, 마감 여유분을 고려하여 실제 필요한 필름 길이(m)를 정밀하게 산출해 드립니다.</p>
+          </div>
+
+          <!-- 계산 공식 -->
+          <div class="seo-section">
+            <h2 class="seo-title">인테리어 필름 수량 계산 공식</h2>
+            <p class="seo-body">필름 소요량은 부착면의 길이와 필요 폭 수(Strip)를 기준으로 산출합니다.</p>
+            <ol class="seo-list seo-list--ol">
+              <li><strong>필요 폭 수(Strip) 계산</strong><span>폭 수 = 올림(부착면 가로 ÷ 필름 고정 폭). 인테리어 필름은 보통 1220mm 고정 폭으로 생산되므로, 가로 길이에 따라 몇 폭이 필요한지를 먼저 결정합니다.</span></li>
+              <li><strong>1폭당 필요 길이</strong><span>1폭 길이 = 부착면 세로 + 마감 여유분. 감싸거나 접어 넣을 여유분(상하 각 50~100mm)을 더한 실제 재단 길이입니다.</span></li>
+              <li><strong>할증률 적용</strong><span>재단 실수나 무늬 맞춤을 위한 여유분입니다. 단색은 10~15%, 결이 있는 필름(우드·메탈·패턴)은 20~30% 권장합니다.</span></li>
+            </ol>
+            <div class="seo-formula">
+              <div class="seo-formula-label"><span class="badge-orange">총 소요 길이 산출 공식</span></div>
+              <div class="seo-formula-body">필요 길이(m) = { (부착면 세로 + 마감 여유분) × 필요 폭 수 } × (1 + 할증률/100)</div>
+            </div>
+            <div class="seo-formula-example">예시: 가로 3600mm × 세로 4500mm 부착면에 필름 폭 1220mm, 여유분 100mm, 할증 15% 적용 시 → 폭 3폭, 총 약 <strong>15.6m</strong> 주문 권장</div>
+          </div>
+
+          <!-- 자재별 비교표 -->
+          <div class="seo-section">
+            <h2 class="seo-title">필름 및 시트지 특징 비교 가이드</h2>
+            <div class="seo-table-wrap">
+              <table class="seo-table">
+                <thead>
+                  <tr>
+                    <th>구분</th>
+                    <th>인테리어 필름</th>
+                    <th>일반 시트지</th>
+                    <th>비고</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>소재 및 두께</td>
+                    <td>PVC 소재 (두꺼움)</td>
+                    <td>비닐 소재 (얇음)</td>
+                    <td>필름이 내구성이 훨씬 높음</td>
+                  </tr>
+                  <tr>
+                    <td>내구성</td>
+                    <td>강함 (스크래치 강함)</td>
+                    <td>약함 (잘 찢어짐)</td>
+                    <td>장기 인테리어용 적합</td>
+                  </tr>
+                  <tr>
+                    <td>가격</td>
+                    <td>중~고가</td>
+                    <td>저렴</td>
+                    <td>용도에 맞게 선택</td>
+                  </tr>
+                  <tr>
+                    <td>주요 용도</td>
+                    <td>가구, 싱크대, 방문 리폼</td>
+                    <td>문구용, 소품 리폼</td>
+                    <td>전문 인테리어 자재</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- 전문가 노하우 -->
+          <div class="seo-section">
+            <h2 class="seo-title">전문가 노하우 및 체크리스트</h2>
+            <p class="seo-body">필름 시공의 퀄리티를 결정짓는 핵심 노하우입니다.</p>
+            <div class="seo-checklist">
+              <div class="seo-check-item">
+                <div class="seo-check-title">수성 프라이머 도포</div>
+                <p class="seo-check-body">모서리나 굴곡진 부분, MDF 면에는 반드시 수성 프라이머를 바르고 말린 뒤 붙이세요. 필름이 들뜨는 현상을 완벽하게 방지할 수 있습니다.</p>
+              </div>
+              <div class="seo-check-item">
+                <div class="seo-check-title">기포 제거 및 마감 방법</div>
+                <p class="seo-check-body">중앙에서 바깥쪽으로 밀대를 밀어 공기를 빼주세요. 미처 빠지지 않은 기포는 바늘 끝으로 살짝 찔러 공기를 뺀 뒤 문지르면 사라집니다.</p>
+              </div>
+              <div class="seo-check-item">
+                <div class="seo-check-title">드라이기 활용 (곡면 시공)</div>
+                <p class="seo-check-body">각진 곳이나 곡면은 필름이 뻣뻣해 잘 붙지 않습니다. 헤어드라이기로 열을 가하면 필름이 유연해져 곡면도 깔끔하게 감쌀 수 있습니다.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- FAQ -->
+          <div class="seo-section">
+            <h2 class="seo-title">자주 묻는 질문 (FAQ)</h2>
+            <div class="seo-faq">
+              <div class="seo-faq-item">
+                <div class="seo-faq-q">시트지와 인테리어 필름이 다른가요?</div>
+                <div class="seo-faq-a">다릅니다. 시트지는 얇은 비닐 소재로 문구용에 적합하며, 인테리어 필름은 PVC 소재로 두껍고 내구성이 강해 가구나 방문 리폼에 사용되는 전문 자재입니다.</div>
+              </div>
+              <div class="seo-faq-item">
+                <div class="seo-faq-q">기존 시트지 위에 덧방 시공해도 되나요?</div>
+                <div class="seo-faq-a">기존 면이 튼튼하게 붙어있다면 가능합니다. 하지만 찢어지거나 들뜬 부분이 있다면 뜯어내거나 퍼티로 평탄화 작업을 한 뒤 붙여야 깔끔한 마감이 나옵니다.</div>
+              </div>
+              <div class="seo-faq-item">
+                <div class="seo-faq-q">싱크대 문짝은 떼서 붙여야 하나요?</div>
+                <div class="seo-faq-a">네, 경첩을 풀어 문짝을 떼어낸 뒤 바닥에 놓고 작업하는 것이 훨씬 쉽고 퀄리티도 좋습니다. 손잡이도 미리 분리해 두는 것을 권장합니다.</div>
+              </div>
+              <div class="seo-faq-item">
+                <div class="seo-faq-q">무늬가 있는 필름은 왜 할증을 더 잡아야 하나요?</div>
+                <div class="seo-faq-a">우드나 메탈 등 결·패턴이 있는 필름은 이음매에서 무늬를 맞춰야 합니다. 패턴 반복 주기(리피트)만큼 추가 로스가 발생하므로 20~30% 여유를 두는 것이 안전합니다.</div>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /seo-wrap -->
+
+      </div><!-- /calc-wrapper -->
+
+      <!-- 푸터 -->
+      <footer class="site-footer">
+        <div class="footer-links">
+          <a href="#">개인정보처리방침</a>
+          <a href="#">이용약관</a>
+          <a href="#">문의하기</a>
+        </div>
+        <p class="footer-copy">© 에너가드컴퍼니</p>
+      </footer>
+
+      <script src="interior-film.js"></script>
+</main>

@@ -1,0 +1,251 @@
+﻿<script>if(!window.KankanRouter)location.replace('../index.html');</script>
+<main class="main-content">
+
+      <div class="page-header">
+        <nav class="breadcrumb" aria-label="breadcrumb">
+          <a href="../index.html">홈</a>
+          <span class="bc-sep">›</span>
+          <span>마감/인테리어</span>
+          <span class="bc-sep">›</span>
+          <span class="bc-current">우레탄폼 스프레이폼[소량] 소요량 계산기</span>
+        </nav>
+        <h1 class="page-title">우레탄폼 스프레이폼[소량] 소요량 계산기</h1>
+      </div>
+
+      <div class="calc-wrapper">
+        <div class="calc-main-wrap">
+
+          <div class="calc-card-main" id="calcForm">
+
+            <!-- Row 1: 시공 가로 / 세로 -->
+            <div class="field-row">
+              <div class="field-group">
+                <label class="field-label">시공면 가로 길이</label>
+                <div class="field-input-wrap">
+                  <input type="number" class="field-input" id="areaW" value="3" min="0" step="0.1" />
+                  <div class="unit-select-wrap">
+                    <select class="unit-select" id="areaWUnit">
+                      <option value="m">m</option>
+                      <option value="cm">cm</option>
+                      <option value="mm">mm</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div class="field-dot">×</div>
+              <div class="field-group">
+                <label class="field-label">시공면 세로 길이</label>
+                <div class="field-input-wrap">
+                  <input type="number" class="field-input" id="areaH" value="3" min="0" step="0.1" />
+                  <div class="unit-select-wrap">
+                    <select class="unit-select" id="areaHUnit">
+                      <option value="m">m</option>
+                      <option value="cm">cm</option>
+                      <option value="mm">mm</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Row 2: 시공 두께 / 할증률 -->
+            <div class="field-row">
+              <div class="field-group">
+                <label class="field-label">시공 두께</label>
+                <div class="field-input-wrap">
+                  <input type="number" class="field-input" id="thickness" value="20" min="1" step="1" />
+                  <div class="unit-select-wrap">
+                    <select class="unit-select" id="thicknessUnit">
+                      <option value="mm">mm</option>
+                      <option value="cm">cm</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div class="field-dot"></div>
+              <div class="field-group">
+                <label class="field-label">할증율(로스)</label>
+                <div class="field-input-wrap">
+                  <input type="number" class="field-input" id="lossRate" value="10" min="0" max="50" step="1" />
+                  <div class="unit-select-wrap unit-fixed">
+                    <span class="unit-label">%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Row 3: 캔 용량 고정 표시 -->
+            <div class="field-row">
+              <div class="field-group">
+                <label class="field-label">캔 용량</label>
+                <div class="field-input-wrap">
+                  <input type="text" class="field-input" value="840ml 고정 (20mm 기준 3.3㎡ / 캔)" disabled style="color: var(--color-text-muted); background: #f4f4f4;" />
+                </div>
+              </div>
+              <div class="field-dot"></div>
+              <div class="field-group"></div>
+            </div>
+
+            <!-- 버튼 -->
+            <div class="btn-row">
+              <button class="btn-calc" id="btnCalc" type="button">
+                <span class="btn-calc-icon">≡</span> 계산하기
+              </button>
+              <button class="btn-reset" id="btnReset" type="button">
+                <span class="btn-reset-icon">C</span> 초기화
+              </button>
+            </div>
+
+          </div><!-- /calc-card-main -->
+
+          <!-- 결과 패널 -->
+          <div class="calc-right-col">
+          <div class="result-panel" id="resultPanel" style="display:none;">
+            <div class="result-main-row">
+
+              <div class="result-main-card">
+                <div class="result-main-sub" id="resMainSub">— ㎡ 시공에 필요한 캔 수</div>
+                <div class="result-main-count">
+                  <span class="result-main-num" id="resMainNum">—</span>
+                  <span class="result-main-unit">캔</span>
+                </div>
+                <div class="result-main-desc" id="resMainDesc">할증율 —%</div>
+              </div>
+
+              <div class="result-detail-card">
+                <div class="result-detail-icon">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    <line x1="3" y1="9" x2="21" y2="9"/>
+                    <line x1="3" y1="15" x2="21" y2="15"/>
+                    <line x1="9" y1="9" x2="9" y2="21"/>
+                    <line x1="15" y1="9" x2="15" y2="21"/>
+                  </svg>
+                </div>
+                <div class="result-detail-metrics">
+                  <div class="result-metric">
+                    <div class="result-metric-label">시공 면적</div>
+                    <div class="result-metric-value" id="resArea">—</div>
+                  </div>
+                  <div class="result-metric">
+                    <div class="result-metric-label">캔당 커버리지</div>
+                    <div class="result-metric-value" id="resCoverage">3.3 ㎡ / 캔</div>
+                  </div>
+                  <div class="result-metric">
+                    <div class="result-metric-label">두께 보정 면적</div>
+                    <div class="result-metric-value" id="resAdjArea">—</div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+            <div class="result-note" id="resultNote"></div>
+          </div>
+
+          <!-- 확인해주세요 + 관련 계산기 -->
+          <div class="tip-related-wrap">
+            <div class="tip-box">
+              <div class="tip-title">확인해주세요.</div>
+              <ul class="tip-list">
+                <li>사용 전 제품을 상하로 20회 이상 충분히 흔들어 원액과 가스가 잘 섞이도록 해주세요.</li>
+                <li>시공면에 물을 뿌려주면 경화가 빠르게 이루어지고 더 부풀어 오릅니다.</li>
+                <li>시공면에서 약 30~40cm 간격을 두고 폼을 분사하세요.</li>
+                <li>1회 시공 시 전량 소진을 권장합니다. 재사용 시에는 전용 크리너로 폼건·노즐·밸브를 세척하세요.</li>
+                <li>불꽃을 향해 사용하거나 화기 부근에서 사용하지 마세요. 밀폐된 실내 사용 후에는 반드시 환기하세요.</li>
+                <li>40°C 이상의 장소에 보관하지 마세요.</li>
+              </ul>
+            <div class="related-section">
+              <h3 class="related-title">이런 계산기는 어때요?</h3>
+              <div class="related-tags">
+                <a href="foam-2k.html" class="related-tag">우레탄폼 이액형[대용량] 소요량 계산기</a>
+                <a href="foam-bond.html" class="related-tag">우레탄폼 폼본드 소요량 계산기</a>
+                <a href="insulation-board.html" class="related-tag">판상형 단열재 수량 계산기</a>
+                <a href="sealant.html" class="related-tag">실리콘/줄눈 소요량 계산기</a>
+              </div>
+            </div>
+            </div>
+          </div>
+
+        </div><!-- /calc-right-col -->
+        </div><!-- /calc-main-wrap -->
+
+        <!-- SEO 콘텐츠 -->
+        <div class="seo-wrap">
+
+          <div class="seo-section">
+            <h2 class="seo-title">우레탄폼 스프레이폼[소량] 소요량 계산기</h2>
+            <p class="seo-body">캔형 스프레이폼은 840ml 용량 기준 20mm 두께로 약 3.3㎡ 시공이 가능한 소량 제품입니다. 단열재가 들어가기 어려운 좁은 공간·코너 충진, 배관 단열 및 이음새 충진, 평면·곡선·굴곡 틈새 기밀 시공 등 이액형 대용량 제품 사용이 어려운 소규모 작업에 적합합니다.</p>
+          </div>
+
+          <div class="seo-section">
+            <h2 class="seo-title">소요량 계산 공식</h2>
+            <p class="seo-body">캔당 커버리지(20mm 기준 3.3㎡)를 시공 두께에 맞게 보정하여 필요 캔 수를 산출합니다.</p>
+            <ol class="seo-list seo-list--ol">
+              <li><strong>두께 보정 면적</strong><span>보정 면적(㎡) = 시공 면적 × (시공 두께 ÷ 20mm). 20mm 기준 커버리지를 실제 두께에 맞게 환산합니다.</span></li>
+              <li><strong>필요 캔 수</strong><span>캔 수 = 올림(보정 면적 ÷ 3.3 × (1 + 할증률/100))</span></li>
+            </ol>
+            <div class="seo-formula">
+              <div class="seo-formula-label"><span class="badge-orange">필요 캔 수 산출 공식</span></div>
+              <div class="seo-formula-body">캔 수 = 올림{ 시공면적 × (두께÷20) ÷ 3.3 × (1 + 할증률/100) }</div>
+            </div>
+            <div class="seo-formula-example">예시: 3m × 3m = 9㎡, 두께 20mm, 할증 10% → 보정 면적 9㎡ → <strong>4캔</strong> 주문 권장</div>
+          </div>
+
+          <div class="seo-section">
+            <h2 class="seo-title">스프레이폼 주요 용도</h2>
+            <div class="seo-checklist">
+              <div class="seo-check-item">
+                <div class="seo-check-title">좁은 공간·코너 충진 단열</div>
+                <p class="seo-check-body">단열재가 들어가기 어려운 좁은 공간이나 코너 쪽 충진 단열에 적합합니다. 기존 판상형 단열재로는 시공이 어려운 불규칙한 형태의 시공면에도 간편하게 시공 가능합니다.</p>
+              </div>
+              <div class="seo-check-item">
+                <div class="seo-check-title">배관 단열 및 이음새 충진</div>
+                <p class="seo-check-body">배관 단열 및 이음새 충진에 효과적입니다. 단열재를 재단하고 접착하는 과정이 생략되어 작업 속도와 효율이 올라갑니다.</p>
+              </div>
+              <div class="seo-check-item">
+                <div class="seo-check-title">기밀 시공</div>
+                <p class="seo-check-body">평면·곡선·굴곡·틈새 어디나 기밀 시공이 가능합니다. 액상으로 분사되어 복잡한 형태에도 빈틈없이 채워집니다.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="seo-section">
+            <h2 class="seo-title">사용 순서</h2>
+            <ol class="seo-list seo-list--ol">
+              <li><strong>시공면 확인</strong><span>이물질을 제거하고 시공면 상태를 확인합니다.</span></li>
+              <li><strong>사용 전 흔들기</strong><span>제품을 상하로 20회 이상 흔들어 원액과 가스를 충분히 섞어줍니다.</span></li>
+              <li><strong>노즐/건 장착</strong><span>건의 앞부분에 노즐을 장착하고 제품을 바로 세워 건을 장착합니다.</span></li>
+              <li><strong>시공면에 물 분사</strong><span>물을 뿌려주면 빠른 경화가 이루어지고 더 부풀어 오릅니다.</span></li>
+              <li><strong>폼 분사</strong><span>시공면에서 약 30~40cm 간격을 두고 폼을 분사합니다.</span></li>
+            </ol>
+          </div>
+
+          <div class="seo-section">
+            <h2 class="seo-title">자주 묻는 질문 (FAQ)</h2>
+            <div class="seo-faq">
+              <div class="seo-faq-item">
+                <div class="seo-faq-q">남은 캔을 재사용할 수 있나요?</div>
+                <div class="seo-faq-a">전용 크리너로 폼건·스프레이노즐·폼의 밸브를 세척하면 재사용이 가능합니다. 세척하지 않으면 노즐이 굳어 사용할 수 없게 됩니다.</div>
+              </div>
+              <div class="seo-faq-item">
+                <div class="seo-faq-q">스프레이폼과 이액형의 차이는 무엇인가요?</div>
+                <div class="seo-faq-a">캔형 스프레이폼은 소량 소규모 작업에 적합하며, 이액형 대용량 제품은 넓은 벽면 단열 시공에 적합합니다. 이액형은 경질/연질 선택이 가능하며 단위 면적당 비용이 더 경제적입니다.</div>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /seo-wrap -->
+
+      </div><!-- /calc-wrapper -->
+
+      <footer class="site-footer">
+        <div class="footer-links">
+          <a href="#">개인정보처리방침</a>
+          <a href="#">이용약관</a>
+          <a href="#">문의하기</a>
+        </div>
+        <p class="footer-copy">© 에너가드컴퍼니</p>
+      </footer>
+
+      <script src="foam-spray.js"></script>
+</main>

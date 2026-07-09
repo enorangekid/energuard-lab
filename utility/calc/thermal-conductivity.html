@@ -1,0 +1,147 @@
+﻿<script>if(!window.KankanRouter)location.replace('../index.html');</script>
+<main class="main-content">
+
+      <!-- 페이지 헤더 -->
+      <div class="page-header">
+        <nav class="breadcrumb" aria-label="breadcrumb">
+          <a href="../index.html">홈</a>
+          <span class="bc-sep">›</span>
+          <span>재료별 열전도율</span>
+          <span class="bc-sep">›</span>
+          <span class="bc-current">재료별 열전도율 표</span>
+        </nav>
+        <h1 class="page-title">재료별 열전도율 표</h1>
+      </div>
+
+      <div class="calc-wrapper">
+        <div class="calc-main-wrap">
+
+          <!-- 컨트롤 -->
+          <div class="calc-card-main" style="padding: 20px 24px; gap: 14px;">
+            <div class="tc-controls">
+              <div class="tc-search-wrap">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" class="tc-search" id="tcSearch" placeholder="재료명으로 검색 (예: 아이소핑크, 석고보드)" autocomplete="off" />
+              </div>
+            </div>
+            <div class="tc-filter-tabs" id="tcFilterTabs">
+              <button class="tc-tab active" data-cat="all">전체</button>
+              <button class="tc-tab" data-cat="단열재">단열재</button>
+              <button class="tc-tab" data-cat="금속">금속</button>
+              <button class="tc-tab" data-cat="콘크리트">콘크리트/몰탈</button>
+              <button class="tc-tab" data-cat="벽돌">벽돌/타일</button>
+              <button class="tc-tab" data-cat="석재">석재</button>
+              <button class="tc-tab" data-cat="판재">판재/목재</button>
+              <button class="tc-tab" data-cat="방습">방습/기타</button>
+            </div>
+            <div class="tc-legend">
+              <span class="tc-legend-info">■ 가등급 단열재 기준 열전도율 <strong>0.034 W/m·K 이하</strong> · 단열재로 인정되는 기준 <strong>0.040 W/m·K 이하</strong> (KS 기준)</span>
+            </div>
+          </div>
+
+        </div><!-- /calc-main-wrap -->
+
+          <!-- 테이블 -->
+          <div class="tc-table-wrap">
+            <table class="tc-table" id="tcTable">
+              <thead>
+                <tr>
+                  <th style="min-width:200px;">재료명</th>
+                  <th class="col-lambda" style="min-width:160px;">열전도율 (W/m·K)</th>
+                  <th style="min-width:100px;">밀도 (kg/m³)</th>
+                  <th style="min-width:110px;">투습저항계수 μ</th>
+                  <th style="min-width:100px;">비열 (J/kg·K)</th>
+                  <th style="min-width:60px;">근거</th>
+                </tr>
+              </thead>
+              <tbody id="tcBody"></tbody>
+            </table>
+            <div class="tc-empty" id="tcEmpty">검색 결과가 없습니다.</div>
+          </div>
+
+        <!-- 확인해주세요 + 관련 계산기 -->
+        <div class="tip-related-wrap">
+          <div class="tip-box">
+            <div class="tip-title">확인해주세요.</div>
+            <ul class="tip-list">
+              <li>표의 열전도율 수치는 설계 참고용입니다. 국내 인허가(에너지성능지표) 계산에는 KS 기준값 또는 제품 시험성적서를 사용하세요.</li>
+              <li>같은 재료라도 밀도·제조 공정에 따라 열전도율이 달라질 수 있습니다. 정확한 수치는 제품 시험성적서를 확인하세요.</li>
+              <li>단열재 두께 계산 시 열저항(R = 두께 ÷ λ)을 함께 확인하면 보다 정확한 설계가 가능합니다.</li>
+            </ul>
+            <div class="related-section">
+              <h3 class="related-title">이런 계산기는 어때요?</h3>
+              <div class="related-tags">
+                <a href="insulation-thickness.html" class="related-tag">단열재 두께 계산기</a>
+                <a href="u-value-table.html" class="related-tag">열관류율(U-value) 계산기</a>
+                <a href="insulation-board.html" class="related-tag">판상형 단열재 수량 계산기</a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SEO 콘텐츠 -->
+        <div class="seo-wrap">
+          <div class="seo-section">
+            <h2 class="seo-title">열전도율(λ)이란?</h2>
+            <p class="seo-body">열전도율(λ, lambda)은 재료 1m 두께를 통해 1K(켈빈)의 온도 차이가 있을 때 1m² 면적으로 전달되는 열의 양을 나타내며, 단위는 W/m·K입니다. 값이 낮을수록 열을 잘 차단하는 단열 성능이 우수한 재료입니다. 건물 에너지 성능 계산의 핵심 지표로, 열관류율(U-value) 산출에 직접 사용됩니다.</p>
+            <div class="seo-formula">
+              <div class="seo-formula-label"><span class="badge-orange">열저항(R) 계산 공식</span></div>
+              <div class="seo-formula-body">R = d ÷ λ &nbsp;&nbsp;(d: 두께[m], λ: 열전도율[W/m·K])</div>
+            </div>
+            <p class="seo-body" style="font-size:14px;">예: 아이소핑크(XPS) 50mm → R = 0.05 ÷ 0.027 = 1.85 m²·K/W</p>
+          </div>
+
+          <div class="seo-section">
+            <h2 class="seo-title">단열재 선택 시 주의사항</h2>
+            <div class="seo-checklist">
+              <div class="seo-check-item">
+                <div class="seo-check-title">KS 기준값과 DIN 참고값 구분</div>
+                <p class="seo-check-body">KS(에너지절약설계기준) 수치만 국내 에너지성능지표(EPI) 열관류율 산정에 인정됩니다. DIN은 독일 자료로 설계 참고용이며, 실제 인허가 계산에는 KS 수치 또는 제품 시험성적서를 사용해야 합니다.</p>
+              </div>
+              <div class="seo-check-item">
+                <div class="seo-check-title">실제 시공 성능 vs 카탈로그 값</div>
+                <p class="seo-check-body">표에 기재된 수치는 20℃ 기준 일반값입니다. 실제 현장에서는 함수율·시공 방법·경시변화에 따라 성능이 달라질 수 있습니다. 정확한 값은 반드시 각 제품 공급사의 시험성적서를 확인하세요.</p>
+              </div>
+              <div class="seo-check-item">
+                <div class="seo-check-title">열반사 단열재의 열전도율 표기</div>
+                <p class="seo-check-body">불연 열반사 단열재(미네랄울 기준 0.015 W/m·K)는 복사 차단 성능을 함께 고려해야 합니다. 단순 전도 열전도율 비교만으로는 실제 단열 성능을 판단하기 어려우므로, 복합 열저항(Rtotal) 기준으로 비교하는 것이 바람직합니다.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="seo-section">
+            <h2 class="seo-title">자주 묻는 질문 (FAQ)</h2>
+            <div class="seo-faq">
+              <div class="seo-faq-item">
+                <div class="seo-faq-q">열전도율이 낮을수록 단열이 잘 되나요?</div>
+                <div class="seo-faq-a">맞습니다. 열전도율(λ)이 낮을수록 같은 두께에서 열을 더 잘 차단합니다. 단, 두께(d)가 달라지면 열저항(R = d/λ)도 달라지므로, 실제 단열 성능 비교는 사용 두께를 함께 고려해야 합니다.</div>
+              </div>
+              <div class="seo-faq-item">
+                <div class="seo-faq-q">아이소핑크(XPS)와 스티로폼(EPS)의 단열 성능 차이는?</div>
+                <div class="seo-faq-a">XPS(압출법보온판)의 열전도율은 0.027~0.031 W/m·K, EPS(비드법보온판)는 0.036~0.043 W/m·K로, 같은 두께라면 XPS가 약 20~40% 더 우수한 단열 성능을 보입니다. 또한 XPS는 흡수성이 낮아 습기에 강한 장점이 있습니다.</div>
+              </div>
+              <div class="seo-faq-item">
+                <div class="seo-faq-q">콘크리트 벽 두께를 두껍게 하면 단열이 될까요?</div>
+                <div class="seo-faq-a">콘크리트의 열전도율은 약 2.0 W/m·K로 단열재 대비 50~100배 높습니다. 동일한 단열 효과를 내려면 콘크리트는 아이소핑크보다 수십 배 두꺼워야 합니다. 구조체로 단열을 해결하는 것은 현실적으로 불가능하며, 반드시 별도의 단열재를 시공해야 합니다.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="seo-section">
+            <p class="seo-body" style="font-size:13px; color:var(--color-text-light);">※ 상기 열전도 수치는 일반적으로 알려진 수치이며, 각 재료의 정확한 열전도율은 각 제품 공급사의 시험성적서를 확인하시기 바랍니다.<br/>※ KS 이외의 수치는 국내 에너지성능지표(EPI)의 열관류율 산정에 인정되지 않습니다. (출처: 한국패시브건축협회)</p>
+          </div>
+        </div><!-- /seo-wrap -->
+
+      </div><!-- /calc-wrapper -->
+
+      <footer class="site-footer">
+        <div class="footer-links">
+          <a href="#">개인정보처리방침</a>
+          <a href="#">이용약관</a>
+          <a href="#">문의하기</a>
+        </div>
+        <p class="footer-copy">© 에너가드컴퍼니</p>
+      </footer>
+
+      <script src="thermal-conductivity.js"></script>
+</main>

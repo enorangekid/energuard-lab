@@ -1,0 +1,28 @@
+<script>if(!window.KankanRouter)location.replace('index.html');</script>
+<main class="main-content">
+  <div class="coming-soon-wrap">
+    <div class="coming-soon-icon">🔧</div>
+    <h1 class="coming-soon-title">준비중입니다</h1>
+    <p class="coming-soon-desc" id="calcNameDisplay"></p>
+    <p class="coming-soon-sub">현장에서 바로 쓸 수 있는 실무 계산기를 열심히 만들고 있어요.<br/>조금만 기다려 주세요!</p>
+    <a href="index.html" class="coming-soon-btn">← 홈으로 돌아가기</a>
+  </div>
+
+  <footer class="site-footer">
+    <div class="footer-links">
+      <a href="#">개인정보처리방침</a>
+      <a href="#">이용약관</a>
+      <a href="#">문의하기</a>
+    </div>
+    <p class="footer-copy">© 에너가드컴퍼니</p>
+  </footer>
+
+  <script>
+    // URL 파라미터에서 계산기 이름 꺼내기
+    const params = new URLSearchParams(location.search);
+    const name = params.get('name');
+    if (name) {
+      document.getElementById('calcNameDisplay').textContent = decodeURIComponent(name);
+    }
+  </script>
+</main>

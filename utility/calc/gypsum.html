@@ -1,0 +1,331 @@
+﻿<script>if(!window.KankanRouter)location.replace('../index.html');</script>
+<main class="main-content">
+
+      <!-- 페이지 헤더 -->
+      <div class="page-header">
+        <nav class="breadcrumb" aria-label="breadcrumb">
+          <a href="../index.html">홈</a>
+          <span class="bc-sep">›</span>
+          <span>단열재/목공/보드</span>
+          <span class="bc-sep">›</span>
+          <span class="bc-current">석고보드 수량 계산기</span>
+        </nav>
+        <h1 class="page-title">석고보드 수량 계산기</h1>
+      </div>
+
+      <!-- 계산기 카드 -->
+      <div class="calc-wrapper">
+
+        <!-- ── 회색 묶음: 입력 + 결과 + 확인 + 관련 ── -->
+        <div class="calc-main-wrap">
+
+        <!-- 입력 섹션 -->
+        <div class="calc-card-main" id="calcForm">
+
+          <!-- Row 1: 가벽 가로 / 가벽 높이 -->
+          <div class="field-row">
+            <div class="field-group">
+              <label class="field-label">가벽 가로 길이</label>
+              <div class="field-input-wrap">
+                <input type="number" class="field-input" id="wallWidth" value="3000" min="0" step="1" />
+                <div class="unit-select-wrap">
+                  <select class="unit-select" id="wallWidthUnit">
+                    <option value="mm" selected>mm</option>
+                    <option value="cm">cm</option>
+                    <option value="m">m</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div class="field-dot">×</div>
+            <div class="field-group">
+              <label class="field-label">가벽 높이</label>
+              <div class="field-input-wrap">
+                <input type="number" class="field-input" id="wallHeight" value="2400" min="0" step="1" />
+                <div class="unit-select-wrap">
+                  <select class="unit-select" id="wallHeightUnit">
+                    <option value="mm" selected>mm</option>
+                    <option value="cm">cm</option>
+                    <option value="m">m</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Row 2: 석고보드 가로 / 세로 -->
+          <div class="field-row">
+            <div class="field-group">
+              <label class="field-label">석고보드 가로 길이</label>
+              <div class="field-input-wrap">
+                <input type="number" class="field-input" id="boardWidth" value="900" min="1" step="1" />
+                <div class="unit-select-wrap">
+                  <select class="unit-select" id="boardWidthUnit">
+                    <option value="mm" selected>mm</option>
+                    <option value="cm">cm</option>
+                    <option value="m">m</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div class="field-dot">×</div>
+            <div class="field-group">
+              <label class="field-label">석고보드 세로 길이</label>
+              <div class="field-input-wrap">
+                <input type="number" class="field-input" id="boardHeight" value="1800" min="1" step="1" />
+                <div class="unit-select-wrap">
+                  <select class="unit-select" id="boardHeightUnit">
+                    <option value="mm" selected>mm</option>
+                    <option value="cm">cm</option>
+                    <option value="m">m</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Row 3: 시공 겹수 / 할증률 -->
+          <div class="field-row">
+            <div class="field-group">
+              <label class="field-label">시공 겹수</label>
+              <input type="hidden" id="layers" value="1" />
+              <div class="custom-select-wrap" id="layersWrap">
+                <button class="custom-select-btn" type="button" id="layersBtn">
+                  <span class="custom-select-text" id="layersText">1겹</span>
+                  <svg class="custom-select-arrow" width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 1l4 4 4-4" stroke="#999" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+                <ul class="custom-select-list" id="layersList">
+                  <li class="custom-select-item active" data-value="1">1겹</li>
+                  <li class="custom-select-item" data-value="2">2겹</li>
+                  <li class="custom-select-item" data-value="3">3겹</li>
+                </ul>
+              </div>
+            </div>
+            <div class="field-dot"></div>
+            <div class="field-group">
+              <label class="field-label">할증율(로스)</label>
+              <div class="field-input-wrap">
+                <input type="number" class="field-input" id="lossRate" value="5" min="0" max="50" step="1" />
+                <div class="unit-select-wrap unit-fixed">
+                  <span class="unit-label">%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Row 4: 차감 면적 라디오 -->
+          <div class="field-row deduction-row">
+            <div class="field-label-inline">차감할 면적이 있나요</div>
+            <div class="radio-group">
+              <label class="radio-label">
+                <input type="radio" name="hasDeduction" value="yes" />
+                <span class="radio-custom"></span>
+                예
+              </label>
+              <label class="radio-label">
+                <input type="radio" name="hasDeduction" value="no" checked />
+                <span class="radio-custom"></span>
+                아니오
+              </label>
+            </div>
+          </div>
+
+          <!-- 차감 면적 입력 (숨김 → 예 선택시 노출) -->
+          <div class="deduction-inputs" id="deductionInputs" style="display:none;">
+            <div id="deductionList"></div>
+          </div>
+
+          <!-- 버튼 -->
+          <div class="btn-row">
+            <button class="btn-calc" id="btnCalc" type="button">
+              <span class="btn-calc-icon">≡</span> 계산하기
+            </button>
+            <button class="btn-reset" id="btnReset" type="button">
+              <span class="btn-reset-icon">C</span> 초기화
+            </button>
+          </div>
+
+        </div><!-- /calc-card-main -->
+
+        <!-- 결과 패널 (계산 전 숨김) -->
+        <div class="calc-right-col">
+        <div class="result-panel" id="resultPanel" style="display:none;">
+          <div class="result-main-row">
+
+            <!-- 왼쪽: 메인 수량 카드 -->
+            <div class="result-main-card">
+              <div class="result-main-sub" id="resMainSub">— m²에 필요한 석고보드 수량</div>
+              <div class="result-main-count">
+                <span class="result-main-num" id="resMainNum">—</span>
+                <span class="result-main-unit">장</span>
+              </div>
+              <div class="result-main-desc" id="resMainDesc">할증율 —%, — 장 포함</div>
+            </div>
+
+            <!-- 오른쪽: 세부 지표 카드 -->
+            <div class="result-detail-card">
+              <div class="result-detail-icon">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="2"/>
+                  <line x1="3" y1="9" x2="21" y2="9"/>
+                  <line x1="3" y1="15" x2="21" y2="15"/>
+                  <line x1="9" y1="9" x2="9" y2="21"/>
+                  <line x1="15" y1="9" x2="15" y2="21"/>
+                </svg>
+              </div>
+              <div class="result-detail-metrics">
+                <div class="result-metric">
+                  <div class="result-metric-label">할증 포함 면적</div>
+                  <div class="result-metric-value" id="resLossArea">—</div>
+                </div>
+                <div class="result-metric">
+                  <div class="result-metric-label">석고보드 면적</div>
+                  <div class="result-metric-value" id="resBoardArea">—</div>
+                </div>
+                <div class="result-metric">
+                  <div class="result-metric-label">평당 소요량</div>
+                  <div class="result-metric-value" id="resPerPyeong">—</div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+          <div class="result-note" id="resultNote"></div>
+        </div>
+
+        <!-- 확인해주세요 + 관련 계산기 묶음 -->
+        <div class="tip-related-wrap">
+
+        <div class="tip-box">
+          <div class="tip-title">확인해주세요.</div>
+          <ul class="tip-list">
+            <li>석고보드는 보통 3×6(900×1800) 규격을 주로 사용하며, 시공 부위에 맞춰 두께(9.5T, 12.5T)를 먼저 결정해야 정확한 수량이 산출됩니다.</li>
+            <li>가벽 양면 마감 시에는 계산된 수량의 2배를 준비해야 하며, 절단 손실을 고려해 전체 물량의 5~10%를 할증으로 추가하는 것이 현장의 정석입니다.</li>
+            <li>스터드 간격은 보통 450mm를 기준으로 설계하며, 상업 공간이나 마감재가 무거울 때는 300mm 간격으로 촘촘히 배치해야 박체의 구조적 안전성이 확보됩니다.</li>
+            <li>문이나 창문 면적은 전체에서 제외하되, 개구부 주변 보강 작업을 위해 스터드와 런너 자재를 1~2개 정도 여유 있게 발주하는 것이 공사 중단을 막는 팁입니다.</li>
+            <li>천고가 높다면 3×8(2400mm) 보드를 사용해 이음매를 줄이세요. 조인트 부위가 적을수록 퍼티 및 도장 마감의 품질이 올라가고 하자를 방지할 수 있습니다.</li>
+          </ul>
+        <div class="related-section">
+          <h3 class="related-title">이런 계산기는 어때요?</h3>
+          <div class="related-tags">
+            <a href="insulation-board.html" class="related-tag">판상형 단열재 수량 계산기</a>
+            <a href="reflective-insulation.html" class="related-tag">열반사 단열재 소요량 계산기</a>
+            <a href="tex.html" class="related-tag">천장재[텍스] 수량 계산기</a>
+            <a href="acoustic.html" class="related-tag">방음/흡음재 수량 계산기</a>
+            <a href="insulation-thickness.html" class="related-tag">단열재 두께 계산기</a>
+          </div>
+        </div>
+        </div>
+
+        </div><!-- /tip-related-wrap -->
+        </div><!-- /calc-right-col -->
+
+        </div><!-- /calc-main-wrap -->
+
+        <!-- ── SEO 콘텐츠 블록 ── -->
+        <div class="seo-wrap">
+        <div class="seo-section">
+          <h2 class="seo-title">석고보드 물량 계산기, 가벽·천장 시공 자재 산출 (1P/2P/양면 대응)</h2>
+          <p class="seo-body">가벽을 세우려는데 석고보드가 몇 장이나 필요할까? 인테리어나 목공 공사에서 가장 기본이 되는 자재가 바로 석고보드입니다. 이 계산기는 시공할 벽면의 크기와 사용하려는 석고보드의 규격(가로/세로)을 직접 입력하면, 시공 겹수와 할증률을 고려한 정확한 필요 수량을 자동으로 계산해 드립니다.</p>
+        </div>
+
+        <!-- 계산 공식 -->
+        <div class="seo-section">
+          <h2 class="seo-title">석고보드 물량 계산 공식</h2>
+          <p class="seo-body">정확한 물량 산출을 위해 벽면 치수와 자재 규격을 mm 단위로 확인해 주세요.</p>
+          <ol class="seo-list seo-list--ol">
+            <li><strong>가벽 가로, 높이</strong><span>시공하고자 하는 벽면(또는 천장)의 전체 너비와 높이를 mm 단위로 입력합니다.</span></li>
+            <li><strong>석고보드 규격 직접 입력</strong><span>사용할 석고보드 한 장의 가로와 세로 길이를 직접 입력합니다. 3×6(900×1800), 3×8(900×2400), 4×8(1200×2400) 등 현장 규격에 맞게 설정하세요.</span></li>
+            <li><strong>시공 겹수</strong><span>석고보드를 몇 겹으로 시공할지 선택합니다. 도배 마감은 주로 1겹(1P), 페인트나 실크 벽지 마감은 2겹(2P) 시공이 필수입니다.</span></li>
+            <li><strong>할증률 및 차감 면적</strong><span>자투리 로스(5~10% 권장)와 문, 창문 등 보드가 붙지 않는 공간의 면적을 제외하여 정확도를 높입니다.</span></li>
+          </ol>
+          <div class="seo-formula">
+            <div class="seo-formula-label"><span class="badge-orange">총 소요 수량 산출 공식</span></div>
+            <div class="seo-formula-body">필요 수량(장) = { (벽면 가로 × 벽면 높이) − 차감 면적(㎡) } ÷ (석고보드 가로 × 석고보드 세로) × 시공 겹수 × (1 + 할증률)</div>
+          </div>
+          <div class="seo-formula-example">예시: 10㎡ 벽면에 900×1800(1.62㎡) 규격 보드를 2겹(2P) 시공 시, 로스 포함 약 <strong>14장</strong> 주문을 권장합니다.</div>
+        </div>
+
+        <!-- 규격 참고표 -->
+        <div class="seo-section">
+          <h2 class="seo-title">석고보드 표준 규격 참고표</h2>
+          <div class="seo-table-wrap">
+            <table class="seo-table">
+              <thead>
+                <tr>
+                  <th>호칭 (자)</th>
+                  <th>가로 (mm)</th>
+                  <th>세로 (mm)</th>
+                  <th>면적 (㎡)</th>
+                  <th>특징</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>3 × 6</td><td>900</td><td>1,800</td><td>1.62</td><td>국내 표준, 승강기 적재 용이</td>
+                </tr>
+                <tr>
+                  <td>3 × 8</td><td>900</td><td>2,400</td><td>2.16</td><td>층고 높은 주택 벽체용</td>
+                </tr>
+                <tr>
+                  <td>4 × 8</td><td>1,200</td><td>2,400</td><td>2.88</td><td>넓은 시공 시 인건비 절약</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 전문가 노하우 -->
+        <div class="seo-section">
+          <h2 class="seo-title">전문가 노하우 및 체크리스트</h2>
+          <p class="seo-body">마감 품질을 좌우하는 기초 공사의 핵심 포인트입니다.</p>
+          <div class="seo-checklist">
+            <div class="seo-check-item">
+              <div class="seo-check-title">1P(원피) vs 2P(투피) 시공의 차이</div>
+              <p class="seo-check-body">1P는 이음매가 충격에 약할 수 있어 합지 벽지 마감 시 권장합니다. 2P는 보드를 엇갈리게 붙여 내구성이 뛰어나며 페인트나 실크 벽지 마감 시 필수입니다.</p>
+            </div>
+            <div class="seo-check-item">
+              <div class="seo-check-title">자재 규격과 운반 경로 확인</div>
+              <p class="seo-check-body">3×6 규격은 대부분 승강기에 실리지만, 4×8 규격은 화물용 승강기가 없으면 사다리차를 써야 할 수 있습니다. 현장 상황에 맞춰 입력 규격을 결정하세요.</p>
+            </div>
+            <div class="seo-check-item">
+              <div class="seo-check-title">가벽 양면 시공 시 주의사항</div>
+              <p class="seo-check-body">가벽 뼈대를 기준으로 양쪽 면을 모두 막아야 한다면 계산된 수량에 ×2배를 해야 합니다. 양면 2P 시공 시 총 4겹 분량이 필요합니다.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- FAQ -->
+        <div class="seo-section">
+          <h2 class="seo-title">자주 묻는 질문 (FAQ)</h2>
+          <div class="seo-faq">
+            <div class="seo-faq-item">
+              <div class="seo-faq-q">입력한 규격과 다른 자투리 보드도 섞어 쓸 수 있나요?</div>
+              <div class="seo-faq-a">네, 가능합니다. 다만 물량 산출은 메인으로 사용할 온전한 한 장 규격을 기준으로 계산하고, 자투리는 창문 주변 등 좁은 면적에 활용하세요.</div>
+            </div>
+            <div class="seo-faq-item">
+              <div class="seo-faq-q">천장(덴조) 시공 시 할증률은 얼마나 잡나요?</div>
+              <div class="seo-faq-a">천장은 조명 타공이나 점검구 설치로 인해 벽체보다 로스가 많습니다. 할증률을 10~15% 정도로 넉넉하게 잡는 것을 추천합니다.</div>
+            </div>
+            <div class="seo-faq-item">
+              <div class="seo-faq-q">석고보드 고정은 무엇으로 하나요?</div>
+              <div class="seo-faq-a">목상 위에는 422 타카핀과 목공 본드를 병행하며, 경량 철골(스터드) 위에는 매거진 피스(나사)를 사용하여 고정합니다.</div>
+            </div>
+          </div>
+        </div>
+        </div><!-- /seo-wrap -->
+
+      </div><!-- /calc-wrapper -->
+
+      <!-- 푸터 -->
+      <footer class="site-footer">
+        <div class="footer-links">
+          <a href="#">개인정보처리방침</a>
+          <a href="#">이용약관</a>
+          <a href="#">문의하기</a>
+        </div>
+        <p class="footer-copy">© 에너가드컴퍼니</p>
+      </footer>
+
+      <script src="gypsum.js"></script>
+</main>

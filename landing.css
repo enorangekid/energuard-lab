@@ -1,0 +1,192 @@
+/* ─────────────────────────────────────────
+   ENERGUARD LAB — 메인 홈 화면
+   ───────────────────────────────────────── */
+:root {
+  --bg: #f8f9fb; --card: #fff; --ink: #1a1f2e; --sub: #5a6378;
+  --line: #e8ecf2; --dark: #05070b; --dark-tint: #eef0f3;
+  --accent: #e85d2f; --accent-dark: #d04420; --accent-tint: #fdeee7;
+  --gray-badge: #eef0f3; --danger: #dc2626;
+  --up: #dc2626; --down: #2563eb;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --font-main: "Pretendard Variable", Pretendard, -apple-system, sans-serif;
+  --radius: 6px;
+  --trend-content-height: 797px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scrollbar-gutter: stable; }
+body {
+  font-family: var(--font-main);
+  background: var(--bg); color: var(--ink); font-size: 15px; line-height: 1.55;
+}
+
+/* ─── 첫 진입 애니메이션 ─── */
+/* 씬1: 제목은 위→아래, 검색바는 아래→위로 움직여 서로 만난다
+   씬2: 씬1이 끝날 즈음 트렌드 탭·박스가 아래→위로 올라온다 (탑바는 애니메이션 없이 고정) */
+@keyframes introDown {
+  from { opacity: 0; transform: translateY(-28px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes introUp {
+  from { opacity: 0; transform: translateY(28px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.hero-title  { animation: introDown 0.7s cubic-bezier(.16, .84, .44, 1) both; }
+.hero-search { animation: introUp   0.7s cubic-bezier(.16, .84, .44, 1) both; }
+.trend-tabs  { animation: introUp 0.6s cubic-bezier(.16, .84, .44, 1) both; animation-delay: 0.45s; }
+.trend-inner { animation: introUp 0.6s cubic-bezier(.16, .84, .44, 1) both; animation-delay: 0.55s; }
+
+/* ─── 히어로 ─── */
+.hero { padding: 64px 24px 56px; }
+.hero-inner { max-width: 760px; margin: 0 auto; text-align: center; }
+.hero-title {
+  font-size: 32px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.35;
+  margin-bottom: 28px;
+}
+.hero-title span { color: var(--accent); }
+.hero-search {
+  display: flex; align-items: center; gap: 10px;
+  background: #fff; border: 1.5px solid var(--line); border-radius: 8px;
+  padding: 8px 8px 8px 20px; box-shadow: 0 4px 16px rgba(5, 7, 11, 0.06);
+}
+.hero-search svg { flex-shrink: 0; color: var(--sub); }
+.hero-search input {
+  flex: 1; border: none; outline: none; font-size: 16px; font-family: inherit;
+  padding: 10px 0; color: var(--ink); min-width: 0; text-align: center;
+}
+.hero-search input::placeholder { color: #b8bdc7; font-weight: 700; }
+.hero-search button {
+  border: none; border-radius: 6px; background: var(--accent); color: #fff;
+  font-size: 15px; font-weight: 700; padding: 12px 28px; cursor: pointer;
+  font-family: inherit; white-space: nowrap; transition: background 0.15s;
+}
+.hero-search button:hover { background: var(--accent-dark); }
+
+/* ─── 트렌드 ─── */
+.trend { padding: 8px 24px 80px; }
+.trend-inner {
+  max-width: 980px; margin: 0 auto; background: #fff;
+  border: 1px solid var(--line); border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(5, 7, 11, 0.05);
+  padding: 28px 32px 32px;
+}
+
+.trend-tabs {
+  max-width: 980px; margin: 0 auto 20px; display: flex; justify-content: center; gap: 28px;
+}
+.trend-tab {
+  border: none; background: none; padding: 10px 0 12px; font-size: 19px; font-weight: 700;
+  color: #b8bdc7; cursor: pointer; font-family: inherit;
+  border-bottom: 2px solid transparent; transition: color 0.15s, border-color 0.15s;
+}
+.trend-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+.cat-tabs { display: flex; gap: 8px; margin-bottom: 22px; }
+.cat-tab {
+  flex: 1; border: 1.5px solid var(--line); background: #fff; color: var(--sub); font-family: inherit;
+  font-size: 13px; font-weight: 600; padding: 7px 10px; border-radius: 4px; cursor: pointer;
+  white-space: nowrap; text-align: center; transition: all 0.15s;
+}
+.cat-tab:hover { border-color: #c8cdd4; color: var(--ink); }
+.cat-tab.active { background: var(--dark); border-color: var(--dark); color: #fff; }
+
+.trend-grid { display: grid; grid-template-columns: 240px 1fr; gap: 32px; align-items: stretch; }
+.trend-col-title { font-size: 16px; font-weight: 800; margin-bottom: 4px; }
+.trend-col-sub { font-size: 12.5px; color: var(--sub); margin-bottom: 14px; }
+.trend-col { display: flex; flex-direction: column; }
+.trend-col--wide { display: flex; flex-direction: column; }
+
+/* 인기 쇼핑 키워드 위젯 (trend-widget.js 렌더 결과) */
+#trendWidget {
+  min-height: var(--trend-content-height);
+}
+.tr-list { display: flex; flex-direction: column; }
+.tr-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid #f4f5f7; font-size: 13.5px; }
+.tr-row:last-child { border-bottom: none; }
+.tr-rank { min-width: 22px; text-align: center; font-family: var(--font-mono); font-weight: 800; font-size: 12.5px; color: var(--sub); }
+.tr-row:nth-child(-n+3) .tr-rank { color: var(--accent); }
+.tr-kw { flex: 1; font-weight: 600; cursor: pointer; }
+.tr-kw:hover { color: var(--accent); text-decoration: underline; }
+.tr-chg { font-size: 11px; font-weight: 700; font-family: var(--font-mono); }
+.tr-chg.up { color: var(--up); }
+.tr-chg.down { color: var(--down); }
+.tr-chg.same { color: #c3c9d4; }
+.tr-chg.new { color: var(--accent); font-size: 10px; background: var(--accent-tint); padding: 1px 6px; border-radius: 10px; }
+.tr-status { padding: 20px 0; font-size: 12.5px; color: var(--sub); }
+
+/* TOP 노출 상품 (naver-rank 엣지펑션 실데이터)
+   왼쪽 "키워드 Best" 목록 길이에 맞춰 카드가 남는 공간을 꽉 채우도록
+   grid-auto-rows: 1fr + flex 썸네일로 세로 여백 없이 늘어나게 한다. */
+.sales-grid {
+  height: var(--trend-content-height);
+  display: grid; grid-template-columns: repeat(3, 1fr); grid-auto-rows: minmax(188px, 1fr);
+  gap: 14px;
+}
+.sales-grid[data-count="1"],
+.sales-grid[data-count="2"],
+.sales-grid[data-count="3"],
+.sales-grid[data-count="4"] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.sales-card {
+  display: flex; flex-direction: column; height: 100%; min-height: 188px;
+  border: 1px solid var(--line); border-radius: 6px; overflow: hidden;
+  background: #fff; color: inherit; text-decoration: none; transition: border-color 0.15s;
+}
+.sales-card:hover { border-color: #c8cdd4; }
+.sales-thumb {
+  flex: 1 1 auto; min-height: 108px; display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-mono); font-weight: 800; font-size: 12px; color: var(--sub);
+  letter-spacing: 0.04em; background: #eef0f3; overflow: hidden;
+}
+.sales-thumb img { width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.18s ease, transform 0.25s ease; }
+.sales-thumb img.is-loaded { opacity: 1; }
+.sales-card:hover .sales-thumb img { transform: scale(1.08); }
+.sales-body { flex: 0 0 auto; padding: 10px 12px 12px; }
+.sales-badge {
+  display: inline-block; font-size: 10.5px; font-weight: 700; color: #fff;
+  background: var(--accent); padding: 2px 8px; border-radius: 4px; margin-bottom: 6px;
+}
+.sales-title {
+  font-size: 13px; font-weight: 600; line-height: 1.4;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.sales-sub { font-size: 11.5px; color: var(--sub); margin-top: 4px; }
+
+.trend-empty { padding: 60px 0; text-align: center; color: var(--sub); font-size: 14px; }
+
+@media (max-width: 720px) {
+  .trend-grid { grid-template-columns: 1fr; }
+  .sales-grid { height: auto; grid-template-columns: repeat(2, 1fr); }
+  #trendWidget { min-height: 0; }
+  .hero-title { font-size: 24px; }
+  .trend-inner { padding: 24px 18px 28px; }
+}
+
+/* ─── TOP 노출 상품: 로딩 UX (출렁임 방지) ─── */
+/* 갱신 중에는 기존 카드를 유지한 채 흐리게만 표시 → 높이 붕괴 없음 */
+.sales-grid.is-loading {
+  min-height: var(--sales-grid-height, 390px);
+  opacity: 0.45;
+  pointer-events: none;
+}
+.sales-grid { transition: opacity 0.18s ease; }
+
+/* 첫 로드 스켈레톤 — 실제 카드와 동일 골격이라 그리드 높이가 그대로 유지됨 */
+.sales-card--skel { pointer-events: none; }
+.sales-card--skel .sales-thumb { background: var(--dark-tint); }
+.skel {
+  display: block; border-radius: 4px;
+  background: linear-gradient(90deg, #eef0f3 25%, #f7f8fa 50%, #eef0f3 75%);
+  background-size: 200% 100%;
+  animation: skelShine 1.3s ease-in-out infinite;
+}
+.skel-badge { width: 64px; height: 16px; margin-bottom: 8px; }
+.skel-line { height: 12px; margin-top: 6px; }
+.skel-line--short { width: 55%; }
+@keyframes skelShine {
+  from { background-position: 200% 0; }
+  to   { background-position: -200% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skel { animation: none; }
+}

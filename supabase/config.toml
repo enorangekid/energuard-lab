@@ -1,0 +1,4 @@
+project_id = "eukwfypbfqojbaihfqye"
+
+[functions.naver-ad-report]
+verify_jwt = false

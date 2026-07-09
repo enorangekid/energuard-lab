@@ -1,0 +1,317 @@
+﻿<script>if(!window.KankanRouter)location.replace('../index.html');</script>
+<main class="main-content">
+
+      <!-- 페이지 헤더 -->
+      <div class="page-header">
+        <nav class="breadcrumb" aria-label="breadcrumb">
+          <a href="../index.html">홈</a>
+          <span class="bc-sep">›</span>
+          <span>단열재/목공/보드</span>
+          <span class="bc-sep">›</span>
+          <span>단열재 수량 계산기</span>
+          <span class="bc-sep">›</span>
+          <span class="bc-current">열반사단열재 소요량 계산기</span>
+        </nav>
+        <h1 class="page-title">열반사단열재 소요량 계산기</h1>
+      </div>
+
+      <!-- 계산기 카드 -->
+      <div class="calc-wrapper">
+
+        <!-- ── 회색 묶음: 입력 + 결과 + 확인 + 관련 ── -->
+        <div class="calc-main-wrap">
+
+        <!-- 입력 섹션 -->
+        <div class="calc-card-main" id="calcForm">
+
+          <!-- Row 1: 벽체 가로 / 벽체 높이 -->
+          <div class="field-row">
+            <div class="field-group">
+              <label class="field-label">벽체 가로 길이</label>
+              <div class="field-input-wrap">
+                <input type="number" class="field-input" id="wallWidth" value="3000" min="0" step="1" />
+                <div class="unit-select-wrap">
+                  <select class="unit-select" id="wallWidthUnit">
+                    <option value="mm" selected>mm</option>
+                    <option value="cm">cm</option>
+                    <option value="m">m</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div class="field-dot">×</div>
+            <div class="field-group">
+              <label class="field-label">벽체 높이</label>
+              <div class="field-input-wrap">
+                <input type="number" class="field-input" id="wallHeight" value="2400" min="0" step="1" />
+                <div class="unit-select-wrap">
+                  <select class="unit-select" id="wallHeightUnit">
+                    <option value="mm" selected>mm</option>
+                    <option value="cm">cm</option>
+                    <option value="m">m</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Row 2: 제품 폭 고정 1M 안내 -->
+          <div class="field-row">
+            <div class="field-group">
+              <label class="field-label">제품 폭</label>
+              <div class="field-input-wrap">
+                <input type="text" class="field-input" value="1,000 mm (1M 고정)" disabled style="color: var(--color-text-muted); background: #f4f4f4;" />
+              </div>
+            </div>
+            <div class="field-dot"></div>
+            <div class="field-group"></div>
+          </div>
+
+          <!-- Row 3: 할증률 -->
+          <div class="field-row">
+            <div class="field-group">
+              <label class="field-label">할증율(로스)</label>
+              <div class="field-input-wrap">
+                <input type="number" class="field-input" id="lossRate" value="10" min="0" max="50" step="1" />
+                <div class="unit-select-wrap unit-fixed">
+                  <span class="unit-label">%</span>
+                </div>
+              </div>
+            </div>
+            <div class="field-dot"></div>
+            <div class="field-group"></div>
+          </div>
+
+          <!-- Row 4: 차감 면적 라디오 -->
+          <div class="field-row deduction-row">
+            <div class="field-label-inline">차감할 면적이 있나요</div>
+            <div class="radio-group">
+              <label class="radio-label">
+                <input type="radio" name="hasDeduction" value="yes" />
+                <span class="radio-custom"></span>
+                예
+              </label>
+              <label class="radio-label">
+                <input type="radio" name="hasDeduction" value="no" checked />
+                <span class="radio-custom"></span>
+                아니오
+              </label>
+            </div>
+          </div>
+
+          <!-- 차감 면적 입력 -->
+          <div class="deduction-inputs" id="deductionInputs" style="display:none;">
+            <div id="deductionList"></div>
+          </div>
+
+          <!-- 버튼 -->
+          <div class="btn-row">
+            <button class="btn-calc" id="btnCalc" type="button">
+              <span class="btn-calc-icon">≡</span> 계산하기
+            </button>
+            <button class="btn-reset" id="btnReset" type="button">
+              <span class="btn-reset-icon">C</span> 초기화
+            </button>
+          </div>
+
+        </div><!-- /calc-card-main -->
+
+        <!-- 결과 패널 -->
+        <div class="calc-right-col">
+        <div class="result-panel" id="resultPanel" style="display:none;">
+          <div class="result-main-row">
+
+            <!-- 왼쪽: 메인 수량 카드 -->
+            <div class="result-main-card">
+              <div class="result-main-sub" id="resMainSub">— m²에 필요한 열반사단열재 길이</div>
+              <div class="result-main-count">
+                <span class="result-main-num" id="resMainNum">—</span>
+                <span class="result-main-unit">m</span>
+              </div>
+              <div class="result-main-desc" id="resMainDesc">할증율 —%, — m 포함</div>
+            </div>
+
+            <!-- 오른쪽: 세부 지표 카드 -->
+            <div class="result-detail-card">
+              <div class="result-detail-icon">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="2"/>
+                  <line x1="3" y1="9" x2="21" y2="9"/>
+                  <line x1="3" y1="15" x2="21" y2="15"/>
+                  <line x1="9" y1="9" x2="9" y2="21"/>
+                  <line x1="15" y1="9" x2="15" y2="21"/>
+                </svg>
+              </div>
+              <div class="result-detail-metrics">
+                <div class="result-metric">
+                  <div class="result-metric-label">할증 포함 면적</div>
+                  <div class="result-metric-value" id="resLossArea">—</div>
+                </div>
+                <div class="result-metric">
+                  <div class="result-metric-label">순 시공 면적</div>
+                  <div class="result-metric-value" id="resBoardArea">—</div>
+                </div>
+                <div class="result-metric">
+                  <div class="result-metric-label">평당 소요량</div>
+                  <div class="result-metric-value" id="resPerPyeong">—</div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+          <div class="result-note" id="resultNote"></div>
+        </div>
+
+        <!-- 확인해주세요 + 관련 계산기 묶음 -->
+        <div class="tip-related-wrap">
+        <div class="tip-box">
+          <div class="tip-title">확인해주세요.</div>
+          <ul class="tip-list">
+            <li>열반사단열재는 제품 폭이 1M로 고정되어 있으며, 이 계산기는 시공에 필요한 총 길이(m)를 산출합니다.</li>
+            <li>이음매 부위는 반드시 알루미늄 테이프로 밀봉해야 열반사 성능이 유지됩니다. 테이프 시공을 빠뜨리면 단열 효과가 크게 감소합니다.</li>
+            <li>롤형 제품 특성상 재단 시 방향(세로/가로 시공)에 따라 로스 발생량이 달라집니다. 복잡한 면적이라면 할증율을 10% 이상으로 설정하세요.</li>
+            <li>접착식 제품은 부착 전 바탕면의 먼지와 수분을 제거한 뒤 시공해야 접착력이 유지됩니다. 접착면 상태에 따라 추가 접착 보강이 필요할 수 있습니다.</li>
+            <li>열반사단열재는 ±2mm 오차가 허용되는 열접착 방식으로 제작되며, 모서리 등 단열 취약 부위에 시공성이 좋습니다.</li>
+          </ul>
+        <div class="related-section">
+          <h3 class="related-title">이런 계산기는 어때요?</h3>
+          <div class="related-tags">
+            <a href="insulation-board.html" class="related-tag">판상형 단열재 수량 계산기</a>
+            <a href="gypsum.html" class="related-tag">석고보드 수량 계산기</a>
+            <a href="tex.html" class="related-tag">천장재[텍스] 수량 계산기</a>
+            <a href="acoustic.html" class="related-tag">방음/흡음재 수량 계산기</a>
+            <a href="insulation-thickness.html" class="related-tag">단열재 두께 계산기</a>
+          </div>
+        </div>
+        </div>
+        </div><!-- /tip-related-wrap -->
+        </div><!-- /calc-right-col -->
+
+        </div><!-- /calc-main-wrap -->
+
+        <!-- ── SEO 콘텐츠 블록 ── -->
+        <div class="seo-wrap">
+
+        <div class="seo-section">
+          <h2 class="seo-title">열반사단열재란? — 얇고 유연한 롤형 복사열 차단 자재</h2>
+          <p class="seo-body">열반사단열재는 알루미늄 필름이 복사열을 반사하는 롤형 단열재입니다. 기존 판상형 단열재보다 얇고 물성이 부드러워 시공성이 뛰어나며, 건축물 모서리나 배관 주변 등 단열이 취약한 부위에 특히 효과적입니다. 두께는 5T부터 50T까지 다양하게 제작되며, 열접착 방식으로 생산되어 ±2mm의 치수 오차가 허용됩니다.</p>
+        </div>
+
+        <div class="seo-section">
+          <h2 class="seo-title">계산 공식</h2>
+          <p class="seo-body">제품 폭 1M 고정을 기준으로 필요 길이를 산출합니다.</p>
+          <ol class="seo-list seo-list--ol">
+            <li><strong>벽체 가로, 높이 입력</strong><span>시공할 벽면 또는 천장의 전체 가로·세로 길이를 입력합니다.</span></li>
+            <li><strong>순 면적 계산</strong><span>전체 면적에서 창문·문 등 차감 면적을 뺀 실제 시공 면적을 구합니다.</span></li>
+            <li><strong>필요 길이 산출</strong><span>순 면적 ÷ 1M(제품 폭) × (1 + 할증률/100) 으로 필요 길이를 계산합니다.</span></li>
+          </ol>
+          <div class="seo-formula">
+            <div class="seo-formula-label"><span class="badge-orange">총 소요 길이 산출 공식</span></div>
+            <div class="seo-formula-body">필요 길이(m) = (시공 면적 − 차감 면적) ÷ 1m(폭) × (1 + 할증률/100)</div>
+          </div>
+          <div class="seo-formula-example">예시: 10㎡ 벽면에 폭 1M 열반사단열재 시공 시, 할증 10% 포함 약 <strong>11m</strong> 주문을 권장합니다.</div>
+        </div>
+
+        <div class="seo-section">
+          <h2 class="seo-title">4가지 제품군 비교 — 일반형·고급형 × 접착·비접착</h2>
+          <div class="seo-table-wrap">
+            <table class="seo-table">
+              <thead>
+                <tr>
+                  <th>구분</th>
+                  <th>일반형 비접착</th>
+                  <th>일반형 접착</th>
+                  <th>고급형 비접착</th>
+                  <th>고급형 접착</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>알루미늄 필름</td>
+                  <td>단면</td>
+                  <td>단면</td>
+                  <td>양면</td>
+                  <td>양면</td>
+                </tr>
+                <tr>
+                  <td>시공 방식</td>
+                  <td>타카·본드</td>
+                  <td>이형지 제거 후 부착</td>
+                  <td>타카·본드</td>
+                  <td>이형지 제거 후 부착</td>
+                </tr>
+                <tr>
+                  <td>단열 성능</td>
+                  <td>표준</td>
+                  <td>표준</td>
+                  <td>높음 (양방향 반사)</td>
+                  <td>높음 (양방향 반사)</td>
+                </tr>
+                <tr>
+                  <td>적합 용도</td>
+                  <td>벽체·지붕 전반</td>
+                  <td>DIY·좁은 면적</td>
+                  <td>고단열 요구 현장</td>
+                  <td>고단열 DIY·보수</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="seo-body" style="margin-top:12px;">일반형은 알루미늄 필름이 한쪽 면에만, 고급형은 양쪽 면에 처리되어 양방향 복사열 반사가 가능합니다. 접착과 비접착의 차이는 단열 성능이 아닌 시공 편의성에 있습니다. 단, 20T 이상 두꺼운 제품은 무게로 인해 접착식 단독 시공이 어려우므로 타카 시공을 권장합니다.</p>
+        </div>
+
+        <div class="seo-section">
+          <h2 class="seo-title">전문가 노하우 및 체크리스트</h2>
+          <div class="seo-checklist">
+            <div class="seo-check-item">
+              <div class="seo-check-title">공기층 확보로 성능 극대화</div>
+              <p class="seo-check-body">열반사단열재는 복사열을 반사하는 자재로, 반사면과 벽체 사이에 공기층(최소 20mm 이상)을 확보하면 단열 효율이 크게 높아집니다. 밀착 시공 시에도 단열 효과가 있으나, 공기층을 두는 것이 원칙입니다.</p>
+            </div>
+            <div class="seo-check-item">
+              <div class="seo-check-title">이음매 알루미늄 테이프 밀봉</div>
+              <p class="seo-check-body">롤을 이어 붙이는 이음매 부위는 반드시 알루미늄 테이프로 10cm 이상 겹쳐 밀봉해야 합니다. 테이프 미시공 시 이음매가 열교 지점이 되어 단열 성능이 크게 저하됩니다.</p>
+            </div>
+            <div class="seo-check-item">
+              <div class="seo-check-title">접착식 제품 바탕면 처리</div>
+              <p class="seo-check-body">접착식 제품 시공 전에는 바탕면의 먼지·곰팡이·습기를 완전히 제거해야 접착력이 유지됩니다. 바탕면 상태가 좋지 않을 경우 접착식 제품이라도 추가로 타카나 본드 보강이 필요합니다.</p>
+            </div>
+            <div class="seo-check-item">
+              <div class="seo-check-title">취약 부위 집중 시공</div>
+              <p class="seo-check-body">열반사단열재는 부드러운 물성 덕분에 기존 판상형 단열재가 적용하기 어려운 배관 주변, 건축물 모서리, 좁은 틈새 등 단열 취약 부위에 높은 시공성을 발휘합니다. 보조 단열재로 병행 사용하면 열교를 효과적으로 차단할 수 있습니다.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="seo-section">
+          <h2 class="seo-title">자주 묻는 질문 (FAQ)</h2>
+          <div class="seo-faq">
+            <div class="seo-faq-item">
+              <div class="seo-faq-q">열반사단열재만으로 단열이 충분한가요?</div>
+              <div class="seo-faq-a">복사열 차단에는 효과적이지만, 전도·대류 열손실은 막지 못합니다. 단독 사용보다는 아이소핑크 등 판상형 단열재와 병행 시공하거나, 단열이 취약한 부위의 보조 단열재로 활용하는 것을 권장합니다.</div>
+            </div>
+            <div class="seo-faq-item">
+              <div class="seo-faq-q">두께는 어떻게 선택하나요?</div>
+              <div class="seo-faq-a">최소 6T부터 권장하며, 두께가 두꺼울수록 단열 성능이 향상됩니다. 단, 20T 이상 제품은 무게가 있어 벽면·천장 시공 시 접착식만으로는 탈락 우려가 있으므로 타카 시공을 권장합니다.</div>
+            </div>
+            <div class="seo-faq-item">
+              <div class="seo-faq-q">천장 시공도 이 계산기로 계산 가능한가요?</div>
+              <div class="seo-faq-a">네, 가능합니다. 천장의 가로·세로 길이를 입력하면 됩니다. 천장은 작업 난이도가 높아 로스가 많으므로 할증률을 15% 이상으로 설정하는 것을 추천합니다.</div>
+            </div>
+          </div>
+        </div>
+        </div><!-- /seo-wrap -->
+
+      </div><!-- /calc-wrapper -->
+
+      <!-- 푸터 -->
+      <footer class="site-footer">
+        <div class="footer-links">
+          <a href="#">개인정보처리방침</a>
+          <a href="#">이용약관</a>
+          <a href="#">문의하기</a>
+        </div>
+        <p class="footer-copy">© 에너가드컴퍼니</p>
+      </footer>
+
+      <script src="reflective-insulation.js"></script>
+</main>

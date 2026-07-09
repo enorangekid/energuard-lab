@@ -1,0 +1,725 @@
+// supabase/functions/shopping-trend/index.ts
+// 데이터랩 쇼핑인사이트 — 분야별 인기 검색어 TOP N (+순위 변동)
+// ⚠ 비공식 엔드포인트 사용: 데이터랩 웹페이지 내부 API를 호출합니다.
+//   네이버가 페이지 구조를 바꾸면 동작이 멈출 수 있으며, 그 경우 에러만 반환됩니다.
+// 시크릿 불필요 (공개 데이터)
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+/* 네이버 쇼핑 1차 카테고리 CID */
+const CATEGORY_CID: Record<string, string> = {
+  "패션의류": "50000000",
+  "패션잡화": "50000001",
+  "화장품/미용": "50000002",
+  "디지털/가전": "50000003",
+  "가구/인테리어": "50000004",
+  "출산/육아": "50000005",
+  "식품": "50000006",
+  "스포츠/레저": "50000007",
+  "생활/건강": "50000008",
+};
+
+const DATALAB_URL = "https://datalab.naver.com/shoppingInsight/getCategoryKeywordRank.naver";
+
+function fmtDate(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+/* 기간 계산 (KST 기준) — offset: 기준일을 며칠 더 뒤로 물릴지 (집계 지연 대응) */
+function periods(timeUnit: string, offset = 0) {
+  const kst = new Date(Date.now() + 9 * 3600 * 1000);
+  const today = new Date(Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate()));
+  const day = (n: number) => new Date(today.getTime() + (n - offset) * 86400000);
+
+  if (timeUnit === "week") {
+    return {
+      cur: { start: fmtDate(day(-7)), end: fmtDate(day(-1)) },
+      prev: { start: fmtDate(day(-14)), end: fmtDate(day(-8)) },
+      unit: "week",
+    };
+  }
+  if (timeUnit === "month") {
+    return {
+      cur: { start: fmtDate(day(-30)), end: fmtDate(day(-1)) },
+      prev: { start: fmtDate(day(-60)), end: fmtDate(day(-31)) },
+      unit: "month",
+    };
+  }
+  return {
+    cur: { start: fmtDate(day(-1)), end: fmtDate(day(-1)) },
+    prev: { start: fmtDate(day(-2)), end: fmtDate(day(-2)) },
+    unit: "date",
+  };
+}
+
+async function fetchRank(cid: string, start: string, end: string, unit: string, count: number) {
+  const form = new URLSearchParams({
+    cid,
+    timeUnit: unit,
+    startDate: start,
+    endDate: end,
+    age: "",
+    gender: "",
+    device: "",
+    page: "1",
+    count: String(count),
+  });
+
+  const res = await fetch(DATALAB_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+      "Referer": "https://datalab.naver.com/shoppingInsight/sCategory.naver",
+      "Origin": "https://datalab.naver.com",
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
+      "X-Requested-With": "XMLHttpRequest",
+    },
+    body: form.toString(),
+  });
+
+  if (!res.ok) {
+    throw new Error(`데이터랩 응답 ${res.status}`);
+  }
+  const data = await res.json();
+  // 응답 형태: { ranks: [{ rank, keyword, linkId }, ...], ... }
+  const ranks: Array<{ rank: number; keyword: string }> = data.ranks ?? [];
+  return ranks; // 빈 배열 = 해당 날짜 집계 전 (호출부에서 날짜 이동 재시도)
+}
+
+/* ───────── 실시간 급상승 키워드 (시그널 + 네이트 + 구글 트렌드) ───────── */
+
+const SNAPSHOT_TABLE = "realtime_trend_snapshot";
+
+function getSupabaseCredentials() {
+  const url = Deno.env.get("SUPABASE_URL") || "";
+  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+  return { url, key, enabled: !!url && !!key };
+}
+
+async function supabaseRequest(path: string, init: RequestInit = {}) {
+  const { url, key, enabled } = getSupabaseCredentials();
+  if (!enabled) throw new Error("SUPABASE_URL / SERVICE_ROLE_KEY 필요");
+  const res = await fetch(`${url}${path}`, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      "apikey": key,
+      "Authorization": `Bearer ${key}`,
+      ...(init.headers || {}),
+    },
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`snapshot ${res.status}: ${text.slice(0, 200)}`);
+  return text ? JSON.parse(text) : null;
+}
+
+const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
+
+async function fetchSignal(): Promise<{ rank: number; keyword: string }[]> {
+  const res = await fetch("https://api.signal.bz/news/realtime", { headers: { "User-Agent": UA } });
+  if (!res.ok) throw new Error(`signal ${res.status}`);
+  const data = await res.json();
+  return (data.top10 || []).map((item: { rank: number; keyword: string }) => ({
+    rank: Number(item.rank), keyword: String(item.keyword || "").trim(),
+  })).filter((item: { keyword: string }) => item.keyword);
+}
+
+async function fetchNate(): Promise<{ rank: number; keyword: string }[]> {
+  const res = await fetch("https://www.nate.com/js/data/jsonLiveKeywordDataV1.js", { headers: { "User-Agent": UA } });
+  if (!res.ok) throw new Error(`nate ${res.status}`);
+  const buffer = await res.arrayBuffer();
+  const text = new TextDecoder("euc-kr").decode(buffer);
+  const data = JSON.parse(text);
+  // 각 행: [순위, 이슈제목, 플래그, 변동, 검색키워드]
+  return (Array.isArray(data) ? data : []).map((row: string[]) => ({
+    rank: Number(row[0]), keyword: String(row[4] || row[1] || "").trim(),
+  })).filter((item: { keyword: string }) => item.keyword);
+}
+
+async function fetchGoogleTrends(): Promise<{ rank: number; keyword: string }[]> {
+  const urls = [
+    "https://trends.google.co.kr/trending/rss?geo=KR",
+    "https://trends.google.com/trends/trendingsearches/daily/rss?geo=KR",
+  ];
+  for (const url of urls) {
+    try {
+      const res = await fetch(url, { headers: { "User-Agent": UA } });
+      if (!res.ok) continue;
+      const xml = await res.text();
+      const items: { rank: number; keyword: string }[] = [];
+      const matches = xml.matchAll(/<item>[\s\S]*?<title>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?<\/title>/g);
+      let rank = 1;
+      for (const m of matches) {
+        const keyword = String(m[1] || "").trim();
+        if (keyword) items.push({ rank: rank++, keyword });
+        if (rank > 20) break;
+      }
+      if (items.length) return items;
+    } catch (_) { /* 다음 URL 시도 */ }
+  }
+  throw new Error("google trends 조회 실패");
+}
+
+// 시그널+네이트 통합 순위: 각 소스에서 (11-순위)점을 부여해 합산, 동점은 최고 순위 우선
+function mergeRealtime(lists: { name: string; items: { rank: number; keyword: string }[] }[]) {
+  const map = new Map<string, { keyword: string; score: number; best: number; sources: string[] }>();
+  lists.forEach(({ name, items }) => {
+    items.forEach(item => {
+      const key = item.keyword.replace(/\s+/g, "");
+      if (!map.has(key)) map.set(key, { keyword: item.keyword, score: 0, best: 99, sources: [] });
+      const acc = map.get(key)!;
+      acc.score += Math.max(11 - item.rank, 1);
+      acc.best = Math.min(acc.best, item.rank);
+      if (!acc.sources.includes(name)) acc.sources.push(name);
+    });
+  });
+  return [...map.values()]
+    .sort((a, b) => b.score - a.score || a.best - b.best)
+    .slice(0, 20)
+    .map((item, i) => ({ rank: i + 1, keyword: item.keyword, sources: item.sources }));
+}
+
+function kstSlot() {
+  const kst = new Date(Date.now() + 9 * 3600 * 1000);
+  return kst.toISOString().slice(0, 13).replace("T", " ") + ":00"; // "2026-07-09 10:00"
+}
+
+async function readSlots() {
+  const rows: Array<{ slot: string }> = await supabaseRequest(
+    `/rest/v1/${SNAPSHOT_TABLE}?select=slot&list_type=eq.realtime&rank=eq.1&order=slot.desc&limit=12`,
+  ) || [];
+  return rows.map(row => row.slot);
+}
+
+async function readSnapshot(slot: string, listType: string) {
+  const rows = await supabaseRequest(
+    `/rest/v1/${SNAPSHOT_TABLE}?slot=eq.${encodeURIComponent(slot)}&list_type=eq.${listType}&select=rank,keyword,sources&order=rank.asc&limit=100`,
+  ) || [];
+  return rows as Array<{ rank: number; keyword: string; sources: string }>;
+}
+
+async function saveSnapshot(slot: string, listType: string, items: { rank: number; keyword: string; sources?: string[] }[]) {
+  await supabaseRequest(`/rest/v1/${SNAPSHOT_TABLE}?slot=eq.${encodeURIComponent(slot)}&list_type=eq.${listType}`, { method: "DELETE" });
+  await supabaseRequest(`/rest/v1/${SNAPSHOT_TABLE}`, {
+    method: "POST",
+    headers: { "Prefer": "return=minimal" },
+    body: JSON.stringify(items.map(item => ({
+      slot, list_type: listType, rank: item.rank, keyword: item.keyword,
+      sources: (item.sources || []).join(","),
+    }))),
+  });
+}
+
+function withDelta(
+  items: { rank: number; keyword: string; sources?: string[] }[],
+  prev: Array<{ rank: number; keyword: string }>,
+) {
+  const prevMap = new Map(prev.map(row => [row.keyword.replace(/\s+/g, ""), row.rank]));
+  return items.map(item => {
+    const prevRank = prevMap.get(item.keyword.replace(/\s+/g, ""));
+    return {
+      ...item,
+      change: prevRank == null ? "new" : prevRank > item.rank ? "up" : prevRank < item.rank ? "down" : "same",
+      delta: prevRank == null ? null : prevRank - item.rank,
+    };
+  });
+}
+
+async function handleRealtime() {
+  const results = await Promise.allSettled([fetchSignal(), fetchNate(), fetchGoogleTrends()]);
+  const signal = results[0].status === "fulfilled" ? results[0].value : [];
+  const nate = results[1].status === "fulfilled" ? results[1].value : [];
+  const google = results[2].status === "fulfilled" ? results[2].value : [];
+  const failed = ["시그널", "네이트", "구글"].filter((_, i) => results[i].status === "rejected");
+  if (!signal.length && !nate.length) throw new Error("실시간 소스 모두 실패: " + failed.join(", "));
+
+  const merged = mergeRealtime([
+    { name: "시그널", items: signal },
+    { name: "네이트", items: nate },
+  ]);
+  const googleList = google.map(item => ({ rank: item.rank, keyword: item.keyword, sources: ["구글"] }));
+
+  // 스냅샷 저장 + 직전 슬롯과 비교해 변동 계산
+  const slot = kstSlot();
+  let realtimeOut = merged.map(item => ({ ...item, change: "same", delta: null as number | null }));
+  let googleOut = googleList.map(item => ({ ...item, change: "same", delta: null as number | null }));
+  let slots: string[] = [];
+  try {
+    await saveSnapshot(slot, "realtime", merged);
+    if (googleList.length) await saveSnapshot(slot, "google", googleList);
+    slots = await readSlots();
+    const prevSlot = slots.find(s => s < slot);
+    if (prevSlot) {
+      realtimeOut = withDelta(merged, await readSnapshot(prevSlot, "realtime"));
+      googleOut = withDelta(googleList, await readSnapshot(prevSlot, "google"));
+    }
+  } catch (_) { /* 스냅샷 실패 시 변동 없이 현재 순위만 반환 */ }
+
+  return {
+    slot,
+    slots,
+    capturedAt: new Date().toISOString(),
+    realtime: realtimeOut,
+    google: googleOut,
+    sourceNote: failed.length ? `${failed.join("·")} 소스 응답 없음` : "",
+  };
+}
+
+async function handleRealtimeAt(slotRaw: string) {
+  const slot = String(slotRaw || "");
+  if (!slot) throw new Error("slot이 필요합니다.");
+  const slots = await readSlots();
+  const prevSlot = slots.find(s => s < slot);
+  const realtimeRows = await readSnapshot(slot, "realtime");
+  const googleRows = await readSnapshot(slot, "google");
+  const mapRows = (rows: Array<{ rank: number; keyword: string; sources: string }>) =>
+    rows.map(row => ({ rank: row.rank, keyword: row.keyword, sources: row.sources ? row.sources.split(",") : [] }));
+  return {
+    slot,
+    slots,
+    capturedAt: null,
+    realtime: withDelta(mapRows(realtimeRows), prevSlot ? await readSnapshot(prevSlot, "realtime") : []),
+    google: withDelta(mapRows(googleRows), prevSlot ? await readSnapshot(prevSlot, "google") : []),
+    sourceNote: "",
+  };
+}
+
+/* ───────── 단열 관련 이슈 TOP 20 (네이버 뉴스 검색 API) ─────────
+   단열 시드어로 최근 뉴스를 수집해, 같은 이슈를 다룬 기사끼리 묶고
+   기사 수 × 최신성으로 순위를 매긴다. 공식 API라 안정적. */
+
+const NICHE_SEEDS = [
+  "단열재", "단열 시공", "아이소핑크", "스티로폼 화재", "우레탄폼", "샌드위치패널",
+  "준불연", "결로", "벽 곰팡이", "누수", "난방비", "리모델링 단열",
+];
+
+function stripTags(s: string) {
+  return String(s || "").replace(/<[^>]*>/g, "").replace(/&quot;/g, '"').replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&#39;/g, "'").trim();
+}
+
+function titleTokens(title: string) {
+  return new Set(
+    title.replace(/[^\w가-힣\s]/g, " ").split(/\s+/).filter(t => t.length >= 2),
+  );
+}
+
+async function fetchNicheNews(seed: string) {
+  const clientId = Deno.env.get("NAVER_CLIENT_ID") || "";
+  const clientSecret = Deno.env.get("NAVER_CLIENT_SECRET") || "";
+  if (!clientId || !clientSecret) throw new Error("NAVER_CLIENT_ID / NAVER_CLIENT_SECRET 시크릿이 필요합니다.");
+  const res = await fetch(
+    `https://openapi.naver.com/v1/search/news.json?query=${encodeURIComponent(seed)}&display=20&sort=date`,
+    { headers: { "X-Naver-Client-Id": clientId, "X-Naver-Client-Secret": clientSecret } },
+  );
+  if (!res.ok) throw new Error(`뉴스 API ${res.status}`);
+  const data = await res.json();
+  return (data.items || []).map((item: { title: string; link: string; originallink: string; pubDate: string }) => ({
+    title: stripTags(item.title),
+    link: item.link || item.originallink || "",
+    pubDate: new Date(item.pubDate).getTime() || 0,
+    seed,
+  }));
+}
+
+async function handleNicheTrend() {
+  const results = await Promise.allSettled(NICHE_SEEDS.map(seed => fetchNicheNews(seed)));
+  const articles: Array<{ title: string; link: string; pubDate: number; seed: string }> = [];
+  results.forEach(result => {
+    if (result.status === "fulfilled") articles.push(...result.value);
+  });
+  if (!articles.length) throw new Error("뉴스 조회 실패 (NAVER_CLIENT_ID 시크릿 확인)");
+
+  // 최근 7일 기사만, 최신순
+  const weekAgo = Date.now() - 7 * 86400000;
+  const recent = articles.filter(a => a.pubDate >= weekAgo).sort((a, b) => b.pubDate - a.pubDate);
+
+  // 제목 토큰이 3개 이상 겹치면 같은 이슈로 묶기 (탐욕적 클러스터링)
+  type Cluster = { title: string; link: string; pubDate: number; count: number; seeds: Set<string>; tokens: Set<string> };
+  const clusters: Cluster[] = [];
+  recent.forEach(article => {
+    const tokens = titleTokens(article.title);
+    const found = clusters.find(cluster => {
+      let overlap = 0;
+      tokens.forEach(t => { if (cluster.tokens.has(t)) overlap++; });
+      return overlap >= 3;
+    });
+    if (found) {
+      found.count += 1;
+      found.seeds.add(article.seed);
+      tokens.forEach(t => found.tokens.add(t));
+      if (article.pubDate > found.pubDate) {
+        found.pubDate = article.pubDate;
+      }
+    } else {
+      clusters.push({
+        title: article.title, link: article.link, pubDate: article.pubDate,
+        count: 1, seeds: new Set([article.seed]), tokens,
+      });
+    }
+  });
+
+  // 점수 = 기사 수 ×2 + 최신성 가중(24h +6, 72h +3)
+  const now = Date.now();
+  const scored = clusters.map(cluster => {
+    const ageHours = (now - cluster.pubDate) / 3600000;
+    const recencyBoost = ageHours <= 24 ? 6 : ageHours <= 72 ? 3 : 0;
+    return { ...cluster, score: cluster.count * 2 + recencyBoost };
+  }).sort((a, b) => b.score - a.score || b.pubDate - a.pubDate);
+
+  const fmtAge = (t: number) => {
+    const h = Math.floor((now - t) / 3600000);
+    if (h < 1) return "방금";
+    if (h < 24) return `${h}시간 전`;
+    return `${Math.floor(h / 24)}일 전`;
+  };
+
+  return {
+    date: "네이버 뉴스 · 최근 7일",
+    niche: scored.slice(0, 20).map((cluster, i) => ({
+      rank: i + 1,
+      keyword: cluster.title,
+      link: cluster.link,
+      query: [...cluster.seeds][0],
+      sources: [`기사 ${cluster.count}건 · ${fmtAge(cluster.pubDate)} · ${[...cluster.seeds].slice(0, 2).join("·")}`],
+      change: "same",
+      delta: null,
+    })),
+  };
+}
+
+/* ───────── 단열 검색량 급증 감지 (데이터랩 검색어트렌드 API, 공식) ─────────
+   단열 키워드 풀의 최근 30일 일별 검색 추이를 받아,
+   "평소(직전 3주 평균) 대비 최근 이틀"의 배율로 급증을 감지한다.
+   → 사람들이 실제로 검색하기 시작한 단열 주제를 포착 */
+
+const SPIKE_KEYWORDS = [
+  "단열재", "단열", "아이소핑크", "스티로폼", "우레탄폼", "압출법단열재", "열반사단열재", "그라스울",
+  "단열벽지", "단열필름", "단열페인트", "단열시공", "샌드위치패널", "준불연", "PF보드",
+  "문풍지", "뽁뽁이", "방풍비닐", "외풍차단", "창문단열", "샷시교체", "창호",
+  "결로", "결로방지", "곰팡이제거", "방습제", "제습기", "벽지곰팡이",
+  "방음재", "흡음재", "난방비절약", "보일러교체", "온수매트", "전기장판",
+  "코킹", "옥상방수", "누수", "리모델링", "셀프인테리어", "단열도어",
+];
+
+async function fetchDatalabTrend(keywords: string[], startDate: string, endDate: string) {
+  const clientId = Deno.env.get("NAVER_CLIENT_ID") || "";
+  const clientSecret = Deno.env.get("NAVER_CLIENT_SECRET") || "";
+  if (!clientId || !clientSecret) throw new Error("NAVER_CLIENT_ID / NAVER_CLIENT_SECRET 시크릿이 필요합니다.");
+  const res = await fetch("https://openapi.naver.com/v1/datalab/search", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Naver-Client-Id": clientId,
+      "X-Naver-Client-Secret": clientSecret,
+    },
+    body: JSON.stringify({
+      startDate, endDate, timeUnit: "date",
+      keywordGroups: keywords.map(k => ({ groupName: k, keywords: [k] })),
+    }),
+  });
+  if (!res.ok) throw new Error(`데이터랩 검색어트렌드 ${res.status}: ${(await res.text()).slice(0, 150)}`);
+  const data = await res.json();
+  return (data.results || []) as Array<{ title: string; data: Array<{ period: string; ratio: number }> }>;
+}
+
+async function handleNicheSpike() {
+  const kst = new Date(Date.now() + 9 * 3600 * 1000);
+  const end = new Date(Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate()) - 86400000); // 어제
+  const start = new Date(end.getTime() - 29 * 86400000);
+  const startDate = fmtDate(start);
+  const endDate = fmtDate(end);
+
+  // 데이터랩은 요청당 키워드 그룹 5개 제한 → 5개씩 배치 병렬 호출
+  const batches: string[][] = [];
+  for (let i = 0; i < SPIKE_KEYWORDS.length; i += 5) batches.push(SPIKE_KEYWORDS.slice(i, i + 5));
+  const settled = await Promise.allSettled(batches.map(batch => fetchDatalabTrend(batch, startDate, endDate)));
+  const series: Array<{ title: string; data: Array<{ period: string; ratio: number }> }> = [];
+  let failCount = 0;
+  settled.forEach(result => {
+    if (result.status === "fulfilled") series.push(...result.value);
+    else failCount++;
+  });
+  if (!series.length) {
+    throw new Error("검색어트렌드 조회 실패 — 네이버 애플리케이션에 '데이터랩(검색어트렌드)' API가 등록되어 있는지 확인해 주세요.");
+  }
+
+  const items = series.map(s => {
+    const byDate = new Map(s.data.map(d => [d.period, d.ratio]));
+    // 최근 30일 날짜 배열 구성 (빠진 날 = 0)
+    const ratios: number[] = [];
+    for (let t = start.getTime(); t <= end.getTime(); t += 86400000) {
+      ratios.push(byDate.get(fmtDate(new Date(t))) || 0);
+    }
+    const recent = (ratios[ratios.length - 1] + ratios[ratios.length - 2]) / 2; // 최근 이틀 평균
+    const baselineArr = ratios.slice(0, ratios.length - 2- 5); // 최근 1주를 뺀 앞쪽 ~3주
+    const baseline = baselineArr.length ? baselineArr.reduce((a, b) => a + b, 0) / baselineArr.length : 0;
+    const spike = recent / Math.max(baseline, 1); // baseline 바닥값 1 (0 나눗셈·저볼륨 과대평가 방지)
+    return {
+      keyword: s.title,
+      spike: Math.round(spike * 10) / 10,
+      recent: Math.round(recent),
+      baseline: Math.round(baseline),
+      week: ratios.slice(-7).map(r => Math.round(r)),
+    };
+  })
+  .filter(item => item.recent > 0)
+  .sort((a, b) => b.spike - a.spike || b.recent - a.recent);
+
+  return {
+    date: `${endDate} 기준 · 직전 3주 평균 대비 최근 이틀`,
+    failNote: failCount ? `${failCount}개 배치 조회 실패` : "",
+    niche: items.slice(0, 20).map((item, i) => ({
+      rank: i + 1,
+      keyword: item.keyword,
+      spike: item.spike,
+      query: item.keyword,
+      sources: [`평소 ${item.baseline} → 최근 ${item.recent} · 7일 [${item.week.join(",")}]`],
+      change: item.spike >= 1.5 ? "up" : "same",
+      delta: null,
+    })),
+  };
+}
+
+/* ───────── 카테고리 탐색기 (1·2·3차 카테고리 → 인기 키워드 + 검색수/상품수/경쟁지수) ─────────
+   카테고리 트리: 데이터랩 쇼핑인사이트 내부 API (비공식, 1차는 getCategoryList.naver,
+   2차 이하는 getCategory.naver?cid=<부모cid>). 인기 키워드는 기존 fetchRank() 재사용.
+   검색수(검색광고 키워드도구)·상품수(쇼핑 검색 API)는 naver-rank 함수와 동일한 공식 API. */
+
+const CATEGORY_LIST_URL = "https://datalab.naver.com/shoppingInsight/getCategoryList.naver";
+const CATEGORY_TREE_URL = "https://datalab.naver.com/shoppingInsight/getCategory.naver";
+const DATALAB_HEADERS = {
+  "User-Agent": UA,
+  "Referer": "https://datalab.naver.com/shoppingInsight/sCategory.naver",
+};
+
+async function fetchCategoryRoots() {
+  const res = await fetch(CATEGORY_LIST_URL, { headers: DATALAB_HEADERS });
+  if (!res.ok) throw new Error(`카테고리 목록 조회 ${res.status}`);
+  const list: Array<{ cid: number; name: string }> = await res.json();
+  return list.map(item => ({ cid: String(item.cid), name: item.name, leaf: false }));
+}
+
+async function fetchCategoryChildren(cid: string) {
+  const res = await fetch(`${CATEGORY_TREE_URL}?cid=${encodeURIComponent(cid)}`, { headers: DATALAB_HEADERS });
+  if (!res.ok) throw new Error(`카테고리 조회 ${res.status}`);
+  const data = await res.json();
+  const children: Array<{ cid: number; name: string; leaf: boolean }> = data.childList || [];
+  return children.map(item => ({ cid: String(item.cid), name: item.name, leaf: !!item.leaf }));
+}
+
+async function handleCategoryTree(cidRaw: unknown) {
+  const cid = String(cidRaw || "0");
+  const children = cid === "0" ? await fetchCategoryRoots() : await fetchCategoryChildren(cid);
+  return { cid, children };
+}
+
+function normKw(s: string) {
+  return String(s || "").replace(/\s+/g, "").toUpperCase();
+}
+
+async function adSignature(secret: string, timestamp: string, method: string, path: string) {
+  const key = await crypto.subtle.importKey(
+    "raw", new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" }, false, ["sign"],
+  );
+  const sig = await crypto.subtle.sign(
+    "HMAC", key, new TextEncoder().encode(`${timestamp}.${method}.${path}`),
+  );
+  return btoa(String.fromCharCode(...new Uint8Array(sig)));
+}
+
+// 검색광고 키워드도구 — 최대 5개씩 묶어 월간 검색량(PC+모바일) 조회
+async function fetchSearchVolumeBatch(keywords: string[]) {
+  const customerId = Deno.env.get("NAVER_AD_CUSTOMER_ID") || "";
+  const license = Deno.env.get("NAVER_AD_ACCESS_LICENSE") || "";
+  const secret = Deno.env.get("NAVER_AD_SECRET_KEY") || "";
+  const volumeMap = new Map<string, number>();
+  if (!customerId || !license || !secret || !keywords.length) return volumeMap;
+
+  const path = "/keywordstool";
+  for (let i = 0; i < keywords.length; i += 5) {
+    const batch = keywords.slice(i, i + 5);
+    const hint = batch.map(normKw).join(",");
+    const timestamp = String(Date.now());
+    const sig = await adSignature(secret, timestamp, "GET", path);
+    try {
+      const res = await fetch(
+        `https://api.searchad.naver.com${path}?hintKeywords=${encodeURIComponent(hint)}&showDetail=1`,
+        { headers: { "X-Timestamp": timestamp, "X-API-KEY": license, "X-Customer": customerId, "X-Signature": sig } },
+      );
+      if (!res.ok) continue;
+      const data = await res.json();
+      const list: Array<Record<string, unknown>> = data.keywordList ?? [];
+      const targets = new Set(batch.map(normKw));
+      list.forEach(k => {
+        const rel = normKw(String(k.relKeyword ?? ""));
+        if (!targets.has(rel)) return;
+        const pc = Number(k.monthlyPcQcCnt) || (String(k.monthlyPcQcCnt) === "< 10" ? 5 : 0);
+        const mobile = Number(k.monthlyMobileQcCnt) || (String(k.monthlyMobileQcCnt) === "< 10" ? 5 : 0);
+        const original = batch.find(b => normKw(b) === rel);
+        if (original) volumeMap.set(original, pc + mobile);
+      });
+    } catch (_) { /* 배치 실패 시 해당 키워드는 검색량 없음으로 처리 */ }
+  }
+  return volumeMap;
+}
+
+async function fetchProductCount(keyword: string) {
+  const clientId = Deno.env.get("NAVER_CLIENT_ID") || "";
+  const clientSecret = Deno.env.get("NAVER_CLIENT_SECRET") || "";
+  if (!clientId || !clientSecret) return null;
+  try {
+    const res = await fetch(
+      `https://openapi.naver.com/v1/search/shop.json?query=${encodeURIComponent(keyword)}&display=1&sort=sim`,
+      { headers: { "X-Naver-Client-Id": clientId, "X-Naver-Client-Secret": clientSecret } },
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    return Number(data.total) || 0;
+  } catch (_) {
+    return null;
+  }
+}
+
+// 상품수÷검색량 비율을 0~100 경쟁지수로 (naver-rank.html의 compScore와 동일한 로그 보간)
+function compScore(ratio: number | null) {
+  if (ratio == null) return null;
+  if (ratio <= 0) return 0;
+  const anchors: [number, number][] = [[0.05, 0], [0.8, 40], [3, 70], [50, 100]];
+  if (ratio <= anchors[0][0]) return 0;
+  if (ratio >= anchors[anchors.length - 1][0]) return 100;
+  for (let i = 0; i < anchors.length - 1; i++) {
+    const [r1, s1] = anchors[i];
+    const [r2, s2] = anchors[i + 1];
+    if (ratio <= r2) {
+      const t = (Math.log10(ratio) - Math.log10(r1)) / (Math.log10(r2) - Math.log10(r1));
+      return Math.round(s1 + t * (s2 - s1));
+    }
+  }
+  return 100;
+}
+
+async function handleCategoryKeywords(body: JsonBody) {
+  const cid = String(body.cid || "");
+  if (!cid) throw new Error("cid가 필요합니다.");
+  const count = Math.min(Math.max(Number(body.count) || 20, 5), 30);
+
+  let p = periods("date", 0);
+  let curRanks: Array<{ rank: number; keyword: string }> = [];
+  for (let offset = 0; offset <= 2; offset++) {
+    p = periods("date", offset);
+    try {
+      curRanks = await fetchRank(cid, p.cur.start, p.cur.end, "date", count);
+      if (curRanks.length) break;
+    } catch (_) { /* 다음 offset 시도 */ }
+  }
+  if (!curRanks.length) throw new Error("이 카테고리의 인기 키워드를 가져오지 못했습니다.");
+
+  const keywordList = curRanks.slice(0, count).map(r => r.keyword);
+  const [volumeMap, productCounts] = await Promise.all([
+    fetchSearchVolumeBatch(keywordList),
+    Promise.all(keywordList.map(kw => fetchProductCount(kw))),
+  ]);
+
+  const items = keywordList.map((keyword, i) => {
+    const volume = volumeMap.has(keyword) ? volumeMap.get(keyword)! : null;
+    const products = productCounts[i];
+    const ratio = (volume != null && volume > 0 && products != null) ? products / volume : null;
+    return {
+      rank: i + 1,
+      keyword,
+      volume,
+      products,
+      compRatio: ratio == null ? null : Math.round(ratio * 100) / 100,
+      compScore: compScore(ratio),
+    };
+  });
+
+  return { cid, date: p.cur.end, items };
+}
+
+type JsonBody = Record<string, unknown>;
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+  try {
+    const body = await req.json().catch(() => ({}));
+    if (body.action === "realtime") return json(await handleRealtime());
+    if (body.action === "realtimeAt") return json(await handleRealtimeAt(body.slot));
+    if (body.action === "nicheTrend") return json(await handleNicheTrend());
+    if (body.action === "nicheSpike") return json(await handleNicheSpike());
+    if (body.action === "categoryTree") return json(await handleCategoryTree(body.cid));
+    if (body.action === "categoryKeywords") return json(await handleCategoryKeywords(body));
+    const category: string = body.category || "생활/건강";
+    const timeUnit: string = ["date", "week", "month"].includes(body.timeUnit) ? body.timeUnit : "date";
+    const count: number = Math.min(Number(body.count) || 20, 100);
+
+    const cid = CATEGORY_CID[category] || String(body.cid || "");
+    if (!cid) {
+      return json({ error: `알 수 없는 카테고리: ${category}`, available: Object.keys(CATEGORY_CID) }, 400);
+    }
+
+    // 집계 지연 대응: 기준일을 0~2일 물려가며 데이터가 있는 날짜를 찾음
+    let p = periods(timeUnit, 0);
+    let curRanks: Array<{ rank: number; keyword: string }> = [];
+    let lastErr = "";
+    for (let offset = 0; offset <= 2; offset++) {
+      p = periods(timeUnit, offset);
+      try {
+        curRanks = await fetchRank(cid, p.cur.start, p.cur.end, p.unit, count);
+        if (curRanks.length) break;
+        lastErr = `${p.cur.start} 데이터 없음(집계 전)`;
+      } catch (e) {
+        lastErr = String(e);
+      }
+    }
+    if (!curRanks.length) {
+      return json({ error: "데이터랩 조회 실패", detail: lastErr }, 502);
+    }
+
+    const prevMap = new Map<string, number>();
+    try {
+      const prevRanks = await fetchRank(cid, p.prev.start, p.prev.end, p.unit, count + 30);
+      for (const r of prevRanks) prevMap.set(r.keyword, r.rank);
+    } catch (_) { /* 이전 기간 실패 시 변동 표시만 생략 */ }
+
+    const keywords = curRanks.slice(0, count).map((r) => {
+      const prev = prevMap.get(r.keyword) ?? null;
+      let change: string;
+      let delta: number | null = null;
+      if (prev == null) change = "new";
+      else {
+        delta = prev - r.rank;
+        change = delta > 0 ? "up" : delta < 0 ? "down" : "same";
+      }
+      return { rank: r.rank, keyword: r.keyword, prevRank: prev, delta, change };
+    });
+
+    return json({
+      category,
+      cid,
+      timeUnit,
+      period: p.cur,
+      comparedTo: prevMap.size ? p.prev : null,
+      keywords,
+      checkedAt: new Date().toISOString(),
+    });
+  } catch (e) {
+    return json({ error: "서버 오류", detail: String(e) }, 500);
+  }
+});
+
+function json(obj: unknown, status = 200) {
+  return new Response(JSON.stringify(obj), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}

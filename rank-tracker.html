@@ -1,0 +1,1255 @@
+﻿<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>랭킹추적 — 에너가드컴퍼니</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="common.css?v=20260706-topbar2">
+<style>
+  :root {
+    --bg: #f8f9fb; --card: #fff; --ink: #1a1f2e; --sub: #5a6378;
+    --line: #e8ecf2; --dark: #05070b; --dark-tint: #eef0f3;
+    --accent: #e85d2f; --accent-dark: #d04420; --accent-tint: #fdeee7;
+    --gray-badge: #eef0f3; --danger: #dc2626;
+    --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+    --font-main: "Pretendard Variable", Pretendard, -apple-system, sans-serif;
+    --radius: 6px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scrollbar-gutter: stable; }
+  body {
+    font-family: var(--font-main);
+    background: var(--bg); color: var(--ink); font-size: 15px; line-height: 1.55;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 64px 0 80px; }
+  .wrap > header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 20px; }
+  .wrap > header h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; }
+  .wrap > header .tag { font-size: 12px; font-weight: 600; color: var(--dark); background: var(--dark-tint); padding: 2px 8px; border-radius: 20px; }
+
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }
+  .store-label { font-size: 15px; font-weight: 800; margin-bottom: 6px; }
+  .store-chips { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+  .store-chip {
+    padding: 7px 10px; border: 1.5px solid var(--line); border-radius: 4px;
+    background: #fff; font-size: 13px; font-weight: 600; color: var(--sub); cursor: pointer;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; transition: all .12s;
+    font-family: inherit;
+  }
+  .store-chip:hover { border-color: #c8cdd4; }
+  .store-chip.active { border-color: var(--dark); background: var(--dark); color: #fff; }
+
+  .summary { margin-top: 16px; font-size: 13px; color: var(--sub); }
+  .summary a { color: var(--accent); font-weight: 700; }
+
+  .category-tabs {
+    margin-top: 18px;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .category-tab {
+    height: 42px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: #fff;
+    color: var(--sub);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: all .12s;
+  }
+  .category-tab:hover { border-color: #d7dde7; color: var(--ink); background: #fafbfc; }
+  .category-tab.active { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .category-tab-count { margin-left: 4px; font-size: 11px; font-weight: 700; opacity: .72; }
+  .category-section { margin-top: 16px; }
+  .category-title-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .category-title { font-size: 16px; font-weight: 900; color: var(--ink); }
+  .category-meta { font-size: 12px; color: var(--sub); }
+  .category-title-spacer { flex: 1; }
+  .expand-all-btn {
+    flex: 0 0 auto;
+    height: 28px;
+    padding: 0 10px;
+    border: 1px solid #dfe4ec;
+    border-radius: 4px;
+    background: #fff;
+    color: var(--sub);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: background .12s, border-color .12s, color .12s;
+  }
+  .expand-all-btn:hover { border-color: #f0b79d; color: var(--accent-dark); background: #fffaf7; }
+  .expand-all-btn.is-open { border-color: #f0b79d; color: var(--accent-dark); background: #fffaf7; }
+
+  .product-table {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: #fff;
+    box-shadow: 0 14px 34px rgba(5, 7, 11, 0.05);
+  }
+  .product-table-head {
+    display: grid;
+    grid-template-columns: 38px 86px minmax(280px, 1fr) 120px 88px 64px 76px 82px;
+    align-items: center;
+    padding: 6px 14px;
+    color: #8a93a5;
+    font-size: 11.5px;
+    font-weight: 800;
+    text-align: center;
+  }
+  .product-group {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: visible;
+    transition: border-color .14s, box-shadow .14s, transform .14s;
+  }
+  .product-group:hover {
+    border-color: #d9dee8;
+    box-shadow: 0 10px 24px rgba(5, 7, 11, 0.06);
+    transform: translateY(-1px);
+  }
+  .product-group.open { border-color: #f0b79d; box-shadow: 0 12px 28px rgba(232, 93, 47, 0.08); }
+  .product-group.checked {
+    border-color: #f0b79d;
+    background: #fffaf7;
+    box-shadow: 0 12px 28px rgba(232, 93, 47, 0.1);
+  }
+  .product-main-row {
+    display: grid;
+    grid-template-columns: 38px 86px minmax(280px, 1fr) 120px 88px 64px 76px 82px;
+    align-items: center;
+    gap: 0;
+    min-height: 76px;
+    padding: 10px 14px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .product-main-row:hover { background: #fffaf7; }
+  .expand-btn {
+    width: 24px;
+    height: 24px;
+    border: 1px solid var(--line);
+    border-radius: 50%;
+    background: #fafbfc;
+    color: var(--sub);
+    font-size: 14px;
+    font-weight: 800;
+    line-height: 1;
+  }
+  .product-main-row:hover .expand-btn,
+  .product-group.open .expand-btn { border-color: var(--accent); background: var(--accent-tint); color: var(--accent-dark); }
+  .product-group.open .expand-btn::before { content: "-"; }
+  .expand-btn::before { content: "+"; }
+  .product-thumb {
+    width: 56px;
+    height: 56px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--gray-badge);
+    object-fit: cover;
+    justify-self: center;
+  }
+  .product-thumb-link {
+    width: 56px;
+    height: 56px;
+    display: block;
+    justify-self: center;
+  }
+  .product-thumb-link .product-thumb { display: block; }
+  .product-thumb.empty {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #c3c9d4;
+    font-size: 10px;
+    font-family: var(--font-mono);
+    font-weight: 800;
+  }
+  .product-info { min-width: 0; padding-right: 16px; }
+  .product-name {
+    display: block;
+    width: fit-content;
+    max-width: 100%;
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--ink);
+    text-decoration: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .product-name:hover { color: var(--accent-dark); text-decoration: underline; text-underline-offset: 3px; }
+  .product-sub { margin-top: 3px; font-size: 11.5px; color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .product-sub .product-code-inline { font-family: var(--font-mono); font-weight: 800; color: #687386; }
+  .product-sub .product-price-inline { font-family: var(--font-mono); font-weight: 800; color: var(--accent-dark); }
+  .main-keyword-cell { text-align: center; font-size: 13px; font-weight: 900; color: var(--ink); }
+  .main-keyword-cell span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 72px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: #f7f8fa;
+  }
+  .product-count {
+    justify-self: center;
+    min-width: 56px;
+    text-align: center;
+    font-size: 11.5px;
+    font-weight: 800;
+    color: var(--sub);
+    white-space: nowrap;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: #f7f8fa;
+  }
+  .product-actions { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+  .action-btn {
+    position: relative;
+    width: 30px;
+    height: 30px;
+    border: 1px solid var(--line);
+    border-radius: 50%;
+    background: #fff;
+    color: #9aa3b3;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all .14s;
+  }
+  .action-btn:hover { border-color: #d7dde7; color: var(--ink); background: #fafbfc; }
+  .action-btn svg { width: 15px; height: 15px; }
+  .action-btn.has-memo { border-color: #f0b79d; background: var(--accent-tint); color: var(--accent-dark); }
+  .action-btn.checked { border-color: var(--accent); background: var(--accent); color: #fff; }
+  .memo-tip {
+    position: absolute;
+    right: 0;
+    bottom: 36px;
+    z-index: 20;
+    width: 280px;
+    padding: 12px;
+    border-radius: var(--radius);
+    background: #161a22;
+    color: #fff;
+    box-shadow: 0 14px 34px rgba(5, 7, 11, 0.22);
+    font-size: 12px;
+    line-height: 1.45;
+    text-align: left;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(4px);
+    transition: all .12s;
+    pointer-events: none;
+  }
+  .action-btn.has-memo:hover .memo-tip { opacity: 1; visibility: visible; transform: translateY(0); }
+  .memo-tip-item + .memo-tip-item { margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.12); }
+  .memo-tip-date { color: var(--accent); font-size: 11px; font-weight: 800; margin-bottom: 2px; }
+  .rank-badge {
+    min-width: 56px; text-align: center; padding: 5px 4px; border-radius: var(--radius);
+    font-weight: 800; font-size: 14px; font-family: var(--font-mono); white-space: nowrap;
+    line-height: 1.1;
+    background: var(--gray-badge); color: var(--sub);
+  }
+  .rank-badge small {
+    display: block;
+    margin-top: 2px;
+    font-family: var(--font-main);
+    font-size: 10px;
+    font-weight: 700;
+  }
+  .rank-badge.p1 { background: var(--accent-tint); color: var(--accent-dark); }
+  .rank-badge.p23 { background: var(--dark-tint); color: var(--ink); }
+  .rank-badge.none { background: #fdecec; color: var(--danger); font-size: 12px; line-height: 1.4; }
+  .rank-delta { min-width: 34px; font-size: 11.5px; font-weight: 700; font-family: var(--font-mono); text-align: center; }
+  .keyword-volume { margin-left: auto; font-size: 11px; color: var(--sub); font-family: var(--font-mono); white-space: nowrap; flex-shrink: 0; }
+  .rank-delta.up { color: #16a34a; }
+  .rank-delta.down { color: var(--danger); }
+  .rank-delta.same { color: #c3c9d4; }
+  .product-keywords { display: none; border-top: 1px solid var(--line); padding: 6px 0; background: #fffaf7; border-radius: 0 0 var(--radius) var(--radius); overflow: hidden; }
+  .product-group.open .product-keywords { display: block; }
+
+  .keyword-rank-row {
+    display: flex; align-items: center; gap: 10px; padding: 7px 18px 7px 236px;
+    font-size: 12.5px; border-bottom: 1px solid rgba(232, 93, 47, 0.08);
+  }
+  .keyword-rank-row:last-child { border-bottom: none; }
+  .keyword-name { flex: 1; min-width: 0; color: var(--ink); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-decoration: none; }
+  .keyword-name:hover { color: var(--accent-dark); text-decoration: underline; text-underline-offset: 3px; }
+  .keyword-main { font-size: 11.5px; color: var(--sub); min-width: 96px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .keyword-type {
+    min-width: 38px;
+    text-align: center;
+    padding: 2px 6px;
+    border-radius: 10px;
+    background: var(--dark-tint);
+    color: var(--sub);
+    font-size: 10.5px;
+    font-weight: 800;
+  }
+  .keyword-type.main { background: var(--accent-tint); color: var(--accent-dark); }
+  .empty { margin-top: 16px; padding: 18px; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); color: var(--sub); font-size: 13px; }
+
+  .memo-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 9000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(5, 7, 11, 0.42);
+    overflow-y: auto;
+  }
+  .memo-modal-backdrop.open { display: flex; }
+  .memo-modal {
+    width: min(520px, 100%);
+    max-height: calc(100vh - 64px);
+    border: 1px solid rgba(5, 7, 11, 0.12);
+    border-radius: 8px;
+    background: #fff;
+    box-shadow: 0 24px 70px rgba(5, 7, 11, 0.24);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .memo-modal-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 18px 20px 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  .memo-modal-title { font-size: 16px; font-weight: 900; color: var(--ink); }
+  .memo-modal-sub { margin-top: 3px; font-size: 12px; color: var(--sub); }
+  .memo-close {
+    width: 30px;
+    height: 30px;
+    border: 1px solid var(--line);
+    border-radius: 50%;
+    background: #fff;
+    color: var(--sub);
+    font-size: 18px;
+    cursor: pointer;
+  }
+  .memo-modal-body { padding: 16px 20px 20px; overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
+  .memo-list { max-height: min(320px, calc(100vh - 280px)); overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+  .memo-item { display: flex; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius); background: #fafbfc; }
+  .memo-item-date { font-size: 11px; color: var(--accent); font-weight: 800; margin-bottom: 3px; }
+  .memo-item-text { font-size: 13px; color: var(--ink); line-height: 1.45; white-space: pre-wrap; }
+  .memo-delete { border: 0; background: transparent; color: var(--danger); font-size: 12px; font-weight: 800; cursor: pointer; }
+  .memo-input-row { display: flex; gap: 8px; }
+  .memo-input-row textarea {
+    flex: 1;
+    height: 76px;
+    resize: none;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 10px 12px;
+    font-family: inherit;
+    font-size: 13px;
+    outline: none;
+  }
+  .memo-input-row textarea:focus { border-color: #f0b79d; box-shadow: 0 0 0 3px rgba(232, 93, 47, 0.1); }
+  .memo-add {
+    width: 76px;
+    border: 0;
+    border-radius: var(--radius);
+    background: var(--accent);
+    color: #fff;
+    font-family: inherit;
+    font-weight: 900;
+    cursor: pointer;
+  }
+
+  @media (max-width: 980px) {
+    .product-table { overflow-x: auto; padding-bottom: 4px; }
+    .product-table-head, .product-main-row { min-width: 900px; }
+  }
+
+  footer { margin-top: 36px; font-size: 12px; color: var(--sub); text-align: center; }
+</style>
+</head>
+<body>
+<header class="topbar" data-topbar></header>
+<div class="wrap">
+  <header>
+    <h1>랭킹추적</h1>
+    <span class="tag">상품별 키워드 순위</span>
+  </header>
+
+  <div class="card">
+    <div class="store-label">내 스토어</div>
+    <div class="store-chips" id="storeChips"></div>
+  </div>
+
+  <div class="summary" id="summary">불러오는 중...</div>
+
+  <div id="productGroups"></div>
+
+  <footer>키워드 일괄 수집으로 저장된 데이터를 상품 기준으로 묶어 보여줍니다 · 순위는 네이버 쇼핑 검색 API 기준 · 상품은 네이버 상품코드 기준으로 구분</footer>
+</div>
+
+<div class="memo-modal-backdrop" id="memoModal" aria-hidden="true">
+  <div class="memo-modal">
+    <div class="memo-modal-head">
+      <div>
+        <div class="memo-modal-title" id="memoModalTitle">상품 메모</div>
+        <div class="memo-modal-sub" id="memoModalSub"></div>
+      </div>
+      <button type="button" class="memo-close" onclick="closeMemoModal()" aria-label="닫기">&times;</button>
+    </div>
+    <div class="memo-modal-body">
+      <div class="memo-list" id="memoList"></div>
+      <div class="memo-input-row">
+        <textarea id="memoInput" placeholder="순위 변동, 가격 조정, 확인할 내용을 남겨두세요."></textarea>
+        <button type="button" class="memo-add" onclick="addMemo()">추가</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = "https://eukwfypbfqojbaihfqye.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_MiBvlf3d6ulcVBsi7Odcgw_PTXSmXKj";
+</script>
+<script src="common.js?v=20260706-ranktrack"></script>
+<script src="keywords.js"></script>
+<script>
+const BUILTIN_STORES = ["한국 단열", "에너가드컴퍼니"];
+const CUSTOM_STORE_KEY = "nrCustomStores"; // naver-rank.html과 동일한 키를 공유해 추가된 스토어를 그대로 사용
+const TRACKER_CATEGORIES = [
+  "아이소핑크",
+  "스티로폼",
+  "열반사단열재",
+  "단열벽지",
+  "기타",
+];
+const STORE_TRACKER_CATEGORIES = {
+  "에너가드컴퍼니": [
+    "아이소핑크",
+    "비드법단열재",
+    "준불연단열재",
+    "불연단열재",
+    "열반사단열재",
+  ],
+};
+const STORE_CATEGORY_DISPLAY_KEYWORDS = {
+  "에너가드컴퍼니": {
+    "아이소핑크": ["아이소핑크"],
+    "비드법단열재": ["비드법단열재"],
+    "준불연단열재": ["PF보드", "경질우레탄보드", "준불연비드법", "준불연열반사"],
+    "불연단열재": ["불연단열재"],
+    "열반사단열재": ["열반사단열재"],
+  },
+};
+const STORE_CATEGORY_DETAIL_KEYWORDS = {
+  "에너가드컴퍼니": {
+    "아이소핑크": ["아이소핑크", "XPS단열재", "압출법단열재"],
+    "비드법단열재": ["비드법단열재", "EPS단열재", "스티로폼단열재"],
+    "준불연단열재": ["PF보드", "경질우레탄보드", "준불연비드법", "준불연열반사", "준불연단열재", "우레탄보드", "페놀폼", "심재준불연", "난연단열재"],
+    "불연단열재": ["불연단열재", "불연열반사", "미네랄울", "글라스울"],
+    "열반사단열재": ["열반사단열재", "은박단열재", "온도리"],
+  },
+};
+const CATEGORY_MAIN_KEYWORD = {
+  "아이소핑크": "아이소핑크",
+  "스티로폼": "스티로폼",
+  "비드법단열재": "비드법단열재",
+  "준불연단열재": "준불연단열재",
+  "불연단열재": "불연단열재",
+  "열반사단열재": "열반사단열재",
+  "단열벽지": "단열벽지",
+};
+const ETC_MAIN_KEYWORDS = [
+  "바닥단열재",
+  "전기난방필름",
+  "우레탄뿜칠",
+  "우레탄폼건",
+  "열선커터기",
+  "창문열차단",
+  "창문햇빛가리개",
+  "에어컨가림막",
+  "어싱매트",
+  "실외기커버",
+];
+const HARD_ETC_MAIN_KEYWORDS = [
+  "열선커터기",
+  "창문열차단",
+  "창문햇빛가리개",
+  "에어컨가림막",
+  "어싱매트",
+  "실외기커버",
+];
+const SOFT_ETC_MAIN_KEYWORDS = [
+  "바닥단열재",
+  "전기난방필름",
+  "우레탄뿜칠",
+  "우레탄폼건",
+];
+const PRODUCT_CATEGORY_OVERRIDES = {
+  "10396653217": "열반사단열재",
+  "81325598721": "열반사단열재",
+};
+const CATEGORY_KEYWORD_GROUPS = {
+  "아이소핑크": ["아이소핑크", "벽산아이소핑크", "아이소핑크특호", "아이소핑크규격", "압출법단열재", "XPS단열재", "압출법보온판"],
+  "스티로폼": ["압축스티로폼", "스티로폼", "스티로폼단열재", "EPS블럭", "미술용스티로폼", "대형스티로폼", "조각용스티로폼", "폼보드", "EPS단열재", "비드법단열재", "네오폴"],
+  "비드법단열재": ["비드법단열재", "EPS단열재", "스티로폼단열재"],
+  "준불연단열재": ["준불연단열재", "PF보드", "경질우레탄보드", "준불연비드법", "준불연열반사", "우레탄보드", "페놀폼", "심재준불연", "난연단열재"],
+  "불연단열재": ["불연단열재", "불연열반사", "미네랄울", "글라스울"],
+  "열반사단열재": ["열반사단열재", "은박단열재", "온도리"],
+  "단열벽지": ["단열벽지", "접착식단열벽지", "보온벽지", "결로방지벽지", "곰팡이벽지", "방한벽지"],
+};
+const FORCE_ETC_KEYWORDS = [
+  ...ETC_MAIN_KEYWORDS,
+  "바닥보온재", "난방필름", "난방필름단열재", "난방단열재", "전기판넬",
+  "스티로폼절단기", "타이거폼2K", "라이트폼", "스프레이폼", "단열뿜칠",
+  "폼건", "창문형에어컨가림막", "맨발걷기", "어싱패드", "실외기방수커버",
+];
+const HARD_ETC_KEYWORDS = [
+  "창문열차단", "창문단열재", "단열뽁뽁이",
+  "창문햇빛가리개", "베란다햇빛가리개", "사무실햇빛가리개",
+];
+
+function loadCustomStores() {
+  try { return JSON.parse(localStorage.getItem(CUSTOM_STORE_KEY)) || []; } catch (_) { return []; }
+}
+
+let selectedStore = BUILTIN_STORES[0];
+let activeCategory = TRACKER_CATEGORIES[0];
+let cachedProducts = [];
+let memoTargetCode = "";
+const expandedCategories = new Set();
+
+function getTrackerCategories() {
+  return STORE_TRACKER_CATEGORIES[selectedStore] || TRACKER_CATEGORIES;
+}
+
+function getDisplayKeywords(categoryName) {
+  return STORE_CATEGORY_DISPLAY_KEYWORDS[selectedStore]?.[categoryName] || null;
+}
+
+function getDetailKeywords(categoryName) {
+  return STORE_CATEGORY_DETAIL_KEYWORDS[selectedStore]?.[categoryName] || getDisplayKeywords(categoryName);
+}
+
+function getVisibleKeywords(product, categoryName) {
+  const detailKeywords = getDetailKeywords(categoryName);
+  if (!detailKeywords) return product.keywords;
+  return product.keywords.filter(k => detailKeywords.includes(k.keyword));
+}
+
+function productHasKeywordOrName(product, keywords) {
+  const name = normalizeText(product.name);
+  return product.keywords.some(k => keywords.includes(k.keyword) || keywords.includes(k.main_keyword))
+    || keywords.some(keyword => name.includes(keyword));
+}
+
+function productHasKeyword(product, keywords) {
+  return product.keywords.some(k => keywords.includes(k.keyword) || keywords.includes(k.main_keyword));
+}
+
+function isBlockedFromCategory(product, categoryName) {
+  if (selectedStore !== "에너가드컴퍼니") return false;
+  if (categoryName === "비드법단열재") {
+    return productHasKeyword(product, [
+      "PF보드", "경질우레탄보드", "준불연열반사",
+      "우레탄보드", "페놀폼", "심재준불연", "난연단열재",
+    ]);
+  }
+  return false;
+}
+
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function timeAgo(iso) {
+  const diffMin = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (diffMin < 1) return "방금";
+  if (diffMin < 60) return diffMin + "분 전";
+  const hr = Math.floor(diffMin / 60);
+  if (hr < 24) return hr + "시간 전";
+  return Math.floor(hr / 24) + "일 전";
+}
+
+function renderStoreChips() {
+  const stores = [...BUILTIN_STORES, ...loadCustomStores()];
+  document.getElementById("storeChips").innerHTML = stores.map(s =>
+    `<button type="button" class="store-chip${s === selectedStore ? " active" : ""}" data-store="${esc(s)}">${esc(s)}</button>`
+  ).join("");
+}
+
+document.getElementById("storeChips").addEventListener("click", (e) => {
+  const chip = e.target.closest(".store-chip");
+  if (!chip) return;
+  selectedStore = chip.dataset.store;
+  activeCategory = getTrackerCategories()[0];
+  cachedProducts = [];
+  expandedCategories.clear();
+  renderStoreChips();
+  loadAndRender();
+});
+
+async function fetchHistory(store) {
+  const base = `${SUPABASE_URL}/rest/v1/keyword_rank_history?store_name=eq.${encodeURIComponent(store)}`;
+  const order = `&order=collected_date.desc,checked_at.desc`;
+  const headers = { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer " + SUPABASE_ANON_KEY };
+  const selects = [
+    `&select=keyword,main_keyword,is_sub,rank,max_rank,product_code,product_name,product_image,product_link,product_price,search_volume_pc,search_volume_mobile,search_volume_total,collected_date,checked_at`,
+    `&select=keyword,main_keyword,is_sub,rank,max_rank,product_code,product_name,product_image,product_link,product_price,collected_date,checked_at`,
+    `&select=keyword,main_keyword,is_sub,rank,max_rank,product_code,product_name,product_image,collected_date,checked_at`,
+    `&select=keyword,main_keyword,is_sub,rank,max_rank,product_code,product_name,collected_date,checked_at`,
+  ];
+  for (const select of selects) {
+    const first = await fetch(base + select + order + `&offset=0&limit=1000`, { headers });
+    if (!first.ok) {
+      if (first.status === 400) continue; // 없는 컬럼이면 다음 select로 재시도
+      throw new Error("조회 실패 (" + first.status + ")");
+    }
+    // Supabase는 요청당 최대 1,000행만 주므로 페이지를 돌며 최대 6,000행까지 수집
+    const rows = await first.json();
+    for (let page = 1; page < 6 && rows.length === page * 1000; page++) {
+      const res = await fetch(base + select + order + `&offset=${page * 1000}&limit=1000`, { headers });
+      if (!res.ok) break;
+      const more = await res.json();
+      rows.push(...more);
+      if (more.length < 1000) break;
+    }
+    return rows;
+  }
+  throw new Error("조회 실패 (컬럼 불일치)");
+}
+
+async function fetchProductMasters() {
+  const url = `${SUPABASE_URL}/rest/v1/product_rankings?select=code,keyword,category_tab,image_url,name,memo,is_checked`;
+  const headers = { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer " + SUPABASE_ANON_KEY };
+  const rows = [];
+  for (let page = 0; page < 10; page++) {
+    const res = await fetch(url + `&offset=${page * 1000}&limit=1000`, { headers });
+    if (!res.ok) throw new Error("상품 마스터 조회 실패 (" + res.status + ")");
+    const more = await res.json();
+    rows.push(...more);
+    if (more.length < 1000) break;
+  }
+  return rows;
+}
+
+function deltaHtml(delta) {
+  if (delta == null) return `<span class="rank-delta same">-</span>`;
+  if (delta > 0) return `<span class="rank-delta up">▲${delta}</span>`;
+  if (delta < 0) return `<span class="rank-delta down">▼${Math.abs(delta)}</span>`;
+  return `<span class="rank-delta same">-</span>`;
+}
+
+// 키워드 일괄 수집 시 함께 저장된 월간 검색량(search_volume_total). 없으면(구버전 데이터) 빈 문자열.
+function volumeHtml(total) {
+  if (total == null) return "";
+  return `<span class="keyword-volume" title="월간 검색량 ${Number(total).toLocaleString()}">🔍 ${Number(total).toLocaleString()}</span>`;
+}
+
+function rankSortValue(rank) {
+  return rank == null ? 9999 : Number(rank);
+}
+
+function rankPage(rank) {
+  return rank == null ? null : Math.ceil(Number(rank) / 40);
+}
+
+function formatProductPrice(price) {
+  const value = Number(price);
+  return Number.isFinite(value) && value > 0 ? value.toLocaleString() + "원" : "";
+}
+
+function rankBadgeHtml(rank) {
+  if (rank == null) return `<span class="rank-badge none">이탈</span>`;
+  const cls = rank <= 40 ? "p1" : rank <= 120 ? "p23" : "";
+  const page = rankPage(rank);
+  return `<span class="rank-badge ${cls}">${rank}위<small>${page}페이지</small></span>`;
+}
+
+function productUrl(product) {
+  return product.link || "";
+}
+
+function keywordUrl(keyword) {
+  const params = new URLSearchParams({ keyword });
+  return `naver-rank.html?${params.toString()}`;
+}
+
+function productThumbHtml(product) {
+  const url = productUrl(product);
+  if (!product.image) return `<span class="product-thumb empty">IMG</span>`;
+  return url
+    ? `<a class="product-thumb-link" href="${esc(url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" aria-label="상품 보기"><img class="product-thumb" src="${esc(product.image)}" loading="lazy" alt=""></a>`
+    : `<img class="product-thumb" src="${esc(product.image)}" loading="lazy" alt="">`;
+}
+
+function rankDate(row) {
+  return row.collected_date || row.checked_at.slice(0, 10);
+}
+
+function keywordSortIndex(row) {
+  if (row?.keyword && ETC_MAIN_KEYWORDS.includes(row.keyword)) {
+    return 800000 + ETC_MAIN_KEYWORDS.indexOf(row.keyword) * 1000;
+  }
+  if (row?.main_keyword && ETC_MAIN_KEYWORDS.includes(row.main_keyword)) {
+    return 800000 + ETC_MAIN_KEYWORDS.indexOf(row.main_keyword) * 1000 + 1;
+  }
+  const mainIdx = KW_TREE.findIndex(g => g.main === row.main_keyword);
+  if (mainIdx < 0) return 9999;
+  const group = KW_TREE[mainIdx];
+  if (!row.is_sub) return mainIdx * 1000;
+  const subIdx = group.subs.indexOf(row.keyword);
+  return mainIdx * 1000 + 1 + (subIdx < 0 ? 500 : subIdx);
+}
+
+function normalizeCategory(category) {
+  return getTrackerCategories().includes(category) ? category : "기타";
+}
+
+function inferCategoryFromKeywords(keywords) {
+  const tokens = new Set();
+  const keywordTokens = new Set();
+  const mainKeywordTokens = new Set();
+  keywords.forEach(k => {
+    if (k.keyword) {
+      tokens.add(k.keyword);
+      keywordTokens.add(k.keyword);
+      if (!k.is_sub) mainKeywordTokens.add(k.keyword);
+    }
+    if (k.main_keyword) tokens.add(k.main_keyword);
+  });
+  if (HARD_ETC_MAIN_KEYWORDS.some(keyword => mainKeywordTokens.has(keyword))) return "기타";
+  const displayGroups = STORE_CATEGORY_DISPLAY_KEYWORDS[selectedStore];
+  if (displayGroups) {
+    for (const category of getTrackerCategories()) {
+      const displayKeywords = displayGroups[category] || [];
+      if (displayKeywords.some(keyword => keywordTokens.has(keyword))) return category;
+    }
+    return "기타";
+  }
+  for (const category of getTrackerCategories()) {
+    if (category === "기타") continue;
+    if (CATEGORY_MAIN_KEYWORD[category] && keywordTokens.has(CATEGORY_MAIN_KEYWORD[category])) {
+      return category;
+    }
+  }
+  if (SOFT_ETC_MAIN_KEYWORDS.some(keyword => mainKeywordTokens.has(keyword))) return "기타";
+  if (HARD_ETC_KEYWORDS.some(keyword => tokens.has(keyword))) return "기타";
+  if (ETC_MAIN_KEYWORDS.some(keyword => tokens.has(keyword))) return "기타";
+  if (FORCE_ETC_KEYWORDS.some(keyword => tokens.has(keyword))) return "기타";
+  for (const category of getTrackerCategories()) {
+    if (category === "기타") continue;
+    if ((CATEGORY_KEYWORD_GROUPS[category] || []).some(keyword => tokens.has(keyword))) {
+      return category;
+    }
+  }
+  return "기타";
+}
+
+function hasMainKeyword(keywords, keywordList) {
+  return keywords.some(k => !k.is_sub && keywordList.includes(k.keyword));
+}
+
+function resolveProductCategory(product) {
+  if (PRODUCT_CATEGORY_OVERRIDES[product.code]) return PRODUCT_CATEGORY_OVERRIDES[product.code];
+  if (selectedStore === "에너가드컴퍼니") return inferCategoryFromKeywords(product.keywords);
+  if (hasMainKeyword(product.keywords, HARD_ETC_MAIN_KEYWORDS)) return "기타";
+  const normalized = normalizeCategory(product.category);
+  if (normalized !== "기타") return normalized;
+  return inferCategoryFromKeywords(product.keywords);
+}
+
+function normalizeText(value) {
+  return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function parseMemos(raw) {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw;
+  try {
+    const parsed = JSON.parse(String(raw));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function nowMemoDate() {
+  const d = new Date();
+  const pad = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function buildMasterMaps(masters) {
+  const byCodeKeyword = new Map();
+  const byCode = new Map();
+  const byNameKeyword = new Map();
+  const byName = new Map();
+
+  masters.forEach(master => {
+    const code = normalizeText(master.code);
+    const keyword = normalizeText(master.keyword);
+    const name = normalizeText(master.name);
+    const normalized = {
+      code,
+      category: normalizeCategory(master.category_tab),
+      image: master.image_url || "",
+      name: master.name || "",
+      memos: parseMemos(master.memo),
+      isChecked: master.is_checked === true,
+    };
+    if (code && keyword) byCodeKeyword.set(code + "|" + keyword, normalized);
+    if (code && !byCode.has(code)) byCode.set(code, normalized);
+    if (name && keyword) byNameKeyword.set(name + "|" + keyword, normalized);
+    if (name && !byName.has(name)) byName.set(name, normalized);
+  });
+
+  return { byCodeKeyword, byCode, byNameKeyword, byName };
+}
+
+function findProductMaster(row, masterMaps) {
+  if (!masterMaps) return null;
+  const code = normalizeText(row.product_code);
+  const keyword = normalizeText(row.keyword);
+  const name = normalizeText(row.product_name);
+  return masterMaps.byCodeKeyword.get(code + "|" + keyword)
+    || masterMaps.byCode.get(code)
+    || masterMaps.byNameKeyword.get(name + "|" + keyword)
+    || masterMaps.byName.get(name)
+    || null;
+}
+
+function buildProducts(rows, masterMaps) {
+  const latestDate = rows[0]?.collected_date || rows[0]?.checked_at?.slice(0, 10) || "";
+  const latestRows = rows.filter(r => rankDate(r) === latestDate && r.rank != null && r.product_code);
+  const previousByProductKeyword = new Map();
+
+  rows.forEach(row => {
+    if (!row.product_code || row.rank == null || rankDate(row) === latestDate) return;
+    const key = row.product_code + "|" + row.keyword;
+    if (!previousByProductKeyword.has(key)) previousByProductKeyword.set(key, row);
+  });
+
+  const byProduct = new Map();
+  latestRows.forEach(row => {
+    const code = row.product_code;
+    const master = findProductMaster(row, masterMaps);
+    if (!byProduct.has(code)) {
+      byProduct.set(code, {
+        code,
+        name: master?.name || row.product_name || "(상품명 없음)",
+        image: master?.image || row.product_image || "",
+        link: row.product_link || "",
+        price: Number(row.product_price) || 0,
+        category: master?.category || "기타",
+        masterCode: master?.code || code,
+        memos: master?.memos || [],
+        isChecked: master?.isChecked || false,
+        checkedAt: row.checked_at,
+        keywords: [],
+      });
+    }
+    const product = byProduct.get(code);
+    if (product.category === "기타" && master?.category) product.category = master.category;
+    if (!product.masterCode && master?.code) product.masterCode = master.code;
+    if (!product.isChecked && master?.isChecked) product.isChecked = true;
+    if ((!product.memos || !product.memos.length) && master?.memos?.length) product.memos = master.memos;
+    if (!product.image && (master?.image || row.product_image)) product.image = master?.image || row.product_image;
+    if (!product.link && row.product_link) product.link = row.product_link;
+    if (!product.price && row.product_price) product.price = Number(row.product_price) || 0;
+    if (master?.name && product.name === "(상품명 없음)") product.name = master.name;
+    if (row.product_name && product.name === "(상품명 없음)") product.name = row.product_name;
+    if (new Date(row.checked_at) > new Date(product.checkedAt)) product.checkedAt = row.checked_at;
+    const prev = previousByProductKeyword.get(code + "|" + row.keyword);
+    const delta = prev && prev.rank != null && row.rank != null ? prev.rank - row.rank : null;
+    product.keywords.push({ ...row, delta });
+  });
+
+  return [...byProduct.values()].map(product => {
+    product.keywords.sort((a, b) => Number(a.is_sub) - Number(b.is_sub) || rankSortValue(a.rank) - rankSortValue(b.rank) || keywordSortIndex(a) - keywordSortIndex(b));
+    product.bestRank = product.keywords[0]?.rank ?? null;
+    product.mainBestRank = product.keywords.filter(k => !k.is_sub).sort((a, b) => rankSortValue(a.rank) - rankSortValue(b.rank) || keywordSortIndex(a) - keywordSortIndex(b))[0]?.rank ?? null;
+    product.mainKeywordCount = product.keywords.filter(k => !k.is_sub).length;
+    return product;
+  }).sort((a, b) => (a.mainBestRank ?? 9999) - (b.mainBestRank ?? 9999) || (a.bestRank ?? 9999) - (b.bestRank ?? 9999) || b.keywords.length - a.keywords.length || a.name.localeCompare(b.name, "ko"));
+}
+
+function categorySortIndex(categoryName) {
+  const idx = getTrackerCategories().findIndex(category => category === categoryName);
+  return idx < 0 ? 9999 : idx;
+}
+
+function getCategoryLeadKeyword(product, categoryName) {
+  const displayKeywords = getDisplayKeywords(categoryName);
+  if (displayKeywords) {
+    const detailKeywords = getDetailKeywords(categoryName) || displayKeywords;
+    return getVisibleKeywords(product, categoryName)
+      .sort((a, b) =>
+        Number(a.rank == null) - Number(b.rank == null)
+        || detailKeywords.indexOf(a.keyword) - detailKeywords.indexOf(b.keyword)
+        || (a.rank ?? 9999) - (b.rank ?? 9999)
+      )[0] || null;
+  }
+  if (categoryName === "기타") {
+    const etcMain = product.keywords
+      .filter(k => !k.is_sub && ETC_MAIN_KEYWORDS.includes(k.keyword))
+      .sort((a, b) => ETC_MAIN_KEYWORDS.indexOf(a.keyword) - ETC_MAIN_KEYWORDS.indexOf(b.keyword) || rankSortValue(a.rank) - rankSortValue(b.rank))[0];
+    if (etcMain) return etcMain;
+    const etcGrouped = product.keywords
+      .filter(k => ETC_MAIN_KEYWORDS.includes(k.main_keyword))
+      .sort((a, b) => ETC_MAIN_KEYWORDS.indexOf(a.main_keyword) - ETC_MAIN_KEYWORDS.indexOf(b.main_keyword) || Number(a.is_sub) - Number(b.is_sub) || rankSortValue(a.rank) - rankSortValue(b.rank))[0];
+    if (etcGrouped) return etcGrouped;
+  }
+  const preferred = CATEGORY_MAIN_KEYWORD[categoryName];
+  if (preferred) {
+    const exact = product.keywords.find(k => k.keyword === preferred);
+    if (exact) return exact;
+  }
+  return product.keywords.find(k => !k.is_sub) || product.keywords[0] || null;
+}
+
+function categoryProductSort(categoryName) {
+  return (a, b) => {
+    const aLead = getCategoryLeadKeyword(a, categoryName);
+    const bLead = getCategoryLeadKeyword(b, categoryName);
+    const displayKeywords = getDisplayKeywords(categoryName);
+    if (displayKeywords) {
+      return displayKeywords.indexOf(aLead?.keyword) - displayKeywords.indexOf(bLead?.keyword)
+        || (aLead?.rank ?? 9999) - (bLead?.rank ?? 9999)
+        || a.name.localeCompare(b.name, "ko");
+    }
+    return keywordSortIndex(aLead || {}) - keywordSortIndex(bLead || {})
+      || (aLead?.rank ?? 9999) - (bLead?.rank ?? 9999)
+      || (a.mainBestRank ?? 9999) - (b.mainBestRank ?? 9999)
+      || (a.bestRank ?? 9999) - (b.bestRank ?? 9999)
+      || b.keywords.length - a.keywords.length
+      || a.name.localeCompare(b.name, "ko");
+  };
+}
+
+function buildCategorySections(products) {
+  const byCategory = new Map();
+  const allowedCategories = getTrackerCategories();
+  const displayGroups = STORE_CATEGORY_DISPLAY_KEYWORDS[selectedStore];
+
+  products.forEach(product => {
+    if (displayGroups) {
+      allowedCategories.forEach(categoryName => {
+        if (isBlockedFromCategory(product, categoryName)) return;
+        if (!getVisibleKeywords(product, categoryName).length) return;
+        if (!byCategory.has(categoryName)) byCategory.set(categoryName, []);
+        byCategory.get(categoryName).push(product);
+      });
+      return;
+    }
+    const categoryName = resolveProductCategory(product);
+    if (!allowedCategories.includes(categoryName)) return;
+    if (!byCategory.has(categoryName)) byCategory.set(categoryName, []);
+    byCategory.get(categoryName).push(product);
+  });
+
+  return [...byCategory.entries()].map(([name, categoryProducts]) => {
+    categoryProducts.sort(categoryProductSort(name));
+    return {
+      name,
+      products: categoryProducts,
+      keywordCount: categoryProducts.reduce((sum, product) => sum + getVisibleKeywords(product, name).length, 0),
+    };
+  }).sort((a, b) => categorySortIndex(a.name) - categorySortIndex(b.name) || a.name.localeCompare(b.name, "ko"));
+}
+
+function renderProductCard(product, categoryName) {
+  const mainKeyword = getCategoryLeadKeyword(product, categoryName);
+  const visibleKeywords = getVisibleKeywords(product, categoryName);
+  const subCount = Math.max(0, visibleKeywords.length - 1);
+  const itemUrl = productUrl(product);
+  const productPrice = formatProductPrice(product.price);
+  const priceHtml = productPrice ? ` · <span class="product-price-inline">판매가 ${esc(productPrice)}</span>` : "";
+  const productNameHtml = itemUrl
+    ? `<a class="product-name" href="${esc(itemUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="${esc(product.name)}">${esc(product.name)}</a>`
+    : `<span class="product-name" title="${esc(product.name)}">${esc(product.name)}</span>`;
+  const memos = parseMemos(product.memos);
+  const memoTip = memos.length ? `<div class="memo-tip">${
+    [...memos].slice(-3).reverse().map(m => `
+      <div class="memo-tip-item">
+        <div class="memo-tip-date">${esc(m.date || "")}</div>
+        <div>${esc(m.text || "")}</div>
+      </div>`).join("")
+  }</div>` : "";
+  const keywordRows = visibleKeywords.map(k => `
+    <div class="keyword-rank-row">
+      <span class="keyword-type${k.is_sub ? "" : " main"}">${k.is_sub ? "보조" : "메인"}</span>
+      <a class="keyword-name" href="${esc(keywordUrl(k.keyword))}" title="${esc(k.keyword)}" onclick="event.stopPropagation()">${esc(k.keyword)}</a>
+      <span class="keyword-main" title="${esc(k.main_keyword)}">${esc(k.is_sub ? k.main_keyword : "메인 키워드")}</span>
+      ${rankBadgeHtml(k.rank)}
+      ${deltaHtml(k.delta)}
+      ${volumeHtml(k.search_volume_total)}
+    </div>`).join("");
+
+  const isCategoryExpanded = expandedCategories.has(categoryName);
+
+  return `<div class="product-group${product.isChecked ? " checked" : ""}${isCategoryExpanded ? " open" : ""}">
+    <div class="product-main-row" onclick="this.parentElement.classList.toggle('open')">
+      <button type="button" class="expand-btn" aria-label="키워드 상세 보기"></button>
+      ${productThumbHtml(product)}
+      <div class="product-info">
+        ${productNameHtml}
+        <div class="product-sub"><span class="product-code-inline">${esc(product.code)}</span>${priceHtml} · ${esc(categoryName)} · 키워드 ${visibleKeywords.length}개</div>
+      </div>
+      <span class="main-keyword-cell"><span>${esc(mainKeyword?.keyword || "-")}</span></span>
+      ${rankBadgeHtml(mainKeyword?.rank ?? null)}
+      ${deltaHtml(mainKeyword?.delta ?? null)}
+      <span class="product-count">보조 ${subCount}개</span>
+      <span class="product-actions">
+        <button type="button" class="action-btn${memos.length ? " has-memo" : ""}" onclick="openMemoModal(event, '${esc(product.code)}')" aria-label="메모">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg>
+          ${memoTip}
+        </button>
+        <button type="button" class="action-btn${product.isChecked ? " checked" : ""}" onclick="toggleProductCheck(event, '${esc(product.code)}')" aria-label="중요 체크">
+          <svg viewBox="0 0 24 24" fill="${product.isChecked ? "currentColor" : "none"}" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        </button>
+      </span>
+    </div>
+    <div class="product-keywords">${keywordRows}</div>
+  </div>`;
+}
+
+function renderProducts(products) {
+  const target = document.getElementById("productGroups");
+  if (!products.length) {
+    target.innerHTML = `<div class="empty">수집된 상품 데이터가 없습니다. <a href="naver-rank.html">키워드분석</a>에서 키워드 일괄 수집을 먼저 실행해 주세요.</div>`;
+    return;
+  }
+
+  const sections = buildCategorySections(products);
+  const sectionByName = new Map(sections.map(section => [section.name, section]));
+  const trackerCategories = getTrackerCategories();
+  if (!trackerCategories.includes(activeCategory)) {
+    activeCategory = trackerCategories[0];
+  }
+  const activeSection = sectionByName.get(activeCategory) || { name: activeCategory, products: [], keywordCount: 0 };
+  const isAllExpanded = expandedCategories.has(activeSection.name);
+
+  const tabsHtml = `<div class="category-tabs">
+    ${trackerCategories.map(category => {
+      const section = sectionByName.get(category);
+      const productCount = section?.products.length || 0;
+      return `<button type="button" class="category-tab${category === activeCategory ? " active" : ""}" data-category="${esc(category)}">
+        ${esc(category)}<span class="category-tab-count">${productCount}</span>
+      </button>`;
+    }).join("")}
+  </div>`;
+
+  const panelHtml = `
+    <section class="category-section">
+      <div class="category-title-row">
+        <h2 class="category-title">${esc(activeSection.name)}</h2>
+        <span class="category-meta">상품 ${activeSection.products.length}개 · 키워드 ${activeSection.keywordCount}개</span>
+        <span class="category-title-spacer"></span>
+        ${activeSection.products.length
+          ? `<button type="button" class="expand-all-btn${isAllExpanded ? " is-open" : ""}" data-action="toggle-all-keywords">
+              ${isAllExpanded ? "전체 접기" : "전체 펼치기"}
+            </button>`
+          : ""}
+      </div>
+      ${activeSection.products.length
+        ? `<div class="product-table">
+          <div class="product-table-head">
+            <span></span>
+            <span>이미지</span>
+            <span>상품명</span>
+              <span>메인 키워드</span>
+              <span>현재 순위</span>
+              <span>변동</span>
+              <span>보조</span>
+              <span>관리</span>
+            </div>
+            ${activeSection.products.map(product => renderProductCard(product, activeSection.name)).join("")}
+          </div>`
+        : `<div class="empty">이 카테고리에 잡힌 상품이 없습니다.</div>`}
+    </section>
+  `;
+
+  target.innerHTML = tabsHtml + panelHtml;
+}
+
+document.getElementById("productGroups").addEventListener("click", (e) => {
+  const toggleAll = e.target.closest('[data-action="toggle-all-keywords"]');
+  if (toggleAll) {
+    if (expandedCategories.has(activeCategory)) {
+      expandedCategories.delete(activeCategory);
+    } else {
+      expandedCategories.add(activeCategory);
+    }
+    renderProducts(cachedProducts);
+    return;
+  }
+
+  const tab = e.target.closest(".category-tab");
+  if (!tab) return;
+  activeCategory = tab.dataset.category;
+  renderProducts(cachedProducts);
+});
+
+function findCachedProduct(code) {
+  return cachedProducts.find(product => String(product.code) === String(code));
+}
+
+function applyProductMeta(code, patch) {
+  cachedProducts.forEach(product => {
+    if (String(product.code) === String(code)) Object.assign(product, patch);
+  });
+  renderProducts(cachedProducts);
+}
+
+async function saveProductMeta(product, patch) {
+  const masterCode = product.masterCode || product.code;
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/product_rankings?code=eq.${encodeURIComponent(masterCode)}`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": "Bearer " + SUPABASE_ANON_KEY,
+        "Prefer": "return=minimal",
+      },
+      body: JSON.stringify(patch),
+    }
+  );
+  if (!res.ok) throw new Error("상품 메타 저장 실패 (" + res.status + ")");
+}
+
+function renderMemoList(product) {
+  const list = document.getElementById("memoList");
+  const memos = parseMemos(product?.memos);
+  if (!memos.length) {
+    list.innerHTML = `<div class="empty" style="margin-top:0;">아직 남긴 메모가 없습니다.</div>`;
+    return;
+  }
+  list.innerHTML = [...memos].reverse().map((memo, reverseIndex) => {
+    const originalIndex = memos.length - 1 - reverseIndex;
+    return `<div class="memo-item">
+      <div>
+        <div class="memo-item-date">${esc(memo.date || "")}</div>
+        <div class="memo-item-text">${esc(memo.text || "")}</div>
+      </div>
+      <button type="button" class="memo-delete" onclick="deleteMemo(${originalIndex})">삭제</button>
+    </div>`;
+  }).join("");
+}
+
+function openMemoModal(event, code) {
+  event.stopPropagation();
+  const product = findCachedProduct(code);
+  if (!product) return;
+  memoTargetCode = code;
+  document.getElementById("memoModalTitle").textContent = "상품 메모";
+  document.getElementById("memoModalSub").textContent = product.name;
+  document.getElementById("memoInput").value = "";
+  renderMemoList(product);
+  document.getElementById("memoModal").classList.add("open");
+  document.getElementById("memoModal").setAttribute("aria-hidden", "false");
+}
+
+function closeMemoModal() {
+  memoTargetCode = "";
+  document.getElementById("memoModal").classList.remove("open");
+  document.getElementById("memoModal").setAttribute("aria-hidden", "true");
+}
+
+async function addMemo() {
+  const product = findCachedProduct(memoTargetCode);
+  const input = document.getElementById("memoInput");
+  const text = input.value.trim();
+  if (!product || !text) return;
+  const memos = [...parseMemos(product.memos), { date: nowMemoDate(), text }];
+  product.memos = memos;
+  input.value = "";
+  renderMemoList(product);
+  applyProductMeta(product.code, { memos });
+  try {
+    await saveProductMeta(product, { memo: JSON.stringify(memos) });
+  } catch (e) {
+    alert(e.message || "메모 저장에 실패했습니다.");
+  }
+}
+
+async function deleteMemo(index) {
+  const product = findCachedProduct(memoTargetCode);
+  if (!product) return;
+  const memos = parseMemos(product.memos);
+  memos.splice(index, 1);
+  product.memos = memos;
+  renderMemoList(product);
+  applyProductMeta(product.code, { memos });
+  try {
+    await saveProductMeta(product, { memo: JSON.stringify(memos) });
+  } catch (e) {
+    alert(e.message || "메모 삭제에 실패했습니다.");
+  }
+}
+
+async function toggleProductCheck(event, code) {
+  event.stopPropagation();
+  const product = findCachedProduct(code);
+  if (!product) return;
+  const next = !product.isChecked;
+  applyProductMeta(code, { isChecked: next });
+  try {
+    await saveProductMeta(product, { is_checked: next });
+  } catch (e) {
+    applyProductMeta(code, { isChecked: !next });
+    alert(e.message || "강조 상태 저장에 실패했습니다.");
+  }
+}
+
+document.getElementById("memoModal").addEventListener("click", (e) => {
+  if (e.target.id === "memoModal") closeMemoModal();
+});
+
+async function loadAndRender() {
+  const summary = document.getElementById("summary");
+  summary.textContent = "불러오는 중...";
+  try {
+    const [rows, masters] = await Promise.all([fetchHistory(selectedStore), fetchProductMasters()]);
+    if (!rows.length) {
+      summary.innerHTML = `"${esc(selectedStore)}" 데이터가 없습니다. <a href="naver-rank.html">키워드분석</a>에서 "키워드 일괄 수집"을 먼저 실행해 주세요.`;
+      document.getElementById("productGroups").innerHTML = "";
+      return;
+    }
+    const masterMaps = buildMasterMaps(masters);
+    const products = buildProducts(rows, masterMaps);
+    cachedProducts = products;
+    const collectedKeywords = new Set(rows.filter(r => rankDate(r) === rankDate(rows[0])).map(r => r.keyword));
+    const categoryCount = buildCategorySections(products).length;
+    summary.innerHTML = `상품 ${products.length}개 · 카테고리 ${categoryCount}개 · 키워드 ${collectedKeywords.size}개 수집됨 · 최근 수집: ${timeAgo(rows[0].checked_at)}`;
+    renderProducts(products);
+  } catch (e) {
+    summary.textContent = "불러오기 실패: " + (e.message || "오류");
+  }
+}
+
+renderStoreChips();
+loadAndRender();
+</script>
+</body>
+</html>
+

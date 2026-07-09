@@ -1,0 +1,316 @@
+﻿<script>if(!window.KankanRouter)location.replace('../index.html');</script>
+<main class="main-content">
+
+      <!-- 페이지 헤더 -->
+      <div class="page-header">
+        <nav class="breadcrumb" aria-label="breadcrumb">
+          <a href="../index.html">홈</a>
+          <span class="bc-sep">›</span>
+          <span>단열재/목공/보드</span>
+          <span class="bc-sep">›</span>
+          <span>단열재 수량 계산기</span>
+          <span class="bc-sep">›</span>
+          <span class="bc-current">판상형 단열재 수량 계산기</span>
+        </nav>
+        <h1 class="page-title">판상형 단열재 수량 계산기</h1>
+      </div>
+
+      <!-- 계산기 카드 -->
+      <div class="calc-wrapper">
+
+        <!-- ── 회색 묶음: 입력 + 결과 + 확인 + 관련 ── -->
+        <div class="calc-main-wrap">
+
+        <!-- 입력 섹션 -->
+        <div class="calc-card-main" id="calcForm">
+
+          <!-- Row 1: 벽체 가로 / 벽체 높이 -->
+          <div class="field-row">
+            <div class="field-group">
+              <label class="field-label">벽체 가로 길이</label>
+              <div class="field-input-wrap">
+                <input type="number" class="field-input" id="wallWidth" value="3000" min="0" step="1" />
+                <div class="unit-select-wrap">
+                  <select class="unit-select" id="wallWidthUnit">
+                    <option value="mm" selected>mm</option>
+                    <option value="cm">cm</option>
+                    <option value="m">m</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div class="field-dot">×</div>
+            <div class="field-group">
+              <label class="field-label">벽체 높이</label>
+              <div class="field-input-wrap">
+                <input type="number" class="field-input" id="wallHeight" value="2400" min="0" step="1" />
+                <div class="unit-select-wrap">
+                  <select class="unit-select" id="wallHeightUnit">
+                    <option value="mm" selected>mm</option>
+                    <option value="cm">cm</option>
+                    <option value="m">m</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Row 2: 단열재 가로 / 세로 -->
+          <div class="field-row">
+            <div class="field-group">
+              <label class="field-label">단열재 가로 길이</label>
+              <div class="field-input-wrap">
+                <input type="number" class="field-input" id="boardWidth" value="900" min="1" step="1" />
+                <div class="unit-select-wrap">
+                  <select class="unit-select" id="boardWidthUnit">
+                    <option value="mm" selected>mm</option>
+                    <option value="cm">cm</option>
+                    <option value="m">m</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div class="field-dot">×</div>
+            <div class="field-group">
+              <label class="field-label">단열재 세로 길이</label>
+              <div class="field-input-wrap">
+                <input type="number" class="field-input" id="boardHeight" value="1800" min="1" step="1" />
+                <div class="unit-select-wrap">
+                  <select class="unit-select" id="boardHeightUnit">
+                    <option value="mm" selected>mm</option>
+                    <option value="cm">cm</option>
+                    <option value="m">m</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Row 3: 할증률 -->
+          <div class="field-row">
+            <div class="field-group">
+              <label class="field-label">할증율(로스)</label>
+              <div class="field-input-wrap">
+                <input type="number" class="field-input" id="lossRate" value="5" min="0" max="50" step="1" />
+                <div class="unit-select-wrap unit-fixed">
+                  <span class="unit-label">%</span>
+                </div>
+              </div>
+            </div>
+            <div class="field-dot"></div>
+            <div class="field-group"></div>
+          </div>
+
+          <!-- Row 4: 차감 면적 라디오 -->
+          <div class="field-row deduction-row">
+            <div class="field-label-inline">차감할 면적이 있나요</div>
+            <div class="radio-group">
+              <label class="radio-label">
+                <input type="radio" name="hasDeduction" value="yes" />
+                <span class="radio-custom"></span>
+                예
+              </label>
+              <label class="radio-label">
+                <input type="radio" name="hasDeduction" value="no" checked />
+                <span class="radio-custom"></span>
+                아니오
+              </label>
+            </div>
+          </div>
+
+          <!-- 차감 면적 입력 (숨김 → 예 선택시 노출) -->
+          <div class="deduction-inputs" id="deductionInputs" style="display:none;">
+            <div id="deductionList"></div>
+          </div>
+
+          <!-- 버튼 -->
+          <div class="btn-row">
+            <button class="btn-calc" id="btnCalc" type="button">
+              <span class="btn-calc-icon">≡</span> 계산하기
+            </button>
+            <button class="btn-reset" id="btnReset" type="button">
+              <span class="btn-reset-icon">C</span> 초기화
+            </button>
+          </div>
+
+        </div><!-- /calc-card-main -->
+
+        <!-- 결과 패널 (계산 전 숨김) -->
+        <div class="calc-right-col">
+        <div class="result-panel" id="resultPanel" style="display:none;">
+          <div class="result-main-row">
+
+            <!-- 왼쪽: 메인 수량 카드 -->
+            <div class="result-main-card">
+              <div class="result-main-sub" id="resMainSub">— m²에 필요한 단열재 수량</div>
+              <div class="result-main-count">
+                <span class="result-main-num" id="resMainNum">—</span>
+                <span class="result-main-unit">장</span>
+              </div>
+              <div class="result-main-desc" id="resMainDesc">할증율 —%, — 장 포함</div>
+            </div>
+
+            <!-- 오른쪽: 세부 지표 카드 -->
+            <div class="result-detail-card">
+              <div class="result-detail-icon">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="2"/>
+                  <line x1="3" y1="9" x2="21" y2="9"/>
+                  <line x1="3" y1="15" x2="21" y2="15"/>
+                  <line x1="9" y1="9" x2="9" y2="21"/>
+                  <line x1="15" y1="9" x2="15" y2="21"/>
+                </svg>
+              </div>
+              <div class="result-detail-metrics">
+                <div class="result-metric">
+                  <div class="result-metric-label">할증 포함 면적</div>
+                  <div class="result-metric-value" id="resLossArea">—</div>
+                </div>
+                <div class="result-metric">
+                  <div class="result-metric-label">단열재 1장 면적</div>
+                  <div class="result-metric-value" id="resBoardArea">—</div>
+                </div>
+                <div class="result-metric">
+                  <div class="result-metric-label">평당 소요량</div>
+                  <div class="result-metric-value" id="resPerPyeong">—</div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+          <div class="result-note" id="resultNote"></div>
+        </div>
+
+        <!-- 확인해주세요 + 관련 계산기 묶음 -->
+        <div class="tip-related-wrap">
+        <div class="tip-box">
+          <div class="tip-title">확인해주세요.</div>
+          <ul class="tip-list">
+            <li>단열재 사이 틈새는 결로의 주범입니다. 꽉 끼게 넣지 말고 10mm 여유를 둔 뒤 우레탄 폼으로 꼼꼼히 충진하세요.</li>
+            <li>아이소핑크나 스티로폼은 일반 본드 사용 시 녹을 수 있습니다. 반드시 단열재 전용 G2 본드나 폼본드를 사용하세요.</li>
+            <li>2겹(2P) 시공 시, 이음매가 겹치지 않도록 지그재그로 교차 시공해야 열교 현상을 막고 단열 성능을 높일 수 있습니다.</li>
+            <li>단열재 위에 바로 도배는 불가능합니다. 반드시 석고보드로 마감면을 만든 후 도배/페인트를 시공해야 합니다.</li>
+            <li>천장 작업이나 모양이 복잡한 벽면은 재단 로스가 많이 발생하므로, 할증율(Loss)을 10% 이상 넉넉하게 잡는 것을 추천합니다.</li>
+          </ul>
+        <div class="related-section">
+          <h3 class="related-title">이런 계산기는 어때요?</h3>
+          <div class="related-tags">
+            <a href="gypsum.html" class="related-tag">석고보드 수량 계산기</a>
+            <a href="reflective-insulation.html" class="related-tag">열반사 단열재 소요량 계산기</a>
+            <a href="tex.html" class="related-tag">천장재[텍스] 수량 계산기</a>
+            <a href="acoustic.html" class="related-tag">방음/흡음재 수량 계산기</a>
+            <a href="insulation-thickness.html" class="related-tag">단열재 두께 계산기</a>
+          </div>
+        </div>
+        </div>
+        </div><!-- /tip-related-wrap -->
+        </div><!-- /calc-right-col -->
+
+        </div><!-- /calc-main-wrap -->
+
+        <!-- ── SEO 콘텐츠 블록 ── -->
+        <div class="seo-wrap">
+        <div class="seo-section">
+          <h2 class="seo-title">단열재 수량 계산기, 아이소핑크·스티로폼·경질우레탄보드·PF보드 물량 산출 가이드</h2>
+          <p class="seo-body">단열 공사는 빈틈없는 시공(기밀)이 생명입니다. 자재가 부족하여 조각조각 이어 붙이면 단열 성능이 떨어지고 결로가 발생할 수 있습니다. 시공할 벽면의 크기와 사용할 단열재 규격을 입력하면, 할증률(로스)과 창문 등 차감 면적을 고려하여 실제 필요한 자재 수량을 정밀하게 산출해 드립니다.</p>
+        </div>
+
+        <!-- 계산 공식 -->
+        <div class="seo-section">
+          <h2 class="seo-title">단열재 수량 계산 공식</h2>
+          <p class="seo-body">자재의 규격과 시공 면적을 기준으로 산출합니다.</p>
+          <ol class="seo-list seo-list--ol">
+            <li><strong>벽체 가로, 높이</strong><span>단열재를 시공할 벽면(또는 천장)의 전체 너비와 높이를 입력합니다. 지붕이나 천장 시공 시에는 해당 면적의 가로/세로 길이를 입력하세요.</span></li>
+            <li><strong>단열재 규격 및 종류</strong><span>재질에 따라 한 장의 표준 크기가 다릅니다. 아이소핑크/스티로폼(900×1800), 경질우레탄보드/PF보드(900×1800 또는 600×1200) 중 시공할 자재의 규격을 입력하세요.</span></li>
+            <li><strong>할증률 및 차감 면적</strong><span>재단 시 발생하는 자투리 로스는 보통 5~10%를 권장하며, 창문이나 방문 등 자재가 붙지 않는 공간의 면적은 차감 면적에 입력하세요.</span></li>
+          </ol>
+          <div class="seo-formula">
+            <div class="seo-formula-label"><span class="badge-orange">총 소요 수량 산출 공식</span></div>
+            <div class="seo-formula-body">필요 수량(장) = { (벽면 면적 − 차감 면적) ÷ 단열재 한 장 면적 } × (1 + 할증률/100)</div>
+          </div>
+          <div class="seo-formula-example">예시: 10㎡ 벽면에 900×1800(1.62㎡) 규격 아이소핑크 시공 시, 할증 5% 포함 약 <strong>7장</strong> 주문을 권장합니다.</div>
+        </div>
+
+        <!-- 자재별 비교표 -->
+        <div class="seo-section">
+          <h2 class="seo-title">자재별 특징 및 비교 가이드</h2>
+          <div class="seo-table-wrap">
+            <table class="seo-table">
+              <thead>
+                <tr>
+                  <th>구분</th>
+                  <th>아이소핑크 (압출법)</th>
+                  <th>스티로폼 (비드법)</th>
+                  <th>경질우레탄보드 (PIR/PUR)</th>
+                  <th>PF보드 (페놀폼)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>가격</td><td>중간</td><td>저렴함</td><td>높음</td><td>매우 높음</td>
+                </tr>
+                <tr>
+                  <td>내습성</td><td>우수함 (습기에 강함)</td><td>보통 (흡수성 있음)</td><td>우수함</td><td>보통</td>
+                </tr>
+                <tr>
+                  <td>시공성</td><td>보통</td><td>쉬움</td><td>보통</td><td>보통</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 전문가 노하우 -->
+        <div class="seo-section">
+          <h2 class="seo-title">전문가 노하우 및 체크리스트</h2>
+          <p class="seo-body">단열 성능을 결정짓는 핵심 시공 노하우입니다.</p>
+          <div class="seo-checklist">
+            <div class="seo-check-item">
+              <div class="seo-check-title">우레탄 폼으로 틈새 메우기</div>
+              <p class="seo-check-body">단열재 사이나 벽과 만나는 모서리 틈새는 결로의 주범입니다. 자재를 너무 꽉 끼게 재단하지 말고 약 10mm 정도 여유를 둔 뒤, 틈새를 우레탄 폼으로 꼼꼼히 채워야 완벽한 단열층이 형성됩니다.</p>
+            </div>
+            <div class="seo-check-item">
+              <div class="seo-check-title">교차 시공 (2겹 이상 시공 시)</div>
+              <p class="seo-check-body">단열재를 2겹으로 시공할 경우, 첫 번째 층과 두 번째 층의 이음매가 겹치지 않도록 지그재그로 엇갈림 시공을 해야 열교 현상을 원천 차단할 수 있습니다.</p>
+            </div>
+            <div class="seo-check-item">
+              <div class="seo-check-title">전용 접착제(G2 본드) 사용</div>
+              <p class="seo-check-body">아이소핑크나 스티로폼 시공 시 일반 유성 본드를 쓰면 자재가 녹아버립니다. 반드시 스티로폼 전용 본드인 G2 본드나 폼본드를 사용해야 안전하게 부착됩니다.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- FAQ -->
+        <div class="seo-section">
+          <h2 class="seo-title">자주 묻는 질문 (FAQ)</h2>
+          <div class="seo-faq">
+            <div class="seo-faq-item">
+              <div class="seo-faq-q">아이소핑크 위에 바로 도배할 수 있나요?</div>
+              <div class="seo-faq-a">불가능합니다. 표면이 매끄러워 벽지가 붙지 않으므로, 반드시 석고보드 등으로 마감면을 만든 뒤에 도배나 페인트칠을 진행해야 합니다.</div>
+            </div>
+            <div class="seo-faq-item">
+              <div class="seo-faq-q">천장 단열재도 이 계산기로 계산 가능한가요?</div>
+              <div class="seo-faq-a">네, 가능합니다. 천장 전체 면적을 입력하면 됩니다. 다만 천장은 작업 난이도가 높아 자재 로스가 많이 발생하므로 할증률을 10% 이상 설정하는 것을 추천합니다.</div>
+            </div>
+            <div class="seo-faq-item">
+              <div class="seo-faq-q">단열재 두께가 두꺼우면 소요 장수가 달라지나요?</div>
+              <div class="seo-faq-a">아니요, 이 계산기는 면적(장수)을 산출하는 도구이므로 두께와는 상관없습니다. 다만 현장 단열 기준에 맞는 두께를 별도로 결정하여 주문하셔야 합니다.</div>
+            </div>
+          </div>
+        </div>
+        </div><!-- /seo-wrap -->
+
+      </div><!-- /calc-wrapper -->
+
+      <!-- 푸터 -->
+      <footer class="site-footer">
+        <div class="footer-links">
+          <a href="#">개인정보처리방침</a>
+          <a href="#">이용약관</a>
+          <a href="#">문의하기</a>
+        </div>
+        <p class="footer-copy">© 에너가드컴퍼니</p>
+      </footer>
+
+      <script src="insulation-board.js"></script>
+</main>

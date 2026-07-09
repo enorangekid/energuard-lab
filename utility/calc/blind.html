@@ -1,0 +1,245 @@
+﻿<script>if(!window.KankanRouter)location.replace('../index.html');</script>
+<main class="main-content">
+
+      <div class="page-header">
+        <nav class="breadcrumb" aria-label="breadcrumb">
+          <a href="../index.html">홈</a>
+          <span class="bc-sep">›</span>
+          <span>창호/도어/유리</span>
+          <span class="bc-sep">›</span>
+          <span class="bc-current">블라인드 사이즈 계산기</span>
+        </nav>
+        <h1 class="page-title">블라인드 사이즈 계산기</h1>
+      </div>
+
+      <div class="calc-wrapper">
+        <div class="calc-main-wrap">
+
+          <div class="calc-card-main" id="calcForm">
+
+            <!-- 창틀 가로 × 높이 -->
+            <div class="field-row">
+              <div class="field-group">
+                <label class="field-label">창틀 가로</label>
+                <div class="field-input-wrap">
+                  <input type="number" class="field-input" id="frameWidth" value="1500" min="1" step="1" />
+                  <div class="unit-select-wrap">
+                    <select class="unit-select" id="frameWidthUnit">
+                      <option value="mm">mm</option>
+                      <option value="cm">cm</option>
+                      <option value="m">m</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div class="field-dot">×</div>
+              <div class="field-group">
+                <label class="field-label">창틀 높이</label>
+                <div class="field-input-wrap">
+                  <input type="number" class="field-input" id="frameHeight" value="1800" min="1" step="1" />
+                  <div class="unit-select-wrap">
+                    <select class="unit-select" id="frameHeightUnit">
+                      <option value="mm">mm</option>
+                      <option value="cm">cm</option>
+                      <option value="m">m</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 좌우 / 하단 여유 공간 -->
+            <div class="select-pair-row">
+              <div class="field-group">
+                <label class="field-label">좌우 여유 공간</label>
+                <div class="custom-select-wrap" id="hMarginWrap">
+                  <button class="custom-select-btn" id="hMarginBtn" type="button">
+                    <span id="hMarginBtnText">있음 (양쪽 여유 +100mm)</span>
+                    <svg class="custom-select-arrow" width="10" height="6" viewBox="0 0 10 6" fill="none" stroke="#aaa" stroke-width="1.8" stroke-linecap="round"><polyline points="1 1 5 5 9 1"/></svg>
+                  </button>
+                  <ul class="custom-select-list" id="hMarginList">
+                    <li class="custom-select-item" data-value="-10">없음 (창틀 안 매립 -10mm)</li>
+                    <li class="custom-select-item active" data-value="100">있음 (양쪽 여유 +100mm)</li>
+                    <li class="custom-select-item" data-value="50">있음 (양쪽 여유 +50mm)</li>
+                    <li class="custom-select-item" data-value="0">그대로 (여유 없음)</li>
+                  </ul>
+                  <input type="hidden" id="hMarginValue" value="100" />
+                </div>
+              </div>
+              <div class="field-dot"></div>
+              <div class="field-group">
+                <label class="field-label">하단 여유 공간</label>
+                <div class="custom-select-wrap" id="vMarginWrap">
+                  <button class="custom-select-btn" id="vMarginBtn" type="button">
+                    <span id="vMarginBtnText">있음 (하단 여유 +100mm)</span>
+                    <svg class="custom-select-arrow" width="10" height="6" viewBox="0 0 10 6" fill="none" stroke="#aaa" stroke-width="1.8" stroke-linecap="round"><polyline points="1 1 5 5 9 1"/></svg>
+                  </button>
+                  <ul class="custom-select-list" id="vMarginList">
+                    <li class="custom-select-item" data-value="-10">없음 (전창·매립 -10mm)</li>
+                    <li class="custom-select-item active" data-value="100">있음 (하단 여유 +100mm)</li>
+                    <li class="custom-select-item" data-value="50">있음 (하단 여유 +50mm)</li>
+                    <li class="custom-select-item" data-value="0">그대로 (여유 없음)</li>
+                  </ul>
+                  <input type="hidden" id="vMarginValue" value="100" />
+                </div>
+              </div>
+            </div>
+
+            <!-- 버튼 -->
+            <div class="btn-row">
+              <button class="btn-calc" id="btnCalc" type="button">계산하기</button>
+              <button class="btn-reset" id="btnReset" type="button">초기화</button>
+            </div>
+
+          </div><!-- /calc-card-main -->
+
+          <!-- 결과 패널 -->
+          <div class="calc-right-col">
+          <div class="result-panel" id="resultPanel" style="display:none;">
+            <div class="result-main-row">
+              <div class="result-main-card">
+                <div class="result-main-sub" id="resMainSub">주문 제작 사이즈</div>
+                <div class="result-main-count">
+                  <span class="result-main-num" id="resWidth">—</span>
+                  <span class="result-main-unit">×</span>
+                  <span class="result-main-num" id="resHeight">—</span>
+                  <span class="result-main-unit">mm</span>
+                </div>
+                <div class="result-main-desc" id="resMainDesc">—</div>
+              </div>
+              <div class="result-detail-card">
+                <div class="result-detail-icon">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    <line x1="3" y1="9" x2="21" y2="9"/>
+                    <line x1="9" y1="9" x2="9" y2="21"/>
+                  </svg>
+                </div>
+                <div class="result-detail-metrics">
+                  <div class="result-metric">
+                    <div class="result-metric-label">창틀 실측</div>
+                    <div class="result-metric-value" id="resFrame">—</div>
+                  </div>
+                  <div class="result-metric">
+                    <div class="result-metric-label">좌우 여유</div>
+                    <div class="result-metric-value" id="resHMargin">—</div>
+                  </div>
+                  <div class="result-metric">
+                    <div class="result-metric-label">하단 여유</div>
+                    <div class="result-metric-value" id="resVMargin">—</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="result-note" id="resultNote"></div>
+          </div>
+
+          <!-- 확인해주세요 + 관련 계산기 -->
+          <div class="tip-related-wrap">
+            <div class="tip-box">
+              <div class="tip-title">확인해주세요.</div>
+              <ul class="tip-list">
+                <li>창틀은 미세하게 수평이 맞지 않을 수 있으므로 가로·세로 모두 최소 3곳 이상 실측하여 가장 작은 치수를 기준으로 입력해야 설치 시 걸림이 없습니다.</li>
+                <li>창틀 안 매립 시공 전에 창문 손잡이가 튀어나와 있지는 않은지, 블라인드 상단 박스가 들어갈 깊이(최소 10~12cm)가 충분한지 반드시 확인하세요.</li>
+                <li>가로 폭이 2400mm를 넘는 대형 창은 무게로 인한 고장 위험이 크므로 창문 프레임을 기준으로 2개 이상 분할 주문하는 것이 좋습니다.</li>
+                <li>세로 높이 측정 시 커튼박스가 있다면 박스 안쪽 천장부터 바닥까지 재야 정확합니다. 몰딩 아래부터 재면 블라인드 길이가 짧아질 수 있습니다.</li>
+                <li>암막 효과를 높이려면 창틀 밖 설치 시 양옆으로 각각 50~100mm 정도 여유를 더해 빛 샘 틈새를 충분히 덮을 수 있도록 사이즈를 결정하세요.</li>
+              </ul>
+            <div class="related-section">
+              <h3 class="related-title">이런 계산기는 어때요?</h3>
+              <div class="related-tags">
+                <a href="window-insulation.html" class="related-tag">창문 단열재 견적 계산기</a>
+                <a href="insulation-board.html" class="related-tag">판상형 단열재 수량 계산기</a>
+                <a href="interior-film.html" class="related-tag">인테리어필름 소요량 계산기</a>
+              </div>
+            </div>
+            </div>
+          </div>
+
+        </div><!-- /calc-right-col -->
+        </div><!-- /calc-main-wrap -->
+
+        <!-- SEO 영역 -->
+        <div class="seo-wrap">
+
+          <div class="seo-section">
+            <h2 class="seo-title">블라인드 실측 계산기, 실패 없는 맞춤 블라인드 사이즈 산출 가이드</h2>
+            <p class="seo-body">블라인드는 단 1cm의 오차로도 설치가 불가능하거나 빛이 샐 수 있습니다. 설치 환경(매립형/노출형)에 따른 정확한 가감치를 적용하여, 주문 제작 시 바로 입력할 수 있는 최종 사이즈를 산출해 드립니다.</p>
+          </div>
+
+          <div class="seo-section">
+            <h2 class="seo-title">블라인드 제작 사이즈 산출 공식</h2>
+            <p class="seo-body">설치 위치에 따라 창틀 사이즈에서 일정 수치를 더하거나 빼서 결정합니다.</p>
+            <div class="seo-formula">
+              <div class="seo-formula-label"><span class="badge-orange">블라인드 가로 사이즈 계산</span></div>
+              <div class="seo-formula-body">창틀 안 시공: 주문 폭 = 실측 폭 − 10mm</div>
+              <div class="seo-formula-body">창틀 밖 시공: 주문 폭 = 실측 폭 + (50mm ~ 100mm)</div>
+            </div>
+            <div class="seo-formula" style="margin-top:10px;">
+              <div class="seo-formula-label"><span class="badge-orange">블라인드 높이 사이즈 계산</span></div>
+              <div class="seo-formula-body">전창 / 매립 시공: 주문 높이 = 실측 높이 − 10mm</div>
+              <div class="seo-formula-body">반창 / 돌출 시공: 주문 높이 = 실측 높이 + (50mm ~ 100mm)</div>
+            </div>
+          </div>
+
+          <div class="seo-section">
+            <h2 class="seo-title">계산기 입력 항목 상세 가이드</h2>
+            <p class="seo-body">정확한 사이즈 산출을 위해 창문의 실측 데이터와 설치 방식을 확인해 주세요.</p>
+            <ol class="seo-list seo-list--ol">
+              <li><strong>설치 방식 선택</strong><span>깔끔한 외관을 원하면 창틀 안 매립, 확실한 빛 차단과 창틀 노출을 피하려면 창틀 밖 설치를 선택하세요.</span></li>
+              <li><strong>가로 여유 공간</strong><span>창틀 안 매립 시에는 양쪽 틈 확보를 위해 10mm를 빼고, 창틀 밖 설치 시에는 빛 샘 방지를 위해 창틀보다 50~100mm 넓게 제작합니다.</span></li>
+              <li><strong>하단 여유 공간</strong><span>전창이나 거실창은 바닥에 끌리지 않게 10mm를 빼고, 반창이나 방창문은 빛 차단을 위해 창틀보다 50~100mm 길게 제작하는 것이 좋습니다.</span></li>
+            </ol>
+          </div>
+
+          <div class="seo-section">
+            <h2 class="seo-title">전문가의 실무 팁 & 체크리스트</h2>
+            <div class="seo-checklist">
+              <div class="seo-check-item">
+                <div class="seo-check-title">손잡이 간섭 주의 (시스템 창호)</div>
+                <p class="seo-check-body">창문 손잡이가 튀어나와 있다면 매립 시 블라인드가 걸릴 수 있습니다. 창틀 밖 시공으로 변경하거나 박스 안쪽 깊이가 12cm 이상인지 확인하세요.</p>
+              </div>
+              <div class="seo-check-item">
+                <div class="seo-check-title">가로 사이즈 분할</div>
+                <p class="seo-check-body">가로 폭이 2400mm를 넘으면 무게로 인해 고장이 발생하기 쉽습니다. 창문 프레임을 기준으로 2개로 나누어 주문하는 것이 사용과 미관상 좋습니다.</p>
+              </div>
+              <div class="seo-check-item">
+                <div class="seo-check-title">커튼박스 유무 확인</div>
+                <p class="seo-check-body">세로 높이를 잴 때 반드시 커튼박스 안쪽 천장(가장 높은 면)부터 바닥까지 재야 정확합니다. 몰딩 아래부터 재면 길이가 짧아질 수 있습니다.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="seo-section">
+            <h2 class="seo-title">자주 묻는 질문 (FAQ)</h2>
+            <div class="seo-faq">
+              <div class="seo-faq-item">
+                <div class="seo-faq-q">창틀 안쪽 깊이가 어느 정도여야 매립이 가능한가요?</div>
+                <div class="seo-faq-a">블라인드 종류에 따라 다르지만 보통 콤비나 우드 블라인드는 8~10cm 정도의 평평한 깊이가 확보되어야 깔끔하게 매립됩니다.</div>
+              </div>
+              <div class="seo-faq-item">
+                <div class="seo-faq-q">창문이 두 개로 나뉘어 있는데 한 개로 주문해도 되나요?</div>
+                <div class="seo-faq-a">한 개로 주문하면 작동은 편하지만, 한쪽 창문만 열어 환기할 때 불편할 수 있습니다. 가급적 창문 개별 프레임에 맞춰 나누어 설치하는 것을 추천합니다.</div>
+              </div>
+              <div class="seo-faq-item">
+                <div class="seo-faq-q">실측 시 소수점은 어떻게 처리하나요?</div>
+                <div class="seo-faq-a">주문 제작 업체에 따라 다르지만, 보통 mm 단위까지 정확히 기재하거나 0.5cm 단위로 올림하여 주문하는 것이 안전합니다.</div>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /seo-wrap -->
+
+      </div><!-- /calc-wrapper -->
+
+      <footer class="site-footer">
+        <div class="footer-links">
+          <a href="#">개인정보처리방침</a>
+          <a href="#">이용약관</a>
+          <a href="#">문의하기</a>
+        </div>
+        <p class="footer-copy">© 에너가드컴퍼니</p>
+      </footer>
+
+      <script src="blind.js"></script>
+</main>

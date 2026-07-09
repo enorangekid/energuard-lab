@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ENERGUARD LAB — 셀러를 위한 데이터 허브</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="common.css?v=20260706-topbar2">
+<link rel="stylesheet" href="landing.css?v=20260706-fill-trend2">
+</head>
+<body>
+<header class="topbar" data-topbar></header>
+
+<main>
+  <section class="hero">
+    <div class="hero-inner">
+      <h1 class="hero-title">키워드와 순위, <span>한 곳에서</span> 확인하세요</h1>
+      <form class="hero-search" id="heroSearchForm">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input type="text" id="heroKeyword" placeholder="상품 키워드를 검색해보세요">
+        <button type="submit">검색</button>
+      </form>
+    </div>
+  </section>
+
+  <section class="trend">
+    <div class="trend-tabs" id="trUnits">
+      <button class="trend-tab tr-unit active" data-unit="date" onclick="trSetUnit(this)">일간 트렌드</button>
+      <button class="trend-tab tr-unit" data-unit="week" onclick="trSetUnit(this)">주간 트렌드</button>
+      <button class="trend-tab tr-unit" data-unit="month" onclick="trSetUnit(this)">월간 트렌드</button>
+    </div>
+    <div class="trend-inner">
+      <div class="cat-tabs">
+        <button class="cat-tab tr-cat active" data-cat="생활/건강" onclick="trSetCat(this)">생활/건강</button>
+        <button class="cat-tab tr-cat" data-cat="가구/인테리어" onclick="trSetCat(this)">가구/인테리어</button>
+        <button class="cat-tab tr-cat" data-cat="스포츠/레저" onclick="trSetCat(this)">스포츠/레저</button>
+        <button class="cat-tab tr-cat" data-cat="디지털/가전" onclick="trSetCat(this)">디지털/가전</button>
+        <button class="cat-tab tr-cat" data-cat="출산/육아" onclick="trSetCat(this)">출산/육아</button>
+        <button class="cat-tab tr-cat" data-cat="식품" onclick="trSetCat(this)">식품</button>
+        <button class="cat-tab tr-cat" data-cat="화장품/미용" onclick="trSetCat(this)">화장품/미용</button>
+        <button class="cat-tab tr-cat" data-cat="패션의류" onclick="trSetCat(this)">패션의류</button>
+        <button class="cat-tab tr-cat" data-cat="패션잡화" onclick="trSetCat(this)">패션잡화</button>
+      </div>
+
+      <div class="trend-grid">
+        <div class="trend-col">
+          <h3 class="trend-col-title">키워드 BEST</h3>
+          <p class="trend-col-sub">네이버쇼핑에서 많이 검색된 키워드입니다.</p>
+          <div id="trendWidget" class="open">
+            <div id="trContent"><div class="tr-status">불러오는 중...</div></div>
+          </div>
+        </div>
+        <div class="trend-col trend-col--wide">
+          <h3 class="trend-col-title">TOP 노출 상품</h3>
+          <p class="trend-col-sub">주요 키워드별 검색 정확도순 1위 상품입니다.</p>
+          <div class="sales-grid" id="salesGrid"><div class="tr-status">불러오는 중...</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+const SUPABASE_URL = "https://eukwfypbfqojbaihfqye.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_MiBvlf3d6ulcVBsi7Odcgw_PTXSmXKj";
+</script>
+<script src="common.js?v=20260706-ranktrack"></script>
+<script src="trend-widget.js"></script>
+<script src="landing.js?v=20260708-home-trend-init"></script>
+</body>
+</html>

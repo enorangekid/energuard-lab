@@ -1,0 +1,308 @@
+﻿<script>if(!window.KankanRouter)location.replace('../index.html');</script>
+<main class="main-content">
+
+      <!-- 페이지 헤더 -->
+      <div class="page-header">
+        <nav class="breadcrumb" aria-label="breadcrumb">
+          <a href="../index.html">홈</a>
+          <span class="bc-sep">›</span>
+          <span>마감/인테리어</span>
+          <span class="bc-sep">›</span>
+          <span class="bc-current">실리콘/줄눈 소요량 계산기</span>
+        </nav>
+        <h1 class="page-title">실리콘/줄눈 소요량 계산기</h1>
+      </div>
+
+      <!-- 계산기 카드 -->
+      <div class="calc-wrapper">
+
+        <div class="calc-main-wrap">
+
+          <!-- 입력 섹션 -->
+          <div class="calc-card-main" id="calcForm">
+
+            <!-- Row 1: 시공 장소 (단독) -->
+            <div class="field-row">
+              <div class="field-group">
+                <label class="field-label">시공 장소</label>
+                <input type="hidden" id="placeType" value="wet" />
+                <div class="custom-select-wrap" id="placeTypeWrap">
+                  <button class="custom-select-btn" type="button" id="placeTypeBtn">
+                    <span class="custom-select-text" id="placeTypeText">욕실/주방 (습기 많은 곳)</span>
+                    <svg class="custom-select-arrow" width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 1l4 4 4-4" stroke="#999" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </button>
+                  <ul class="custom-select-list" id="placeTypeList">
+                    <li class="custom-select-item active" data-value="wet">욕실/주방 (습기 많은 곳)</li>
+                    <li class="custom-select-item" data-value="window">창호/외부 (창틀, 유리 마감)</li>
+                    <li class="custom-select-item" data-value="wall">실내 벽면 (페인트 마감 부위)</li>
+                  </ul>
+                </div>
+              </div>
+              <div class="field-dot"></div>
+              <div class="field-group">
+                <label class="field-label">시공 길이</label>
+                <div class="field-input-wrap">
+                  <input type="number" class="field-input" id="workLength" value="10" min="0" step="0.1" />
+                  <div class="unit-select-wrap">
+                    <select class="unit-select" id="workLengthUnit">
+                      <option value="m">m</option>
+                      <option value="cm">cm</option>
+                      <option value="mm">mm</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Row 2: 틈새 폭 / 틈새 깊이 -->
+            <div class="field-row">
+              <div class="field-group">
+                <label class="field-label">틈새 폭 (가로)</label>
+                <div class="field-input-wrap">
+                  <input type="number" class="field-input" id="gapWidth" value="10" min="0" step="1" />
+                  <div class="unit-select-wrap">
+                    <select class="unit-select" id="gapWidthUnit">
+                      <option value="mm">mm</option>
+                      <option value="cm">cm</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div class="field-dot">×</div>
+              <div class="field-group">
+                <label class="field-label">틈새 깊이 (세로)</label>
+                <div class="field-input-wrap">
+                  <input type="number" class="field-input" id="gapDepth" value="10" min="0" step="1" />
+                  <div class="unit-select-wrap">
+                    <select class="unit-select" id="gapDepthUnit">
+                      <option value="mm">mm</option>
+                      <option value="cm">cm</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Row 3: 실리콘 용량 / 할증률 -->
+            <div class="field-row">
+              <div class="field-group">
+                <label class="field-label">실리콘 용량(규격)</label>
+                <input type="hidden" id="cartridgeVol" value="300" />
+                <div class="custom-select-wrap" id="cartridgeVolWrap">
+                  <button class="custom-select-btn" type="button" id="cartridgeVolBtn">
+                    <span class="custom-select-text" id="cartridgeVolText">일반 카트리지 / 300ml</span>
+                    <svg class="custom-select-arrow" width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 1l4 4 4-4" stroke="#999" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </button>
+                  <ul class="custom-select-list" id="cartridgeVolList">
+                    <li class="custom-select-item active" data-value="300">일반 카트리지 / 300ml</li>
+                    <li class="custom-select-item" data-value="500">소시지 타입 / 500ml</li>
+                    <li class="custom-select-item" data-value="600">소시지 타입 / 600ml</li>
+                    <li class="custom-select-item" data-value="800">소시지 타입 / 800ml</li>
+                  </ul>
+                </div>
+              </div>
+              <div class="field-dot"></div>
+              <div class="field-group">
+                <label class="field-label">할증율(로스)</label>
+                <div class="field-input-wrap">
+                  <input type="number" class="field-input" id="lossRate" value="10" min="0" max="50" step="1" />
+                  <div class="unit-select-wrap unit-fixed">
+                    <span class="unit-label">%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 버튼 -->
+            <div class="btn-row">
+              <button class="btn-calc" id="btnCalc" type="button">
+                <span class="btn-calc-icon">≡</span> 계산하기
+              </button>
+              <button class="btn-reset" id="btnReset" type="button">
+                <span class="btn-reset-icon">C</span> 초기화
+              </button>
+            </div>
+
+          </div><!-- /calc-card-main -->
+
+          <!-- 결과 패널 -->
+          <div class="calc-right-col">
+          <div class="result-panel" id="resultPanel" style="display:none;">
+            <div class="result-main-row">
+
+              <!-- 왼쪽: 메인 결과 카드 -->
+              <div class="result-main-card">
+                <div class="result-main-sub" id="resMainSub">— ml 필요한 실리콘 통 수</div>
+                <div class="result-main-count">
+                  <span class="result-main-num" id="resMainNum">—</span>
+                  <span class="result-main-unit">통</span>
+                </div>
+                <div class="result-main-desc" id="resMainDesc">할증율 —%, — ml 포함</div>
+              </div>
+
+              <!-- 오른쪽: 세부 지표 카드 -->
+              <div class="result-detail-card">
+                <div class="result-detail-icon">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    <line x1="3" y1="9" x2="21" y2="9"/>
+                    <line x1="3" y1="15" x2="21" y2="15"/>
+                    <line x1="9" y1="9" x2="9" y2="21"/>
+                    <line x1="15" y1="9" x2="15" y2="21"/>
+                  </svg>
+                </div>
+                <div class="result-detail-metrics">
+                  <div class="result-metric">
+                    <div class="result-metric-label">순 소요 용량</div>
+                    <div class="result-metric-value" id="resBaseVol">—</div>
+                  </div>
+                  <div class="result-metric">
+                    <div class="result-metric-label">할증 포함 용량</div>
+                    <div class="result-metric-value" id="resLossVol">—</div>
+                  </div>
+                  <div class="result-metric">
+                    <div class="result-metric-label">용기 규격</div>
+                    <div class="result-metric-value" id="resCartridge">—</div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+            <div class="result-note" id="resultNote"></div>
+          </div>
+
+          <!-- 확인해주세요 + 관련 계산기 -->
+          <div class="tip-related-wrap">
+            <div class="tip-box">
+              <div class="tip-title">확인해주세요.</div>
+              <ul class="tip-list">
+                <li>욕실이나 주방 등 물을 사용하는 곳에는 곰팡이 억제 기능이 있는 '바이오 실리콘'을 사용해야 위생적입니다.</li>
+                <li>실리콘 바를 곳에 물기나 기름기가 남아있으면 접착력이 급격히 떨어집니다. 반드시 건조시킨 후 탈지 작업을 거치세요.</li>
+                <li>도배지나 페인트칠을 할 부위에는 '수성 실리콘'을 써야 합니다. 일반 유성 실리콘 위에는 페인트가 묻지 않고 겉돕니다.</li>
+                <li>깊은 틈새를 메울 때는 백업재를 먼저 채워 넣으세요. 실리콘 사용량을 줄여주고 일정한 두께의 예쁜 라인을 만들어 줍니다.</li>
+                <li>실리콘 노즐(꼬깔)을 틈새 폭에 맞춰 대각선으로 잘라주면 초보자도 일정한 양으로 깔끔하게 쏠 수 있습니다.</li>
+              </ul>
+            <div class="related-section">
+              <h3 class="related-title">이런 계산기는 어때요?</h3>
+              <div class="related-tags">
+                <a href="thermal-wallpaper.html" class="related-tag">단열벽지 소요량 계산기</a>
+                <a href="thermal-base-wallpaper.html" class="related-tag">단열초배지 소요량 계산기</a>
+                <a href="interior-film.html" class="related-tag">인테리어필름/시트지 소요량 계산기</a>
+                <a href="flooring.html" class="related-tag">장판 소요량 계산기</a>
+                <a href="foam-spray.html" class="related-tag">우레탄폼 스프레이형 소요량 계산기</a>
+                <a href="foam-bond.html" class="related-tag">우레탄폼 폼본드 소요량 계산기</a>
+              </div>
+            </div>
+            </div>
+          </div><!-- /tip-related-wrap -->
+          </div><!-- /calc-right-col -->
+
+        </div><!-- /calc-main-wrap -->
+
+        <!-- ── SEO 콘텐츠 블록 ── -->
+        <div class="seo-wrap">
+
+          <div class="seo-section">
+            <h2 class="seo-title">실리콘/줄눈 소요량 계산기, 틈새 메꿈·코킹 자재 산출 가이드</h2>
+            <p class="seo-body">실리콘 한 통으로 욕실을 다 할 수 있을까, 아니면 세 통은 사야 할까? 실리콘(코킹) 작업은 틈새의 너비와 깊이에 따라 소모량이 천차만별입니다. 얇게 쏘면 한 통으로 온 집안을 다 할 수 있지만, 틈이 넓으면 창틀 하나에 두 통을 다 쓰기도 합니다. 이 계산기는 메꾸고자 하는 틈새의 폭, 깊이, 총 길이를 입력하면 부피를 계산하여 필요한 실리콘 통 수(Cartridges)를 정확하게 산출해 드립니다.</p>
+          </div>
+
+          <!-- 계산 공식 -->
+          <div class="seo-section">
+            <h2 class="seo-title">실리콘 소요량 계산 공식</h2>
+            <p class="seo-body">틈새의 단면적과 시공 길이를 기준으로 전체 부피를 산출합니다.</p>
+            <ol class="seo-list seo-list--ol">
+              <li><strong>총 소요 부피</strong><span>필요 용량(ml) = 폭(mm) × 깊이(mm) × 길이(m) × (1 + 할증률/100). 틈새의 단면적(폭×깊이)에 전체 시공 길이를 곱해 부피를 구합니다.</span></li>
+              <li><strong>필요 통 수</strong><span>필요 통 수 = 올림(총 소요 용량 ÷ 용기 용량). 실리콘은 통 단위로 구매하므로 소수점은 무조건 올림 처리합니다.</span></li>
+            </ol>
+            <div class="seo-formula">
+              <div class="seo-formula-label"><span class="badge-orange">총 소요 용량 산출 공식</span></div>
+              <div class="seo-formula-body">필요 용량(ml) = 폭(mm) × 깊이(mm) × 길이(m) × (1 + 할증률/100)</div>
+            </div>
+            <div class="seo-formula-example">예시: 틈새 폭 10mm × 깊이 10mm × 시공 길이 10m, 할증 10% → 순 소요량 1,000ml, 총 약 <strong>1,100ml → 4통(300ml 기준)</strong> 주문 권장</div>
+          </div>
+
+          <!-- 종류 비교표 -->
+          <div class="seo-section">
+            <h2 class="seo-title">주요 실리콘 종류 및 용도 가이드</h2>
+            <div class="seo-table-wrap">
+              <table class="seo-table">
+                <thead>
+                  <tr>
+                    <th>종류</th>
+                    <th>특징</th>
+                    <th>추천 용도</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>바이오 실리콘</td>
+                    <td>곰팡이 방지제 함유</td>
+                    <td>욕실, 주방, 싱크대 등 습한 곳</td>
+                  </tr>
+                  <tr>
+                    <td>창호용 실리콘</td>
+                    <td>내후성 및 접착력 우수</td>
+                    <td>외부 창틀, 유리 마감 (비오염성)</td>
+                  </tr>
+                  <tr>
+                    <td>수성 / 변성 실리콘</td>
+                    <td>도색 가능 (페인트 부착)</td>
+                    <td>실내 벽면 테두리, 페인트 마감 부위</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- 전문가 노하우 -->
+          <div class="seo-section">
+            <h2 class="seo-title">전문가 노하우 및 체크리스트</h2>
+            <p class="seo-body">깔끔한 마감 품질을 좌우하는 실무 핵심 포인트입니다.</p>
+            <div class="seo-checklist">
+              <div class="seo-check-item">
+                <div class="seo-check-title">마스킹 테이프 활용</div>
+                <p class="seo-check-body">시공 부위 양옆에 테이프를 붙이고 헤라로 문지른 뒤, 실리콘이 굳기 전에 떼어내면 전문가처럼 깔끔한 라인이 나옵니다.</p>
+              </div>
+              <div class="seo-check-item">
+                <div class="seo-check-title">노즐 커팅 각도 조절</div>
+                <p class="seo-check-body">노즐을 45도 각도로 비스듬히 자르되, 틈새 폭보다 약간 넓게 잘라야 빈틈없이 채워집니다. 끝을 살짝 눌러 타원형으로 만들면 더 좋습니다.</p>
+              </div>
+              <div class="seo-check-item">
+                <div class="seo-check-title">충분한 건조 시간 확보</div>
+                <p class="seo-check-body">겉면은 1시간 내외로 마르지만 속까지 완전히 굳으려면 최소 24시간이 필요합니다. 하루 동안은 물이 닿지 않게 주의하세요.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- FAQ -->
+          <div class="seo-section">
+            <h2 class="seo-title">자주 묻는 질문 (FAQ)</h2>
+            <div class="seo-faq">
+              <div class="seo-faq-item">
+                <div class="seo-faq-q">기존 실리콘 위에 덧방(덧칠) 해도 되나요?</div>
+                <div class="seo-faq-a">추천하지 않습니다. 접착력이 떨어져 금방 들뜨고 내부에 곰팡이가 있다면 다시 번지기 때문에, 기존 실리콘을 완전히 제거하고 시공하는 것이 정석입니다.</div>
+              </div>
+              <div class="seo-faq-item">
+                <div class="seo-faq-q">실리콘이 손에 묻었을 때 어떻게 지우나요?</div>
+                <div class="seo-faq-a">굳기 전이라면 물티슈나 마른 휴지로 닦아내면 되지만, 굳은 후에는 지우기 어렵습니다. 작업 전 라텍스 장갑 등을 착용하시기 바랍니다.</div>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /seo-wrap -->
+
+      </div><!-- /calc-wrapper -->
+
+      <!-- 푸터 -->
+      <footer class="site-footer">
+        <div class="footer-links">
+          <a href="#">개인정보처리방침</a>
+          <a href="#">이용약관</a>
+          <a href="#">문의하기</a>
+        </div>
+        <p class="footer-copy">© 에너가드컴퍼니</p>
+      </footer>
+
+      <script src="sealant.js"></script>
+</main>

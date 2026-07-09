@@ -1,0 +1,284 @@
+﻿<script>if(!window.KankanRouter)location.replace('../index.html');</script>
+<main class="main-content">
+
+      <div class="page-header">
+        <nav class="breadcrumb" aria-label="breadcrumb">
+          <a href="../index.html">홈</a>
+          <span class="bc-sep">›</span>
+          <span>마감/인테리어</span>
+          <span class="bc-sep">›</span>
+          <span class="bc-current">우레탄폼 이액형[대용량] 소요량 계산기</span>
+        </nav>
+        <h1 class="page-title">우레탄폼 이액형[대용량] 소요량 계산기</h1>
+      </div>
+
+      <div class="calc-wrapper">
+        <div class="calc-main-wrap">
+
+          <div class="calc-card-main" id="calcForm">
+
+            <!-- Row 1: 가로 / 세로 -->
+            <div class="field-row">
+              <div class="field-group">
+                <label class="field-label">시공면 가로 길이</label>
+                <div class="field-input-wrap">
+                  <input type="number" class="field-input" id="areaW" value="3" min="0" step="0.1" />
+                  <div class="unit-select-wrap">
+                    <select class="unit-select" id="areaWUnit">
+                      <option value="m">m</option>
+                      <option value="cm">cm</option>
+                      <option value="mm">mm</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div class="field-dot">×</div>
+              <div class="field-group">
+                <label class="field-label">시공면 세로 길이</label>
+                <div class="field-input-wrap">
+                  <input type="number" class="field-input" id="areaH" value="3" min="0" step="0.1" />
+                  <div class="unit-select-wrap">
+                    <select class="unit-select" id="areaHUnit">
+                      <option value="m">m</option>
+                      <option value="cm">cm</option>
+                      <option value="mm">mm</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Row 2: 시공 두께 / 할증률 -->
+            <div class="field-row">
+              <div class="field-group">
+                <label class="field-label">시공 두께</label>
+                <div class="field-input-wrap">
+                  <input type="number" class="field-input" id="thickness" value="50" min="1" step="1" />
+                  <div class="unit-select-wrap">
+                    <select class="unit-select" id="thicknessUnit">
+                      <option value="mm">mm</option>
+                      <option value="cm">cm</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div class="field-dot"></div>
+              <div class="field-group">
+                <label class="field-label">할증율(로스)</label>
+                <div class="field-input-wrap">
+                  <input type="number" class="field-input" id="lossRate" value="10" min="0" max="50" step="1" />
+                  <div class="unit-select-wrap unit-fixed">
+                    <span class="unit-label">%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Row 3: 제품 종류 -->
+            <div class="field-row">
+              <div class="field-group">
+                <label class="field-label">제품 종류</label>
+                <input type="hidden" id="foamType" value="hard" />
+                <div class="custom-select-wrap" id="foamTypeWrap">
+                  <button class="custom-select-btn" type="button" id="foamTypeBtn">
+                    <span class="custom-select-text" id="foamTypeText">경질</span>
+                    <svg class="custom-select-arrow" width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 1l4 4 4-4" stroke="#999" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </button>
+                  <ul class="custom-select-list" id="foamTypeList">
+                    <li class="custom-select-item active" data-value="hard" data-coverage="10">경질</li>
+                    <li class="custom-select-item" data-value="soft" data-coverage="20">연질</li>
+                  </ul>
+                </div>
+              </div>
+              <div class="field-dot"></div>
+              <div class="field-group"></div>
+            </div>
+
+            <!-- 버튼 -->
+            <div class="btn-row">
+              <button class="btn-calc" id="btnCalc" type="button">
+                <span class="btn-calc-icon">≡</span> 계산하기
+              </button>
+              <button class="btn-reset" id="btnReset" type="button">
+                <span class="btn-reset-icon">C</span> 초기화
+              </button>
+            </div>
+
+          </div><!-- /calc-card-main -->
+
+          <!-- 결과 패널 -->
+          <div class="calc-right-col">
+          <div class="result-panel" id="resultPanel" style="display:none;">
+            <div class="result-main-row">
+
+              <div class="result-main-card">
+                <div class="result-main-sub" id="resMainSub">— ㎡ 시공에 필요한 세트 수</div>
+                <div class="result-main-count">
+                  <span class="result-main-num" id="resMainNum">—</span>
+                  <span class="result-main-unit">세트</span>
+                </div>
+                <div class="result-main-desc" id="resMainDesc">할증율 —%</div>
+              </div>
+
+              <div class="result-detail-card">
+                <div class="result-detail-icon">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    <line x1="3" y1="9" x2="21" y2="9"/>
+                    <line x1="3" y1="15" x2="21" y2="15"/>
+                    <line x1="9" y1="9" x2="9" y2="21"/>
+                    <line x1="15" y1="9" x2="15" y2="21"/>
+                  </svg>
+                </div>
+                <div class="result-detail-metrics">
+                  <div class="result-metric">
+                    <div class="result-metric-label">제품 종류</div>
+                    <div class="result-metric-value" id="resFoamType">—</div>
+                  </div>
+                  <div class="result-metric">
+                    <div class="result-metric-label">세트당 커버리지</div>
+                    <div class="result-metric-value" id="resCoverage">—</div>
+                  </div>
+                  <div class="result-metric">
+                    <div class="result-metric-label">두께 보정 면적</div>
+                    <div class="result-metric-value" id="resAdjArea">—</div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+            <div class="result-note" id="resultNote"></div>
+          </div>
+
+          <!-- 확인해주세요 + 관련 계산기 -->
+          <div class="tip-related-wrap">
+            <div class="tip-box">
+              <div class="tip-title">확인해주세요.</div>
+              <ul class="tip-list">
+                <li>경질과 연질의 차이: 경질은 단열성능이 우수(열전도율 0.02)하나 발포량이 적고, 연질은 발포량이 약 2배 많아 넓은 면적 시공에 유리합니다(열전도율 0.04).</li>
+                <li>최적 시공 온도는 약 25°C 내외입니다. 겨울철에는 열선이나 중탕으로 용기를 적정 온도까지 높인 후 사용하세요.</li>
+                <li>이액형 특성상 경화가 매우 빠릅니다. 작업 중단이 20초 이상 발생하면 반드시 노즐 팁을 교환 후 작업하세요.</li>
+                <li>예비 분사로 2개의 분사 구멍에서 원료가 정상 분사되는지 확인 후 팁을 체결하세요.</li>
+                <li>물을 뿌려주면 경화가 빨라지고 더 부풀어 오릅니다. 1회 시공 시 전량 소진을 권장합니다.</li>
+                <li>화기가 없는 곳에서 발포하고, 서늘한 곳에 보관하세요. 겨울철 용기를 불로 직접 가열하는 것은 매우 위험합니다.</li>
+              </ul>
+            <div class="related-section">
+              <h3 class="related-title">이런 계산기는 어때요?</h3>
+              <div class="related-tags">
+                <a href="foam-spray.html" class="related-tag">우레탄폼 스프레이형 소요량 계산기</a>
+                <a href="foam-bond.html" class="related-tag">우레탄폼 폼본드 소요량 계산기</a>
+                <a href="insulation-board.html" class="related-tag">판상형 단열재 수량 계산기</a>
+                <a href="sealant.html" class="related-tag">실리콘/줄눈 소요량 계산기</a>
+              </div>
+            </div>
+            </div>
+          </div>
+
+        </div><!-- /calc-right-col -->
+        </div><!-- /calc-main-wrap -->
+
+        <!-- SEO 콘텐츠 -->
+        <div class="seo-wrap">
+
+          <div class="seo-section">
+            <h2 class="seo-title">우레탄폼 이액형[대용량] 소요량 계산기</h2>
+            <p class="seo-body">이액형 우레탄폼은 주제와 경화제가 혼합 분사되는 방식으로, 단열재를 시공하기 어려운 울퉁불퉁한 벽면, 복잡한 배선·배관, 불규칙한 형태의 시공면에 액상으로 뿌려 효과적으로 단열할 수 있습니다. 시공 면적과 두께를 입력하면 필요한 세트 수를 자동으로 산출해 드립니다.</p>
+          </div>
+
+          <div class="seo-section">
+            <h2 class="seo-title">소요량 계산 공식</h2>
+            <p class="seo-body">세트당 커버리지(50mm 기준)를 시공 두께에 맞게 보정하여 필요 세트 수를 산출합니다.</p>
+            <ol class="seo-list seo-list--ol">
+              <li><strong>두께 보정 면적</strong><span>보정 면적(㎡) = 시공 면적 × (시공 두께 ÷ 50mm). 50mm 기준 커버리지를 실제 두께에 맞게 환산합니다.</span></li>
+              <li><strong>필요 세트 수</strong><span>세트 수 = 올림(보정 면적 ÷ 세트당 커버리지 × (1 + 할증률/100))</span></li>
+            </ol>
+            <div class="seo-formula">
+              <div class="seo-formula-label"><span class="badge-orange">필요 세트 수 산출 공식</span></div>
+              <div class="seo-formula-body">세트 수 = 올림{ 시공면적 × (두께÷50) ÷ 커버리지 × (1 + 할증률/100) }</div>
+            </div>
+          </div>
+
+          <div class="seo-section">
+            <h2 class="seo-title">경질 vs 연질 비교</h2>
+            <div class="seo-table-wrap">
+              <table class="seo-table">
+                <thead>
+                  <tr>
+                    <th>구분</th>
+                    <th>경질</th>
+                    <th>연질</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>열전도율</td>
+                    <td>0.02 W/mK</td>
+                    <td>0.04 W/mK</td>
+                  </tr>
+                  <tr>
+                    <td>50mm 기준 커버리지</td>
+                    <td>약 10㎡ / 세트</td>
+                    <td>약 20㎡ / 세트</td>
+                  </tr>
+                  <tr>
+                    <td>단열 성능 비교</td>
+                    <td>PF보드와 유사</td>
+                    <td>백색 스티로폼 3호와 유사</td>
+                  </tr>
+                  <tr>
+                    <td>추천 용도</td>
+                    <td>고단열 요구 부위</td>
+                    <td>넓은 면적, 비용 절감</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="seo-section">
+            <h2 class="seo-title">전문가 노하우 및 체크리스트</h2>
+            <div class="seo-checklist">
+              <div class="seo-check-item">
+                <div class="seo-check-title">노즐 팁 관리</div>
+                <p class="seo-check-body">작업 중단이 20초 이상 발생하면 반드시 팁을 교환해야 합니다. 시간이 정체된 후 방아쇠를 당기면 한쪽 액체만 분사되어 혼합 비율이 달라지고 폼이 형성되지 않습니다.</p>
+              </div>
+              <div class="seo-check-item">
+                <div class="seo-check-title">겨울철 온도 관리</div>
+                <p class="seo-check-body">최적 발포 온도는 약 25°C 내외입니다. 겨울철에는 용기를 불로 직접 가열하지 말고, 열선이나 중탕으로 적정 온도까지 높인 후 사용하세요.</p>
+              </div>
+              <div class="seo-check-item">
+                <div class="seo-check-title">시공면 수분 활용</div>
+                <p class="seo-check-body">시공면에 물을 뿌려주면 경화가 빠르게 이루어지고 더 부풀어 오릅니다. 밀폐된 실내에서 사용 후에는 반드시 환기하세요.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="seo-section">
+            <h2 class="seo-title">자주 묻는 질문 (FAQ)</h2>
+            <div class="seo-faq">
+              <div class="seo-faq-item">
+                <div class="seo-faq-q">경질과 연질 중 어떤 것을 선택해야 하나요?</div>
+                <div class="seo-faq-a">단열 성능이 중요한 부위(외벽, 지붕 등)에는 경질, 넓은 면적을 비용 효율적으로 시공해야 할 때는 연질을 권장합니다. 경질은 PF보드, 연질은 백색 스티로폼 3호와 열전도율이 유사합니다.</div>
+              </div>
+              <div class="seo-faq-item">
+                <div class="seo-faq-q">1회 시공 시 전량 소진해야 하나요?</div>
+                <div class="seo-faq-a">네, 권장합니다. 이액형 특성상 재사용 시 노즐 내부에서 경화가 진행되어 막힐 수 있으므로 1회 시공 시 전량 사용하는 것이 안전합니다.</div>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /seo-wrap -->
+
+      </div><!-- /calc-wrapper -->
+
+      <footer class="site-footer">
+        <div class="footer-links">
+          <a href="#">개인정보처리방침</a>
+          <a href="#">이용약관</a>
+          <a href="#">문의하기</a>
+        </div>
+        <p class="footer-copy">© 에너가드컴퍼니</p>
+      </footer>
+
+      <script src="foam-2k.js"></script>
+</main>

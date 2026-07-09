@@ -1,0 +1,448 @@
+﻿<script>if(!window.KankanRouter)location.replace('../index.html');</script>
+<main class="main-content">
+  <style>
+    /* ── 적재 시각화 전용 ── */
+    .visual-section {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      padding: 20px 0 4px;
+      border-top: 1px solid var(--color-border);
+    }
+    .visual-block {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .visual-title-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--color-text);
+    }
+    .visual-subtitle {
+      font-size: 11px;
+      font-weight: 400;
+      color: var(--color-text-muted);
+    }
+    /* Top View */
+    .truck-topview-wrap {
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      padding: 40px 10px 50px;
+      background: #f4f4f4;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+    }
+    .truck-bed {
+      border: 3px solid #1a1a1a;
+      border-radius: var(--radius);
+      background: #dfe6e9;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      overflow: visible;
+      box-sizing: content-box;
+    }
+    .truck-cab {
+      position: absolute;
+      top: -28px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 80%;
+      height: 26px;
+      background: #1a1a1a;
+      border-radius: var(--radius) var(--radius) 0 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 10px;
+      font-weight: 700;
+      font-family: var(--font-main);
+    }
+    .truck-dim-w {
+      position: absolute;
+      bottom: -36px;
+      left: 0;
+      width: 100%;
+      text-align: center;
+      font-size: 10px;
+      color: var(--color-text-muted);
+      font-family: var(--font-mono);
+      padding-top: 6px;
+      border-top: 1px solid #94a3b8;
+    }
+    .truck-dim-w::before, .truck-dim-w::after {
+      content: '';
+      position: absolute;
+      top: -4px;
+      width: 1px;
+      height: 8px;
+      background: #94a3b8;
+    }
+    .truck-dim-w::before { left: 0; }
+    .truck-dim-w::after  { right: 0; }
+    .truck-dim-h {
+      position: absolute;
+      right: -58px;
+      top: 0;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-left: 1px solid #94a3b8;
+    }
+    .truck-dim-h span {
+      transform: rotate(90deg);
+      white-space: nowrap;
+      font-size: 10px;
+      color: var(--color-text-muted);
+      font-family: var(--font-mono);
+      margin-left: 8px;
+    }
+    .truck-dim-h::before, .truck-dim-h::after {
+      content: '';
+      position: absolute;
+      left: -4px;
+      width: 8px;
+      height: 1px;
+      background: #94a3b8;
+    }
+    .truck-dim-h::before { top: 0; }
+    .truck-dim-h::after  { bottom: 0; }
+    .truck-row {
+      display: flex;
+      width: 100%;
+      justify-content: center;
+      align-items: center;
+    }
+    .stack-box {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      border-radius: 2px;
+      flex-shrink: 0;
+      height: 100%;
+    }
+    .stack-box.xps   { background: rgba(233,30,99,0.10); border: 1px solid #e91e63; color: #e91e63; }
+    .stack-box.eps   { background: rgba(96,125,139,0.10); border: 1px solid #607d8b; color: #607d8b; }
+    .stack-box.empty { background: transparent; border: 1px dashed #ccc; color: #ccc; }
+    /* Side View */
+    .sideview-wrap {
+      position: relative;
+      height: 180px;
+      background: #f4f4f4;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      display: flex;
+      align-items: flex-end;
+      padding: 0 16px 16px 40px;
+      overflow-x: auto;
+    }
+    .sideview-head {
+      position: absolute;
+      left: 6px;
+      bottom: 0;
+      width: 24px;
+      height: 60px;
+      background: #1a1a1a;
+      border-radius: 3px 3px 0 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 9px;
+      font-weight: 700;
+      writing-mode: vertical-rl;
+      font-family: var(--font-main);
+    }
+    .limit-line {
+      position: absolute;
+      width: 100%;
+      left: 0;
+      border-top: 1px dashed var(--color-accent);
+      pointer-events: none;
+      opacity: 0.7;
+    }
+    .limit-label {
+      position: absolute;
+      right: 8px;
+      top: -18px;
+      font-size: 10px;
+      color: var(--color-accent);
+      font-weight: 700;
+      background: #f4f4f4;
+      padding: 2px 4px;
+      border-radius: 2px;
+      font-family: var(--font-main);
+    }
+    .side-col {
+      display: flex;
+      flex-direction: column-reverse;
+      align-items: center;
+      flex: 1;
+      min-width: 28px;
+      position: relative;
+      margin: 0 2px;
+    }
+    .side-col-label {
+      position: absolute;
+      bottom: -18px;
+      font-size: 9px;
+      color: var(--color-text-muted);
+      width: 100%;
+      text-align: center;
+      font-family: var(--font-main);
+    }
+    .side-block {
+      width: 100%;
+      margin-bottom: 1px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 8px;
+      font-weight: 700;
+      border-radius: 1px;
+      font-family: var(--font-mono);
+    }
+    .side-block.xps { background: #e91e63; opacity: 0.8; color: white; }
+    .side-block.eps { background: #607d8b; opacity: 0.8; color: white; }
+
+
+    @media (max-width: 640px) {
+      .select-pair-row { grid-template-columns: 1fr; }
+      .select-pair-row .field-dot { display: none; }
+    }
+  </style>
+
+
+      <div class="page-header">
+        <nav class="breadcrumb" aria-label="breadcrumb">
+          <a href="../index.html">홈</a>
+          <span class="bc-sep">›</span>
+          <span>기타</span>
+          <span class="bc-sep">›</span>
+          <span class="bc-current">단열재 차량별 적재량 확인</span>
+        </nav>
+        <h1 class="page-title">단열재 차량별 적재량 확인</h1>
+      </div>
+
+      <div class="calc-wrapper">
+        <div class="calc-main-wrap">
+
+          <!-- ── 입력 카드 ── -->
+          <div class="calc-card-main" id="calcForm">
+
+            <div class="select-pair-row">
+              <!-- 단열재 종류 -->
+              <div class="field-group">
+                <label class="field-label">단열재 종류</label>
+                <div class="custom-select-wrap" id="materialWrap">
+                  <button class="custom-select-btn" id="materialBtn" type="button">
+                    <span id="materialBtnText">압출법단열재 (XPS)</span>
+                    <svg class="custom-select-arrow" width="10" height="6" viewBox="0 0 10 6" fill="none" stroke="#aaa" stroke-width="1.8" stroke-linecap="round"><polyline points="1 1 5 5 9 1"/></svg>
+                  </button>
+                  <ul class="custom-select-list" id="materialList">
+                    <li class="custom-select-item active" data-value="XPS">압출법단열재 (XPS)</li>
+                    <li class="custom-select-item" data-value="EPS">비드법단열재 (EPS)</li>
+                    <li class="custom-select-item soon" data-value="" tabindex="-1">경질우레탄보드 (PU) <span class="sub-badge">준비중</span></li>
+                    <li class="custom-select-item soon" data-value="" tabindex="-1">PF보드 (PF) <span class="sub-badge">준비중</span></li>
+                  </ul>
+                  <input type="hidden" id="materialType" value="XPS" />
+                </div>
+              </div>
+
+              <div class="field-dot"></div>
+
+              <!-- 차량 선택 -->
+              <div class="field-group">
+                <label class="field-label">차량 선택</label>
+                <div class="custom-select-wrap" id="truckWrap">
+                  <button class="custom-select-btn" id="truckBtn" type="button">
+                    <span id="truckBtnText">1톤 용달</span>
+                    <svg class="custom-select-arrow" width="10" height="6" viewBox="0 0 10 6" fill="none" stroke="#aaa" stroke-width="1.8" stroke-linecap="round"><polyline points="1 1 5 5 9 1"/></svg>
+                  </button>
+                  <ul class="custom-select-list" id="truckList">
+                    <li class="custom-select-item active" data-value="1ton">1톤 용달</li>
+                    <li class="custom-select-item" data-value="1.4ton">1.4톤 용달</li>
+                    <li class="custom-select-item" data-value="2.5ton">2.5톤</li>
+                    <li class="custom-select-item" data-value="3.5ton">3.5톤</li>
+                    <li class="custom-select-item" data-value="5ton">5톤</li>
+                    <li class="custom-select-item" data-value="5ton_plus">5톤 장축</li>
+                  </ul>
+                  <input type="hidden" id="truckType" value="1ton" />
+                </div>
+              </div>
+            </div>
+
+            <!-- 버튼 -->
+            <div class="btn-row">
+              <button class="btn-calc" id="btnCheck" type="button">확인하기</button>
+              <button class="btn-reset" id="btnReset" type="button" onclick="resetAll()">초기화</button>
+            </div>
+
+          </div><!-- /calc-card-main -->
+
+          <!-- ── 결과 패널 ── -->
+          <div class="calc-right-col">
+          <div class="result-panel" id="resultPanel" style="display:none;">
+
+            <div class="result-main-row">
+              <div class="result-main-card">
+                <div class="result-main-sub" id="resMainSub">선택 차량</div>
+                <div class="result-main-count">
+                  <span class="result-main-num" id="resVehicle">—</span>
+                </div>
+                <div class="result-main-desc" id="resBundleDetail">—</div>
+              </div>
+              <div class="result-detail-card">
+                <div class="result-detail-icon">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
+                  </svg>
+                </div>
+                <div class="result-detail-metrics">
+                  <div class="result-metric">
+                    <div class="result-metric-label">최대 적재</div>
+                    <div class="result-metric-value" id="resBundle">—</div>
+                  </div>
+                  <div class="result-metric">
+                    <div class="result-metric-label">적재함 규격</div>
+                    <div class="result-metric-value" id="resTruckSize">—</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="result-note" id="resNote"></div>
+
+            <!-- 적재 시각화 -->
+            <div class="visual-section" id="visualSection" style="display:none;">
+              <div class="visual-block">
+                <div class="visual-title-row">
+                  <span>Top View — 적재함 평면도</span>
+                  <span class="visual-subtitle" id="topViewLabel">900×1800mm 기준</span>
+                </div>
+                <div class="truck-topview-wrap">
+                  <div id="truckBed" class="truck-bed">
+                    <div class="truck-cab">운전석</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="visual-block">
+                <div class="visual-title-row">
+                  <span>Side View — 측면 적재 높이</span>
+                  <span class="visual-subtitle" style="color:var(--color-accent);">점선: 높이 제한</span>
+                </div>
+                <div class="sideview-wrap" id="sideviewWrap">
+                  <div class="sideview-head">앞</div>
+                </div>
+              </div>
+
+
+            </div>
+
+          </div><!-- /result-panel -->
+
+          <!-- 두께별 포장 단위표 -->
+          <div class="tip-box">
+            <div class="tip-title">두께별 포장 단위표</div>
+            <div class="ref-table-wrap">
+              <div class="ref-table-scroll">
+                <table class="ref-table" id="refTable">
+                  <thead>
+                    <tr>
+                      <th>두께</th>
+                      <th>1단(장)</th>
+                      <th>높이(mm)</th>
+                    </tr>
+                  </thead>
+                  <tbody id="refTableBody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- 확인해주세요 + 관련 계산기 -->
+          <div class="tip-related-wrap">
+            <div class="tip-box">
+              <div class="tip-title">확인해주세요.</div>
+              <ul class="tip-list">
+                <li>계산 결과는 차량 규격 기준의 참고값입니다. 실제 적재 가능 높이는 차량 상태·바닥 조건에 따라 다를 수 있습니다.</li>
+                <li>단열재는 압축에 약합니다. 하단 자재 변형을 방지하기 위해 최대 적재 단 수를 반드시 준수하세요.</li>
+                <li>운행 중 적재물이 무너지지 않도록 결속 로프와 충격 완충재를 충분히 사용하세요.</li>
+              </ul>
+              <div class="related-section">
+                <h3 class="related-title">이런 계산기는 어때요?</h3>
+                <div class="related-tags">
+                  <a href="freight.html" class="related-tag">단열재 적재·운임 계산기</a>
+                  <a href="insulation-board.html" class="related-tag">판상형 단열재 수량 계산기</a>
+                  <a href="gypsum.html" class="related-tag">석고보드 수량 계산기</a>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /calc-right-col -->
+        </div><!-- /calc-main-wrap -->
+
+        <!-- SEO 영역 -->
+        <div class="seo-wrap">
+
+          <div class="seo-section">
+            <h2 class="seo-title">단열재 차량별 적재량 — 차량 선택 전 적재 한도를 미리 확인</h2>
+            <p class="seo-body">차량 종류를 선택하면 해당 차량에 단열재를 최대 몇 단까지 실을 수 있는지, 실제 적재함 평면과 측면 배치도를 통해 직관적으로 확인할 수 있습니다. 발주 전 차량 규모를 가늠하거나 운송업체와 소통할 때 활용하세요.</p>
+          </div>
+
+          <div class="seo-section">
+            <h2 class="seo-title">적재량 계산 방식</h2>
+            <p class="seo-body">두께별 포장 단위(1단 높이)를 기준으로 차량 적재함 안전 높이를 나누어 최대 단 수를 계산합니다. 바닥 슬롯 수와 곱해 최대 적재량을 산출합니다.</p>
+            <div class="seo-formula">
+              <div class="seo-formula-label"><span class="badge-orange">최대 적재 계산</span></div>
+              <div class="seo-formula-body">최대 단 수 = 내림(안전 높이 ÷ 1단 높이)</div>
+              <div class="seo-formula-body">최대 적재 = 바닥 슬롯 수 × 최대 단 수</div>
+            </div>
+          </div>
+
+          <div class="seo-section">
+            <h2 class="seo-title">차량별 적재함 규격 참고</h2>
+            <div class="seo-table-wrap">
+              <table class="seo-table">
+                <thead>
+                  <tr><th>차량</th><th>적재함 폭</th><th>적재함 길이</th><th>안전 높이</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>1톤 용달</td><td>1,600mm</td><td>2,800mm</td><td>2,500mm</td></tr>
+                  <tr><td>1.4톤 용달</td><td>1,600mm</td><td>3,100mm</td><td>2,600mm</td></tr>
+                  <tr><td>2.5톤</td><td>2,000mm</td><td>4,300mm</td><td>2,800mm</td></tr>
+                  <tr><td>3.5톤</td><td>2,050mm</td><td>4,600mm</td><td>3,000mm</td></tr>
+                  <tr><td>5톤</td><td>2,300mm</td><td>6,200mm</td><td>3,200mm</td></tr>
+                  <tr><td>5톤 장축</td><td>2,350mm</td><td>8,000mm</td><td>3,300mm</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div><!-- /seo-wrap -->
+
+      </div><!-- /calc-wrapper -->
+
+      <footer class="site-footer">
+        <div class="footer-links">
+          <a href="#">개인정보처리방침</a>
+          <a href="#">이용약관</a>
+          <a href="#">문의하기</a>
+        </div>
+        <p class="footer-copy">© 에너가드컴퍼니</p>
+      </footer>
+
+      <script src="freight-load.js"></script>
+</main>

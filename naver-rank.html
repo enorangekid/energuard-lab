@@ -1,0 +1,1036 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>키워드 분석 — 에너가드컴퍼니</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="common.css?v=20260706-topbar2">
+<style>
+  :root {
+    --bg: #f8f9fb; --card: #fff; --ink: #1a1f2e; --sub: #5a6378;
+    --line: #e8ecf2; --dark: #05070b; --dark-tint: #eef0f3;
+    --accent: #e85d2f; --accent-dark: #d04420; --accent-tint: #fdeee7;
+    --gray-badge: #eef0f3; --danger: #dc2626;
+    --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+    --font-main: "Pretendard Variable", Pretendard, -apple-system, sans-serif;
+    --radius: 6px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: var(--font-main);
+    background: var(--bg); color: var(--ink); font-size: 15px; line-height: 1.55;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 64px 0 80px; }
+  .wrap > header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 20px; }
+  .wrap > header h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; }
+  .wrap > header .tag { font-size: 12px; font-weight: 600; color: var(--dark); background: var(--dark-tint); padding: 2px 8px; border-radius: 20px; }
+
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }
+  .card + .card { margin-top: 16px; }
+
+  /* 검색 폼 */
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 15px; font-weight: 800; margin-bottom: 6px; }
+  /* 트렌드 카테고리 배너와 동일한 폭이 되도록, 실제 스토어 수와 무관하게 항상 9칸 그리드로 고정.
+     채워지지 않은 칸은 요소 자체가 없으니 그냥 빈 공간으로 남는다(=비활성 배너는 보이지 않음). */
+  .chips { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+  .chip {
+    padding: 7px 10px; border: 1.5px solid var(--line); border-radius: 4px;
+    background: #fff; font-size: 13px; font-weight: 600; cursor: pointer;
+    color: var(--sub); text-align: center; white-space: nowrap; overflow: hidden;
+    text-overflow: ellipsis; transition: all .12s; font-family: inherit; position: relative;
+  }
+  .chip:hover { border-color: #c8cdd4; }
+  .chip.active { border-color: var(--dark); color: #fff; background: var(--dark); }
+  .chip-add { color: var(--accent); border-style: dashed; }
+  .chip-add:hover { border-color: var(--accent); background: var(--accent-tint); }
+  .chip-remove {
+    display: inline-block; margin-left: 6px; font-weight: 800; color: inherit;
+    opacity: .6;
+  }
+  .chip-remove:hover { opacity: 1; }
+  .form-row {
+    display: flex; align-items: center; gap: 10px;
+    background: #fff; border: 1.5px solid var(--line); border-radius: 8px;
+    padding: 8px 8px 8px 20px; box-shadow: 0 4px 16px rgba(5, 7, 11, 0.06);
+  }
+  .form-row:focus-within { border-color: var(--dark); }
+  .form-row svg { flex-shrink: 0; color: var(--sub); }
+  input#keyword {
+    flex: 1; border: none; outline: none; padding: 10px 0;
+    font-size: 16px; font-family: inherit; color: var(--ink); min-width: 0;
+  }
+  input#keyword::placeholder { color: #b8bdc7; font-weight: 700; }
+  select#range {
+    border: none; border-left: 1px solid var(--line); background: transparent;
+    padding: 10px 12px; font-size: 14px; font-family: inherit; color: var(--sub); cursor: pointer;
+  }
+  button#searchBtn {
+    padding: 12px 28px; border: none; border-radius: 6px;
+    background: var(--accent); color: #fff; font-size: 15px; font-weight: 700;
+    font-family: inherit; cursor: pointer; white-space: nowrap; transition: background .15s;
+  }
+  button#searchBtn:hover { background: var(--accent-dark); }
+  button#searchBtn:disabled { background: #f0b8a1; cursor: wait; }
+
+  /* 키워드 일괄 수집 (기본 접힘) */
+  #batchCard { padding: 0; }
+  .batch-head { display: flex; align-items: center; gap: 10px; padding: 13px 18px; cursor: pointer; user-select: none; }
+  .batch-head:hover { background: #fafbfd; }
+  .batch-title { font-size: 15px; font-weight: 800; }
+  .batch-store-label { font-size: 12px; font-weight: 600; color: var(--sub); }
+  .batch-caret { margin-left: auto; display: flex; align-items: center; color: var(--sub); transition: transform .15s; flex-shrink: 0; }
+  .batch-caret svg { width: 11px; height: 11px; }
+  #batchCard.open .batch-caret { transform: rotate(180deg); }
+  .batch-body { display: none; border-top: 1px solid var(--line); padding: 16px 18px; }
+  #batchCard.open .batch-body { display: block; }
+
+  /* 내 스토어(.chip)와 동일한 배지 형태 · 가상 7칸 그리드로 폭/높이 통일 */
+  .batch-utils { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; margin-bottom: 10px; }
+  .batch-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+  .batch-grid + .batch-grid { margin-top: 6px; }
+  .batch-divider {
+    display: flex; align-items: center; gap: 10px; margin: 13px 0 9px;
+    color: var(--sub); font-size: 12px; font-weight: 800;
+  }
+  .batch-divider::before,
+  .batch-divider::after {
+    content: ""; height: 1px; background: var(--line); flex: 1;
+  }
+  .batch-banner {
+    padding: 7px 10px; border: 1.5px solid var(--line); border-radius: 4px;
+    background: #fff; font-size: 13px; font-weight: 600; color: var(--sub); cursor: pointer;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center;
+    transition: all .12s; font-family: inherit; position: relative;
+  }
+  .batch-banner:hover { border-color: #c8cdd4; }
+  .batch-banner.main { font-weight: 700; color: var(--ink); }
+  .batch-banner.sub { font-weight: 500; color: var(--sub); }
+  .batch-banner.active { border-color: var(--dark); color: #fff; background: var(--dark); }
+  .batch-banner.util { color: var(--accent); border-style: dashed; }
+  .batch-banner.util:hover { border-color: var(--accent); background: var(--accent-tint); }
+  .batch-banner-remove {
+    display: inline-block; margin-left: 6px; font-weight: 800; color: inherit; opacity: .6;
+  }
+  .batch-banner-remove:hover { opacity: 1; }
+
+  .batch-run-wrap { display: none; margin-top: 14px; text-align: center; }
+  #batchRunBtn {
+    padding: 9px 20px; border: none; border-radius: 4px;
+    background: var(--accent); color: #fff; font-size: 13px; font-weight: 700; cursor: pointer;
+    font-family: inherit; transition: background .15s;
+  }
+  #batchRunBtn:hover { background: var(--accent-dark); }
+  #batchRunBtn:disabled { background: #f0b8a1; cursor: wait; }
+  .batch-status { margin-top: 10px; font-size: 13px; color: var(--sub); }
+  .batch-status b { color: var(--ink); font-family: var(--font-mono); }
+  .batch-list { margin-top: 8px; max-height: 220px; overflow-y: auto; }
+  .batch-item {
+    display: flex; align-items: center; gap: 10px; padding: 6px 2px;
+    font-size: 12.5px; border-bottom: 1px solid #f4f5f7;
+  }
+  .batch-item:last-child { border-bottom: none; }
+  .batch-item .kw { flex: 1; color: var(--ink); font-weight: 600; }
+  .batch-item .kw.sub { padding-left: 14px; font-weight: 500; color: var(--sub); }
+  .batch-item .rk { font-family: var(--font-mono); font-weight: 800; color: var(--sub); }
+  .batch-item .rk.good { color: var(--accent-dark); }
+  .batch-item .rk.none { color: var(--danger); font-weight: 600; }
+
+  /* 인사이트 카드 */
+  #insight { display: none; margin-top: 18px; }
+  .ins-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 10px;
+  }
+  .ins-card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 6px;
+    padding: 13px 15px;
+  }
+  .ins-label { font-size: 11.5px; font-weight: 700; color: var(--sub); margin-bottom: 4px; }
+  .ins-value { font-family: var(--font-mono); font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+  .ins-value small { font-family: var(--font-main); font-size: 11.5px; font-weight: 600; color: var(--sub); }
+  .ins-note { font-size: 11px; color: var(--sub); margin-top: 2px; }
+  .ins-warn { margin-top: 8px; font-size: 12px; color: var(--accent); }
+
+  /* 섹션 카드 공통 */
+  .sec { display: none; margin-top: 16px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  .sec-head { display: flex; align-items: center; gap: 10px; padding: 13px 18px; cursor: pointer; user-select: none; }
+  .sec-title { font-size: 15px; font-weight: 800; }
+  .sec-caret { margin-left: auto; display: flex; align-items: center; color: var(--sub); transition: transform .15s; flex-shrink: 0; }
+  .sec-caret svg { width: 11px; height: 11px; }
+  .sec.open .sec-caret { transform: rotate(180deg); }
+  .sec-body { display: none; border-top: 1px solid var(--line); }
+  .sec.open .sec-body { display: block; }
+
+  /* 내 스토어 순위 행 */
+  .row { display: flex; align-items: center; gap: 14px; padding: 12px 18px; border-bottom: 1px solid var(--line); }
+  .row:last-child { border-bottom: none; }
+  .rank-badge {
+    min-width: 64px; text-align: center; padding: 6px 4px; border-radius: 4px;
+    font-weight: 800; font-size: 15px; font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+    background: var(--gray-badge); color: var(--sub);
+  }
+  .rank-badge small { display: block; font-family: var(--font-main); font-size: 10.5px; font-weight: 600; margin-top: 1px; }
+  .rank-badge.p1 { background: var(--accent-tint); color: var(--accent-dark); }
+  .rank-badge.p23 { background: var(--dark-tint); color: var(--ink); }
+  .row img { width: 44px; height: 44px; border-radius: 4px; object-fit: cover; border: 1px solid var(--line); }
+  .row .info { min-width: 0; flex: 1; }
+  .row .title { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .title a { color: inherit; text-decoration: none; }
+  .row .title a:hover { text-decoration: underline; }
+  .row .subtxt { font-size: 12.5px; color: var(--sub); font-variant-numeric: tabular-nums; }
+  .empty-row { padding: 16px 18px; font-size: 13.5px; color: var(--danger); }
+
+  /* TOP10 */
+  .top-row { display: flex; align-items: center; gap: 12px; padding: 10px 18px; border-bottom: 1px solid #f4f5f7; font-size: 13px; }
+  .top-row:last-child { border-bottom: none; }
+  .top-row.mine { background: var(--accent-tint); }
+  .top-rank { min-width: 34px; text-align: center; font-weight: 800; font-family: var(--font-mono); color: var(--sub); background: var(--gray-badge); border-radius: 4px; padding: 4px 0; font-size: 12.5px; }
+  .top-row.mine .top-rank { background: #f8d3bd; color: var(--accent-dark); }
+  .top-row img { width: 40px; height: 40px; border-radius: 4px; object-fit: cover; border: 1px solid var(--line); }
+  .top-mall { min-width: 105px; font-weight: 700; color: var(--ink); font-size: 12.5px; }
+  .top-mall .star { color: var(--accent); font-size: 11px; }
+  .top-title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--sub); }
+  .top-title a { color: inherit; text-decoration: none; }
+  .top-title a:hover { text-decoration: underline; }
+  .top-price { color: var(--accent); font-weight: 700; white-space: nowrap; font-size: 12.5px; font-family: var(--font-mono); }
+
+  /* 연관 키워드 */
+  .rel-table { width: 100%; border-collapse: collapse; }
+  .rel-table th, .rel-table td { padding: 9px 18px; text-align: left; font-size: 13px; border-bottom: 1px solid #f4f5f7; }
+  .rel-table th { background: var(--dark); font-size: 11.5px; color: rgba(255,255,255,0.85); font-weight: 700; letter-spacing: 0.02em; }
+  .rel-table tr:last-child td { border-bottom: none; }
+  .rel-table td.num { font-variant-numeric: tabular-nums; font-family: var(--font-mono); color: var(--ink); }
+  .rel-kw { font-weight: 700; color: var(--accent); cursor: pointer; }
+  .rel-kw:hover { text-decoration: underline; }
+  .comp-badge { font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 10px; }
+  .comp-낮음 { background: var(--accent-tint); color: var(--accent-dark); }
+  .comp-중간 { background: var(--dark-tint); color: var(--ink); }
+  .comp-높음 { background: #fdecec; color: var(--danger); }
+
+  /* 판매자 점유율 */
+  .sel-row { display: flex; align-items: center; gap: 12px; padding: 9px 18px; border-bottom: 1px solid #f4f5f7; font-size: 13px; }
+  .sel-row:last-child { border-bottom: none; }
+  .sel-row.mine { background: var(--accent-tint); }
+  .sel-rank { min-width: 26px; text-align: center; font-family: var(--font-mono); font-weight: 700; font-size: 12px; color: var(--sub); background: var(--gray-badge); border-radius: 4px; padding: 3px 0; }
+  .sel-row.mine .sel-rank { background: var(--accent); color: #fff; }
+  .sel-mall { min-width: 130px; font-weight: 700; }
+  .sel-mall .star { color: var(--accent); font-size: 11px; }
+  .sel-mall a { color: inherit; text-decoration: none; }
+  .sel-mall a:hover { color: var(--accent); text-decoration: underline; }
+  .sel-bar-wrap { flex: 1; height: 8px; background: var(--gray-badge); border-radius: 4px; overflow: hidden; }
+  .sel-bar { height: 100%; background: var(--dark); border-radius: 4px; }
+  .sel-row.mine .sel-bar { background: var(--accent); }
+  .sel-share { min-width: 96px; font-family: var(--font-mono); font-size: 12px; color: var(--ink); text-align: right; white-space: nowrap; }
+  .sel-share b { color: var(--accent); }
+  .sel-detail { min-width: 150px; font-size: 11.5px; color: var(--sub); text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* 경쟁강도 배지 */
+  .cr-badge { font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 10px; font-family: var(--font-mono); }
+  .cr-low  { background: #e7f6ec; color: #16a34a; }
+  .cr-mid  { background: #fdf3e0; color: #b45309; }
+  .cr-high { background: #fdecec; color: var(--danger); }
+
+  /* 경쟁지수 (0~100 게이지) */
+  .comp-score { display: inline-flex; align-items: center; gap: 7px; cursor: default; }
+  .comp-score .comp-gauge {
+    width: 48px; height: 6px; border-radius: 3px;
+    background: var(--gray-badge); overflow: hidden; display: inline-block;
+  }
+  .comp-score .comp-gauge span { display: block; height: 100%; border-radius: 3px; }
+  .comp-score b { min-width: 24px; text-align: right; font-family: var(--font-mono); font-size: 12px; font-weight: 800; }
+  .comp-score.c0 b { color: #16a34a; } .comp-score.c0 .comp-gauge span { background: #16a34a; }
+  .comp-score.c1 b { color: #65a30d; } .comp-score.c1 .comp-gauge span { background: #84cc16; }
+  .comp-score.c2 b { color: #b45309; } .comp-score.c2 .comp-gauge span { background: #eab308; }
+  .comp-score.c3 b { color: #ea580c; } .comp-score.c3 .comp-gauge span { background: #f97316; }
+  .comp-score.c4 b { color: var(--danger); } .comp-score.c4 .comp-gauge span { background: var(--danger); }
+  .niche-badge { font-size: 10px; font-weight: 800; color: #16a34a; background: #e7f6ec; padding: 1px 7px; border-radius: 10px; margin-left: 6px; }
+
+  /* 인기 쇼핑 키워드 위젯 (삭제 아님 — 임시로 숨김 처리) */
+  #trendWidget { display: none; margin-top: 16px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  .tr-head { display: flex; align-items: center; gap: 10px; padding: 13px 18px; cursor: pointer; user-select: none; }
+  .tr-head:hover { background: #fafbfd; }
+  .tr-title { font-size: 15px; font-weight: 800; }
+  .tr-meta { font-size: 12px; color: var(--sub); }
+  .tr-caret { margin-left: auto; display: flex; align-items: center; color: var(--sub); transition: transform .15s; flex-shrink: 0; }
+  .tr-caret svg { width: 11px; height: 11px; }
+  #trendWidget.open .tr-caret { transform: rotate(180deg); }
+  .tr-body { display: none; border-top: 1px solid var(--line); }
+  #trendWidget.open .tr-body { display: block; }
+  .tr-controls { display: flex; flex-direction: column; gap: 10px; padding: 12px 18px; border-bottom: 1px solid var(--line); }
+  .tr-cats { display: flex; gap: 8px; }
+  .tr-cat {
+    flex: 1; padding: 7px 10px; border: 1.5px solid var(--line); border-radius: 4px;
+    background: #fff; font-size: 13px; font-weight: 600; color: var(--sub); cursor: pointer;
+    white-space: nowrap; text-align: center; transition: all .15s;
+  }
+  .tr-cat:hover { border-color: #c8cdd4; color: var(--ink); }
+  .tr-cat.active { border-color: var(--dark); background: var(--dark); color: #fff; }
+  .tr-units { align-self: flex-end; display: flex; gap: 2px; background: var(--gray-badge); border-radius: 4px; padding: 2px; }
+  .tr-unit { padding: 4px 12px; border: none; border-radius: 3px; background: transparent; font-size: 12px; font-weight: 700; color: var(--sub); cursor: pointer; }
+  .tr-unit.active { background: #fff; color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+  .tr-list { column-count: 2; column-gap: 0; padding: 8px 0; }
+  .tr-row { display: flex; align-items: center; gap: 10px; padding: 7px 18px; break-inside: avoid; font-size: 13px; }
+  .tr-rank { min-width: 26px; text-align: center; font-family: var(--font-mono); font-weight: 700; font-size: 12px; color: var(--sub); background: var(--gray-badge); border-radius: 4px; padding: 2px 0; }
+  .tr-kw { font-weight: 700; color: var(--ink); cursor: pointer; }
+  .tr-kw:hover { color: var(--accent); text-decoration: underline; }
+  .tr-chg { font-size: 11px; font-weight: 700; font-family: var(--font-mono); }
+  .tr-chg.up { color: #16a34a; }
+  .tr-chg.down { color: var(--danger); }
+  .tr-chg.same { color: #c3c9d4; }
+  .tr-chg.new { color: var(--accent); font-size: 10px; background: var(--accent-tint); padding: 1px 6px; border-radius: 10px; }
+  .tr-status { padding: 16px 18px; font-size: 12.5px; color: var(--sub); }
+  @media (max-width: 600px) { .tr-list { column-count: 1; } }
+
+  @media (max-width: 560px) { .row img, .top-row img { display: none; } }
+
+  body > .topbar { display: block; }
+  body > .topbar .topbar-inner {
+    max-width: 1180px;
+    margin: 0 auto;
+    height: 72px;
+    display: flex;
+    align-items: stretch;
+    gap: 36px;
+    position: relative;
+  }
+  body > .topbar .topbar-nav {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    transform: translateX(-50%);
+    flex: none;
+  }
+</style>
+</head>
+<body>
+<header class="topbar" data-topbar></header>
+<div class="wrap">
+  <header>
+    <h1>키워드 분석</h1>
+    <span class="tag">쇼핑 순위 + 시장 데이터</span>
+  </header>
+
+  <div class="card">
+    <div class="field">
+      <label>내 스토어</label>
+      <div class="chips" id="storeChips">
+        <button type="button" class="chip active" data-store="한국 단열">한국 단열</button>
+        <button type="button" class="chip" data-store="에너가드컴퍼니">에너가드컴퍼니</button>
+        <button type="button" class="chip chip-add" id="addStoreBtn">+ 스토어 추가</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>키워드</label>
+      <div class="form-row">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input type="text" id="keyword" placeholder="예: 아이소핑크" onkeydown="if(event.key==='Enter')runSearch()">
+        <select id="range">
+          <option value="100">100위</option>
+          <option value="400" selected>400위</option>
+          <option value="1000">1,000위</option>
+        </select>
+        <button id="searchBtn" onclick="runSearch()">검색</button>
+      </div>
+    </div>
+    <div id="statusLine" style="display:none;font-size:13px;color:var(--sub);margin-top:4px;"></div>
+  </div>
+
+  <!-- 키워드 일괄 수집 (기본 접힘) -->
+  <div class="card" id="batchCard">
+    <div class="batch-head" onclick="document.getElementById('batchCard').classList.toggle('open')">
+      <span class="batch-title">키워드 일괄 수집</span>
+      <span class="batch-store-label" id="batchStoreLabel"></span>
+      <span class="batch-caret"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+    </div>
+    <div class="batch-body">
+      <div class="batch-utils">
+        <button type="button" class="batch-banner util" onclick="selectAllMainKeywords()">메인 선택</button>
+        <button type="button" class="batch-banner util" onclick="selectAllSubKeywords()">보조 선택</button>
+        <button type="button" class="batch-banner util" onclick="addCustomKeyword()">키워드 추가</button>
+      </div>
+      <div class="batch-divider">메인</div>
+      <div class="batch-grid" id="batchMainGrid"></div>
+      <div class="batch-divider">보조</div>
+      <div class="batch-grid" id="batchSubGrid"></div>
+      <div class="batch-run-wrap" id="batchRunWrap">
+        <button type="button" id="batchRunBtn" onclick="runBatchCollect()">선택한 0개 키워드 수집 시작</button>
+      </div>
+      <div class="batch-status" id="batchStatus" style="display:none;"></div>
+      <div class="batch-list" id="batchList"></div>
+    </div>
+  </div>
+
+  <!-- 인기 쇼핑 키워드 (데이터랩) -->
+  <div id="trendWidget" class="open">
+    <div class="tr-head" onclick="trToggle()">
+      <span class="tr-title">인기 쇼핑 키워드</span>
+      <span class="tr-meta" id="trMeta">데이터랩 쇼핑인사이트 기준</span>
+      <span class="tr-caret"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+    </div>
+    <div class="tr-body">
+      <div class="tr-controls">
+        <div class="tr-cats">
+          <button class="tr-cat active" data-cat="생활/건강" onclick="trSetCat(this)">생활/건강</button>
+          <button class="tr-cat" data-cat="가구/인테리어" onclick="trSetCat(this)">가구/인테리어</button>
+          <button class="tr-cat" data-cat="스포츠/레저" onclick="trSetCat(this)">스포츠/레저</button>
+          <button class="tr-cat" data-cat="디지털/가전" onclick="trSetCat(this)">디지털/가전</button>
+          <button class="tr-cat" data-cat="출산/육아" onclick="trSetCat(this)">출산/육아</button>
+          <button class="tr-cat" data-cat="식품" onclick="trSetCat(this)">식품</button>
+          <button class="tr-cat" data-cat="화장품/미용" onclick="trSetCat(this)">화장품/미용</button>
+          <button class="tr-cat" data-cat="패션의류" onclick="trSetCat(this)">패션의류</button>
+          <button class="tr-cat" data-cat="패션잡화" onclick="trSetCat(this)">패션잡화</button>
+        </div>
+        <div class="tr-units">
+          <button class="tr-unit active" data-unit="date" onclick="trSetUnit(this)">일간</button>
+          <button class="tr-unit" data-unit="week" onclick="trSetUnit(this)">주간</button>
+          <button class="tr-unit" data-unit="month" onclick="trSetUnit(this)">월간</button>
+        </div>
+      </div>
+      <div id="trContent"><div class="tr-status">불러오는 중...</div></div>
+    </div>
+  </div>
+
+  <!-- 인사이트 -->
+  <div id="insight">
+    <div class="ins-grid" id="insGrid"></div>
+    <div class="ins-warn" id="adWarn" style="display:none;"></div>
+  </div>
+
+  <!-- 연관 키워드 -->
+  <div class="sec open" id="secRel">
+    <div class="sec-head" onclick="this.parentElement.classList.toggle('open')">
+      <span class="sec-title">연관 키워드</span>
+      <span class="sec-caret"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+    </div>
+    <div class="sec-body">
+      <table class="rel-table">
+        <thead><tr><th>키워드</th><th style="width:150px">월간 검색량</th><th style="width:130px">상품수</th><th style="width:130px">경쟁지수</th><th style="width:110px">광고경쟁</th></tr></thead>
+        <tbody id="relBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 내 스토어 순위 -->
+  <div class="sec open" id="secStore">
+    <div class="sec-head" onclick="this.parentElement.classList.toggle('open')">
+      <span class="sec-title">내 스토어 순위</span>
+      <span class="sec-caret"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+    </div>
+    <div class="sec-body">
+      <div id="storeBody"></div>
+    </div>
+  </div>
+
+  <!-- TOP 10 -->
+  <div class="sec open" id="secTop">
+    <div class="sec-head" onclick="this.parentElement.classList.toggle('open')">
+      <span class="sec-title">TOP 10</span>
+      <span class="sec-caret"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+    </div>
+    <div class="sec-body">
+      <div id="topBody"></div>
+    </div>
+  </div>
+
+  <!-- 판매자 점유율 -->
+  <div class="sec open" id="secSellers">
+    <div class="sec-head" onclick="this.parentElement.classList.toggle('open')">
+      <span class="sec-title">검색 노출 분석</span>
+      <span class="sec-caret"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+    </div>
+    <div class="sec-body">
+      <div id="sellersBody"></div>
+    </div>
+  </div>
+</div>
+
+<script src="common.js?v=20260706-ranktrack"></script>
+<script src="keywords.js"></script>
+<script>
+/* ───────── 설정 ───────── */
+const SUPABASE_URL = "https://eukwfypbfqojbaihfqye.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_MiBvlf3d6ulcVBsi7Odcgw_PTXSmXKj";
+const FN_URL = SUPABASE_URL + "/functions/v1/naver-rank";
+
+const MY_STORES = ["한국단열", "에너가드"];
+const STORE_BATCH_KEYWORDS = {
+  "에너가드컴퍼니": [
+    { main: "아이소핑크", subs: ["XPS단열재", "압출법단열재"] },
+    { main: "비드법단열재", subs: ["EPS단열재", "스티로폼단열재"] },
+    { main: "준불연단열재", subs: ["PF보드", "경질우레탄보드", "준불연비드법", "준불연열반사", "우레탄보드", "페놀폼", "심재준불연", "난연단열재"] },
+    { main: "불연단열재", subs: ["불연열반사", "미네랄울", "글라스울"] },
+    { main: "열반사단열재", subs: ["은박단열재", "온도리"] },
+  ],
+};
+
+/* 스토어명 → 스마트스토어 홈 (경쟁사 + 내 스토어) */
+const STORE_HOME = {
+  "한국 단열": "hkdy",       "벽산단열재": "kis114",    "단열코리아": "sp14011",
+  "극동씨앤씨": "kdongcnc",  "산일상사": "sanil",       "나라단열": "ddutong",
+  "낭만홈즈": "romancehomes","DY SHOP": "kdystory",     "집코리아": "foamworld",
+  "프라임랩": "primemade",   "디비바": "dbbamall",      "은동이샵": "nine",
+  "HOMEGLOW": "alljun",      "베스트파트너": "bestpartner",
+};
+function storeLink(mall, fallback) {
+  const norm = mall.replace(/\s/g, "");
+  for (const [name, id] of Object.entries(STORE_HOME)) {
+    if (norm.includes(name.replace(/\s/g, ""))) return "https://smartstore.naver.com/" + id;
+  }
+  return fallback || null;
+}
+
+/* ───────── 스토어 선택 ───────── */
+let selectedStore = "한국 단열";
+const storeChipsEl = document.getElementById("storeChips");
+
+function selectStoreChip(chip) {
+  storeChipsEl.querySelectorAll(".chip").forEach(c => c.classList.remove("active"));
+  chip.classList.add("active");
+  selectedStore = chip.dataset.store;
+  batchSelected.clear();
+  updateBatchStoreLabel();
+  renderBatchBanners();
+  updateBatchRunUi();
+}
+
+storeChipsEl.addEventListener("click", (e) => {
+  const removeBtn = e.target.closest(".chip-remove");
+  if (removeBtn) {
+    e.stopPropagation();
+    const chip = removeBtn.closest(".chip");
+    removeCustomStore(chip.dataset.store);
+    chip.remove();
+    return;
+  }
+  if (e.target.closest("#addStoreBtn")) return; // 아래 별도 핸들러에서 처리
+  const chip = e.target.closest(".chip");
+  if (chip) selectStoreChip(chip);
+});
+
+/* ───────── 스토어 추가(직접 등록한 칩은 로컬에 저장돼 다음에도 남아있음) ───────── */
+const CUSTOM_STORE_KEY = "nrCustomStores";
+function loadCustomStores() {
+  try { return JSON.parse(localStorage.getItem(CUSTOM_STORE_KEY)) || []; } catch (_) { return []; }
+}
+function saveCustomStores(list) { localStorage.setItem(CUSTOM_STORE_KEY, JSON.stringify(list)); }
+function removeCustomStore(name) { saveCustomStores(loadCustomStores().filter(n => n !== name)); }
+
+function renderCustomChip(name) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "chip chip-custom";
+  btn.dataset.store = name;
+  btn.innerHTML = `${esc(name)}<span class="chip-remove">&times;</span>`;
+  document.getElementById("addStoreBtn").insertAdjacentElement("beforebegin", btn);
+  return btn;
+}
+loadCustomStores().forEach(renderCustomChip);
+
+document.getElementById("addStoreBtn").addEventListener("click", () => {
+  const name = (prompt("추가할 스토어명을 입력하세요") || "").trim();
+  if (!name) return;
+  const list = loadCustomStores();
+  if (list.includes(name)) return;
+  list.push(name);
+  saveCustomStores(list);
+  selectStoreChip(renderCustomChip(name));
+});
+
+/* ───────── 분석 실행 ───────── */
+const btn = document.getElementById("searchBtn");
+const statusLine = document.getElementById("statusLine");
+
+async function runSearch(kwOverride) {
+  const store = selectedStore;
+  const kwInput = document.getElementById("keyword");
+  if (kwOverride) kwInput.value = kwOverride;
+  const keyword = kwInput.value.trim();
+  const maxRank = Number(document.getElementById("range").value);
+  if (!keyword) return alert("키워드를 입력해주세요.");
+
+  btn.disabled = true;
+  statusLine.style.display = "block";
+  statusLine.innerHTML = `"<b>${esc(keyword)}</b>" ${maxRank}위까지 분석 중...`;
+  ["insight","secStore","secTop","secRel","secSellers"].forEach(id => document.getElementById(id).style.display = "none");
+
+  try {
+    const res = await fetch(FN_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + SUPABASE_ANON_KEY,
+        "apikey": SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({ storeName: store, keyword, maxRank, withInsight: true }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || res.status);
+    statusLine.style.display = "none";
+    render(data);
+  } catch (e) {
+    statusLine.innerHTML = `분석 실패: ${esc(e.message || "네트워크 오류")}`;
+  }
+  btn.disabled = false;
+}
+
+/* ───────── 렌더링 ───────── */
+function render(d) {
+  trCollapse();
+  d.results = (d.results || []).filter(r => isExactStoreName(r.mallName, d.storeName || selectedStore));
+  ["secRel", "secStore", "secTop", "secSellers"].forEach(id => document.getElementById(id).classList.add("open"));
+  /* 인사이트 카드 */
+  const g = [];
+  if (d.stats) {
+    g.push(card("상품수", d.stats.totalProducts.toLocaleString(), "전체 검색결과"));
+    if (d.ad && d.ad.monthlyTotal != null) {
+      g.push(card("월간 검색량", d.ad.monthlyTotal.toLocaleString(),
+        `PC ${d.ad.monthlyPc.toLocaleString()} · 모바일 ${d.ad.monthlyMobile.toLocaleString()}`));
+      g.push(card("경쟁지수", compScore(d.ad.compRatio) == null ? "-" : compScore(d.ad.compRatio) + " / 100", `상품수 : 검색량 = ${fmtRatio(d.ad.compRatio)} · 100에 가까울수록 치열`));
+    }
+    g.push(card("시장 가격대", `${fmtWon(d.stats.priceMin)}~${fmtWon(d.stats.priceMax)}`, `평균 ${d.stats.priceAvg.toLocaleString()}원 · 상위 ${d.stats.scanned}개 기준`));
+    const myPrices = (d.results || []).map(r => r.price).filter(p => p > 0).sort((a, b) => a - b);
+    if (myPrices.length) {
+      const myAvg = Math.round(myPrices.reduce((s, v) => s + v, 0) / myPrices.length);
+      g.push(card("내 스토어 가격대", `${fmtWon(myPrices[0])}~${fmtWon(myPrices[myPrices.length - 1])}`, `평균 ${myAvg.toLocaleString()}원 · ${myPrices.length}개 상품`));
+    }
+    g.push(card("가격비교 비율", d.stats.catalogRatio + "%", "카탈로그 매칭 상품"));
+    if (d.stats.topCategory) g.push(card("주요 카테고리", `<small>${esc(d.stats.topCategory)}</small>`, ""));
+  }
+  document.getElementById("insGrid").innerHTML = g.join("");
+  const adWarn = document.getElementById("adWarn");
+  if (d.adError) { adWarn.textContent = "검색량 조회 불가: " + d.adError; adWarn.style.display = "block"; }
+  else adWarn.style.display = "none";
+  document.getElementById("insight").style.display = "block";
+
+  /* 내 스토어 순위 */
+  const sb = document.getElementById("storeBody");
+  if (!d.results.length) {
+    sb.innerHTML = `<div class="empty-row">"${esc(d.keyword)}" ${d.maxRank}위 안에 ${esc(d.storeName)} 상품이 없습니다 (이탈).</div>`;
+  } else {
+    sb.innerHTML = d.results.map(r => {
+      const cls = r.rank <= 40 ? "p1" : r.rank <= 120 ? "p23" : "";
+      return `<div class="row">
+        <div class="rank-badge ${cls}">${r.rank}위<small>${r.page}페이지</small></div>
+        ${r.image ? `<img src="${esc(r.image)}" loading="lazy" alt="">` : ""}
+        <div class="info">
+          <div class="title"><a href="${esc(r.link)}" target="_blank" rel="noopener">${esc(r.title)}</a></div>
+          <div class="subtxt">${esc(r.mallName)} · ${r.price.toLocaleString()}원</div>
+        </div>
+      </div>`;
+    }).join("");
+  }
+  document.getElementById("secStore").style.display = "block";
+
+  /* TOP 10 */
+  document.getElementById("topBody").innerHTML = (d.top || []).map(t => {
+    const mine = MY_STORES.some(s => t.mall.replace(/\s/g, "").includes(s));
+    return `<div class="top-row${mine ? " mine" : ""}">
+      <span class="top-rank">${t.rank}</span>
+      ${t.image ? `<img src="${esc(t.image)}" loading="lazy" alt="">` : ""}
+      <span class="top-mall">${esc(t.mall)}${mine ? ' <span class="star">★</span>' : ""}</span>
+      <span class="top-title"><a href="${esc(t.link)}" target="_blank" rel="noopener">${esc(t.title)}</a></span>
+      <span class="top-price">${t.price ? t.price.toLocaleString() + "원" : ""}</span>
+    </div>`;
+  }).join("");
+  document.getElementById("secTop").style.display = "block";
+
+  /* 검색 노출 분석 (전문셀러 기준) */
+  if (d.sellers && d.sellers.length) {
+    const maxInf = d.sellers[0].influence || 1;
+    document.getElementById("sellersBody").innerHTML = d.sellers.map((s, i) => {
+      const mine = MY_STORES.some(m => s.mall.replace(/\s/g, "").includes(m));
+      const url = storeLink(s.mall, s.link);
+      const mallHtml = url
+        ? `<a href="${esc(url)}" target="_blank" rel="noopener" title="${STORE_HOME[s.mall] || Object.keys(STORE_HOME).some(n => s.mall.replace(/\s/g,'').includes(n.replace(/\s/g,''))) ? '스토어 홈으로 이동' : '최고 순위 상품으로 이동'}">${esc(s.mall)}</a>`
+        : esc(s.mall);
+      return `<div class="sel-row${mine ? " mine" : ""}">
+        <span class="sel-rank">${i + 1}</span>
+        <span class="sel-mall">${mallHtml}${mine ? ' <span class="star">★</span>' : ""}</span>
+        <span class="sel-bar-wrap"><span class="sel-bar" style="display:block;width:${Math.max(3, s.influence / maxInf * 100)}%"></span></span>
+        <span class="sel-share"><b>영향력 ${s.influence}%</b></span>
+        <span class="sel-share">노출 ${s.count}개 · ${s.share}%</span>
+        <span class="sel-detail">최고 ${s.bestRank}위 · 평균 ${s.avgPrice.toLocaleString()}원</span>
+      </div>`;
+    }).join("");
+    document.getElementById("secSellers").style.display = "block";
+  }
+
+  /* 연관 키워드 */
+  const rel = (d.ad && d.ad.related) || [];
+  if (rel.length) {
+    // 니치 판정: 검색량 100+ 이면서 경쟁강도가 가장 낮은 3개
+    const nicheSet = new Set(
+      rel.filter(k => k.compRatio != null && k.total >= 100)
+         .sort((a, b) => a.compRatio - b.compRatio)
+         .slice(0, 3).map(k => k.keyword)
+    );
+    document.getElementById("relBody").innerHTML = rel.map(k => `
+      <tr>
+        <td><span class="rel-kw" onclick="runSearch('${esc(k.keyword)}')">${esc(k.keyword)}</span>${nicheSet.has(k.keyword) ? '<span class="niche-badge">기회</span>' : ''}</td>
+        <td class="num" title="PC ${k.pc.toLocaleString()} · 모바일 ${k.mobile.toLocaleString()}"><b>${k.total.toLocaleString()}</b></td>
+        <td class="num">${k.products != null ? k.products.toLocaleString() : "-"}</td>
+        <td>${crBadge(k.compRatio)}</td>
+        <td>${compBadge(k.compIdx)}</td>
+      </tr>`).join("");
+    document.getElementById("secRel").style.display = "block";
+  }
+}
+
+function card(label, value, note) {
+  return `<div class="ins-card">
+    <div class="ins-label">${label}</div>
+    <div class="ins-value">${value}</div>
+    ${note ? `<div class="ins-note">${note}</div>` : ""}
+  </div>`;
+}
+/* 경쟁강도(상품수÷검색량)를 "몇 : 몇" 비율로 변환
+   - 1 이상: 상품이 검색량보다 많음 → "N : 1" (N배 많음, 경쟁 치열)
+   - 1 미만: 검색량이 상품보다 많음 → "1 : N" (블루오션 쪽) */
+function fmtRatio(r) {
+  if (r == null) return "-";
+  if (r === 0) return "0 : 1";
+  if (r >= 1) return (Math.round(r * 10) / 10) + " : 1";
+  return "1 : " + (Math.round((1 / r) * 10) / 10);
+}
+/* 경쟁지수: 상품수÷검색량 비율을 로그 보간으로 0~100 점수화.
+   앵커는 기존 배지 등급 경계와 일치 — 0.8(여유↔보통)=40점, 3(보통↔치열)=70점 */
+function compScore(r) {
+  if (r == null) return null;
+  if (r <= 0) return 0;
+  const anchors = [[0.05, 0], [0.8, 40], [3, 70], [50, 100]];
+  if (r <= anchors[0][0]) return 0;
+  if (r >= anchors[anchors.length - 1][0]) return 100;
+  for (let i = 0; i < anchors.length - 1; i++) {
+    const [r1, s1] = anchors[i];
+    const [r2, s2] = anchors[i + 1];
+    if (r <= r2) {
+      const t = (Math.log10(r) - Math.log10(r1)) / (Math.log10(r2) - Math.log10(r1));
+      return Math.round(s1 + t * (s2 - s1));
+    }
+  }
+  return 100;
+}
+
+function compScoreLevel(score) {
+  return score < 20 ? "c0" : score < 40 ? "c1" : score < 60 ? "c2" : score < 80 ? "c3" : "c4";
+}
+
+function crBadge(r) {
+  if (r == null) return "-";
+  const score = compScore(r);
+  return `<span class="comp-score ${compScoreLevel(score)}" title="상품수 : 검색량 = ${fmtRatio(r)} (100에 가까울수록 경쟁 치열)">
+    <span class="comp-gauge"><span style="width:${score}%"></span></span><b>${score}</b>
+  </span>`;
+}
+function compBadge(idx) {
+  if (!idx) return "-";
+  return `<span class="comp-badge comp-${esc(idx)}">${esc(idx)}</span>`;
+}
+function fmtWon(n) {
+  if (n >= 10000) return Math.round(n / 1000) / 10 + "만";
+  return n.toLocaleString();
+}
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+/* ───────── 키워드 일괄 수집 (전체 스토어 아니라 현재 선택된 스토어 1개 기준) ───────── */
+const batchSelected = new Set(); // 지금 선택된 키워드들
+
+function getBatchKeywordTree() {
+  return STORE_BATCH_KEYWORDS[selectedStore] || KW_TREE;
+}
+
+function keywordMeta(keyword) {
+  for (const g of getBatchKeywordTree()) {
+    if (g.main === keyword) return { mainKeyword: g.main, isSub: false };
+    if (g.subs.includes(keyword)) return { mainKeyword: g.main, isSub: true };
+  }
+  const custom = loadCustomKeywords().find(item => item.keyword === keyword);
+  if (custom) return { mainKeyword: custom.mainKeyword, isSub: custom.isSub };
+  return { mainKeyword: keyword, isSub: false };
+}
+
+/* 사용자가 직접 추가한 키워드 (기본 22개 목록에는 없는 것들). 스토어와 동일하게 localStorage에 저장.
+   { keyword, isSub, mainKeyword } 형태 — 예전(문자열만) 저장분도 마이그레이션해서 읽어줌 */
+const CUSTOM_KW_KEY = "nrCustomKeywords";
+function loadCustomKeywords() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(CUSTOM_KW_KEY)) || [];
+    return raw.map(item => typeof item === "string" ? { keyword: item, isSub: false, mainKeyword: item } : item);
+  } catch (_) { return []; }
+}
+function saveCustomKeywords(list) { localStorage.setItem(CUSTOM_KW_KEY, JSON.stringify(list)); }
+
+function renderBatchBanners() {
+  const tree = getBatchKeywordTree();
+  const mainHtml = tree.map(g =>
+    `<button type="button" class="batch-banner main${batchSelected.has(g.main) ? " active" : ""}" data-keyword="${esc(g.main)}" onclick="toggleBatchKeyword(this)">${esc(g.main)}</button>`
+  );
+  const subHtml = [];
+  tree.forEach(g => {
+    g.subs.forEach(sub => {
+      subHtml.push(`<button type="button" class="batch-banner sub${batchSelected.has(sub) ? " active" : ""}" data-keyword="${esc(sub)}" onclick="toggleBatchKeyword(this)">${esc(sub)}</button>`);
+    });
+  });
+
+  loadCustomKeywords().forEach(({ keyword: kw, isSub }) => {
+    const cls = isSub ? "sub" : "main";
+    const html = `<button type="button" class="batch-banner ${cls}${batchSelected.has(kw) ? " active" : ""}" data-keyword="${esc(kw)}" onclick="toggleBatchKeyword(this)">${esc(kw)}<span class="batch-banner-remove" onclick="removeCustomKeyword(event, this)">&times;</span></button>`;
+    (isSub ? subHtml : mainHtml).push(html);
+  });
+
+  document.getElementById("batchMainGrid").innerHTML = mainHtml.join("");
+  document.getElementById("batchSubGrid").innerHTML = subHtml.join("");
+}
+renderBatchBanners();
+
+function addCustomKeyword() {
+  const name = (prompt("추가할 키워드를 입력하세요") || "").trim();
+  if (!name) return;
+  const already = getBatchKeywordTree().some(g => g.main === name || g.subs.includes(name)) || loadCustomKeywords().some(item => item.keyword === name);
+  if (already) { alert("이미 있는 키워드입니다."); return; }
+
+  const isMain = confirm(`"${name}"을(를) 메인 키워드로 추가할까요?\n\n확인 = 메인 키워드\n취소 = 보조 키워드`);
+  let mainKeyword = name;
+  if (!isMain) {
+    const parent = (prompt("이 키워드가 속할 메인 키워드를 입력하세요 (비워두면 독립 키워드로 추가됩니다)") || "").trim();
+    mainKeyword = parent || name;
+  }
+
+  const list = loadCustomKeywords();
+  list.push({ keyword: name, isSub: !isMain, mainKeyword });
+  saveCustomKeywords(list);
+  renderBatchBanners();
+}
+
+function removeCustomKeyword(e, el) {
+  e.stopPropagation();
+  const kw = el.closest(".batch-banner").dataset.keyword;
+  batchSelected.delete(kw);
+  saveCustomKeywords(loadCustomKeywords().filter(item => item.keyword !== kw));
+  renderBatchBanners();
+  updateBatchRunUi();
+}
+
+function updateBatchRunUi() {
+  document.getElementById("batchRunWrap").style.display = batchSelected.size ? "block" : "none";
+  document.getElementById("batchRunBtn").textContent = `선택한 ${batchSelected.size}개 키워드 수집 시작`;
+}
+
+function toggleBatchKeyword(el) {
+  const kw = el.dataset.keyword;
+  if (batchSelected.has(kw)) { batchSelected.delete(kw); el.classList.remove("active"); }
+  else { batchSelected.add(kw); el.classList.add("active"); }
+  updateBatchRunUi();
+}
+
+/* 그리드 전체가 이미 다 선택돼 있으면 한 번 더 눌렀을 때 전체 취소, 아니면 전체 선택 */
+function toggleAllInGrid(gridId) {
+  const buttons = [...document.querySelectorAll(`#${gridId} .batch-banner`)];
+  const allSelected = buttons.length > 0 && buttons.every(el => batchSelected.has(el.dataset.keyword));
+  buttons.forEach(el => {
+    if (allSelected) { batchSelected.delete(el.dataset.keyword); el.classList.remove("active"); }
+    else { batchSelected.add(el.dataset.keyword); el.classList.add("active"); }
+  });
+  updateBatchRunUi();
+}
+
+function selectAllMainKeywords() { toggleAllInGrid("batchMainGrid"); }
+function selectAllSubKeywords() { toggleAllInGrid("batchSubGrid"); }
+
+function updateBatchStoreLabel() {
+  const el = document.getElementById("batchStoreLabel");
+  if (el) el.textContent = `(${selectedStore})`;
+}
+updateBatchStoreLabel();
+
+function exactStoreName(s) {
+  return String(s || "").trim().replace(/\s+/g, " ");
+}
+
+function isExactStoreName(mallName, storeName) {
+  return exactStoreName(mallName) === exactStoreName(storeName);
+}
+
+function isExactSelectedStore(mallName) {
+  return isExactStoreName(mallName, selectedStore);
+}
+
+function todayKstDate() {
+  const kst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  return kst.toISOString().slice(0, 10);
+}
+
+/* 이 스토어의 해당 키워드 검색결과 안에 있는 "모든" 매칭 상품을 상품코드별로 반환 (최고 순위 1건으로 뭉개지 않음).
+   withVolume:true로 이 키워드의 월간 검색량도 같이 받는다 — 연관키워드 확장 없는 가벼운 호출이라
+   일괄 수집처럼 키워드가 많아도 부담이 적다. 서버에서 keyword_search_volume_monthly에도 자동 저장됨. */
+async function fetchRankRows(keyword) {
+  const res = await fetch(FN_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + SUPABASE_ANON_KEY,
+      "apikey": SUPABASE_ANON_KEY,
+    },
+    body: JSON.stringify({ storeName: selectedStore, keyword, maxRank: 1000, withInsight: false, withVolume: true }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || res.status);
+  return {
+    rows: (data.results || []).filter(r => isExactSelectedStore(r.mallName)), // [{rank, title, productId, ...}, ...] — 상품 0개면 이탈
+    volume: data.volume || null, // {pc, mobile, total} | null
+  };
+}
+
+/* 상품별로 한 행씩 저장. 매칭 상품이 없으면(이탈) rank/product 정보 없는 행 1개만 남긴다 */
+/* 같은 스토어+키워드+상품+날짜 조합이면 새 행을 추가하지 않고 그 날짜의 행을 덮어쓴다(upsert).
+   오늘 여러 번 수집해도 오늘자 행만 갱신되고, 날짜가 바뀌면 새 행이 생긴다.
+   volume이 있으면 search_volume_pc/mobile/total도 같이 저장 — 랭킹추적에서 조인 없이 바로 읽을 수 있게. */
+async function saveRankRows(keyword, mainKeyword, isSub, collectedDate, rows, volume) {
+  const uniqueRows = [];
+  const seenProductCodes = new Set();
+  rows.forEach(r => {
+    const code = String(r.productId || "").trim();
+    if (!code || seenProductCodes.has(code)) return;
+    seenProductCodes.add(code);
+    uniqueRows.push(r);
+  });
+
+  const volumeFields = volume
+    ? { search_volume_pc: volume.pc, search_volume_mobile: volume.mobile, search_volume_total: volume.total }
+    : {};
+
+  const payload = uniqueRows.length
+      ? uniqueRows.map(r => ({
+        store_name: selectedStore, keyword, main_keyword: mainKeyword, is_sub: isSub,
+        rank: r.rank, max_rank: 1000, product_code: r.productId || "", product_name: r.title || "",
+        product_image: r.image || "",
+        product_link: r.link || "",
+        product_price: Number(r.price) || 0,
+        collected_date: collectedDate,
+        ...volumeFields,
+      }))
+    : [{
+        store_name: selectedStore, keyword, main_keyword: mainKeyword, is_sub: isSub,
+        rank: null, max_rank: 1000, product_code: "", product_name: "", product_image: "", product_link: "", product_price: null, collected_date: collectedDate,
+        ...volumeFields,
+      }];
+  try {
+    let res = await fetch(
+      SUPABASE_URL + "/rest/v1/keyword_rank_history?on_conflict=store_name,keyword,product_code,collected_date",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": SUPABASE_ANON_KEY,
+          "Authorization": "Bearer " + SUPABASE_ANON_KEY,
+          "Prefer": "resolution=merge-duplicates,return=minimal",
+        },
+        body: JSON.stringify(payload),
+      }
+    );
+    if (!res.ok) {
+      const errorText = await res.text();
+      if (errorText.includes("product_link") || errorText.includes("product_price") || errorText.includes("search_volume")) {
+        const fallbackPayload = payload.map(row => {
+          const next = { ...row };
+          if (errorText.includes("product_link")) delete next.product_link;
+          if (errorText.includes("product_price")) delete next.product_price;
+          if (errorText.includes("search_volume")) {
+            delete next.search_volume_pc; delete next.search_volume_mobile; delete next.search_volume_total;
+          }
+          return next;
+        });
+        res = await fetch(
+          SUPABASE_URL + "/rest/v1/keyword_rank_history?on_conflict=store_name,keyword,product_code,collected_date",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "apikey": SUPABASE_ANON_KEY,
+              "Authorization": "Bearer " + SUPABASE_ANON_KEY,
+              "Prefer": "resolution=merge-duplicates,return=minimal",
+            },
+            body: JSON.stringify(fallbackPayload),
+          }
+        );
+        if (!res.ok) throw new Error(await res.text());
+        return;
+      }
+      throw new Error(errorText);
+    }
+  } catch (e) {
+    console.error("순위 저장 실패", e);
+    throw e;
+  }
+}
+
+async function runBatchCollect() {
+  const list = [...batchSelected].map(kw => ({ keyword: kw, ...keywordMeta(kw) }));
+  if (!list.length) return;
+  const btn = document.getElementById("batchRunBtn");
+  const statusEl = document.getElementById("batchStatus");
+  const listEl = document.getElementById("batchList");
+  const collectedDate = todayKstDate(); // 한국 날짜(YYYY-MM-DD) — 이 값 기준으로 하루 1행 유지
+  btn.disabled = true;
+  statusEl.style.display = "block";
+  listEl.innerHTML = "";
+
+  for (let i = 0; i < list.length; i++) {
+    const { keyword, mainKeyword, isSub } = list[i];
+    statusEl.innerHTML = `[${esc(selectedStore)}] <b>${i + 1}/${list.length}</b> "${esc(keyword)}" 확인 중...`;
+
+    let rows = [];
+    let volume = null;
+    try {
+      const fetched = await fetchRankRows(keyword);
+      rows = fetched.rows;
+      volume = fetched.volume;
+    } catch (e) {
+      rows = [];
+    }
+
+    try {
+      await saveRankRows(keyword, mainKeyword, isSub, collectedDate, rows, volume);
+    } catch (e) {
+      statusEl.innerHTML = `[${esc(selectedStore)}] "${esc(keyword)}" 저장 실패: ${esc(e.message || "오류")}`;
+      btn.disabled = false;
+      return;
+    }
+
+    const best = rows[0]; // results는 이미 rank 오름차순
+    const row = document.createElement("div");
+    row.className = "batch-item";
+    const rankLabel = best ? `${best.rank}위${rows.length > 1 ? ` 외 ${rows.length - 1}개` : ""}` : "이탈";
+    row.innerHTML = `
+      <span class="kw${isSub ? " sub" : ""}">${esc(keyword)}</span>
+      <span class="rk ${!best ? "none" : best.rank <= 40 ? "good" : ""}">${rankLabel}</span>`;
+    listEl.prepend(row);
+  }
+
+  statusEl.innerHTML =
+    `[${esc(selectedStore)}] ${list.length}개 키워드 수집 완료 · ` +
+    `<a href="rank-tracker.html" style="color:var(--accent);font-weight:700;">랭킹추적에서 보기 →</a>`;
+  btn.disabled = false;
+}
+
+/* URL 쿼리스트링으로 들어온 키워드 자동 실행 (홈 화면 검색창 연동) */
+const _kwParam = new URLSearchParams(location.search).get("keyword");
+if (_kwParam) {
+  document.getElementById("keyword").value = _kwParam;
+  runSearch();
+}
+</script>
+<script src="trend-widget.js"></script>
+</body>
+</html>

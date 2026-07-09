@@ -1,0 +1,603 @@
+﻿<script>if(!window.KankanRouter)location.replace('../index.html');</script>
+<main class="main-content">
+  <style>
+    /* ── 배송지 입력 ── */
+    .addr-input-row {
+      display: flex;
+      gap: 0;
+      align-items: stretch;
+    }
+
+    .addr-input-readonly {
+      flex: 1;
+      padding: 11px 14px;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      font-size: 15px;
+      font-family: var(--font-main);
+      color: var(--color-text);
+      background: var(--color-surface);
+      cursor: pointer;
+      outline: none;
+      transition: border-color var(--transition);
+    }
+
+    .addr-input-readonly:hover,
+    .addr-input-readonly:focus {
+      border-color: #888;
+    }
+
+    .addr-input-readonly::placeholder {
+      color: #bbb;
+    }
+
+    .btn-addr-clear {
+      flex-shrink: 0;
+      margin-left: 6px;
+      width: 36px;
+      height: 36px;
+      align-self: center;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      background: var(--color-surface);
+      color: var(--color-text-muted);
+      font-size: 14px;
+      cursor: pointer;
+      transition: all var(--transition);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .btn-addr-clear:hover {
+      border-color: #aaa;
+      color: var(--color-text);
+    }
+
+    /* 검색 펼침 박스 */
+    .addr-search-box {
+      display: none;
+      flex-direction: column;
+      border: 1px solid #888;
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: var(--color-surface);
+      margin-top: 6px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    }
+
+    .addr-search-box.open {
+      display: flex;
+    }
+
+    .addr-search-inner {
+      display: flex;
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    .addr-keyword-input {
+      flex: 1;
+      padding: 11px 14px;
+      font-size: 15px;
+      font-family: var(--font-main);
+      border: none;
+      outline: none;
+      color: var(--color-text);
+      background: var(--color-surface);
+    }
+
+    .addr-keyword-input::placeholder {
+      color: #bbb;
+    }
+
+    .btn-addr-confirm {
+      flex-shrink: 0;
+      padding: 0 20px;
+      background: #1a1a1a;
+      color: #fff;
+      border: none;
+      font-size: 14px;
+      font-weight: 600;
+      font-family: var(--font-main);
+      cursor: pointer;
+      transition: background var(--transition);
+    }
+
+    .btn-addr-confirm:hover {
+      background: #333;
+    }
+
+    .addr-result-list {
+      max-height: 240px;
+      overflow-y: auto;
+    }
+
+    .addr-result-item {
+      padding: 11px 14px;
+      cursor: pointer;
+      border-bottom: 1px solid var(--color-border);
+      font-size: 14px;
+      transition: background var(--transition);
+    }
+
+    .addr-result-item:last-child {
+      border-bottom: none;
+    }
+
+    .addr-result-item:hover {
+      background: #f4f4f4;
+    }
+
+    .addr-result-name {
+      font-weight: 600;
+      color: var(--color-text);
+    }
+
+    .addr-empty {
+      padding: 16px 14px;
+      font-size: 13px;
+      color: var(--color-text-muted);
+      text-align: center;
+      line-height: 1.6;
+    }
+
+    /* 선택 완료 초록 배지 */
+    .addr-confirmed {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      background: #f0fdf4;
+      border: 1px solid #86efac;
+      border-radius: var(--radius);
+      padding: 10px 14px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #166534;
+      margin-top: 6px;
+    }
+
+    .addr-confirmed.show {
+      display: flex;
+    }
+
+    .addr-reselect {
+      margin-left: auto;
+      font-size: 12px;
+      cursor: pointer;
+      opacity: 0.7;
+      text-decoration: underline;
+      white-space: nowrap;
+    }
+
+    /* 운임 결과 */
+    .freight-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .freight-section-title {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--color-text-muted);
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    .freight-cost-panel {
+      background: #1a1a1a;
+      border-radius: var(--radius);
+      padding: 28px 24px;
+      text-align: center;
+      color: #fff;
+    }
+
+    .freight-cost-label {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      opacity: 0.5;
+      margin-bottom: 10px;
+    }
+
+    .freight-cost-value {
+      font-size: 44px;
+      font-weight: 800;
+      font-family: var(--font-mono);
+      letter-spacing: -1px;
+      line-height: 1;
+    }
+
+    .freight-cost-note {
+      font-size: 12px;
+      opacity: 0.5;
+      margin-top: 10px;
+      line-height: 1.6;
+    }
+
+    /* 요금표 토글 */
+    .rate-toggle-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .rate-toggle-btn {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      background: none;
+      border: none;
+      padding: 0;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: var(--font-main);
+      color: var(--color-text-muted);
+      cursor: pointer;
+      transition: color var(--transition);
+    }
+
+    .rate-toggle-btn:hover,
+    .rate-toggle-btn.open { color: var(--color-text); }
+
+    .rate-table-body {
+      display: none;
+      overflow-x: auto;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+    }
+
+    .rate-table-body.open { display: block; }
+
+    .rate-tbl {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    .rate-tbl th {
+      background: #f4f4f4;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--color-border);
+      border-right: 1px solid var(--color-border);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--color-text-muted);
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .rate-tbl th:last-child { border-right: none; }
+
+    .rate-tbl td {
+      padding: 6px 10px;
+      border-bottom: 1px solid var(--color-border);
+      border-right: 1px solid var(--color-border);
+      text-align: right;
+      color: var(--color-text);
+      font-family: var(--font-mono);
+      font-size: 12px;
+    }
+
+    .rate-tbl td:first-child {
+      text-align: left;
+      font-family: var(--font-main);
+      font-weight: 600;
+      color: var(--color-text-muted);
+    }
+
+    .rate-tbl td:last-child { border-right: none; }
+    .rate-tbl tbody tr:last-child td { border-bottom: none; }
+
+    .rate-tbl tr.rate-active td {
+      background: #fff7ed;
+      font-weight: 700;
+    }
+
+    .rate-tbl tr.rate-active td:first-child { color: var(--color-text); }
+
+    /* 경로 칩 */
+    .route-chips { display: flex; gap: 8px; }
+
+    .route-chip {
+      flex: 1;
+      background: #f4f4f4;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: 14px 12px;
+    }
+
+    @media (max-width: 640px) {
+      .route-chips { flex-direction: column; }
+      .freight-cost-value { font-size: 36px; }
+    }
+  </style>
+
+
+      <div class="page-header">
+        <nav class="breadcrumb" aria-label="breadcrumb">
+          <a href="../index.html">홈</a>
+          <span class="bc-sep">›</span>
+          <span>기타</span>
+          <span class="bc-sep">›</span>
+          <span class="bc-current">단열재 적재·운임 계산기</span>
+        </nav>
+        <h1 class="page-title">단열재 적재·운임 계산기</h1>
+      </div>
+
+      <div class="calc-wrapper">
+        <div class="calc-main-wrap">
+
+          <!-- ── 입력 카드 ── -->
+          <div class="calc-card-main" id="calcForm">
+
+            <!-- 단열재 종류 + 두께 -->
+            <div class="select-pair-row">
+              <div class="field-group">
+                <label class="field-label">단열재 종류</label>
+                <div class="custom-select-wrap" id="materialWrap">
+                  <button class="custom-select-btn" id="materialBtn" type="button">
+                    <span id="materialBtnText">압출법단열재 (XPS)</span>
+                    <svg class="custom-select-arrow" width="10" height="6" viewBox="0 0 10 6" fill="none" stroke="#aaa" stroke-width="1.8" stroke-linecap="round"><polyline points="1 1 5 5 9 1"/></svg>
+                  </button>
+                  <ul class="custom-select-list" id="materialList">
+                    <li class="custom-select-item active" data-value="XPS">압출법단열재 (XPS)</li>
+                    <li class="custom-select-item" data-value="EPS">비드법단열재 (EPS)</li>
+                    <li class="custom-select-item soon" data-value="" tabindex="-1">경질우레탄보드 (PU) <span class="sub-badge">준비중</span></li>
+                    <li class="custom-select-item soon" data-value="" tabindex="-1">PF보드 (PF) <span class="sub-badge">준비중</span></li>
+                  </ul>
+                  <input type="hidden" id="materialType" value="XPS" />
+                </div>
+              </div>
+              <div class="field-dot"></div>
+              <div class="field-group">
+                <label class="field-label">두께</label>
+                <div class="field-input-wrap">
+                  <input type="number" class="field-input" id="thickness" value="50" min="1" step="any" oninput="handleInputChange()" />
+                  <div class="unit-select-wrap">
+                    <select class="unit-select" id="thicknessUnit">
+                      <option value="mm">mm</option>
+                      <option value="cm">cm</option>
+                      <option value="m">m</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 주문 수량 + 배송지 -->
+            <div class="select-pair-row">
+              <div class="field-group">
+                <label class="field-label">주문 수량</label>
+                <div class="field-input-wrap">
+                  <input type="number" class="field-input" id="quantity" value="50" min="1" step="1" />
+                  <div class="unit-select-wrap unit-fixed">
+                    <span class="unit-label">장</span>
+                  </div>
+                </div>
+              </div>
+              <div class="field-dot"></div>
+              <div class="field-group">
+                <label class="field-label">배송지</label>
+                <div class="addr-input-row">
+                  <input type="text" class="addr-input-readonly" id="destAddrInput" placeholder="지역 선택" readonly />
+                  <button class="btn-addr-clear" id="addrClearBtn" type="button" onclick="clearAddr()" style="display:none;">✕</button>
+                </div>
+                <div class="addr-search-box" id="addrSearchBox">
+                  <div class="addr-search-inner">
+                    <input type="text" class="addr-keyword-input" id="addrKeywordInput"
+                      placeholder="예) 서울 강남구 / 경기 수원시" />
+                    <button class="btn-addr-confirm" id="addrConfirmBtn" type="button">확인</button>
+                  </div>
+                  <div class="addr-result-list" id="addrResultList">
+                    <div class="addr-empty">시·도 + 시·군·구 형식으로 입력 후 확인을 누르세요</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 출고 공장 -->
+            <div class="field-group">
+              <label class="field-label">출고 공장</label>
+              <div class="custom-select-wrap" id="factoryWrap">
+                <button class="custom-select-btn" id="factoryBtn" type="button">
+                  <span id="factoryBtnText">포천 — 경기 포천시 가산면 금현리</span>
+                  <svg class="custom-select-arrow" width="10" height="6" viewBox="0 0 10 6" fill="none" stroke="#aaa" stroke-width="1.8" stroke-linecap="round"><polyline points="1 1 5 5 9 1"/></svg>
+                </button>
+                <ul class="custom-select-list" id="factoryList">
+                  <li class="custom-select-item active" data-value="pocheoni">포천 — 경기 포천시 가산면 금현리</li>
+                  <li class="custom-select-item" data-value="paju">파주 — 경기 파주시 법원읍 못말길</li>
+                  <li class="custom-select-item" data-value="eumseong">음성 — 충북 음성군 금왕읍 대금로</li>
+                  <li class="custom-select-item" data-value="asan">아산 — 충남 아산시 인주면 인주산단로</li>
+                </ul>
+                <input type="hidden" id="factoryValue" value="pocheoni" />
+              </div>
+            </div>
+
+            <!-- 버튼 -->
+            <div class="btn-row">
+              <button class="btn-calc" id="btnCalc" type="button">계산하기</button>
+              <button class="btn-reset" id="btnReset" type="button" onclick="resetAll()">초기화</button>
+            </div>
+
+          </div><!-- /calc-card-main -->
+
+          <!-- ── 결과 패널 ── -->
+          <div class="calc-right-col">
+          <div class="result-panel" id="resultPanel" style="display:none;">
+
+            <div class="result-main-row">
+              <!-- 좌: 추천 차량 (메인 강조) -->
+              <div class="result-main-card">
+                <div class="result-main-sub" id="resMainSub">추천 차량</div>
+                <div class="result-main-count">
+                  <span class="result-main-num" id="resVehicle">—</span>
+                </div>
+                <div class="result-main-desc" id="resBundleDetail">—</div>
+              </div>
+              <!-- 우: 상세 수치 -->
+              <div class="result-detail-card">
+                <div class="result-detail-icon">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
+                  </svg>
+                </div>
+                <div class="result-detail-metrics">
+                  <div class="result-metric">
+                    <div class="result-metric-label">총 적재</div>
+                    <div class="result-metric-value" id="resBundle">—</div>
+                  </div>
+                  <div class="result-metric">
+                    <div class="result-metric-label">예상 부피</div>
+                    <div class="result-metric-value">
+                      <span id="resVolume">—</span><span id="resVolumeUnit"> m³</span>
+                    </div>
+                  </div>
+                  <div class="result-metric" id="freightDistanceItem" style="display:none;">
+                    <div class="result-metric-label">운행 거리</div>
+                    <div class="result-metric-value" id="routeDistance">—</div>
+                  </div>
+                  <div class="result-metric" id="freightCostItem" style="display:none;">
+                    <div class="result-metric-label">예상 운임비 <span style="font-size:10px;opacity:.6;font-weight:500;">VAT 별도</span></div>
+                    <div class="result-metric-value" id="freightCost">—</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="result-note" id="resNote"></div>
+
+            <!-- 숨김 유지 필드 (JS 호환) -->
+            <div style="display:none;">
+              <span id="routeTime"></span>
+              <span id="routeVehicle"></span>
+            </div>
+
+            <!-- 운임 주석 + 요금표 토글 -->
+            <div class="freight-wrap" id="freightWrap" style="display:none;">
+              <div class="freight-cost-note" id="freightNote" style="font-size:12px;color:var(--color-text-muted);line-height:1.6;"></div>
+              <div class="rate-toggle-wrap">
+                <button class="rate-toggle-btn" id="rateToggleBtn" type="button" onclick="toggleRateTable()">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                  <span id="rateTableToggleText">차량별 거리 구간 요금표 보기</span>
+                </button>
+                <div class="rate-table-body" id="rateTableBody">
+                  <table class="rate-tbl">
+                    <thead>
+                      <tr><th>거리 구간</th><th>1톤</th><th>1.4톤</th><th>2.5톤</th><th>3.5톤</th><th>5톤</th><th>5톤 장축</th></tr>
+                    </thead>
+                    <tbody id="rateTableRows"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div><!-- /freight-wrap -->
+
+          </div><!-- /result-panel -->
+
+          <!-- 참고 단위표 -->
+          <div class="tip-box">
+            <div class="tip-title">두께별 포장 단위표</div>
+            <div class="ref-table-wrap">
+              <div class="ref-table-scroll">
+                <table class="ref-table">
+                  <thead>
+                    <tr>
+                      <th>두께</th>
+                      <th id="refThBundle">1단(장)</th>
+                      <th id="refThHeight">높이(mm)</th>
+                    </tr>
+                  </thead>
+                  <tbody id="refTableBody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- 확인해주세요 + 관련 계산기 -->
+          <div class="tip-related-wrap">
+            <div class="tip-box">
+              <div class="tip-title">확인해주세요.</div>
+              <ul class="tip-list">
+                <li>단열재는 한 단에 묶인 장수 단위로 발주됩니다. 필요 수량보다 1단 단위로 올림 계산하여 배차하는 것이 일반적입니다.</li>
+                <li>산출된 운임은 기준 요율 기반의 참고값입니다. 정확한 운임은 출발지·목적지·계절·유류비 변동에 따라 달라지므로 운송업체에 직접 확인하세요.</li>
+                <li>공장 출고 시 상차 대기 시간이 발생할 수 있습니다. 배송 당일 출발·도착 예정 시간을 미리 운송기사와 조율하세요.</li>
+              </ul>
+              <div class="related-section">
+                <h3 class="related-title">이런 계산기는 어때요?</h3>
+                <div class="related-tags">
+                  <a href="freight-load.html" class="related-tag">단열재 차량별 적재량 확인</a>
+                  <a href="insulation-board.html" class="related-tag">판상형 단열재 수량 계산기</a>
+                  <a href="reflective-insulation.html" class="related-tag">열반사 단열재 소요량 계산기</a>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /calc-right-col -->
+        </div><!-- /calc-main-wrap -->
+
+        <!-- SEO 영역 -->
+        <div class="seo-wrap">
+          <div class="seo-section">
+            <h2 class="seo-title">단열재 배차·운임 계산기 — 발주 수량에 맞는 차량과 운임을 한번에</h2>
+            <p class="seo-body">압출법(XPS), 비드법(EPS) 판상형 단열재의 두께별 포장 단수를 기반으로 최적 차량을 추천하고, 출고 공장부터 배송지까지 예상 운임을 자동으로 산출합니다.</p>
+          </div>
+          <div class="seo-section">
+            <h2 class="seo-title">배차 추천 계산 방식</h2>
+            <p class="seo-body">단열재는 두께에 따라 1단에 묶이는 장수가 다릅니다. 포장 단수를 먼저 산출한 뒤, 차량별 적재함 바닥 칸 수와 적재 가능 단 수를 곱해 적재 한도를 계산합니다.</p>
+            <div class="seo-formula">
+              <div class="seo-formula-label"><span class="badge-orange">포장 단수 계산</span></div>
+              <div class="seo-formula-body">XPS: 두께별 고정 단수 (예: 50T = 10장/단, 100T = 4장/단)</div>
+              <div class="seo-formula-body">EPS: 600 ÷ 두께(mm), 소수점 내림</div>
+            </div>
+            <div class="seo-formula" style="margin-top:10px;">
+              <div class="seo-formula-label"><span class="badge-orange">운임 계산</span></div>
+              <div class="seo-formula-body">직선거리(Haversine) × 1.35 = 추정 도로거리</div>
+              <div class="seo-formula-body">추정 도로거리 + 차량 종류 → 거리 구간별 요금표 조회</div>
+            </div>
+          </div>
+          <div class="seo-section">
+            <h2 class="seo-title">주요 단열재 포장 단위 규격</h2>
+            <div class="seo-table-wrap">
+              <table class="seo-table">
+                <thead>
+                  <tr><th>자재</th><th>기본 규격</th><th>50T 기준 1단</th><th>적재 높이</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>XPS (아이소핑크)</td><td>900 × 1800 mm</td><td>10장</td><td>500 mm</td></tr>
+                  <tr><td>EPS (비드법 1종)</td><td>900 × 1800 mm</td><td>12장</td><td>600 mm</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="seo-section">
+            <h2 class="seo-title">자주 묻는 질문 (FAQ)</h2>
+            <div class="seo-faq">
+              <div class="seo-faq-item">
+                <div class="seo-faq-q">출고 공장은 어떻게 선택하나요?</div>
+                <div class="seo-faq-a">XPS·EPS는 포천(경기), 파주(경기), 음성(충북), 아산(충남) 네 곳 중 선택 가능합니다. 배송지에 가까운 공장을 선택하면 운임을 낮출 수 있습니다.</div>
+              </div>
+              <div class="seo-faq-item">
+                <div class="seo-faq-q">운임은 어떻게 계산되나요?</div>
+                <div class="seo-faq-a">출고 공장과 배송지 시·군·구의 좌표를 기반으로 직선거리를 계산한 뒤 1.35를 곱해 실제 도로 거리를 추정합니다. 실제 운임은 도로 상황에 따라 ±10% 차이가 날 수 있습니다.</div>
+              </div>
+            </div>
+          </div>
+        </div><!-- /seo-wrap -->
+
+      </div><!-- /calc-wrapper -->
+
+      <footer class="site-footer">
+        <div class="footer-links">
+          <a href="#">개인정보처리방침</a>
+          <a href="#">이용약관</a>
+          <a href="#">문의하기</a>
+        </div>
+        <p class="footer-copy">© 에너가드컴퍼니</p>
+      </footer>
+
+      <script src="freight.js"></script>
+</main>
