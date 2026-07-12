@@ -114,16 +114,16 @@ function adNum(v: unknown): number {
   return 0;
 }
 
-/* ── 검색광고 키워드도구 조회 ── */
-async function fetchAdStats(keyword: string) {
+/* ── 검색광고 키워드도구 원시 호출 (힌트 최대 5개) ── */
+async function fetchKeywordstool(hints: string[]) {
   const customerId = Deno.env.get("NAVER_AD_CUSTOMER_ID");
   const license = Deno.env.get("NAVER_AD_ACCESS_LICENSE");
   const secret = Deno.env.get("NAVER_AD_SECRET_KEY");
   if (!customerId || !license || !secret) {
-    return { ok: false, reason: "검색광고 시크릿 미설정" };
+    return { ok: false as const, reason: "검색광고 시크릿 미설정", list: [] };
   }
 
-  const hint = norm(keyword); // 키워드도구는 공백 미허용
+  const hint = hints.map((h) => norm(h)).filter(Boolean).slice(0, 5).join(","); // 공백 미허용
   const path = "/keywordstool";
   const timestamp = String(Date.now());
   const sig = await adSignature(secret, timestamp, "GET", path);
@@ -140,30 +140,78 @@ async function fetchAdStats(keyword: string) {
     },
   );
   if (!res.ok) {
-    return { ok: false, reason: `검색광고 API ${res.status}: ${(await res.text()).slice(0, 120)}` };
+    return { ok: false as const, reason: `검색광고 API ${res.status}: ${(await res.text()).slice(0, 120)}`, list: [] };
   }
 
   const data = await res.json();
-  const list: Array<Record<string, unknown>> = data.keywordList ?? [];
-  const target = norm(keyword).toUpperCase();
+  const list = ((data.keywordList ?? []) as Array<Record<string, unknown>>).map((k) => {
+    const pc = adNum(k.monthlyPcQcCnt);
+    const mobile = adNum(k.monthlyMobileQcCnt);
+    return {
+      keyword: String(k.relKeyword ?? ""),
+      pc, mobile, total: pc + mobile,
+      compIdx: String(k.compIdx ?? ""),
+    };
+  });
+  return { ok: true as const, list };
+}
 
+/* ── 검색광고 키워드도구 조회 ── */
+async function fetchAdStats(keyword: string) {
+  const res = await fetchKeywordstool([keyword]);
+  if (!res.ok) return { ok: false as const, reason: res.reason };
+
+  const target = norm(keyword).toUpperCase();
   let main: { pc: number; mobile: number; total: number } | null = null;
   const related: Array<{ keyword: string; pc: number; mobile: number; total: number; compIdx: string }> = [];
 
-  for (const k of list) {
-    const rel = String(k.relKeyword ?? "");
-    const pc = adNum(k.monthlyPcQcCnt);
-    const mobile = adNum(k.monthlyMobileQcCnt);
-    const item = { keyword: rel, pc, mobile, total: pc + mobile, compIdx: String(k.compIdx ?? "") };
-    if (norm(rel).toUpperCase() === target) {
-      main = { pc, mobile, total: pc + mobile };
+  for (const item of res.list) {
+    if (norm(item.keyword).toUpperCase() === target) {
+      main = { pc: item.pc, mobile: item.mobile, total: item.total };
     } else {
       related.push(item);
     }
   }
   related.sort((a, b) => b.total - a.total);
 
-  return { ok: true, main, related: related.slice(0, 15) };
+  // 전체 후보를 반환 (최대 300개) — 텍스트 매칭·카테고리 필터·최종 15개 선별은 호출부에서.
+  // 상위 30개만 자르면 대형 헤드 키워드만 남고 상품명에 쓸 롱테일 변형이 다 잘려나간다.
+  return { ok: true as const, main, related: related.slice(0, 300) };
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/* 연관키워드 배열에 상품수·경쟁강도·카테고리(1위 상품 기준)를 채운다 — 키워드당 쇼핑 API 1콜, 5개 병렬.
+   후보가 50개까지 늘면서 호출이 몰리면 네이버가 간헐적으로 429를 던지므로
+   실패 시 잠깐 쉬고 최대 3회 재시도하고, 배치 사이에도 짧게 쉬어 폭주를 완화한다. */
+async function enrichRelatedKeywords(rel: Array<Record<string, unknown>>, clientId: string, clientSecret: string) {
+  const targets = rel.filter((k) => k.products == null); // 이미 채워진 항목(leftovers 재활용)은 재조회하지 않음
+  for (let i = 0; i < targets.length; i += 5) {
+    await Promise.all(targets.slice(i, i + 5).map(async (k) => {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const r = await fetch(
+            `https://openapi.naver.com/v1/search/shop.json?query=${encodeURIComponent(String(k.keyword))}&display=1`,
+            { headers: { "X-Naver-Client-Id": clientId, "X-Naver-Client-Secret": clientSecret } },
+          );
+          if (r.status === 429) { await sleep(400 * (attempt + 1)); continue; } // 호출 한도 — 쉬었다 재시도
+          if (!r.ok) return;
+          const j = await r.json();
+          const products = j.total ?? 0;
+          k.products = products;
+          const vol = Number(k.total) || 0;
+          k.compRatio = vol > 0 ? Math.round(products / vol * 1000) / 1000 : null;
+          const it = (j.items ?? [])[0];
+          if (it) {
+            k.category = [it.category3, it.category4].filter(Boolean).join(" > ") ||
+                         [it.category1, it.category2].filter(Boolean).join(" > ");
+          }
+          return;
+        } catch (_) { await sleep(300); /* 네트워크 오류 — 재시도 */ }
+      }
+    }));
+    if (i + 5 < targets.length) await sleep(120); // 배치 간 간격으로 429 자체를 줄인다
+  }
 }
 
 /* 키워드 하나의 대표 상품(정확도 1위)만 가볍게 조회 — 홈 화면 TOP 노출 상품용 배치 모드에서 사용 */
@@ -193,6 +241,140 @@ async function fetchTopOne(keyword: string, clientId: string, clientSecret: stri
   }
 }
 
+/* ═══ 아이템 추적 서버 수집 (cron용) ═══
+   tracked_items의 모든 상품·키워드를 서버 혼자 수집한다.
+   pg_cron이 매일 { action: "collectTracked" }로 호출 — 브라우저를 열 필요가 없다. */
+
+async function scanKeywordForWatch(
+  keyword: string,
+  watchSet: Set<string>,
+  clientId: string,
+  clientSecret: string,
+) {
+  const watched: Array<{ productId: string; rank: number; title: string; price: number; mallName: string; image: string; link: string }> = [];
+  let counted = 0;
+  for (let start = 1; start <= 1000; start += 100) {
+    const url = `https://openapi.naver.com/v1/search/shop.json?query=${encodeURIComponent(keyword)}&display=100&start=${start}&sort=sim`;
+    const res = await fetch(url, {
+      headers: { "X-Naver-Client-Id": clientId, "X-Naver-Client-Secret": clientSecret },
+    });
+    if (!res.ok) break;
+    const data = await res.json();
+    const items: ShopItem[] = data.items ?? [];
+    for (const item of items) {
+      if (item.mallName === "네이버") continue; // 카탈로그 — 본 스캔과 동일하게 순위에서 제외
+      counted++;
+      if (counted > 1000) break;
+      const apiId = String(item.productId).trim();
+      const linkId = (String(item.link).match(/\/products\/(\d+)/) || [])[1] || "";
+      const matchedCode = watchSet.has(apiId) ? apiId : (linkId && watchSet.has(linkId) ? linkId : "");
+      if (matchedCode) {
+        watched.push({
+          productId: matchedCode,
+          rank: counted,
+          title: stripTags(item.title),
+          price: Number(item.lprice) || 0,
+          mallName: item.mallName,
+          image: item.image || "",
+          link: item.link,
+        });
+      }
+    }
+    if (items.length < 100 || counted >= 1000) break;
+  }
+  return watched;
+}
+
+async function collectTrackedItems() {
+  const clientId = Deno.env.get("NAVER_CLIENT_ID");
+  const clientSecret = Deno.env.get("NAVER_CLIENT_SECRET");
+  if (!clientId || !clientSecret) throw new Error("NAVER_CLIENT_ID / NAVER_CLIENT_SECRET 필요");
+
+  const items: Array<Record<string, unknown>> = await supabaseRequest(
+    `/rest/v1/tracked_items?select=product_code,product_name,product_image,product_link,mall_name,keywords`,
+  ) || [];
+  if (!items.length) return { ok: true, message: "추적 아이템 없음", keywords: 0, rowsSaved: 0 };
+
+  const keywordMap = new Map<string, Set<string>>();
+  items.forEach((it) => {
+    const kws = Array.isArray(it.keywords) ? it.keywords : [];
+    kws.forEach((kw) => {
+      const k = String(kw).trim();
+      if (!k) return;
+      if (!keywordMap.has(k)) keywordMap.set(k, new Set());
+      keywordMap.get(k)!.add(String(it.product_code));
+    });
+  });
+  const allCodes = new Set(items.map((i) => String(i.product_code)));
+  const kst = new Date(Date.now() + 9 * 3600 * 1000);
+  const collectedDate = kst.toISOString().slice(0, 10);
+  const deadline = Date.now() + 100_000; // Edge Function 실행시간 한도 대비 100초 예산
+  let keywordsDone = 0;
+  let rowsSaved = 0;
+
+  for (const [keyword, codes] of keywordMap) {
+    if (Date.now() > deadline) break; // 남은 키워드는 다음 실행에서 (하루 1회라 이월돼도 무방)
+    try {
+      const watched = await scanKeywordForWatch(keyword, allCodes, clientId, clientSecret);
+      const foundByCode = new Map(watched.map((w) => [w.productId, w]));
+
+      const rows: Array<Record<string, unknown>> = [];
+      const seen = new Set<string>();
+      codes.forEach((code) => {
+        const w = foundByCode.get(code);
+        rows.push({
+          product_code: code, keyword,
+          rank: w ? w.rank : null,
+          price: w ? w.price : 0,
+          mall_name: w ? w.mallName : "",
+          collected_date: collectedDate,
+          checked_at: new Date().toISOString(),
+        });
+        seen.add(code);
+      });
+      watched.forEach((w) => { // 이 키워드를 추적하지 않는 감시 상품도 걸리면 보너스 저장
+        if (seen.has(w.productId)) return;
+        rows.push({
+          product_code: w.productId, keyword,
+          rank: w.rank, price: w.price, mall_name: w.mallName,
+          collected_date: collectedDate, checked_at: new Date().toISOString(),
+        });
+      });
+      if (rows.length) {
+        await supabaseRequest(`/rest/v1/tracked_item_history?on_conflict=product_code,keyword,collected_date`, {
+          method: "POST",
+          headers: { "Prefer": "resolution=merge-duplicates,return=minimal" },
+          body: JSON.stringify(rows),
+        });
+        rowsSaved += rows.length;
+      }
+
+      // 상품명/이미지/판매처 메타 자동 갱신
+      for (const w of watched) {
+        const item = items.find((i) => String(i.product_code) === w.productId);
+        if (!item) continue;
+        const patch: Record<string, unknown> = {};
+        if (w.title && w.title !== item.product_name) patch.product_name = w.title;
+        if (w.image && w.image !== item.product_image) patch.product_image = w.image;
+        if (w.mallName && w.mallName !== item.mall_name) patch.mall_name = w.mallName;
+        if (w.link && !item.product_link) patch.product_link = w.link;
+        if (Object.keys(patch).length) {
+          patch.updated_at = new Date().toISOString();
+          await supabaseRequest(`/rest/v1/tracked_items?product_code=eq.${encodeURIComponent(w.productId)}`, {
+            method: "PATCH",
+            headers: { "Prefer": "return=minimal" },
+            body: JSON.stringify(patch),
+          });
+          Object.assign(item, patch);
+        }
+      }
+      keywordsDone++;
+    } catch (_) { /* 개별 키워드 실패는 건너뛰고 계속 */ }
+  }
+
+  return { ok: true, collectedDate, keywords: keywordMap.size, keywordsDone, rowsSaved };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -200,7 +382,12 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { storeName, keyword, keywords, maxRank = 400, withInsight = true, withVolume = false } = body;
+    const { storeName, keyword, keywords, maxRank = 400, withInsight = true, withVolume = false, watchProductIds } = body;
+
+    /* cron 일괄 수집: 추적 아이템 전체의 순위·가격 스냅샷 (pg_cron이 매일 호출) */
+    if (body.action === "collectTracked") {
+      return json(await collectTrackedItems());
+    }
 
     const clientId = Deno.env.get("NAVER_CLIENT_ID");
     const clientSecret = Deno.env.get("NAVER_CLIENT_SECRET");
@@ -221,6 +408,15 @@ Deno.serve(async (req) => {
 
     const limit = Math.min(Number(maxRank) || 400, 1000);
     const store = String(storeName || "").trim();
+
+    /* 아이템 추적: 이미 돌고 있는 스캔에서 감시 대상 상품코드의 순위·가격을 공짜로 건져낸다.
+       (별도 API 호출 없음 — 스캔 결과에 안 나타나면 이탈로 판단) */
+    const watchSet = new Set(
+      Array.isArray(watchProductIds)
+        ? watchProductIds.map((v: unknown) => String(v).trim()).filter(Boolean)
+        : [],
+    );
+    const watched: Array<Record<string, unknown>> = [];
 
     /* ── 쇼핑 API 스캔 ── */
     const found: Array<Record<string, unknown>> = [];
@@ -280,6 +476,7 @@ Deno.serve(async (req) => {
             mall: item.mallName,
             image: item.image || "",
             link: item.link,
+            productId: item.productId, // 아이템 추적 등록용
           });
         }
 
@@ -294,6 +491,27 @@ Deno.serve(async (req) => {
             mallName: item.mallName,
             image: item.image || "",
           });
+        }
+
+        if (watchSet.size) {
+          // 스마트스토어 링크의 상품번호(/products/{id})와 API productId(네이버쇼핑 ID)가
+          // 다른 상품이 있어 둘 다 대조한다. 응답의 productId는 "등록된 코드"로 돌려줘야
+          // tracked_items/tracked_item_history와 조인이 맞는다.
+          const apiId = String(item.productId).trim();
+          const linkId = (String(item.link).match(/\/products\/(\d+)/) || [])[1] || "";
+          const matchedCode = watchSet.has(apiId) ? apiId : (linkId && watchSet.has(linkId) ? linkId : "");
+          if (matchedCode) {
+            watched.push({
+              productId: matchedCode,
+              rank: counted,
+              page: Math.ceil(counted / 40),
+              title: stripTags(item.title),
+              price,
+              mallName: item.mallName,
+              image: item.image || "",
+              link: item.link,
+            });
+          }
         }
       }
       if (items.length < 100 || counted >= limit) break;
@@ -377,7 +595,8 @@ Deno.serve(async (req) => {
             monthlyTotal: adRes.main ? volume : null,
             // 경쟁강도 = 상품수 ÷ 월간 검색량 (bbdb와 동일 산식)
             compRatio: volume > 0 ? Math.round(total / volume * 1000) / 1000 : null,
-            related: adRes.related,
+            // 아래에서 카테고리 필터·2차 확장으로 재할당되므로 넓은 타입으로 둔다
+            related: adRes.related as Array<Record<string, unknown>>,
           };
         } else {
           adError = adRes.reason;
@@ -390,26 +609,108 @@ Deno.serve(async (req) => {
         adError = String(e);
       }
 
-      // 연관 키워드별 상품수 조회 → 경쟁강도 계산 (키워드당 1콜, 5개씩 병렬)
-      if (ad && ad.related.length) {
-        const rel = ad.related as Array<Record<string, unknown>>;
-        for (let i = 0; i < rel.length; i += 5) {
-          await Promise.all(rel.slice(i, i + 5).map(async (k) => {
-            try {
-              const r = await fetch(
-                `https://openapi.naver.com/v1/search/shop.json?query=${encodeURIComponent(String(k.keyword))}&display=1`,
-                { headers: { "X-Naver-Client-Id": clientId, "X-Naver-Client-Secret": clientSecret } },
-              );
-              if (r.ok) {
-                const j = await r.json();
-                const products = j.total ?? 0;
-                k.products = products;
-                const vol = Number(k.total) || 0;
-                k.compRatio = vol > 0 ? Math.round(products / vol * 1000) / 1000 : null;
-              }
-            } catch (_) { /* 개별 실패 무시 */ }
-          }));
+      /* ── 연관키워드 선별 ──
+         목적이 "상품명 개선"이므로 검색량 큰 헤드 키워드(단열재, 벽지…)보다
+         검색 키워드와 텍스트로 얽힌 롱테일이 훨씬 가치 있다. 3계층 + 확장:
+         ① 검색 키워드를 통째로 포함하는 변형 (아이소핑크특호, 접착식단열벽지…)
+         ② 검색 키워드의 부분 토큰(2글자 조각)을 포함 + 같은 카테고리 (붙이는벽지, 단열시트…)
+            — 시드가 복합어(단열벽지, 스티로폼단열재)면 ①이 거의 없으므로 이 계층이 주력
+         ③ 같은 카테고리의 나머지 키워드 (벽지, 실크벽지 같은 헤드)
+         ④ 그래도 부족하면 생존 키워드를 힌트로 키워드도구 2차 호출
+         ※ 캠핑단열재 같은 초저볼륨 키워드는 키워드도구가 연관을 0개 주므로,
+           related가 비어 있어도 이 블록에 들어와 ④ 확장(카테고리명·복합어 분해 힌트)으로 채운다 */
+      if (ad) {
+        const all = ad.related as Array<Record<string, unknown>>; // 검색량순 전체 후보 (최대 300)
+        const seedN = norm(keyword).toUpperCase();
+        const refCat = stats && typeof stats.topCategory === "string" ? stats.topCategory : "";
+        const prefix = refCat.split(" > ")[0];
+        const sameCat = (k: Record<string, unknown>) =>
+          !refCat || String(k.category || "").split(" > ")[0] === prefix;
+        const catSorted = (arr: Array<Record<string, unknown>>) =>
+          arr.sort((a, b) =>
+            Number(b.category === refCat) - Number(a.category === refCat) ||
+            (Number(b.total) || 0) - (Number(a.total) || 0));
+
+        // 시드의 2글자 조각들 — "단열벽지" → [단열, 열벽, 벽지]. 이 조각을 포함하면 관련 후보로 본다.
+        const seedGrams: string[] = [];
+        for (let i = 0; i + 2 <= seedN.length; i++) seedGrams.push(seedN.slice(i, i + 2));
+        const kwNorm = (k: Record<string, unknown>) => norm(String(k.keyword)).toUpperCase();
+        const used = new Set<string>();
+        const take = (arr: Array<Record<string, unknown>>) => {
+          arr.forEach((k) => used.add(String(k.keyword)));
+          return arr;
+        };
+
+        // 계층에서 카테고리 불일치로 탈락한 후보 — 이미 상품수까지 조회돼 있으므로
+        // "더보기" 영역(카테고리 불문)에 재활용한다. 얻어걸리는 발견용.
+        const leftovers: Array<Record<string, unknown>> = [];
+        const TARGET_TOTAL = 50; // 화면에는 10개 먼저, 나머지는 더보기로
+
+        // ① 통째 포함 변형
+        const tier1 = take(all.filter((k) => kwNorm(k).includes(seedN)).slice(0, 15));
+        await enrichRelatedKeywords(tier1, clientId, clientSecret);
+        let pool = [...tier1];
+
+        // ② 부분 토큰 포함 + 같은 카테고리
+        {
+          const cands = take(all
+            .filter((k) => !used.has(String(k.keyword)) && seedGrams.some((g) => kwNorm(k).includes(g)))
+            .slice(0, 30));
+          await enrichRelatedKeywords(cands, clientId, clientSecret);
+          pool = [...pool, ...catSorted(cands.filter(sameCat))];
+          leftovers.push(...cands.filter((k) => !sameCat(k)));
         }
+
+        // ③ 같은 카테고리 나머지 (헤드 포함)
+        if (pool.length < 15) {
+          const cands = take(all.filter((k) => !used.has(String(k.keyword))).slice(0, 20));
+          await enrichRelatedKeywords(cands, clientId, clientSecret);
+          pool = [...pool, ...catSorted(cands.filter(sameCat))];
+          leftovers.push(...cands.filter((k) => !sameCat(k)));
+        }
+
+        // ④ 키워드도구 2차 확장 (생존 키워드를 힌트로)
+        if (pool.length < 15 && refCat) {
+          const seeds = pool.map((k) => String(k.keyword)).slice(0, 5);
+          if (!seeds.length) {
+            // 생존 키워드가 하나도 없으면(연관 0개인 초저볼륨 키워드) 카테고리명과
+            // 복합어 분해 추정(캠핑단열재 → 캠핑+단열재)을 힌트로 사용.
+            // 잘못 쪼개진 조각은 키워드도구가 알아서 무시하므로 부담 없다.
+            seeds.push(refCat.split(" > ").pop() || "", prefix);
+            const raw = norm(keyword);
+            for (const cut of [2, 3]) {
+              if (raw.length >= cut + 2) seeds.push(raw.slice(0, cut), raw.slice(cut));
+            }
+          }
+          const extraRes = await fetchKeywordstool(seeds);
+          if (extraRes.ok) {
+            /* 힌트 확장분은 원래 검색어의 연관 목록이 아니라 힌트("캠핑" 등)의 연관 목록이라
+               자연휴양림·슬리퍼 같은 무관한 헤드가 잔뜩 섞여 온다. 원래 목록의 "얻어걸리기"와 달리
+               여기서는 관련성 검증 필수: 검색어 조각 포함 후보를 우선 조회하고,
+               같은 카테고리이거나 검색어 조각을 포함하는 것만 남긴다. */
+            const gramHit = (k: Record<string, unknown>) => seedGrams.some((g) => kwNorm(k).includes(g));
+            const seen = new Set([seedN, ...all.map(kwNorm)]);
+            const extraCands: Array<Record<string, unknown>> = extraRes.list
+              .filter((k) => k.keyword && !seen.has(norm(k.keyword).toUpperCase()))
+              .sort((a, b) => Number(gramHit(b)) - Number(gramHit(a)) || b.total - a.total)
+              .slice(0, 30);
+            await enrichRelatedKeywords(extraCands, clientId, clientSecret);
+            pool = [...pool, ...catSorted(extraCands.filter(sameCat))];
+            leftovers.push(...extraCands.filter((k) => !sameCat(k) && gramHit(k)));
+          }
+        }
+
+        // ⑤ 더보기 채우기: 카테고리 불문 — 탈락 후보 재활용 + 미확인 후보 추가 조회 (검색량순)
+        if (pool.length < TARGET_TOTAL) {
+          const restRaw = all.filter((k) => !used.has(String(k.keyword)))
+            .slice(0, Math.max(0, TARGET_TOTAL - pool.length - leftovers.length));
+          await enrichRelatedKeywords(restRaw, clientId, clientSecret);
+          const rest = [...leftovers, ...restRaw]
+            .sort((a, b) => (Number(b.total) || 0) - (Number(a.total) || 0));
+          pool = [...pool, ...rest];
+        }
+
+        ad.related = pool.length ? pool.slice(0, TARGET_TOTAL) : all.slice(0, 15);
       }
     }
 
@@ -427,6 +728,7 @@ Deno.serve(async (req) => {
       ad,
       adError,
       volume,
+      watched,
       checkedAt: new Date().toISOString(),
     });
   } catch (e) {

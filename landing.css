@@ -6,7 +6,8 @@
   --line: #e8ecf2; --dark: #05070b; --dark-tint: #eef0f3;
   --accent: #e85d2f; --accent-dark: #d04420; --accent-tint: #fdeee7;
   --gray-badge: #eef0f3; --danger: #dc2626;
-  --up: #dc2626; --down: #2563eb;
+  /* 증감 색: 랭킹추적(.rank-delta)과 동일 — 상승 초록, 하락 빨강 */
+  --up: #16a34a; --down: #dc2626;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
   --font-main: "Pretendard Variable", Pretendard, -apple-system, sans-serif;
   --radius: 6px;
@@ -106,11 +107,11 @@ body {
 .tr-row:nth-child(-n+3) .tr-rank { color: var(--accent); }
 .tr-kw { flex: 1; font-weight: 600; cursor: pointer; }
 .tr-kw:hover { color: var(--accent); text-decoration: underline; }
-.tr-chg { font-size: 11px; font-weight: 700; font-family: var(--font-mono); }
+.tr-chg { font-size: 11.5px; font-weight: 700; font-family: var(--font-mono); }
 .tr-chg.up { color: var(--up); }
 .tr-chg.down { color: var(--down); }
 .tr-chg.same { color: #c3c9d4; }
-.tr-chg.new { color: var(--accent); font-size: 10px; background: var(--accent-tint); padding: 1px 6px; border-radius: 10px; }
+.tr-chg.new { color: var(--accent); } /* 아이템발굴(.tr-delta.new)과 동일 — 배경 없는 주황 텍스트 */
 .tr-status { padding: 20px 0; font-size: 12.5px; color: var(--sub); }
 
 /* TOP 노출 상품 (naver-rank 엣지펑션 실데이터)

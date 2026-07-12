@@ -37,21 +37,25 @@
   }
   .hidden-date-inputs { display: none; }
   .date-picker-wrap { position: relative; }
-  .month-quick-row { display: flex; align-items: flex-start; gap: 10px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); flex-wrap: wrap; }
-  .month-quick-label { flex-shrink: 0; color: var(--sub); font-size: 11.5px; font-weight: 800; padding-top: 7px; }
+  .month-quick-row { display: flex; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+  .month-quick-label { flex-shrink: 0; color: var(--sub); font-size: 11.5px; font-weight: 800; }
   .month-quick-year {
-    flex-shrink: 0; height: 30px; padding: 0 8px; border: 1px solid var(--line); border-radius: 6px;
+    flex-shrink: 0; height: 34px; padding: 0 10px; border: 1px solid var(--line); border-radius: var(--radius);
     background: #fff; color: var(--ink); font-family: inherit; font-size: 12.5px; font-weight: 800; cursor: pointer;
   }
-  .month-quick-grid { display: grid; grid-template-columns: repeat(6, 46px); gap: 6px; }
+  /* 12개월이 남은 폭 전체를 균등하게 채운다 — 플랫폼/서브 탭과 같은 카드 스타일 */
+  .month-quick-grid { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 8px; }
   .month-card {
-    height: 30px; border: 1px solid var(--line); border-radius: 6px;
-    background: #fff; color: var(--ink); font-family: inherit; font-size: 12px; font-weight: 800; cursor: pointer;
+    height: 34px; border: 1px solid var(--line); border-radius: var(--radius);
+    background: #fff; color: var(--sub); font-family: inherit; font-size: 12.5px; font-weight: 800; cursor: pointer;
+    transition: all .12s;
   }
-  .month-card:hover { border-color: #f0b79d; color: var(--accent-dark); background: #fffaf7; }
+  .month-card:hover { border-color: #c8cdd4; color: var(--ink); background: #fff; }
   .month-card.active { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .month-card.active:hover { background: var(--ink); color: #fff; }
   .month-card:disabled { color: #c3cad6; background: #fafbfc; cursor: default; }
   .month-card:disabled:hover { border-color: var(--line); color: #c3cad6; background: #fafbfc; }
+  @media (max-width: 900px) { .month-quick-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
   .date-range-btn {
     min-width: 218px;
     justify-content: space-between;
@@ -196,8 +200,25 @@
     display: inline-flex; align-items: center; gap: 2px; font-size: 10.5px; font-weight: 800;
     padding: 1px 6px; border-radius: 8px; background: var(--dark-tint); color: var(--sub); white-space: nowrap;
   }
-  .metric-cmp .cmp.up { color: var(--good); background: #e7f6ec; }
-  .metric-cmp .cmp.down { color: var(--bad); background: #fdecec; }
+  .metric-cmp .cmp.up, .cmp-row .cmp.up { color: var(--good); background: #e7f6ec; }
+  .metric-cmp .cmp.down, .cmp-row .cmp.down { color: var(--bad); background: #fdecec; }
+
+  /* 상세 테이블 비교 행 (전기간/전년) — 버튼으로 켜고 끔, 기본은 숨김 */
+  .cmp-toggle-bar { display: flex; justify-content: flex-end; padding: 10px 14px 0; }
+  .cmp-toggle-btn {
+    height: 26px; padding: 0 10px; border: 1px solid #dfe4ec; border-radius: 4px;
+    background: #fff; color: var(--sub); font-family: inherit; font-size: 11.5px; font-weight: 800; cursor: pointer;
+    transition: all .12s;
+  }
+  .cmp-toggle-btn:hover, .cmp-toggle-btn.on { border-color: #f0b79d; color: var(--accent-dark); background: #fffaf7; }
+  tr.cmp-row td {
+    background: #fafbfc; font-size: 11px; font-weight: 700; color: var(--sub);
+    padding: 5px 10px; border-top: 1px dashed var(--line);
+  }
+  tr.cmp-row .cmp {
+    display: inline-flex; align-items: center; gap: 2px; font-size: 10.5px; font-weight: 800;
+    padding: 1px 6px; border-radius: 8px; background: var(--dark-tint); color: var(--sub); white-space: nowrap;
+  }
 
   .content-card { margin-top: 16px; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
   .content-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px; border-bottom: 1px solid var(--line); }
@@ -1495,6 +1516,7 @@ function renderMetrics() {
 function coupangDailyTableHtml() {
   const t = coupangSalesTotals();
   return `
+    ${cmpToggleBarHtml()}
     <div class="table-scroll">
     <table>
       <thead><tr><th style="width:110px">날짜</th><th class="num">방문자</th><th class="num">조회</th><th class="num">장바구니</th><th class="num">주문</th><th class="num">구매전환율</th><th class="num">판매량</th><th class="num" style="width:120px">매출</th></tr></thead>
@@ -1522,6 +1544,15 @@ function coupangDailyTableHtml() {
           <td class="num">${num(t.qty)}</td>
           <td class="num">${money(t.sales)}</td>
         </tr>
+        ${detailCmpRows(coupangSalesCompare, [
+          { key: "visitors", cur: t.visitors },
+          { key: "views", cur: t.views },
+          { key: "carts", cur: t.carts },
+          { key: "orders", cur: t.orders },
+          { key: "convRate", cur: t.views ? t.orders / t.views * 100 : 0, type: "rate" },
+          { key: "qty", cur: t.qty },
+          { key: "sales", cur: t.sales },
+        ])}
       </tfoot>
     </table>
     </div>`;
@@ -1644,14 +1675,24 @@ function naverDailyTableHtml() {
             <td class="num">${money(row.refundAmount)}</td>
             <td class="num">${money(row.salesNet)}</td>
             <td class="num">${row.payCount ? money(row.salesTotal / row.payCount) : "-"}</td>`;
+  const cmpSpecs = [
+    { key: "visits", cur: t.visits },
+    { key: "payCount", cur: t.payCount },
+    { key: "convRate", cur: t.visits ? t.payCount / t.visits * 100 : 0, type: "rate" },
+    { key: "salesTotal", cur: t.salesTotal },
+    { key: "refundAmount", cur: t.refundAmount },
+    { key: "salesNet", cur: t.salesNet },
+    { key: "avgOrder", cur: t.payCount ? t.salesTotal / t.payCount : 0 },
+  ];
   return `
+    ${cmpToggleBarHtml()}
     <div class="table-scroll">
     <table>
       <thead><tr><th style="width:110px">날짜</th><th class="num">방문수</th><th class="num">결제건수</th><th class="num">구매전환율</th><th class="num" style="width:116px">판매금액(총)</th><th class="num" style="width:104px">환불금액</th><th class="num" style="width:116px">판매금액(순)</th><th class="num" style="width:100px">객단가</th></tr></thead>
       <tbody>
         ${naverStat.daily.map(row => `<tr><td>${esc(row.date)}</td>${cells(row)}</tr>`).join("")}
       </tbody>
-      <tfoot><tr><td>합계</td>${cells({ ...t })}</tr></tfoot>
+      <tfoot><tr><td>합계</td>${cells({ ...t })}</tr>${detailCmpRows(naverSalesCompare, cmpSpecs)}</tfoot>
     </table>
     </div>`;
 }
@@ -1816,7 +1857,7 @@ function renderAdsPanel() {
           <strong>저장된 쿠팡 광고 데이터를 불러오는 중...</strong>
         </div>`
       : rows.length
-        ? adsTableHtml(rows, grouped.total)
+        ? adsTableHtml(rows, grouped.total, coupangAdCompare)
         : `<div class="empty">이 기간에 저장된 쿠팡 광고 데이터가 없습니다. 쿠팡 광고관리에서 내려받은 보고서 엑셀(일별 × 광고그룹)을 업로드하거나, 상단 달력에서 기간을 변경해 보세요.</div>`;
     document.getElementById("mainPanel").innerHTML = `
       <div class="content-card">
@@ -1866,7 +1907,7 @@ function renderAdsPanel() {
         <span>네이버 대용량 보고서를 날짜별로 받아 저장하고 있어요. 창을 닫지 말고 잠시 기다려 주세요.</span>
       </div>`;
   } else if (rows.length || totalRow) {
-    content = adsTableHtml(rows, totalRow);
+    content = adsTableHtml(rows, totalRow, adCompare);
   } else if (needDates) {
     content = `<div class="ad-loading">
         <strong>아직 수집되지 않은 기간입니다</strong>
@@ -1946,8 +1987,22 @@ function adMetricCells(row) {
             <td class="num strong">${formatRoas(row)}</td>`;
 }
 
-function adsTableHtml(rows, totalRow) {
+function adsTableHtml(rows, totalRow, compare) {
+  const tc = totalRow || {};
+  const totalPurchase = Number(tc.purchaseConversions) || 0;
+  const cmpSpecs = [
+    { key: "impressions", cur: Number(tc.impressions) || 0 },
+    { key: "clicks", cur: Number(tc.clicks) || 0 },
+    { key: "ctr", cur: Number(tc.ctr) || (tc.impressions ? tc.clicks / tc.impressions * 100 : 0), type: "rate" },
+    { key: "cpc", cur: Number(tc.cpc) || (tc.clicks ? tc.cost / tc.clicks : 0) },
+    { key: "purchaseConversions", cur: totalPurchase },
+    { key: "convRate", cur: tc.clicks ? totalPurchase / tc.clicks * 100 : 0, type: "rate" },
+    { key: "cost", cur: Number(tc.cost) || 0 },
+    { key: "purchaseSales", cur: Number(tc.purchaseSales) || 0 },
+    { key: "roas", cur: Number(tc.purchaseRoas) || (tc.cost ? (Number(tc.purchaseSales) || 0) / tc.cost * 100 : 0), type: "rate" },
+  ];
   return `
+    ${cmpToggleBarHtml()}
     <div class="table-scroll">
     <table class="ad-table">
       <colgroup>
@@ -1979,6 +2034,7 @@ function adsTableHtml(rows, totalRow) {
         <tr>
           <td colspan="3">합계</td>${adMetricCells(totalRow)}
         </tr>
+        ${detailCmpRows(compare, cmpSpecs, 3)}
       </tfoot>` : ""}
     </table>
     </div>
@@ -2089,17 +2145,21 @@ async function fetchAdCompareTotals(store, dateFrom, dateTo) {
   try {
     const data = await callAdFn({ action: "summary", store, dateFrom, dateTo });
     const t = data.total || {};
+    const impressions = Number(t.impressions) || 0;
+    const clicks = Number(t.clicks) || 0;
+    const cost = Number(t.cost) || 0;
     return {
-      hasData: (data.items || []).length > 0 || Number(t.cost) > 0,
-      cost: Number(t.cost) || 0,
-      clicks: Number(t.clicks) || 0,
+      hasData: (data.items || []).length > 0 || cost > 0,
+      cost, clicks, impressions,
+      ctr: impressions ? clicks / impressions * 100 : 0,
+      cpc: clicks ? cost / clicks : 0,
       purchaseConversions: Number(t.purchaseConversions) || 0,
       purchaseSales: Number(t.purchaseSales) || 0,
-      convRate: t.clicks ? (Number(t.purchaseConversions) || 0) / t.clicks * 100 : 0,
-      roas: Number(t.purchaseRoas) || (t.cost ? (Number(t.purchaseSales) || 0) / t.cost * 100 : 0),
+      convRate: clicks ? (Number(t.purchaseConversions) || 0) / clicks * 100 : 0,
+      roas: Number(t.purchaseRoas) || (cost ? (Number(t.purchaseSales) || 0) / cost * 100 : 0),
     };
   } catch (_) {
-    return { hasData: false, cost: 0, clicks: 0, purchaseConversions: 0, purchaseSales: 0, convRate: 0, roas: 0 };
+    return { hasData: false, cost: 0, clicks: 0, impressions: 0, ctr: 0, cpc: 0, purchaseConversions: 0, purchaseSales: 0, convRate: 0, roas: 0 };
   }
 }
 
@@ -2107,19 +2167,24 @@ async function fetchCoupangAdCompareTotals(dateFrom, dateTo) {
   try {
     const data = await callAdFn({ action: "coupangSummary", dateFrom, dateTo });
     const rows = data.items || [];
-    if (!rows.length) return { hasData: false, cost: 0, clicks: 0, convRate: 0, roas: 0 };
+    if (!rows.length) return { hasData: false, cost: 0, clicks: 0, impressions: 0, ctr: 0, cpc: 0, purchaseConversions: 0, purchaseSales: 0, convRate: 0, roas: 0 };
     const t = rows.reduce((acc, row) => {
       acc.cost += row.cost; acc.clicks += row.clicks; acc.orders += row.orders; acc.sales += row.sales;
+      acc.impressions += row.impressions;
       return acc;
-    }, { cost: 0, clicks: 0, orders: 0, sales: 0 });
+    }, { cost: 0, clicks: 0, orders: 0, sales: 0, impressions: 0 });
     return {
       hasData: true,
-      cost: t.cost, clicks: t.clicks,
+      cost: t.cost, clicks: t.clicks, impressions: t.impressions,
+      ctr: t.impressions ? t.clicks / t.impressions * 100 : 0,
+      cpc: t.clicks ? t.cost / t.clicks : 0,
+      purchaseConversions: t.orders,
+      purchaseSales: t.sales,
       convRate: t.clicks ? (t.orders / t.clicks) * 100 : 0,
       roas: t.cost ? (t.sales / t.cost) * 100 : 0,
     };
   } catch (_) {
-    return { hasData: false, cost: 0, clicks: 0, convRate: 0, roas: 0 };
+    return { hasData: false, cost: 0, clicks: 0, impressions: 0, ctr: 0, cpc: 0, purchaseConversions: 0, purchaseSales: 0, convRate: 0, roas: 0 };
   }
 }
 
@@ -2161,22 +2226,27 @@ async function fetchNaverSalesCompareTotals(dateFrom, dateTo) {
   try {
     const data = await callAdFn({ action: "naverStatSummary", dateFrom, dateTo });
     const daily = data.daily || [];
-    if (!daily.length) return { hasData: false, salesNet: 0, payCount: 0, visits: 0, convRate: 0 };
+    if (!daily.length) return { hasData: false, salesNet: 0, salesTotal: 0, refundAmount: 0, payCount: 0, visits: 0, convRate: 0, avgOrder: 0 };
     const t = daily.reduce((acc, row) => {
       acc.visits += row.visits;
       acc.payCount += row.payCount;
       acc.salesNet += row.salesNet;
+      acc.salesTotal += row.salesTotal;
+      acc.refundAmount += row.refundAmount;
       return acc;
-    }, { visits: 0, payCount: 0, salesNet: 0 });
+    }, { visits: 0, payCount: 0, salesNet: 0, salesTotal: 0, refundAmount: 0 });
     return {
       hasData: true,
       salesNet: t.salesNet,
+      salesTotal: t.salesTotal,
+      refundAmount: t.refundAmount,
       payCount: t.payCount,
       visits: t.visits,
       convRate: t.visits ? (t.payCount / t.visits) * 100 : 0,
+      avgOrder: t.payCount ? t.salesTotal / t.payCount : 0,
     };
   } catch (_) {
-    return { hasData: false, salesNet: 0, payCount: 0, visits: 0, convRate: 0 };
+    return { hasData: false, salesNet: 0, salesTotal: 0, refundAmount: 0, payCount: 0, visits: 0, convRate: 0, avgOrder: 0 };
   }
 }
 
@@ -2184,23 +2254,28 @@ async function fetchCoupangSalesCompareTotals(dateFrom, dateTo) {
   try {
     const data = await callAdFn({ action: "coupangSalesSummary", dateFrom, dateTo });
     const rows = data.items || [];
-    if (!rows.length) return { hasData: false, sales: 0, orders: 0, visitors: 0, convRate: 0 };
+    if (!rows.length) return { hasData: false, sales: 0, orders: 0, visitors: 0, views: 0, carts: 0, qty: 0, convRate: 0 };
     const t = rows.reduce((acc, row) => {
       acc.visitors += row.visitors;
       acc.views += row.views;
+      acc.carts += row.carts;
       acc.orders += row.orders;
+      acc.qty += row.qty;
       acc.sales += row.sales;
       return acc;
-    }, { visitors: 0, views: 0, orders: 0, sales: 0 });
+    }, { visitors: 0, views: 0, carts: 0, orders: 0, qty: 0, sales: 0 });
     return {
       hasData: true,
       sales: t.sales,
       orders: t.orders,
       visitors: t.visitors,
+      views: t.views,
+      carts: t.carts,
+      qty: t.qty,
       convRate: t.views ? (t.orders / t.views) * 100 : 0,
     };
   } catch (_) {
-    return { hasData: false, sales: 0, orders: 0, visitors: 0, convRate: 0 };
+    return { hasData: false, sales: 0, orders: 0, visitors: 0, views: 0, carts: 0, qty: 0, convRate: 0 };
   }
 }
 
@@ -2235,6 +2310,40 @@ async function loadCoupangSalesCompare() {
   if (coupangSalesCompare.key !== key) return;
   coupangSalesCompare = { key, prev, year };
   if (activePlatform === "coupang" && activeSubtab.coupang === "sales") renderMetrics();
+}
+
+/* ── 상세 테이블 비교 행 (버튼 토글, 기본 숨김) ──
+   tfoot 합계 아래에 "전기간 대비"/"전년 대비" 두 줄을 붙인다.
+   specs = 테이블 숫자 컬럼 순서대로 [{key, cur, type}] — key가 없으면 "-" 표시. */
+let detailCompareOpen = false;
+
+function toggleDetailCompare() {
+  detailCompareOpen = !detailCompareOpen;
+  render();
+}
+
+function cmpToggleBarHtml() {
+  return `<div class="cmp-toggle-bar">
+    <button type="button" class="cmp-toggle-btn${detailCompareOpen ? " on" : ""}" onclick="toggleDetailCompare()">
+      ${detailCompareOpen ? "비교 숨기기" : "전기간·전년 비교 보기"}
+    </button>
+  </div>`;
+}
+
+function detailCmpRows(compare, specs, labelColspan = 1) {
+  if (!detailCompareOpen) return "";
+  const ready = compare && compare.key === currentAdLoadKey();
+  const chip = (period, spec) => {
+    if (!spec.key) return "-";
+    if (!ready || !period) return `<span class="cmp">…</span>`;
+    if (!period.hasData || period[spec.key] == null) return `<span class="cmp">-</span>`;
+    return spec.type === "rate"
+      ? ppChangeChip("", spec.cur, period[spec.key], true)
+      : pctChangeChip("", spec.cur, period[spec.key]);
+  };
+  const row = (period, label) =>
+    `<tr class="cmp-row"><td colspan="${labelColspan}">${label}</td>${specs.map(s => `<td class="num">${chip(period, s)}</td>`).join("")}</tr>`;
+  return row(compare ? compare.prev : null, "전기간 대비") + row(compare ? compare.year : null, "전년 대비");
 }
 
 // 지표 카드 하단에 붙일 비교 칩 2개(전기간 / 전년) 생성.

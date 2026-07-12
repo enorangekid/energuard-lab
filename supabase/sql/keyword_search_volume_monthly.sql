@@ -13,5 +13,20 @@ create table if not exists public.keyword_search_volume_monthly (
 );
 alter table public.keyword_search_volume_monthly enable row level security;
 
+-- 프론트(anon 키)에서 추이 조회가 가능해야 함 — 다른 테이블과 동일한 신뢰 모델.
+-- (정책 없이 RLS만 켜면 anon 조회가 에러 없이 빈 결과만 반환하므로 반드시 필요)
+drop policy if exists "keyword_search_volume_monthly_select" on public.keyword_search_volume_monthly;
+create policy "keyword_search_volume_monthly_select" on public.keyword_search_volume_monthly
+  for select to anon using (true);
+
+-- 과거 월 데이터 백필(판다랭크 등 외부 소스)용 쓰기 정책 — keyword_rank_history와 동일한 신뢰 모델
+drop policy if exists "keyword_search_volume_monthly_insert" on public.keyword_search_volume_monthly;
+create policy "keyword_search_volume_monthly_insert" on public.keyword_search_volume_monthly
+  for insert to anon with check (true);
+
+drop policy if exists "keyword_search_volume_monthly_update" on public.keyword_search_volume_monthly;
+create policy "keyword_search_volume_monthly_update" on public.keyword_search_volume_monthly
+  for update to anon using (true) with check (true);
+
 create index if not exists keyword_search_volume_monthly_keyword_idx
   on public.keyword_search_volume_monthly(keyword, snapshot_month desc);

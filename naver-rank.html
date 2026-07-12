@@ -142,6 +142,8 @@
 
   /* 인사이트 카드 */
   #insight { display: none; margin-top: 18px; }
+  .ins-meta { margin-bottom: 8px; font-size: 12px; font-weight: 600; color: var(--sub); }
+  .ins-meta b { color: var(--ink); font-weight: 800; background: var(--dark-tint); padding: 2px 8px; border-radius: 10px; margin-left: 4px; }
   .ins-grid {
     display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     gap: 10px;
@@ -150,10 +152,38 @@
     background: var(--card); border: 1px solid var(--line); border-radius: 6px;
     padding: 13px 15px;
   }
-  .ins-label { font-size: 11.5px; font-weight: 700; color: var(--sub); margin-bottom: 4px; }
+  .ins-label { display: flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 700; color: var(--sub); margin-bottom: 4px; }
   .ins-value { font-family: var(--font-mono); font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
   .ins-value small { font-family: var(--font-main); font-size: 11.5px; font-weight: 600; color: var(--sub); }
-  .ins-note { font-size: 11px; color: var(--sub); margin-top: 2px; }
+  /* 근거 노트 — 타이틀 옆 느낌표 아이콘에 마우스를 올리면 툴팁으로 표시 */
+  .ins-info {
+    position: relative;
+    width: 14px; height: 14px; flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 50%; background: var(--sub); color: #fff;
+    font-size: 9.5px; font-weight: 800; cursor: default; line-height: 1;
+  }
+  .ins-tip {
+    position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(3px);
+    z-index: 30; width: max-content; max-width: 230px;
+    padding: 8px 11px; border-radius: 6px;
+    background: #161a22; color: #fff;
+    font-size: 11.5px; font-weight: 600; line-height: 1.5; text-align: left; white-space: normal;
+    opacity: 0; visibility: hidden; transition: all .12s; pointer-events: none;
+  }
+  .ins-info:hover .ins-tip { opacity: 1; visibility: visible; transform: translateX(-50%) translateY(0); }
+  /* 검색량 추세 카드 — 증감 색은 다른 페이지 증감 표기와 동일 */
+  .trend-up { color: #16a34a; }
+  .trend-down { color: var(--danger); }
+  .trend-flat { color: var(--sub); }
+  /* 전월/전년 비교 칩 — 매출분석 대시보드(.metric-cmp .cmp)와 동일한 스타일 (한 줄 고정) */
+  .metric-cmp { display: flex; gap: 6px; margin-top: 8px; flex-wrap: nowrap; }
+  .metric-cmp .cmp {
+    display: inline-flex; align-items: center; gap: 2px; font-size: 10.5px; font-weight: 800;
+    padding: 1px 6px; border-radius: 8px; background: var(--dark-tint); color: var(--sub); white-space: nowrap;
+  }
+  .metric-cmp .cmp.up { color: #16a34a; background: #e7f6ec; }
+  .metric-cmp .cmp.down { color: var(--danger); background: #fdecec; }
   .ins-warn { margin-top: 8px; font-size: 12px; color: var(--accent); }
 
   /* 섹션 카드 공통 */
@@ -199,8 +229,87 @@
   .top-title a:hover { text-decoration: underline; }
   .top-price { color: var(--accent); font-weight: 700; white-space: nowrap; font-size: 12.5px; font-family: var(--font-mono); }
 
+  /* 아이템 추적 등록 버튼 (내 스토어 순위 · TOP10 공용) */
+  .track-btn {
+    width: 28px; height: 28px; flex-shrink: 0;
+    border: 1px solid var(--line); border-radius: 50%;
+    background: #fff; color: #9aa3b3;
+    display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: all .14s;
+  }
+  .track-btn:hover { border-color: #f0b79d; color: var(--accent-dark); background: #fffaf7; }
+  .track-btn.added { border-color: var(--accent); background: var(--accent); color: #fff; cursor: default; }
+  .track-btn svg { width: 14px; height: 14px; }
+
+  /* 섹션 바로가기 탭 — 스크롤해도 상단에 고정 */
+  .sec-nav {
+    position: sticky; top: 0; z-index: 40;
+    display: flex; align-items: center; gap: 4px;
+    margin-top: 18px; padding: 6px 4px;
+    background: var(--bg); border-bottom: 1px solid var(--line);
+  }
+  .sec-nav-btn {
+    height: 36px; padding: 0 14px; border: 0; border-radius: 6px;
+    background: transparent; color: var(--sub);
+    font-family: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px;
+    transition: color .12s, background .12s;
+  }
+  .sec-nav-btn:hover { color: var(--ink); background: #fff; }
+  .sec-nav-btn.active { color: var(--accent-dark); font-weight: 900; }
+  .sec-nav-count {
+    min-width: 20px; padding: 1px 6px; border-radius: 10px;
+    background: var(--accent-tint); color: var(--accent-dark);
+    font-size: 11px; font-weight: 800; text-align: center;
+  }
+  /* 고정 탭 높이만큼 앵커 이동 시 여백 확보 */
+  #insight, .sec { scroll-margin-top: 58px; }
+
+  /* 검색량 추이 차트 */
+  .vol-chart-wrap { position: relative; padding: 14px 16px 8px; }
+  .vol-chart-wrap svg { display: block; width: 100%; height: auto; }
+  .vol-tip {
+    position: absolute; top: 6px; transform: translateX(-50%);
+    padding: 5px 10px; border-radius: 6px;
+    background: #161a22; color: #fff;
+    font-size: 12px; font-weight: 700; font-family: var(--font-mono);
+    white-space: nowrap; pointer-events: none; z-index: 10;
+  }
+
+  /* 분석 로딩 (매출분석과 동일한 스피너 스타일) */
+  .search-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 40px 20px 46px;
+    color: var(--sub);
+    text-align: center;
+  }
+  .search-loading strong { color: var(--ink); font-size: 14px; font-weight: 900; }
+  .search-loading span { font-size: 12px; }
+  .spinner {
+    width: 36px;
+    height: 36px;
+    border: 4px solid var(--dark-tint);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
   /* 연관 키워드 */
   .rel-table { width: 100%; border-collapse: collapse; }
+  .rel-table .rel-extra { display: none; }
+  .rel-table.rel-expanded .rel-extra { display: table-row; }
+  .rel-more-btn {
+    display: block; width: 100%; padding: 11px 0;
+    border: 0; border-top: 1px solid var(--line);
+    background: #fafbfc; color: var(--sub);
+    font-family: inherit; font-size: 12.5px; font-weight: 800; cursor: pointer;
+    transition: all .12s;
+  }
+  .rel-more-btn:hover { color: var(--accent-dark); background: #fffaf7; }
   .rel-table th, .rel-table td { padding: 9px 18px; text-align: left; font-size: 13px; border-bottom: 1px solid #f4f5f7; }
   .rel-table th { background: var(--dark); font-size: 11.5px; color: rgba(255,255,255,0.85); font-weight: 700; letter-spacing: 0.02em; }
   .rel-table tr:last-child td { border-bottom: none; }
@@ -278,11 +387,11 @@
   .tr-rank { min-width: 26px; text-align: center; font-family: var(--font-mono); font-weight: 700; font-size: 12px; color: var(--sub); background: var(--gray-badge); border-radius: 4px; padding: 2px 0; }
   .tr-kw { font-weight: 700; color: var(--ink); cursor: pointer; }
   .tr-kw:hover { color: var(--accent); text-decoration: underline; }
-  .tr-chg { font-size: 11px; font-weight: 700; font-family: var(--font-mono); }
+  .tr-chg { font-size: 11.5px; font-weight: 700; font-family: var(--font-mono); }
   .tr-chg.up { color: #16a34a; }
   .tr-chg.down { color: var(--danger); }
   .tr-chg.same { color: #c3c9d4; }
-  .tr-chg.new { color: var(--accent); font-size: 10px; background: var(--accent-tint); padding: 1px 6px; border-radius: 10px; }
+  .tr-chg.new { color: var(--accent); } /* 아이템발굴(.tr-delta.new)과 동일 — 배경 없는 주황 텍스트 */
   .tr-status { padding: 16px 18px; font-size: 12.5px; color: var(--sub); }
   @media (max-width: 600px) { .tr-list { column-count: 1; } }
 
@@ -400,8 +509,30 @@
 
   <!-- 인사이트 -->
   <div id="insight">
+    <div class="ins-meta" id="insMeta" style="display:none;"></div>
     <div class="ins-grid" id="insGrid"></div>
     <div class="ins-warn" id="adWarn" style="display:none;"></div>
+  </div>
+
+  <!-- 섹션 바로가기 탭 -->
+  <nav class="sec-nav" id="secNav" style="display:none;">
+    <button type="button" class="sec-nav-btn active" data-target="insight">종합분석</button>
+    <button type="button" class="sec-nav-btn" data-target="secVolTrend">검색량 추이</button>
+    <button type="button" class="sec-nav-btn" data-target="secRel">연관 키워드<span class="sec-nav-count" id="secNavRelCount"></span></button>
+    <button type="button" class="sec-nav-btn" data-target="secStore">내 스토어 순위</button>
+    <button type="button" class="sec-nav-btn" data-target="secTop">TOP10</button>
+    <button type="button" class="sec-nav-btn" data-target="secSellers">검색 노출 분석</button>
+  </nav>
+
+  <!-- 검색량 추이 차트 -->
+  <div class="sec open" id="secVolTrend" style="display:none;">
+    <div class="sec-head" onclick="this.parentElement.classList.toggle('open')">
+      <span class="sec-title">키워드 검색량 추이</span>
+      <span class="sec-caret"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+    </div>
+    <div class="sec-body">
+      <div id="volChartBody"></div>
+    </div>
   </div>
 
   <!-- 연관 키워드 -->
@@ -415,6 +546,7 @@
         <thead><tr><th>키워드</th><th style="width:150px">월간 검색량</th><th style="width:130px">상품수</th><th style="width:130px">경쟁지수</th><th style="width:110px">광고경쟁</th></tr></thead>
         <tbody id="relBody"></tbody>
       </table>
+      <button type="button" class="rel-more-btn" id="relMoreBtn" style="display:none;" onclick="toggleRelMore()"></button>
     </div>
   </div>
 
@@ -558,8 +690,12 @@ async function runSearch(kwOverride) {
 
   btn.disabled = true;
   statusLine.style.display = "block";
-  statusLine.innerHTML = `"<b>${esc(keyword)}</b>" ${maxRank}위까지 분석 중...`;
-  ["insight","secStore","secTop","secRel","secSellers"].forEach(id => document.getElementById(id).style.display = "none");
+  statusLine.innerHTML = `<div class="search-loading">
+    <div class="spinner"></div>
+    <strong>"${esc(keyword)}" ${maxRank}위까지 분석 중...</strong>
+    <span>순위 스캔 · 검색량 · 연관 키워드 확장까지 한 번에 처리하고 있어요. 잠시만 기다려 주세요.</span>
+  </div>`;
+  ["insight","secNav","secVolTrend","secStore","secTop","secRel","secSellers"].forEach(id => document.getElementById(id).style.display = "none");
 
   try {
     const res = await fetch(FN_URL, {
@@ -593,6 +729,12 @@ function render(d) {
     if (d.ad && d.ad.monthlyTotal != null) {
       g.push(card("월간 검색량", d.ad.monthlyTotal.toLocaleString(),
         `PC ${d.ad.monthlyPc.toLocaleString()} · 모바일 ${d.ad.monthlyMobile.toLocaleString()}`));
+      // 검색량 추세 — keyword_search_volume_monthly 월별 스냅샷의 전월/전년 대비. 렌더 후 비동기로 채운다.
+      g.push(`<div class="ins-card">
+        <div class="ins-label">검색량 추세<span class="ins-info">!<span class="ins-tip" id="volTrendNote">확인 중...</span></span></div>
+        <div class="ins-value" id="volTrendValue">-</div>
+        <div class="metric-cmp" id="volTrendChips"></div>
+      </div>`);
       g.push(card("경쟁지수", compScore(d.ad.compRatio) == null ? "-" : compScore(d.ad.compRatio) + " / 100", `상품수 : 검색량 = ${fmtRatio(d.ad.compRatio)} · 100에 가까울수록 치열`));
     }
     g.push(card("시장 가격대", `${fmtWon(d.stats.priceMin)}~${fmtWon(d.stats.priceMax)}`, `평균 ${d.stats.priceAvg.toLocaleString()}원 · 상위 ${d.stats.scanned}개 기준`));
@@ -601,10 +743,17 @@ function render(d) {
       const myAvg = Math.round(myPrices.reduce((s, v) => s + v, 0) / myPrices.length);
       g.push(card("내 스토어 가격대", `${fmtWon(myPrices[0])}~${fmtWon(myPrices[myPrices.length - 1])}`, `평균 ${myAvg.toLocaleString()}원 · ${myPrices.length}개 상품`));
     }
-    g.push(card("가격비교 비율", d.stats.catalogRatio + "%", "카탈로그 매칭 상품"));
-    if (d.stats.topCategory) g.push(card("주요 카테고리", `<small>${esc(d.stats.topCategory)}</small>`, ""));
   }
   document.getElementById("insGrid").innerHTML = g.join("");
+  // 주요 카테고리는 카드 폭 확보를 위해 그리드 위 한 줄로 표시 (연관키워드 필터 기준이기도 함)
+  const insMeta = document.getElementById("insMeta");
+  if (d.stats && d.stats.topCategory) {
+    insMeta.innerHTML = `주요 카테고리 <b>${esc(d.stats.topCategory)}</b>`;
+    insMeta.style.display = "block";
+  } else {
+    insMeta.style.display = "none";
+  }
+  if (d.ad && d.ad.monthlyTotal != null) loadVolumeTrend(d.keyword);
   const adWarn = document.getElementById("adWarn");
   if (d.adError) { adWarn.textContent = "검색량 조회 불가: " + d.adError; adWarn.style.display = "block"; }
   else adWarn.style.display = "none";
@@ -624,6 +773,7 @@ function render(d) {
           <div class="title"><a href="${esc(r.link)}" target="_blank" rel="noopener">${esc(r.title)}</a></div>
           <div class="subtxt">${esc(r.mallName)} · ${r.price.toLocaleString()}원</div>
         </div>
+        ${trackBtnHtml({ code: r.productId, name: r.title, image: r.image, link: r.link, mall: r.mallName, price: r.price, rank: r.rank, keyword: d.keyword, isMine: true })}
       </div>`;
     }).join("");
   }
@@ -638,9 +788,11 @@ function render(d) {
       <span class="top-mall">${esc(t.mall)}${mine ? ' <span class="star">★</span>' : ""}</span>
       <span class="top-title"><a href="${esc(t.link)}" target="_blank" rel="noopener">${esc(t.title)}</a></span>
       <span class="top-price">${t.price ? t.price.toLocaleString() + "원" : ""}</span>
+      ${trackBtnHtml({ code: t.productId, name: t.title, image: t.image, link: t.link, mall: t.mall, price: t.price, rank: t.rank, keyword: d.keyword, isMine: mine })}
     </div>`;
   }).join("");
   document.getElementById("secTop").style.display = "block";
+  markTrackedButtons();
 
   /* 검색 노출 분석 (전문셀러 기준) */
   if (d.sellers && d.sellers.length) {
@@ -672,23 +824,279 @@ function render(d) {
          .sort((a, b) => a.compRatio - b.compRatio)
          .slice(0, 3).map(k => k.keyword)
     );
-    document.getElementById("relBody").innerHTML = rel.map(k => `
-      <tr>
+    document.getElementById("relBody").innerHTML = rel.map((k, i) => `
+      <tr${i >= 10 ? ' class="rel-extra"' : ""}>
         <td><span class="rel-kw" onclick="runSearch('${esc(k.keyword)}')">${esc(k.keyword)}</span>${nicheSet.has(k.keyword) ? '<span class="niche-badge">기회</span>' : ''}</td>
         <td class="num" title="PC ${k.pc.toLocaleString()} · 모바일 ${k.mobile.toLocaleString()}"><b>${k.total.toLocaleString()}</b></td>
         <td class="num">${k.products != null ? k.products.toLocaleString() : "-"}</td>
         <td>${crBadge(k.compRatio)}</td>
         <td>${compBadge(k.compIdx)}</td>
       </tr>`).join("");
+    // 10개까지 먼저 보여주고 나머지는 더보기로 (카테고리 무관 확장분 포함)
+    document.querySelector("#secRel .rel-table").classList.remove("rel-expanded");
+    const moreBtn = document.getElementById("relMoreBtn");
+    if (rel.length > 10) {
+      moreBtn.style.display = "block";
+      moreBtn.textContent = `연관 키워드 ${rel.length - 10}개 더보기`;
+    } else {
+      moreBtn.style.display = "none";
+    }
     document.getElementById("secRel").style.display = "block";
   }
+
+  /* 섹션 탭 표시 + 연관키워드 개수 뱃지 — 검색 직후엔 종합분석(전체 보기)으로 초기화 */
+  document.getElementById("secNavRelCount").textContent = rel.length || "";
+  document.getElementById("secNav").style.display = "flex";
+  markSecAvail();
+  applySecTab("insight");
+}
+
+function toggleRelMore() {
+  const table = document.querySelector("#secRel .rel-table");
+  const expanded = table.classList.toggle("rel-expanded");
+  const extraCount = table.querySelectorAll(".rel-extra").length;
+  document.getElementById("relMoreBtn").textContent = expanded ? "접기" : `연관 키워드 ${extraCount}개 더보기`;
+}
+
+/* ── 섹션 탭 (스크롤 이동 없이 해당 섹션만 바로 표시) ──
+   "종합분석"은 전체 섹션을 쌓아 보여주는 기존 화면, 나머지 탭은 그 섹션 하나만 탭 아래에 보여준다.
+   데이터 유무(dataset.avail)와 탭 선택에 따른 표시를 분리해서 관리 —
+   검색량 추이처럼 비동기로 늦게 뜨는 섹션도 현재 탭 상태를 존중한다. */
+const TAB_SECS = ["secVolTrend", "secRel", "secStore", "secTop", "secSellers"];
+let currentSecTab = "insight";
+
+// render() 직후(탭 필터가 걸리기 전 순수한 상태)에 호출해 데이터 유무를 기록
+function markSecAvail() {
+  TAB_SECS.forEach(id => {
+    const el = document.getElementById(id);
+    el.dataset.avail = el.style.display !== "none" ? "1" : "";
+  });
+}
+
+function applySecTab(tabId) {
+  currentSecTab = tabId;
+  TAB_SECS.forEach(id => {
+    const el = document.getElementById(id);
+    const avail = el.dataset.avail === "1";
+    el.style.display = avail && (tabId === "insight" || tabId === id) ? "block" : "none";
+    if (avail && tabId === id) el.classList.add("open");
+  });
+  document.querySelectorAll(".sec-nav-btn").forEach(b => {
+    const target = b.dataset.target;
+    const avail = target === "insight" || document.getElementById(target).dataset.avail === "1";
+    b.style.display = avail ? "" : "none";
+    b.classList.toggle("active", target === tabId);
+  });
+}
+
+document.getElementById("secNav").addEventListener("click", (e) => {
+  const btn = e.target.closest(".sec-nav-btn");
+  if (!btn) return;
+  applySecTab(btn.dataset.target);
+});
+
+/* 검색량 추세: 월별 스냅샷(keyword_search_volume_monthly)에서 전월·전년 동월과 비교.
+   서버가 keyword를 공백 제거+소문자로 저장하므로 같은 규칙으로 조회한다.
+   상태(상승세/유지/하락세)는 전월 대비 ±5% 기준, 칩은 매출분석 대시보드와 같은 형식. */
+async function loadVolumeTrend(keyword) {
+  const valueEl = document.getElementById("volTrendValue");
+  const noteEl = document.getElementById("volTrendNote");
+  const chipsEl = document.getElementById("volTrendChips");
+  if (!valueEl) return;
+  try {
+    const key = String(keyword).replace(/\s+/g, "").toLowerCase();
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/keyword_search_volume_monthly?keyword=eq.${encodeURIComponent(key)}&select=snapshot_month,total&order=snapshot_month.desc&limit=60`,
+      { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer " + SUPABASE_ANON_KEY } },
+    );
+    const rows = res.ok ? await res.json() : [];
+    renderVolumeChart([...rows].reverse()); // 차트는 과거 → 최신 순
+    if (!rows.length) {
+      valueEl.textContent = "-";
+      noteEl.textContent = "수집된 검색량 스냅샷 없음";
+      return;
+    }
+    const cur = rows[0];
+    const [y, m] = cur.snapshot_month.split("-").map(Number);
+    const monthKey = (yy, mm) => `${yy}-${String(mm).padStart(2, "0")}`;
+    const byMonth = new Map(rows.map(r => [r.snapshot_month, r]));
+    const prevMonth = byMonth.get(m === 1 ? monthKey(y - 1, 12) : monthKey(y, m - 1)) || null;
+    const prevYear = byMonth.get(monthKey(y - 1, m)) || null;
+
+    // 상태: 전월 대비 ±5% 기준
+    if (prevMonth && prevMonth.total > 0) {
+      const pct = (cur.total - prevMonth.total) / prevMonth.total * 100;
+      if (pct > 5) valueEl.innerHTML = `<span class="trend-up">상승세</span>`;
+      else if (pct < -5) valueEl.innerHTML = `<span class="trend-down">하락세</span>`;
+      else valueEl.innerHTML = `<span class="trend-flat">유지</span>`;
+    } else {
+      valueEl.textContent = "-";
+    }
+
+    // 전월/전년 비교 칩 — 매출분석의 pctChangeChip과 동일한 표기
+    const volChip = (label, prev) => {
+      if (!prev || !(prev.total > 0)) return `<span class="cmp">${label} 데이터 없음</span>`;
+      const pct = (cur.total - prev.total) / prev.total * 100;
+      const cls = pct > 0.05 ? "up" : pct < -0.05 ? "down" : "";
+      const arrow = pct > 0.05 ? "▲" : pct < -0.05 ? "▼" : "-";
+      return `<span class="cmp ${cls}">${label} ${arrow}${Math.abs(pct).toFixed(1)}%</span>`;
+    };
+    if (chipsEl) chipsEl.innerHTML = volChip("전월", prevMonth) + volChip("전년", prevYear);
+
+    const fmt = r => r ? `${r.snapshot_month} ${Number(r.total).toLocaleString()}` : "없음";
+    noteEl.textContent = `기준 ${fmt(cur)} · 전월 ${fmt(prevMonth)} · 전년 동월 ${fmt(prevYear)}`;
+  } catch (_) {
+    valueEl.textContent = "-";
+    noteEl.textContent = "추세 조회 실패";
+  }
+}
+
+/* ── 검색량 추이 라인 차트 (월별 스냅샷, SVG 직접 그리기) ── */
+function niceCeil(v) {
+  if (v <= 0) return 1;
+  const pow = Math.pow(10, Math.floor(Math.log10(v)));
+  for (const m of [1, 2, 2.5, 5, 10]) {
+    if (v <= m * pow) return m * pow;
+  }
+  return 10 * pow;
+}
+
+let volChartData = null;
+
+function renderVolumeChart(rowsAsc) {
+  const sec = document.getElementById("secVolTrend");
+  const body = document.getElementById("volChartBody");
+  if (!sec || !body) return;
+  const raw = (rowsAsc || []).map(r => ({ month: r.snapshot_month, total: Number(r.total) || 0 }));
+  if (raw.length < 2) { sec.style.display = "none"; sec.dataset.avail = ""; applySecTab(currentSecTab); return; }
+
+  // 빠진 달을 0으로 채워 연속된 월 시퀀스로 만든다 — missing 플래그로 빗살 표시 구간을 기억
+  const byMonth = new Map(raw.map(d => [d.month, d]));
+  const data = [];
+  let [cy, cm] = raw[0].month.split("-").map(Number);
+  const [ey, em] = raw[raw.length - 1].month.split("-").map(Number);
+  while (cy < ey || (cy === ey && cm <= em)) {
+    const key = `${cy}-${String(cm).padStart(2, "0")}`;
+    const src = byMonth.get(key);
+    data.push(src ? { month: key, total: src.total, missing: false } : { month: key, total: 0, missing: true });
+    cm++; if (cm > 12) { cm = 1; cy++; }
+  }
+
+  const W = 900, H = 270, padL = 56, padR = 20, padT = 30, padB = 32;
+  const iw = W - padL - padR, ih = H - padT - padB;
+  const vals = data.map(d => d.total);
+  const yMax = niceCeil(Math.max(...vals));
+  const x = i => padL + i * iw / (data.length - 1);
+  const y = v => padT + ih - v / yMax * ih;
+
+  // y축 눈금 + 가로 그리드 (하나의 색, 가는 실선 — 데이터보다 뒤로 물러나게)
+  let grid = "", labels = "";
+  for (let s = 0; s <= 4; s++) {
+    const v = yMax * s / 4, yy = y(v);
+    grid += `<line x1="${padL}" y1="${yy}" x2="${W - padR}" y2="${yy}" stroke="#e8ecf2" stroke-width="1"/>`;
+    labels += `<text x="${padL - 8}" y="${yy + 4}" text-anchor="end" font-size="11" fill="#8a93a5">${Math.round(v).toLocaleString()}</text>`;
+  }
+  // x축 라벨 (약 8개 간격, "25.1" 형식)
+  const step = Math.max(1, Math.ceil(data.length / 8));
+  data.forEach((d, i) => {
+    if (i % step !== 0 && i !== data.length - 1) return;
+    const [yy, mm] = d.month.split("-");
+    labels += `<text x="${x(i)}" y="${H - 8}" text-anchor="middle" font-size="11" fill="#8a93a5">${yy.slice(2)}.${Number(mm)}</text>`;
+  });
+
+  const pts = vals.map((v, i) => `${x(i)},${y(v)}`).join(" ");
+  const areaPts = `${pts} ${x(data.length - 1)},${padT + ih} ${x(0)},${padT + ih}`;
+
+  // 데이터 없는 구간(연속된 missing 달들) 위에 45° 빗살 밴드
+  const halfStep = data.length > 1 ? iw / (data.length - 1) / 2 : 0;
+  let hatches = "";
+  for (let i = 0; i < data.length; i++) {
+    if (!data[i].missing) continue;
+    let j = i;
+    while (j + 1 < data.length && data[j + 1].missing) j++;
+    const x1 = Math.max(padL, x(i) - halfStep);
+    const x2 = Math.min(W - padR, x(j) + halfStep);
+    hatches += `<rect x="${x1}" y="${padT}" width="${x2 - x1}" height="${ih}" fill="url(#volHatch)" opacity="0.5"/>`;
+    i = j;
+  }
+
+  // 최대/최소 주석 (판다랭크 스타일) — 최소는 데이터 없는 달(0) 제외, 텍스트는 차트 안쪽으로 고정
+  const realVals = data.map((d, i) => d.missing ? null : { v: d.total, i }).filter(Boolean);
+  const maxI = realVals.reduce((best, cur) => cur.v > best.v ? cur : best).i;
+  const minI = realVals.reduce((best, cur) => cur.v < best.v ? cur : best).i;
+  const clampX = v => Math.min(Math.max(v, padL + 40), W - padR - 40);
+  const fmtMonth = m => { const [yy, mm] = m.split("-"); return `${yy.slice(2)}.${Number(mm)}`; };
+  let marks = `
+    <circle cx="${x(maxI)}" cy="${y(vals[maxI])}" r="4" fill="var(--accent)" stroke="#fff" stroke-width="2"/>
+    <text x="${clampX(x(maxI))}" y="${Math.max(y(vals[maxI]) - 10, 14)}" text-anchor="middle" font-size="11.5" font-weight="700" fill="#1a1f2e">최대 ${fmtMonth(data[maxI].month)} · ${vals[maxI].toLocaleString()}</text>`;
+  if (minI !== maxI) {
+    marks += `
+    <circle cx="${x(minI)}" cy="${y(vals[minI])}" r="4" fill="var(--accent)" stroke="#fff" stroke-width="2"/>
+    <text x="${clampX(x(minI))}" y="${Math.min(y(vals[minI]) + 20, H - padB - 6)}" text-anchor="middle" font-size="11.5" font-weight="700" fill="#5a6378">최소 ${fmtMonth(data[minI].month)} · ${vals[minI].toLocaleString()}</text>`;
+  }
+
+  body.innerHTML = `<div class="vol-chart-wrap">
+    <svg id="volChartSvg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
+      <defs>
+        <pattern id="volHatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <line x1="0" y1="0" x2="0" y2="6" stroke="#c3c9d4" stroke-width="1.4"/>
+        </pattern>
+      </defs>
+      ${grid}${hatches}${labels}
+      <polygon points="${areaPts}" fill="var(--accent)" opacity="0.08"/>
+      <polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+      ${marks}
+      <line id="volCross" x1="0" y1="${padT}" x2="0" y2="${padT + ih}" stroke="#c3c9d4" stroke-width="1" style="display:none;"/>
+      <circle id="volHoverDot" r="4.5" fill="var(--accent)" stroke="#fff" stroke-width="2" style="display:none;"/>
+    </svg>
+    <div class="vol-tip" id="volTip" style="display:none;"></div>
+  </div>`;
+  sec.classList.add("open");
+  sec.dataset.avail = "1";
+  applySecTab(currentSecTab); // 현재 탭 상태에 맞춰 표시 여부 결정 (비동기 렌더라 강제로 켜지 않음)
+  volChartData = { data, x, y, padL, padT, ih, W };
+
+  const svg = document.getElementById("volChartSvg");
+  svg.addEventListener("mousemove", volChartHover);
+  svg.addEventListener("mouseleave", () => {
+    document.getElementById("volCross").style.display = "none";
+    document.getElementById("volHoverDot").style.display = "none";
+    document.getElementById("volTip").style.display = "none";
+  });
+}
+
+function volChartHover(e) {
+  if (!volChartData) return;
+  const { data, x, y, W } = volChartData;
+  const svg = document.getElementById("volChartSvg");
+  const rect = svg.getBoundingClientRect();
+  const svgX = (e.clientX - rect.left) / rect.width * W;
+  // 가장 가까운 데이터 포인트 찾기
+  let best = 0, bestDist = Infinity;
+  data.forEach((_, i) => {
+    const d = Math.abs(x(i) - svgX);
+    if (d < bestDist) { bestDist = d; best = i; }
+  });
+  const px = x(best), py = y(data[best].total);
+  const cross = document.getElementById("volCross");
+  const dot = document.getElementById("volHoverDot");
+  const tip = document.getElementById("volTip");
+  cross.setAttribute("x1", px); cross.setAttribute("x2", px);
+  cross.style.display = "";
+  dot.setAttribute("cx", px); dot.setAttribute("cy", py);
+  dot.style.display = "";
+  tip.textContent = data[best].missing
+    ? `${data[best].month} · 데이터 없음`
+    : `${data[best].month} · ${data[best].total.toLocaleString()}`;
+  tip.style.display = "block";
+  const leftPx = px / W * rect.width;
+  tip.style.left = Math.min(Math.max(leftPx, 60), rect.width - 60) + "px";
 }
 
 function card(label, value, note) {
   return `<div class="ins-card">
-    <div class="ins-label">${label}</div>
+    <div class="ins-label">${label}${note ? `<span class="ins-info">!<span class="ins-tip">${note}</span></span>` : ""}</div>
     <div class="ins-value">${value}</div>
-    ${note ? `<div class="ins-note">${note}</div>` : ""}
   </div>`;
 }
 /* 경쟁강도(상품수÷검색량)를 "몇 : 몇" 비율로 변환
@@ -874,7 +1282,7 @@ function todayKstDate() {
 /* 이 스토어의 해당 키워드 검색결과 안에 있는 "모든" 매칭 상품을 상품코드별로 반환 (최고 순위 1건으로 뭉개지 않음).
    withVolume:true로 이 키워드의 월간 검색량도 같이 받는다 — 연관키워드 확장 없는 가벼운 호출이라
    일괄 수집처럼 키워드가 많아도 부담이 적다. 서버에서 keyword_search_volume_monthly에도 자동 저장됨. */
-async function fetchRankRows(keyword) {
+async function fetchRankRows(keyword, watchProductIds) {
   const res = await fetch(FN_URL, {
     method: "POST",
     headers: {
@@ -882,14 +1290,136 @@ async function fetchRankRows(keyword) {
       "Authorization": "Bearer " + SUPABASE_ANON_KEY,
       "apikey": SUPABASE_ANON_KEY,
     },
-    body: JSON.stringify({ storeName: selectedStore, keyword, maxRank: 1000, withInsight: false, withVolume: true }),
+    body: JSON.stringify({
+      storeName: selectedStore, keyword, maxRank: 1000, withInsight: false, withVolume: true,
+      ...(watchProductIds && watchProductIds.length ? { watchProductIds } : {}),
+    }),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || res.status);
   return {
     rows: (data.results || []).filter(r => isExactSelectedStore(r.mallName)), // [{rank, title, productId, ...}, ...] — 상품 0개면 이탈
     volume: data.volume || null, // {pc, mobile, total} | null
+    watched: data.watched || [], // 아이템 추적 대상이 이 키워드 결과에 있으면 [{productId, rank, price, ...}]
   };
+}
+
+/* ── 아이템 추적 피기백 ──
+   랭킹추적에서 등록한 추적 아이템(tracked_items)의 상품코드를 일괄 수집 시 같이 넘기면,
+   같은 스캔에서 경쟁사 상품의 순위·가격도 추가 API 비용 없이 얻어진다. 결과는
+   tracked_item_history에 저장 — 실패해도 본래 수집에는 영향 없음. */
+async function fetchTrackedItemCodes() {
+  try {
+    const res = await fetch(SUPABASE_URL + "/rest/v1/tracked_items?select=product_code", {
+      headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer " + SUPABASE_ANON_KEY },
+    });
+    if (!res.ok) return [];
+    return (await res.json()).map(r => String(r.product_code));
+  } catch (_) { return []; }
+}
+
+/* ── 분석 결과에서 바로 아이템 추적 등록 ──
+   내 스토어 순위/TOP10 행의 과녁 버튼: 지금 검색한 키워드를 추적 키워드로 하여
+   tracked_items에 등록하고, 이미 알고 있는 오늘의 순위·가격을 첫 이력으로 저장한다.
+   이미 추적 중인 상품이면 이 키워드만 추가한다. */
+function extractProductCode(link) {
+  const s = String(link || "");
+  const m = s.match(/\/products\/(\d+)/) || s.match(/[?&](?:id|nvMid)=(\d+)/);
+  return m ? m[1] : "";
+}
+
+function trackBtnHtml(p) {
+  const code = String(p.code || "").trim() || extractProductCode(p.link);
+  if (!code) return "";
+  const data = esc(JSON.stringify({ ...p, code }));
+  return `<button type="button" class="track-btn" data-code="${esc(code)}" data-item="${data}"
+    onclick="trackItemFromAnalysis(this)" aria-label="아이템 추적에 추가" title="아이템 추적에 추가">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v3"/><path d="M12 19v3"/><path d="M2 12h3"/><path d="M19 12h3"/></svg>
+  </button>`;
+}
+
+// 이미 추적 중인 상품의 버튼을 채워진 상태로 표시
+async function markTrackedButtons() {
+  const codes = await fetchTrackedItemCodes();
+  if (!codes.length) return;
+  const set = new Set(codes.map(String));
+  document.querySelectorAll(".track-btn[data-code]").forEach(btn => {
+    if (set.has(btn.dataset.code)) { btn.classList.add("added"); btn.title = "추적 중 (누르면 이 키워드 추가)"; }
+  });
+}
+
+async function trackItemFromAnalysis(btn) {
+  const p = JSON.parse(btn.dataset.item);
+  const headers = {
+    "Content-Type": "application/json",
+    "apikey": SUPABASE_ANON_KEY,
+    "Authorization": "Bearer " + SUPABASE_ANON_KEY,
+  };
+  btn.disabled = true;
+  try {
+    const existRes = await fetch(
+      SUPABASE_URL + `/rest/v1/tracked_items?product_code=eq.${encodeURIComponent(p.code)}&select=product_code,keywords`,
+      { headers });
+    const exist = existRes.ok ? await existRes.json() : [];
+    if (exist.length) {
+      const keywords = Array.isArray(exist[0].keywords) ? exist[0].keywords : [];
+      if (!keywords.includes(p.keyword)) {
+        await fetch(SUPABASE_URL + `/rest/v1/tracked_items?product_code=eq.${encodeURIComponent(p.code)}`, {
+          method: "PATCH",
+          headers: { ...headers, "Prefer": "return=minimal" },
+          body: JSON.stringify({ keywords: [...keywords, p.keyword], updated_at: new Date().toISOString() }),
+        });
+      }
+    } else {
+      await fetch(SUPABASE_URL + "/rest/v1/tracked_items", {
+        method: "POST",
+        headers: { ...headers, "Prefer": "return=minimal" },
+        body: JSON.stringify([{
+          product_code: p.code,
+          product_name: p.name || "", product_image: p.image || "",
+          product_link: p.link || "", mall_name: p.mall || "",
+          is_mine: !!p.isMine, keywords: [p.keyword],
+        }]),
+      });
+    }
+    // 이미 알고 있는 오늘의 순위·가격을 첫 이력으로 저장 (수집 버튼을 기다릴 필요 없음)
+    await fetch(SUPABASE_URL + "/rest/v1/tracked_item_history?on_conflict=product_code,keyword,collected_date", {
+      method: "POST",
+      headers: { ...headers, "Prefer": "resolution=merge-duplicates,return=minimal" },
+      body: JSON.stringify([{
+        product_code: p.code, keyword: p.keyword,
+        rank: p.rank ?? null, price: Number(p.price) || 0, mall_name: p.mall || "",
+        collected_date: todayKstDate(), checked_at: new Date().toISOString(),
+      }]),
+    });
+    btn.classList.add("added");
+    btn.title = "추적 중 (누르면 이 키워드 추가)";
+  } catch (e) {
+    alert("아이템 추적 등록 실패: " + (e.message || "오류"));
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function saveWatchedRows(keyword, collectedDate, watched) {
+  if (!watched.length) return;
+  try {
+    const rows = watched.map(w => ({
+      product_code: String(w.productId), keyword,
+      rank: w.rank, price: Number(w.price) || 0, mall_name: w.mallName || "",
+      collected_date: collectedDate, checked_at: new Date().toISOString(),
+    }));
+    await fetch(SUPABASE_URL + "/rest/v1/tracked_item_history?on_conflict=product_code,keyword,collected_date", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": "Bearer " + SUPABASE_ANON_KEY,
+        "Prefer": "resolution=merge-duplicates,return=minimal",
+      },
+      body: JSON.stringify(rows),
+    });
+  } catch (_) { /* 피기백 저장 실패는 무시 */ }
 }
 
 /* 상품별로 한 행씩 저장. 매칭 상품이 없으면(이탈) rank/product 정보 없는 행 1개만 남긴다 */
@@ -986,6 +1516,8 @@ async function runBatchCollect() {
   statusEl.style.display = "block";
   listEl.innerHTML = "";
 
+  const watchCodes = await fetchTrackedItemCodes(); // 아이템 추적 대상 — 같은 스캔에서 겸사겸사 수집
+
   for (let i = 0; i < list.length; i++) {
     const { keyword, mainKeyword, isSub } = list[i];
     statusEl.innerHTML = `[${esc(selectedStore)}] <b>${i + 1}/${list.length}</b> "${esc(keyword)}" 확인 중...`;
@@ -993,9 +1525,10 @@ async function runBatchCollect() {
     let rows = [];
     let volume = null;
     try {
-      const fetched = await fetchRankRows(keyword);
+      const fetched = await fetchRankRows(keyword, watchCodes);
       rows = fetched.rows;
       volume = fetched.volume;
+      await saveWatchedRows(keyword, collectedDate, fetched.watched);
     } catch (e) {
       rows = [];
     }

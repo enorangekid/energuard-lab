@@ -88,6 +88,65 @@
   .expand-all-btn:hover { border-color: #f0b79d; color: var(--accent-dark); background: #fffaf7; }
   .expand-all-btn.is-open { border-color: #f0b79d; color: var(--accent-dark); background: #fffaf7; }
 
+  /* ── 카테고리 요약 대시보드 ── */
+  .rank-dash {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: #fff;
+    padding: 16px 18px 14px;
+    margin-bottom: 12px;
+    box-shadow: 0 14px 34px rgba(5, 7, 11, 0.05);
+  }
+  .rank-dash-tiles {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .dash-tile { padding: 4px 2px; min-width: 0; }
+  .dash-tile + .dash-tile { border-left: 1px solid var(--line); padding-left: 14px; }
+  .dash-label { font-size: 11px; font-weight: 800; color: #8a93a5; white-space: nowrap; }
+  .dash-value { margin-top: 2px; font-size: 21px; font-weight: 800; color: var(--ink); letter-spacing: -0.01em; white-space: nowrap; }
+  .dash-value small { margin-left: 4px; font-size: 11.5px; font-weight: 700; color: var(--sub); }
+  .dash-value.up { color: #16a34a; }
+  .dash-value.down { color: var(--danger); }
+  .dash-bar-wrap { margin-top: 14px; }
+  .dash-bar { display: flex; gap: 2px; height: 12px; }
+  .dash-bar-seg { min-width: 3px; }
+  .dash-bar-seg:first-child { border-radius: 6px 0 0 6px; }
+  .dash-bar-seg:last-child { border-radius: 0 6px 6px 0; }
+  .dash-bar-seg:only-child { border-radius: 6px; }
+  .dash-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 8px; font-size: 11.5px; color: var(--sub); font-weight: 700; }
+  .dash-legend-item { display: inline-flex; align-items: center; gap: 5px; }
+  .dash-legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .dash-legend-item b { color: var(--ink); font-weight: 800; }
+  .dash-movers { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
+  /* 제목 열을 고정 폭 그리드로 분리 — 칩이 줄바꿈돼도 항상 첫 칩 아래로 정렬된다 */
+  .dash-mover-row { display: grid; grid-template-columns: 68px 1fr; align-items: start; gap: 8px; }
+  .dash-mover-title { font-size: 11px; font-weight: 800; color: #8a93a5; padding-top: 6px; white-space: nowrap; }
+  .dash-mover-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  /* 상품 칩은 균일한 폭의 카드 그리드 — 행이 넘어가도 열이 맞는다 */
+  .dash-mover-chips.products { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); }
+  .dash-mover-chip {
+    display: inline-flex; align-items: center; gap: 6px; min-width: 0;
+    padding: 3px 10px; border: 1px solid var(--line); border-radius: 20px;
+    background: #fafbfc; font-size: 12px; font-weight: 700; color: var(--ink);
+    text-decoration: none; transition: border-color .12s, background .12s;
+  }
+  .dash-mover-chip:hover { border-color: #f0b79d; background: #fffaf7; }
+  .dash-mover-chips.products .dash-mover-chip { border-radius: var(--radius); padding: 5px 10px; }
+  .dash-mover-delta { font-family: var(--font-mono); font-size: 11px; font-weight: 700; }
+  .dash-mover-delta.up { color: #16a34a; }
+  .dash-mover-delta.down { color: var(--danger); }
+  .dash-mover-rank { font-size: 11px; color: var(--sub); font-family: var(--font-mono); white-space: nowrap; }
+  .chip-thumb { width: 18px; height: 18px; border-radius: 3px; object-fit: cover; flex-shrink: 0; }
+  /* 상품명이 남는 공간을 차지하고, 키워드·순위는 오른쪽 끝에 고정 */
+  .chip-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+  .chip-keyword { font-size: 11px; color: var(--sub); white-space: nowrap; }
+  @media (max-width: 900px) {
+    .rank-dash-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .dash-tile:nth-child(4) { border-left: none; padding-left: 2px; }
+  }
+
   .product-table {
     display: flex;
     flex-direction: column;
@@ -100,7 +159,7 @@
   }
   .product-table-head {
     display: grid;
-    grid-template-columns: 38px 86px minmax(280px, 1fr) 120px 88px 64px 76px 82px;
+    grid-template-columns: 38px 86px minmax(280px, 1fr) 120px 88px 64px 76px 112px;
     align-items: center;
     padding: 6px 14px;
     color: #8a93a5;
@@ -128,14 +187,16 @@
   }
   .product-main-row {
     display: grid;
-    grid-template-columns: 38px 86px minmax(280px, 1fr) 120px 88px 64px 76px 82px;
+    grid-template-columns: 38px 86px minmax(280px, 1fr) 120px 88px 64px 76px 112px;
     align-items: center;
     gap: 0;
     min-height: 76px;
     padding: 10px 14px;
-    cursor: pointer;
-    user-select: none;
+    /* 행 클릭 펼침을 없앴으므로 텍스트 선택/복사가 자유롭다 — 펼침은 +버튼 전용 */
+    border-radius: calc(var(--radius) - 1px);
   }
+  /* 펼쳐진 상태에서는 아래로 키워드 패널이 이어지므로 아래 모서리는 각지게 */
+  .product-group.open .product-main-row { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
   .product-main-row:hover { background: #fffaf7; }
   .expand-btn {
     width: 24px;
@@ -147,8 +208,10 @@
     font-size: 14px;
     font-weight: 800;
     line-height: 1;
+    cursor: pointer;
+    flex-shrink: 0;
   }
-  .product-main-row:hover .expand-btn,
+  .expand-btn:hover,
   .product-group.open .expand-btn { border-color: var(--accent); background: var(--accent-tint); color: var(--accent-dark); }
   .product-group.open .expand-btn::before { content: "-"; }
   .expand-btn::before { content: "+"; }
@@ -221,6 +284,7 @@
     position: relative;
     width: 30px;
     height: 30px;
+    flex-shrink: 0;
     border: 1px solid var(--line);
     border-radius: 50%;
     background: #fff;
@@ -275,7 +339,11 @@
   .rank-badge.p23 { background: var(--dark-tint); color: var(--ink); }
   .rank-badge.none { background: #fdecec; color: var(--danger); font-size: 12px; line-height: 1.4; }
   .rank-delta { min-width: 34px; font-size: 11.5px; font-weight: 700; font-family: var(--font-mono); text-align: center; }
-  .keyword-volume { margin-left: auto; font-size: 11px; color: var(--sub); font-family: var(--font-mono); white-space: nowrap; flex-shrink: 0; }
+  .keyword-volume {
+    min-width: 74px; display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11px; color: var(--sub); font-family: var(--font-mono); white-space: nowrap; flex-shrink: 0;
+  }
+  .keyword-volume svg { width: 11px; height: 11px; flex-shrink: 0; opacity: .55; }
   .rank-delta.up { color: #16a34a; }
   .rank-delta.down { color: var(--danger); }
   .rank-delta.same { color: #c3c9d4; }
@@ -376,6 +444,75 @@
     cursor: pointer;
   }
 
+  /* ── 아이템 추적 ── */
+  .view-tabs { margin-left: auto; display: flex; gap: 6px; }
+  .view-tab {
+    height: 32px; padding: 0 14px; border: 1px solid var(--line); border-radius: var(--radius);
+    background: #fff; color: var(--sub); font-family: inherit; font-size: 12.5px; font-weight: 800; cursor: pointer;
+    transition: all .12s;
+  }
+  .view-tab:hover { border-color: #c8cdd4; color: var(--ink); }
+  .view-tab.active { background: var(--ink); border-color: var(--ink); color: #fff; }
+
+  .item-toolbar { display: flex; align-items: center; gap: 10px; }
+  .item-toolbar-sub { font-size: 12px; color: var(--sub); }
+  .item-toolbar-spacer { flex: 1; }
+  .item-collect-status { font-size: 12px; color: var(--sub); }
+  .item-btn {
+    height: 34px; padding: 0 14px; border: 1px solid #dfe4ec; border-radius: var(--radius);
+    background: #fff; color: var(--sub); font-family: inherit; font-size: 12.5px; font-weight: 800; cursor: pointer;
+    transition: all .12s; white-space: nowrap;
+  }
+  .item-btn:hover { border-color: #f0b79d; color: var(--accent-dark); background: #fffaf7; }
+  .item-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .item-btn.primary:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
+  .item-btn:disabled { opacity: .55; cursor: default; }
+
+  .tracked-item-list { margin-top: 16px; display: flex; flex-direction: column; gap: 8px; }
+  .item-group-title { display: flex; align-items: center; gap: 10px; margin: 10px 2px 2px; font-size: 14px; font-weight: 900; color: var(--ink); }
+  .item-group-title:first-child { margin-top: 0; }
+  .item-group-count { margin-left: 4px; font-size: 12px; font-weight: 700; color: var(--sub); }
+  .item-group-spacer { flex: 1; }
+  .item-owner-badge {
+    font-size: 10.5px; font-weight: 800; padding: 2px 8px; border-radius: 10px;
+    background: var(--dark-tint); color: var(--sub); flex-shrink: 0;
+  }
+  .item-owner-badge.mine { background: var(--accent-tint); color: var(--accent-dark); }
+  .item-price-cell { text-align: right; white-space: nowrap; }
+  .item-price-now { font-size: 14px; font-weight: 800; font-family: var(--font-mono); color: var(--ink); }
+  .item-price-delta { display: block; font-size: 11px; font-weight: 700; font-family: var(--font-mono); color: var(--sub); }
+  .item-price-delta.up { color: var(--danger); }     /* 가격 인상 = 빨강 */
+  .item-price-delta.down { color: #16a34a; }         /* 가격 인하 = 초록 */
+  .item-main-row {
+    display: grid;
+    grid-template-columns: 38px 86px minmax(240px, 1fr) 90px 88px 120px 96px;
+    align-items: center; min-height: 76px; padding: 10px 14px;
+    border-radius: calc(var(--radius) - 1px);
+  }
+  .item-main-row:hover { background: #fffaf7; }
+  .product-group.open .item-main-row { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+  .item-detail { display: none; border-top: 1px solid var(--line); background: #fffaf7; border-radius: 0 0 var(--radius) var(--radius); padding: 6px 0; }
+  .product-group.open .item-detail { display: block; }
+  .item-price-history { padding: 8px 18px 10px 236px; display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 11.5px; color: var(--sub); border-top: 1px dashed rgba(232, 93, 47, 0.18); }
+  .item-price-history b { color: var(--ink); font-family: var(--font-mono); font-weight: 700; }
+  .item-manage-btn { border: 0; background: transparent; color: var(--sub); font-size: 11.5px; font-weight: 800; cursor: pointer; padding: 4px 6px; }
+  .item-manage-btn:hover { color: var(--accent-dark); }
+  .item-manage-btn.danger:hover { color: var(--danger); }
+
+  .item-form { display: flex; flex-direction: column; gap: 12px; }
+  .item-field { display: flex; flex-direction: column; gap: 5px; }
+  .item-field-label { font-size: 12px; font-weight: 800; color: var(--sub); }
+  .item-field input {
+    height: 38px; border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 0 12px; font-family: inherit; font-size: 13px; outline: none;
+  }
+  .item-field input:focus { border-color: #f0b79d; box-shadow: 0 0 0 3px rgba(232, 93, 47, 0.1); }
+  .item-field-hint { font-size: 11.5px; color: var(--sub); min-height: 15px; }
+  .item-field-hint.error { color: var(--danger); }
+  .item-field-hint.ok { color: #16a34a; }
+  .item-check { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 700; color: var(--ink); cursor: pointer; }
+  .item-save-btn { width: 100%; height: 40px; }
+
   @media (max-width: 980px) {
     .product-table { overflow-x: auto; padding-bottom: 4px; }
     .product-table-head, .product-main-row { min-width: 900px; }
@@ -390,18 +527,71 @@
   <header>
     <h1>랭킹추적</h1>
     <span class="tag">상품별 키워드 순위</span>
+    <div class="view-tabs">
+      <button type="button" class="view-tab active" data-view="rank">키워드 랭킹</button>
+      <button type="button" class="view-tab" data-view="items">아이템 추적</button>
+    </div>
   </header>
 
-  <div class="card">
-    <div class="store-label">내 스토어</div>
-    <div class="store-chips" id="storeChips"></div>
+  <div id="rankView">
+    <div class="card">
+      <div class="store-label">내 스토어</div>
+      <div class="store-chips" id="storeChips"></div>
+    </div>
+
+    <div class="summary" id="summary">불러오는 중...</div>
+
+    <div id="productGroups"></div>
   </div>
 
-  <div class="summary" id="summary">불러오는 중...</div>
-
-  <div id="productGroups"></div>
+  <div id="itemView" style="display:none;">
+    <div class="card item-toolbar">
+      <div>
+        <div class="store-label">추적 아이템</div>
+        <div class="item-toolbar-sub">내 상품·경쟁사 상품의 키워드 순위와 판매가 변동을 추적합니다</div>
+      </div>
+      <span class="item-toolbar-spacer"></span>
+      <span class="item-collect-status" id="itemCollectStatus"></span>
+      <button type="button" class="item-btn" id="itemCollectBtn" onclick="collectTrackedItems()">순위·가격 수집</button>
+      <button type="button" class="item-btn primary" onclick="openItemModal()">+ 아이템 추가</button>
+    </div>
+    <div id="trackedItemList" class="tracked-item-list"></div>
+  </div>
 
   <footer>키워드 일괄 수집으로 저장된 데이터를 상품 기준으로 묶어 보여줍니다 · 순위는 네이버 쇼핑 검색 API 기준 · 상품은 네이버 상품코드 기준으로 구분</footer>
+</div>
+
+<div class="memo-modal-backdrop" id="itemModal" aria-hidden="true">
+  <div class="memo-modal">
+    <div class="memo-modal-head">
+      <div>
+        <div class="memo-modal-title" id="itemModalTitle">아이템 추가</div>
+        <div class="memo-modal-sub">스마트스토어/브랜드스토어 상품 링크를 붙여넣으세요</div>
+      </div>
+      <button type="button" class="memo-close" onclick="closeItemModal()" aria-label="닫기">&times;</button>
+    </div>
+    <div class="memo-modal-body">
+      <div class="item-form">
+        <label class="item-field">
+          <span class="item-field-label">상품 링크 (또는 상품코드)</span>
+          <input type="text" id="itemLinkInput" placeholder="https://smartstore.naver.com/스토어명/products/1234567890">
+          <span class="item-field-hint" id="itemLinkHint"></span>
+        </label>
+        <label class="item-field">
+          <span class="item-field-label">추적 키워드 (쉼표로 구분)</span>
+          <input type="text" id="itemKeywordsInput" placeholder="열반사단열재, 단열재, 아이소핑크">
+        </label>
+        <label class="item-check">
+          <input type="checkbox" id="itemIsMineInput"> 내 상품입니다 (체크 안 하면 경쟁사 상품)
+        </label>
+        <label class="item-field">
+          <span class="item-field-label">메모 (선택)</span>
+          <input type="text" id="itemMemoInput" placeholder="예: OO스토어 주력 상품, 가격 자주 바꿈">
+        </label>
+        <button type="button" class="memo-add item-save-btn" id="itemSaveBtn" onclick="saveItemModal()">등록하고 바로 수집</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="memo-modal-backdrop" id="memoModal" aria-hidden="true">
@@ -657,10 +847,12 @@ function deltaHtml(delta) {
   return `<span class="rank-delta same">-</span>`;
 }
 
-// 키워드 일괄 수집 시 함께 저장된 월간 검색량(search_volume_total). 없으면(구버전 데이터) 빈 문자열.
+// 키워드 일괄 수집 시 함께 저장된 월간 검색량(search_volume_total).
+// 없어도(구버전 데이터) 같은 폭의 빈 칸을 차지해야 순위/변동 컬럼이 행마다 어긋나지 않는다.
+const VOLUME_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17v4"/><path d="M9 11v10"/><path d="M15 7v14"/><path d="M21 3v18"/></svg>`;
 function volumeHtml(total) {
-  if (total == null) return "";
-  return `<span class="keyword-volume" title="월간 검색량 ${Number(total).toLocaleString()}">🔍 ${Number(total).toLocaleString()}</span>`;
+  if (total == null) return `<span class="keyword-volume"></span>`;
+  return `<span class="keyword-volume" title="월간 검색량 ${Number(total).toLocaleString()}">${VOLUME_ICON}${Number(total).toLocaleString()}</span>`;
 }
 
 function rankSortValue(rank) {
@@ -1006,12 +1198,12 @@ function renderProductCard(product, categoryName) {
   const isCategoryExpanded = expandedCategories.has(categoryName);
 
   return `<div class="product-group${product.isChecked ? " checked" : ""}${isCategoryExpanded ? " open" : ""}">
-    <div class="product-main-row" onclick="this.parentElement.classList.toggle('open')">
-      <button type="button" class="expand-btn" aria-label="키워드 상세 보기"></button>
+    <div class="product-main-row">
+      <button type="button" class="expand-btn" onclick="this.closest('.product-group').classList.toggle('open')" aria-label="키워드 상세 보기"></button>
       ${productThumbHtml(product)}
       <div class="product-info">
         ${productNameHtml}
-        <div class="product-sub"><span class="product-code-inline">${esc(product.code)}</span>${priceHtml} · ${esc(categoryName)} · 키워드 ${visibleKeywords.length}개</div>
+        <div class="product-sub"><span class="product-code-inline">${esc(product.code)}</span>${priceHtml}</div>
       </div>
       <span class="main-keyword-cell"><span>${esc(mainKeyword?.keyword || "-")}</span></span>
       ${rankBadgeHtml(mainKeyword?.rank ?? null)}
@@ -1025,9 +1217,149 @@ function renderProductCard(product, categoryName) {
         <button type="button" class="action-btn${product.isChecked ? " checked" : ""}" onclick="toggleProductCheck(event, '${esc(product.code)}')" aria-label="중요 체크">
           <svg viewBox="0 0 24 24" fill="${product.isChecked ? "currentColor" : "none"}" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
         </button>
+        <button type="button" class="action-btn" onclick="trackFromProduct(event, '${esc(product.code)}')" aria-label="아이템 추적에 추가" title="아이템 추적에 추가">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v3"/><path d="M12 19v3"/><path d="M2 12h3"/><path d="M19 12h3"/></svg>
+        </button>
       </span>
     </div>
     <div class="product-keywords">${keywordRows}</div>
+  </div>`;
+}
+
+/* ── 카테고리 요약 대시보드 ──
+   같은 키워드가 여러 상품에 걸려 있으면 그중 "가장 좋은 순위" 1건을 그 키워드의 오늘 상태로 본다.
+   (스토어 입장에서 그 키워드로 몇 위에 노출되고 있는지가 관심사이므로) */
+function buildDashStats(section) {
+  const byKeyword = new Map();
+  section.products.forEach(product => {
+    getVisibleKeywords(product, section.name).forEach(k => {
+      const cur = byKeyword.get(k.keyword);
+      if (!cur || rankSortValue(k.rank) < rankSortValue(cur.rank)) byKeyword.set(k.keyword, k);
+    });
+  });
+  const list = [...byKeyword.values()];
+  const ranked = list.filter(k => k.rank != null);
+  const stats = {
+    total: list.length,
+    top10: ranked.filter(k => k.rank <= 10).length,
+    page1: ranked.filter(k => k.rank <= 40).length,
+    page23: ranked.filter(k => k.rank > 40 && k.rank <= 120).length,
+    page4plus: ranked.filter(k => k.rank > 120).length,
+    up: list.filter(k => k.delta != null && k.delta > 0).length,
+    down: list.filter(k => k.delta != null && k.delta < 0).length,
+    volumeTotal: list.reduce((sum, k) => sum + (k.search_volume_total != null ? Number(k.search_volume_total) : 0), 0),
+    hasVolume: list.some(k => k.search_volume_total != null),
+    upMovers: list.filter(k => moveScore(k) > 0).sort((a, b) => moveScore(b) - moveScore(a)).slice(0, 3),
+    downMovers: list.filter(k => moveScore(k) < 0).sort((a, b) => moveScore(a) - moveScore(b)).slice(0, 3),
+  };
+  return stats;
+}
+
+/* 순위 변동의 "체감 크기" — 상위 순위일수록 같은 칸수 이동도 크게 평가하는 로그 비율 점수.
+   score = ln((이전 순위+5) ÷ (현재 순위+5)). +5 스무딩이 없으면 1~3위권의 일상적인
+   1칸 출렁임(3→2위 등)이 50→20위 같은 진짜 상승보다 크게 잡히는 왜곡이 생긴다.
+   스무딩 적용 시: 3→2위 0.13 < 500→300위 0.50 < 50→20위 0.79 < 10→1위 0.92. 하락은 음수. */
+function moveScore(k) {
+  if (k.rank == null || k.delta == null || k.delta === 0) return 0;
+  const prevRank = k.rank + k.delta;
+  if (prevRank <= 0) return 0;
+  return Math.log((prevRank + 5) / (k.rank + 5));
+}
+
+/* 주목할 상품: 상품별로 가장 크게 움직인 키워드(가중 점수 기준)를 대표로 뽑아
+   급상승/급하락 상품 TOP 3을 고른다. "급"이라 부를 만한 변동만 잡는 두 가지 컷:
+   ① 최소 3칸 이동 — 최상위권 1~2칸 출렁임(1↔2위, 3→2위) 제거
+   ② 점수 0.4 이상 — 대략 순위가 1.5배 이상 좋아지거나 나빠져야 통과.
+      42→38위(0.09), 20→28위(0.28) 같은 완만한 이동은 탈락하고
+      4→1위(0.41), 50→20위(0.79), 100→50위(0.65)만 남는다.
+   기준 미달이면 억지로 채우지 않고 해당 줄을 통째로 비워둔다. */
+const NOTABLE_MIN_STEPS = 3;
+const NOTABLE_MIN_SCORE = 0.4;
+function buildNotableProducts(section) {
+  const moves = section.products.map(product => {
+    let best = null;
+    let worst = null;
+    getVisibleKeywords(product, section.name).forEach(k => {
+      if (k.delta == null || Math.abs(k.delta) < NOTABLE_MIN_STEPS) return;
+      const score = moveScore(k);
+      if (Math.abs(score) < NOTABLE_MIN_SCORE) return;
+      if (score > 0 && (!best || score > best.score)) best = { k, score };
+      if (score < 0 && (!worst || score < worst.score)) worst = { k, score };
+    });
+    return { product, best, worst };
+  });
+  return {
+    rising: moves.filter(m => m.best).sort((a, b) => b.best.score - a.best.score).slice(0, 3),
+    falling: moves.filter(m => m.worst).sort((a, b) => a.worst.score - b.worst.score).slice(0, 3),
+  };
+}
+
+function dashProductChip(product, k) {
+  const up = k.delta > 0;
+  const prevRank = k.rank + k.delta;
+  const thumb = product.image ? `<img class="chip-thumb" src="${esc(product.image)}" loading="lazy" alt="">` : "";
+  const url = productUrl(product);
+  const inner = `${thumb}<span class="chip-name" title="${esc(product.name)}">${esc(product.name)}</span>
+    <span class="chip-keyword">${esc(k.keyword)}</span>
+    <span class="dash-mover-delta ${up ? "up" : "down"}">${up ? "▲" : "▼"}</span>
+    <span class="dash-mover-rank">${prevRank}위 → ${k.rank}위</span>`;
+  return url
+    ? `<a class="dash-mover-chip" href="${esc(url)}" target="_blank" rel="noopener">${inner}</a>`
+    : `<span class="dash-mover-chip">${inner}</span>`;
+}
+
+function dashMoverChip(k) {
+  const cls = k.delta > 0 ? "up" : "down";
+  const arrow = k.delta > 0 ? "▲" : "▼";
+  return `<a class="dash-mover-chip" href="${esc(keywordUrl(k.keyword))}">
+    ${esc(k.keyword)}
+    <span class="dash-mover-delta ${cls}">${arrow}${Math.abs(k.delta)}</span>
+    <span class="dash-mover-rank">${k.rank}위</span>
+  </a>`;
+}
+
+function renderCategoryDashboard(section) {
+  const s = buildDashStats(section);
+  if (!s.total) return "";
+  const rankedTotal = s.page1 + s.page23 + s.page4plus;
+  const pct = n => rankedTotal ? Math.round(n / rankedTotal * 100) : 0;
+  // 시퀀셜 램프(accent 한 색상, 진할수록 상위 노출) — 분포 바 세그먼트
+  const segs = [
+    { label: "1페이지", count: s.page1, color: "#e85d2f" },
+    { label: "2~3페이지", count: s.page23, color: "#f4a988" },
+    { label: "4페이지 이하", count: s.page4plus, color: "#fbdccb" },
+  ].filter(seg => seg.count > 0);
+
+  const barHtml = rankedTotal ? `
+    <div class="dash-bar-wrap">
+      <div class="dash-bar">
+        ${segs.map(seg => `<span class="dash-bar-seg" style="flex:${seg.count};background:${seg.color};" title="${seg.label} ${seg.count}개 (${pct(seg.count)}%)"></span>`).join("")}
+      </div>
+      <div class="dash-legend">
+        ${segs.map(seg => `<span class="dash-legend-item"><span class="dash-legend-dot" style="background:${seg.color};"></span>${seg.label} <b>${seg.count}개</b> · ${pct(seg.count)}%</span>`).join("")}
+      </div>
+    </div>` : "";
+
+  const notable = buildNotableProducts(section);
+  const moversHtml = (s.upMovers.length || s.downMovers.length || notable.rising.length || notable.falling.length) ? `
+    <div class="dash-movers">
+      ${s.upMovers.length ? `<div class="dash-mover-row"><span class="dash-mover-title">상승 TOP</span><div class="dash-mover-chips">${s.upMovers.map(dashMoverChip).join("")}</div></div>` : ""}
+      ${s.downMovers.length ? `<div class="dash-mover-row"><span class="dash-mover-title">하락 TOP</span><div class="dash-mover-chips">${s.downMovers.map(dashMoverChip).join("")}</div></div>` : ""}
+      ${notable.rising.length ? `<div class="dash-mover-row"><span class="dash-mover-title">급상승 상품</span><div class="dash-mover-chips products">${notable.rising.map(m => dashProductChip(m.product, m.best.k)).join("")}</div></div>` : ""}
+      ${notable.falling.length ? `<div class="dash-mover-row"><span class="dash-mover-title">급하락 상품</span><div class="dash-mover-chips products">${notable.falling.map(m => dashProductChip(m.product, m.worst.k)).join("")}</div></div>` : ""}
+    </div>` : "";
+
+  return `<div class="rank-dash">
+    <div class="rank-dash-tiles">
+      <div class="dash-tile"><div class="dash-label">추적 키워드</div><div class="dash-value">${s.total.toLocaleString()}<small>개</small></div></div>
+      <div class="dash-tile"><div class="dash-label">TOP 10</div><div class="dash-value">${s.top10.toLocaleString()}<small>개</small></div></div>
+      <div class="dash-tile"><div class="dash-label">1페이지 노출</div><div class="dash-value">${s.page1.toLocaleString()}<small>${pct(s.page1)}%</small></div></div>
+      <div class="dash-tile"><div class="dash-label">순위 상승</div><div class="dash-value up">${s.up ? "▲" + s.up.toLocaleString() : "-"}</div></div>
+      <div class="dash-tile"><div class="dash-label">순위 하락</div><div class="dash-value down">${s.down ? "▼" + s.down.toLocaleString() : "-"}</div></div>
+      <div class="dash-tile"><div class="dash-label">월간 검색량 합</div><div class="dash-value">${s.hasVolume ? s.volumeTotal.toLocaleString() : "-"}</div></div>
+    </div>
+    ${barHtml}
+    ${moversHtml}
   </div>`;
 }
 
@@ -1059,6 +1391,7 @@ function renderProducts(products) {
 
   const panelHtml = `
     <section class="category-section">
+      ${activeSection.products.length ? renderCategoryDashboard(activeSection) : ""}
       <div class="category-title-row">
         <h2 class="category-title">${esc(activeSection.name)}</h2>
         <span class="category-meta">상품 ${activeSection.products.length}개 · 키워드 ${activeSection.keywordCount}개</span>
@@ -1245,6 +1578,425 @@ async function loadAndRender() {
   } catch (e) {
     summary.textContent = "불러오기 실패: " + (e.message || "오류");
   }
+}
+
+/* ═══════════ 아이템 추적 ═══════════
+   내 상품/경쟁사 상품을 링크로 등록해두면 키워드별 순위 + 판매가 변동을 날짜별로 쌓는다.
+   수집은 naver-rank 함수의 watchProductIds 파라미터를 사용 — 키워드 1회 스캔에서
+   감시 중인 모든 상품의 순위·가격을 한 번에 건져온다. */
+const RANK_FN_URL = SUPABASE_URL + "/functions/v1/naver-rank";
+let activeView = "rank";
+let trackedItems = [];
+let trackedHistory = [];
+let trackedLoaded = false;
+let itemCollecting = false;
+let itemModalEditCode = ""; // 수정 모드면 대상 상품코드
+const expandedTrackedItems = new Set();
+
+document.querySelectorAll(".view-tab").forEach(tab => tab.addEventListener("click", () => {
+  activeView = tab.dataset.view;
+  document.querySelectorAll(".view-tab").forEach(t => t.classList.toggle("active", t === tab));
+  document.getElementById("rankView").style.display = activeView === "rank" ? "" : "none";
+  document.getElementById("itemView").style.display = activeView === "items" ? "" : "none";
+  if (activeView === "items" && !trackedLoaded) loadTrackedData();
+}));
+
+function sbHeaders(extra) {
+  return {
+    "Content-Type": "application/json",
+    "apikey": SUPABASE_ANON_KEY,
+    "Authorization": "Bearer " + SUPABASE_ANON_KEY,
+    ...(extra || {}),
+  };
+}
+
+async function loadTrackedData() {
+  const list = document.getElementById("trackedItemList");
+  list.innerHTML = `<div class="empty">불러오는 중...</div>`;
+  try {
+    const [itemsRes, histRes] = await Promise.all([
+      fetch(`${SUPABASE_URL}/rest/v1/tracked_items?select=*&order=created_at.asc`, { headers: sbHeaders() }),
+      fetch(`${SUPABASE_URL}/rest/v1/tracked_item_history?select=*&order=collected_date.desc,checked_at.desc&limit=3000`, { headers: sbHeaders() }),
+    ]);
+    if (!itemsRes.ok || !histRes.ok) throw new Error("조회 실패 (" + (itemsRes.ok ? histRes.status : itemsRes.status) + ")");
+    trackedItems = await itemsRes.json();
+    trackedHistory = await histRes.json();
+    trackedLoaded = true;
+    renderTrackedItems();
+  } catch (e) {
+    list.innerHTML = `<div class="empty">아이템 추적 데이터를 불러오지 못했습니다: ${esc(e.message || "오류")}<br>
+      Supabase에서 <b>tracked_items.sql</b>을 실행했는지 확인해 주세요.</div>`;
+  }
+}
+
+function itemKeywords(item) {
+  if (Array.isArray(item.keywords)) return item.keywords.map(k => String(k).trim()).filter(Boolean);
+  try { return (JSON.parse(item.keywords || "[]") || []).map(k => String(k).trim()).filter(Boolean); }
+  catch (_) { return []; }
+}
+
+/* 상품 링크 → 네이버 상품코드. 스마트스토어/브랜드스토어의 /products/{id}가 기본.
+   가격비교(catalog) 링크는 개별 몰 상품이 아니라 추적이 불안정해 경고만 하고 허용. */
+function parseProductLink(raw) {
+  const s = String(raw || "").trim();
+  if (!s) return { code: "", warn: "" };
+  let m = s.match(/\/products\/(\d+)/);
+  if (m) return { code: m[1], warn: "" };
+  m = s.match(/catalog\/(\d+)/);
+  if (m) return { code: m[1], warn: "가격비교 카탈로그 링크입니다 — 개별 판매처 상품 링크를 권장합니다." };
+  m = s.match(/nvMid=(\d+)/);
+  if (m) return { code: m[1], warn: "" };
+  if (/^\d{6,}$/.test(s)) return { code: s, warn: "" };
+  return { code: "", warn: "" };
+}
+
+function openItemModal(code) {
+  itemModalEditCode = code || "";
+  const item = code ? trackedItems.find(i => i.product_code === code) : null;
+  document.getElementById("itemModalTitle").textContent = item ? "아이템 수정" : "아이템 추가";
+  document.getElementById("itemLinkInput").value = item ? (item.product_link || item.product_code) : "";
+  document.getElementById("itemLinkInput").disabled = !!item;
+  document.getElementById("itemKeywordsInput").value = item ? itemKeywords(item).join(", ") : "";
+  document.getElementById("itemIsMineInput").checked = item ? !!item.is_mine : false;
+  document.getElementById("itemMemoInput").value = item ? (item.memo || "") : "";
+  document.getElementById("itemSaveBtn").textContent = item ? "수정 저장" : "등록하고 바로 수집";
+  setItemLinkHint("", "");
+  document.getElementById("itemModal").classList.add("open");
+  document.getElementById("itemModal").setAttribute("aria-hidden", "false");
+}
+
+function closeItemModal() {
+  document.getElementById("itemModal").classList.remove("open");
+  document.getElementById("itemModal").setAttribute("aria-hidden", "true");
+}
+
+document.getElementById("itemModal").addEventListener("click", (e) => {
+  if (e.target.id === "itemModal") closeItemModal();
+});
+
+function setItemLinkHint(text, cls) {
+  const hint = document.getElementById("itemLinkHint");
+  hint.textContent = text;
+  hint.className = "item-field-hint" + (cls ? " " + cls : "");
+}
+
+document.getElementById("itemLinkInput").addEventListener("input", (e) => {
+  const { code, warn } = parseProductLink(e.target.value);
+  if (!e.target.value.trim()) return setItemLinkHint("", "");
+  if (!code) return setItemLinkHint("상품코드를 찾지 못했습니다 — 링크를 확인해 주세요.", "error");
+  setItemLinkHint(warn || `상품코드 인식됨: ${code}`, warn ? "error" : "ok");
+});
+
+async function saveItemModal() {
+  const linkRaw = document.getElementById("itemLinkInput").value.trim();
+  const { code } = parseProductLink(linkRaw);
+  const keywords = document.getElementById("itemKeywordsInput").value
+    .split(",").map(k => k.trim()).filter(Boolean);
+  const targetCode = itemModalEditCode || code;
+  if (!targetCode) return setItemLinkHint("상품코드를 찾지 못했습니다 — 링크를 확인해 주세요.", "error");
+  if (!keywords.length) return setItemLinkHint("추적 키워드를 1개 이상 입력해 주세요.", "error");
+
+  const isNew = !itemModalEditCode;
+  const existing = trackedItems.find(i => i.product_code === targetCode);
+  if (isNew && existing) return setItemLinkHint("이미 추적 중인 상품입니다.", "error");
+
+  const btn = document.getElementById("itemSaveBtn");
+  btn.disabled = true;
+  try {
+    const payload = {
+      product_code: targetCode,
+      product_link: linkRaw.startsWith("http") ? linkRaw : (existing?.product_link || ""),
+      is_mine: document.getElementById("itemIsMineInput").checked,
+      memo: document.getElementById("itemMemoInput").value.trim(),
+      keywords,
+      updated_at: new Date().toISOString(),
+    };
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/tracked_items?on_conflict=product_code`, {
+      method: "POST",
+      headers: sbHeaders({ "Prefer": "resolution=merge-duplicates,return=minimal" }),
+      body: JSON.stringify([payload]),
+    });
+    if (!res.ok) throw new Error("저장 실패 (" + res.status + ")");
+    closeItemModal();
+    await loadTrackedData();
+    if (isNew) collectTrackedItems([targetCode]); // 등록 직후 첫 스냅샷 수집 (이때 상품명/이미지도 자동으로 채워짐)
+  } catch (e) {
+    setItemLinkHint(e.message || "저장에 실패했습니다.", "error");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function deleteTrackedItem(event, code) {
+  event.stopPropagation();
+  const item = trackedItems.find(i => i.product_code === code);
+  if (!item) return;
+  if (!confirm(`"${item.product_name || code}" 추적을 중단할까요?\n(쌓인 이력 데이터는 지우지 않고 보관합니다)`)) return;
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/tracked_items?product_code=eq.${encodeURIComponent(code)}`, {
+    method: "DELETE",
+    headers: sbHeaders(),
+  });
+  if (!res.ok) return alert("삭제 실패 (" + res.status + ")");
+  await loadTrackedData();
+}
+
+/* 수집: 추적 키워드를 모아 키워드당 1회 스캔, watched 결과를 이력으로 저장.
+   onlyCodes를 주면 그 상품이 추적하는 키워드만 수집(등록 직후 첫 스냅샷용). */
+async function collectTrackedItems(onlyCodes) {
+  if (itemCollecting) return;
+  const targets = onlyCodes ? trackedItems.filter(i => onlyCodes.includes(i.product_code)) : trackedItems;
+  if (!targets.length) return;
+  const keywordMap = new Map(); // keyword → 이 키워드를 추적하는 상품코드들
+  targets.forEach(item => itemKeywords(item).forEach(kw => {
+    if (!keywordMap.has(kw)) keywordMap.set(kw, new Set());
+    keywordMap.get(kw).add(item.product_code);
+  }));
+  if (!keywordMap.size) return;
+
+  const allCodes = trackedItems.map(i => i.product_code); // 스캔은 공짜이므로 전체 감시 목록을 넘겨 겸사겸사 수집
+  const status = document.getElementById("itemCollectStatus");
+  const btn = document.getElementById("itemCollectBtn");
+  itemCollecting = true;
+  btn.disabled = true;
+  const collectedDate = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10); // KST
+  let done = 0;
+
+  try {
+    for (const [keyword, codes] of keywordMap) {
+      status.textContent = `수집 중... (${++done}/${keywordMap.size}) ${keyword}`;
+      try {
+        const res = await fetch(RANK_FN_URL, {
+          method: "POST",
+          headers: sbHeaders(),
+          body: JSON.stringify({ keyword, maxRank: 1000, withInsight: false, watchProductIds: allCodes }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || res.status);
+        const watched = data.watched || [];
+        const foundByCode = new Map(watched.map(w => [String(w.productId), w]));
+
+        // 이력 저장: 이 키워드를 추적하는 상품은 못 찾았어도 "이탈" 행을 남긴다.
+        // 추적 키워드가 아니어도 스캔에 걸린 감시 상품은 보너스로 저장(나중에 키워드 추가 시 이력이 이미 있음).
+        const rows = [];
+        const seen = new Set();
+        codes.forEach(codeInSet => {
+          const w = foundByCode.get(String(codeInSet));
+          rows.push({
+            product_code: codeInSet, keyword,
+            rank: w ? w.rank : null,
+            price: w ? (Number(w.price) || 0) : 0,
+            mall_name: w ? (w.mallName || "") : "",
+            collected_date: collectedDate,
+            checked_at: new Date().toISOString(),
+          });
+          seen.add(String(codeInSet));
+        });
+        watched.forEach(w => {
+          if (seen.has(String(w.productId))) return;
+          rows.push({
+            product_code: String(w.productId), keyword,
+            rank: w.rank, price: Number(w.price) || 0, mall_name: w.mallName || "",
+            collected_date: collectedDate, checked_at: new Date().toISOString(),
+          });
+        });
+        if (rows.length) {
+          await fetch(`${SUPABASE_URL}/rest/v1/tracked_item_history?on_conflict=product_code,keyword,collected_date`, {
+            method: "POST",
+            headers: sbHeaders({ "Prefer": "resolution=merge-duplicates,return=minimal" }),
+            body: JSON.stringify(rows),
+          });
+        }
+
+        // 검색 결과에서 상품명/이미지/판매처 메타 자동 갱신
+        for (const w of watched) {
+          const item = trackedItems.find(i => i.product_code === String(w.productId));
+          if (!item) continue;
+          const patch = {};
+          if (w.title && w.title !== item.product_name) patch.product_name = w.title;
+          if (w.image && w.image !== item.product_image) patch.product_image = w.image;
+          if (w.mallName && w.mallName !== item.mall_name) patch.mall_name = w.mallName;
+          if (w.link && !item.product_link) patch.product_link = w.link;
+          if (Object.keys(patch).length) {
+            patch.updated_at = new Date().toISOString();
+            await fetch(`${SUPABASE_URL}/rest/v1/tracked_items?product_code=eq.${encodeURIComponent(item.product_code)}`, {
+              method: "PATCH",
+              headers: sbHeaders({ "Prefer": "return=minimal" }),
+              body: JSON.stringify(patch),
+            });
+            Object.assign(item, patch);
+          }
+        }
+      } catch (e) {
+        console.warn("아이템 추적 수집 실패:", keyword, e);
+      }
+    }
+    status.textContent = `수집 완료 (${keywordMap.size}개 키워드)`;
+  } finally {
+    itemCollecting = false;
+    btn.disabled = false;
+    await loadTrackedData();
+    setTimeout(() => { if (!itemCollecting) status.textContent = ""; }, 4000);
+  }
+}
+
+/* 아이템별 뷰모델: 키워드별 현재 순위/전일 대비, 현재가/직전 가격 변동 */
+function buildTrackedView(item) {
+  const rows = trackedHistory.filter(r => r.product_code === item.product_code);
+  const byKeyword = new Map();
+  rows.forEach(r => {
+    if (!byKeyword.has(r.keyword)) byKeyword.set(r.keyword, []);
+    byKeyword.get(r.keyword).push(r); // 이미 collected_date desc 정렬
+  });
+  const keywordStates = itemKeywords(item).map(kw => {
+    const list = byKeyword.get(kw) || [];
+    const cur = list[0] || null;
+    const prev = list.find(r => cur && r.collected_date !== cur.collected_date) || null;
+    const delta = cur && prev && cur.rank != null && prev.rank != null ? prev.rank - cur.rank : null;
+    return { keyword: kw, rank: cur ? cur.rank : undefined, delta, collectedDate: cur?.collected_date || "" };
+  });
+
+  // 가격 시계열: 날짜별 대표 가격(0 제외) → 최신가와 직전 "다른" 가격 비교
+  const priceByDate = new Map();
+  rows.forEach(r => {
+    const p = Number(r.price) || 0;
+    if (p > 0 && !priceByDate.has(r.collected_date)) priceByDate.set(r.collected_date, p);
+  });
+  const priceDates = [...priceByDate.keys()].sort().reverse();
+  const curPrice = priceDates.length ? priceByDate.get(priceDates[0]) : 0;
+  let prevPrice = 0, prevPriceDate = "";
+  for (const d of priceDates.slice(1)) {
+    if (priceByDate.get(d) !== curPrice) { prevPrice = priceByDate.get(d); prevPriceDate = d; break; }
+  }
+  // 최근 가격 변경 이력 (오래된 → 최신 순으로 짚어가며 변경점만 기록)
+  const changes = [];
+  let last = null;
+  [...priceDates].reverse().forEach(d => {
+    const p = priceByDate.get(d);
+    if (last != null && p !== last) changes.push({ date: d, from: last, to: p });
+    last = p;
+  });
+  return { keywordStates, curPrice, prevPrice, prevPriceDate, priceChanges: changes.slice(-5).reverse() };
+}
+
+function itemPriceCellHtml(view) {
+  if (!view.curPrice) return `<span class="item-price-cell"><span class="item-price-now">-</span></span>`;
+  let deltaHtml = "";
+  if (view.prevPrice) {
+    const diff = view.curPrice - view.prevPrice;
+    const cls = diff > 0 ? "up" : "down";
+    deltaHtml = `<span class="item-price-delta ${cls}">${diff > 0 ? "▲" : "▼"}${Math.abs(diff).toLocaleString()}</span>`;
+  }
+  return `<span class="item-price-cell"><span class="item-price-now">${view.curPrice.toLocaleString()}원</span>${deltaHtml}</span>`;
+}
+
+function renderTrackedItems() {
+  const target = document.getElementById("trackedItemList");
+  if (!trackedItems.length) {
+    target.innerHTML = `<div class="empty">추적 중인 아이템이 없습니다. 우측 상단 <b>+ 아이템 추가</b>로 내 상품이나 경쟁사 상품 링크를 등록해 보세요.</div>`;
+    return;
+  }
+  // 경쟁사가 주력이므로 경쟁사 섹션을 먼저 보여준다
+  const groups = [
+    { key: "competitor", title: "경쟁사 상품", items: trackedItems.filter(i => !i.is_mine) },
+    { key: "mine", title: "내 상품", items: trackedItems.filter(i => i.is_mine) },
+  ].filter(g => g.items.length);
+  target.innerHTML = groups.map(group => {
+    const allExpanded = group.items.every(i => expandedTrackedItems.has(i.product_code));
+    return `
+    <div class="item-group-title">
+      <span>${group.title} <span class="item-group-count">${group.items.length}개</span></span>
+      <span class="item-group-spacer"></span>
+      <button type="button" class="expand-all-btn${allExpanded ? " is-open" : ""}" onclick="toggleTrackedGroup('${group.key}')">
+        ${allExpanded ? "전체 접기" : "전체 펼치기"}
+      </button>
+    </div>
+    ${group.items.map(renderTrackedItemCard).join("")}`;
+  }).join("");
+}
+
+/* 그룹(경쟁사/내 상품) 단위 전체 펼치기·접기 — 키워드 랭킹의 전체 펼치기와 같은 스타일 */
+function toggleTrackedGroup(key) {
+  const items = trackedItems.filter(i => key === "mine" ? i.is_mine : !i.is_mine);
+  const allExpanded = items.length && items.every(i => expandedTrackedItems.has(i.product_code));
+  items.forEach(i => {
+    if (allExpanded) expandedTrackedItems.delete(i.product_code);
+    else expandedTrackedItems.add(i.product_code);
+  });
+  renderTrackedItems();
+}
+
+function renderTrackedItemCard(item) {
+    const view = buildTrackedView(item);
+    const best = view.keywordStates.filter(s => s.rank != null).sort((a, b) => a.rank - b.rank)[0];
+    const isOpen = expandedTrackedItems.has(item.product_code);
+    const name = item.product_name || "(첫 수집 전 — 수집하면 상품명이 채워집니다)";
+    const thumb = item.product_image
+      ? `<img class="product-thumb" src="${esc(item.product_image)}" loading="lazy" alt="">`
+      : `<span class="product-thumb empty">IMG</span>`;
+    const keywordRows = view.keywordStates.map(s => `
+      <div class="keyword-rank-row">
+        <span class="keyword-type main">추적</span>
+        <a class="keyword-name" href="${esc(keywordUrl(s.keyword))}" onclick="event.stopPropagation()">${esc(s.keyword)}</a>
+        <span class="keyword-main">${esc(s.collectedDate || "미수집")}</span>
+        ${s.rank === undefined ? `<span class="rank-badge">미수집</span>` : rankBadgeHtml(s.rank)}
+        ${deltaHtml(s.delta)}
+        <span class="keyword-volume"></span>
+      </div>`).join("");
+    const priceHistoryHtml = view.priceChanges.length
+      ? `<div class="item-price-history">가격 변동:${view.priceChanges.map(c =>
+          ` <span>${esc(c.date.slice(5))} <b>${c.from.toLocaleString()}→${c.to.toLocaleString()}원</b></span>`).join(" ·")}</div>`
+      : "";
+    return `<div class="product-group${isOpen ? " open" : ""}">
+      <div class="item-main-row">
+        <button type="button" class="expand-btn" onclick="toggleTrackedItem('${esc(item.product_code)}')" aria-label="키워드 상세 보기"></button>
+        ${item.product_link ? `<a class="product-thumb-link" href="${esc(item.product_link)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${thumb}</a>` : thumb}
+        <div class="product-info">
+          <span class="product-name" title="${esc(name)}">${esc(name)}</span>
+          <div class="product-sub">
+            <span class="product-code-inline">${esc(item.product_code)}</span>
+            ${item.mall_name ? ` · ${esc(item.mall_name)}` : ""} · 키워드 ${view.keywordStates.length}개
+            ${item.memo ? ` · ${esc(item.memo)}` : ""}
+          </div>
+        </div>
+        <span class="item-owner-badge${item.is_mine ? " mine" : ""}">${item.is_mine ? "내 상품" : "경쟁사"}</span>
+        ${best ? rankBadgeHtml(best.rank) : `<span class="rank-badge">미수집</span>`}
+        ${itemPriceCellHtml(view)}
+        <span class="product-actions">
+          <button type="button" class="item-manage-btn" onclick="event.stopPropagation(); openItemModal('${esc(item.product_code)}')">수정</button>
+          <button type="button" class="item-manage-btn danger" onclick="deleteTrackedItem(event, '${esc(item.product_code)}')">삭제</button>
+        </span>
+      </div>
+      <div class="item-detail">
+        ${keywordRows}
+        ${priceHistoryHtml}
+      </div>
+    </div>`;
+}
+
+function toggleTrackedItem(code) {
+  if (expandedTrackedItems.has(code)) expandedTrackedItems.delete(code);
+  else expandedTrackedItems.add(code);
+  renderTrackedItems();
+}
+
+/* 키워드 랭킹의 내 상품 카드 → 아이템 추적 등록. 모달을 상품 정보로 미리 채워서 연다.
+   이미 추적 중이면 수정 모드로 연다. */
+async function trackFromProduct(event, code) {
+  event.stopPropagation();
+  const product = findCachedProduct(code);
+  if (!product) return;
+  if (!trackedLoaded) { try { await loadTrackedData(); } catch (_) { /* 목록 조회 실패해도 신규 등록은 가능 */ } }
+  const existing = trackedItems.find(i => i.product_code === String(code));
+  if (existing) {
+    openItemModal(existing.product_code);
+    return;
+  }
+  openItemModal();
+  document.getElementById("itemLinkInput").value = product.link || String(code);
+  document.getElementById("itemLinkInput").dispatchEvent(new Event("input")); // 상품코드 인식 힌트 갱신
+  const mains = [...new Set(product.keywords.filter(k => !k.is_sub).map(k => k.keyword))];
+  document.getElementById("itemKeywordsInput").value = mains.join(", ");
+  document.getElementById("itemIsMineInput").checked = true; // 내 스토어 목록에서 온 상품이므로
 }
 
 renderStoreChips();
