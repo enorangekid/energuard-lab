@@ -858,6 +858,7 @@ function saveAnalysisHistory(keyword, store, data) {
   window.nrSaveAnalysis({
     keyword,
     store,
+    data,
     summary: {
       volume: data.ad?.monthlyTotal ?? null,
       products: data.stats?.totalProducts ?? null,
@@ -1753,11 +1754,16 @@ async function runBatchCollect() {
   btn.disabled = false;
 }
 
-window.nrRestoreAnalysis = function nrRestoreAnalysis(keyword, store) {
+window.nrRestoreAnalysis = function nrRestoreAnalysis(keyword, store, data) {
   const kw = String(keyword || "").trim();
   if (!kw) return;
   if (store && store !== selectedStore) selectStore(store);
   document.getElementById("keyword").value = kw;
+  if (data) {
+    statusLine.style.display = "none";
+    render(data);
+    return;
+  }
   runSearch();
 };
 

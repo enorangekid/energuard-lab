@@ -123,6 +123,7 @@ window.nrSaveAnalysis = function nrSaveAnalysis(entry) {
     keyword: String(entry.keyword || "").trim(),
     store: String(entry.store || "한국 단열").trim(),
     summary: entry.summary || {},
+    data: entry.data || null,
     savedAt: new Date().toISOString(),
   };
   if (!normalized.keyword) return;
@@ -185,7 +186,7 @@ function nrHistoryRenderList() {
       if (!entry) return;
       nrHistoryToggle(false);
       if (typeof window.nrRestoreAnalysis === "function") {
-        window.nrRestoreAnalysis(entry.keyword, entry.store); // 키워드분석 페이지 — 즉시 복원
+        window.nrRestoreAnalysis(entry.keyword, entry.store, entry.data); // 키워드분석 페이지 — 저장 데이터 즉시 복원
         return;
       }
       const prefix = (typeof window.TOPBAR_PREFIX === "string")
