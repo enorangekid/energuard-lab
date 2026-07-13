@@ -740,8 +740,6 @@
   <div id="itemView" style="display:none;">
     <div class="item-toolbar">
       <div class="store-chips item-group-filter" id="itemGroupFilter"></div>
-      <span class="item-toolbar-spacer"></span>
-      <span class="item-collect-status" id="itemCollectStatus"></span>
       <button type="button" class="item-btn item-icon-btn collect" id="itemCollectBtn" onclick="collectTrackedItems()" aria-label="순위·가격 수집" title="순위·가격 수집">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 12a9 9 0 0 1-15.5 6.2"></path>
@@ -755,6 +753,8 @@
           <path d="M12 5v14"></path><path d="M5 12h14"></path>
         </svg>
       </button>
+      <span class="item-toolbar-spacer"></span>
+      <span class="item-collect-status" id="itemCollectStatus"></span>
     </div>
     <div id="trackedItemList" class="tracked-item-list"></div>
   </div>
