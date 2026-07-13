@@ -851,6 +851,22 @@ document.addEventListener("click", (e) => {
 const btn = document.getElementById("searchBtn");
 const statusLine = document.getElementById("statusLine");
 
+function saveAnalysisHistory(keyword, store, data) {
+  if (typeof window.nrSaveAnalysis !== "function") return;
+  const results = data.results || [];
+  const ranks = results.map(row => Number(row.rank)).filter(rank => Number.isFinite(rank));
+  window.nrSaveAnalysis({
+    keyword,
+    store,
+    summary: {
+      volume: data.ad?.monthlyTotal ?? null,
+      products: data.stats?.totalProducts ?? null,
+      compScore: data.ad?.compRatio != null ? compScore(data.ad.compRatio) : null,
+      bestRank: ranks.length ? Math.min(...ranks) : null,
+    },
+  });
+}
+
 async function runSearch(kwOverride) {
   const store = selectedStore;
   const kwInput = document.getElementById("keyword");
@@ -881,6 +897,7 @@ async function runSearch(kwOverride) {
     if (!res.ok) throw new Error(data.error || res.status);
     statusLine.style.display = "none";
     render(data);
+    saveAnalysisHistory(keyword, store, data);
   } catch (e) {
     statusLine.innerHTML = `분석 실패: ${esc(e.message || "네트워크 오류")}`;
   }
@@ -1736,12 +1753,19 @@ async function runBatchCollect() {
   btn.disabled = false;
 }
 
-/* URL 쿼리스트링으로 들어온 키워드 자동 실행 (홈 화면 검색창 연동) */
-const _kwParam = new URLSearchParams(location.search).get("keyword");
-if (_kwParam) {
-  document.getElementById("keyword").value = _kwParam;
+window.nrRestoreAnalysis = function nrRestoreAnalysis(keyword, store) {
+  const kw = String(keyword || "").trim();
+  if (!kw) return;
+  if (store && store !== selectedStore) selectStore(store);
+  document.getElementById("keyword").value = kw;
   runSearch();
-}
+};
+
+/* URL 쿼리스트링으로 들어온 키워드 자동 실행 (홈 화면/분석 내역 연동) */
+const _params = new URLSearchParams(location.search);
+const _kwParam = _params.get("restoreKeyword") || _params.get("keyword");
+const _storeParam = _params.get("restoreStore");
+if (_kwParam) window.nrRestoreAnalysis(_kwParam, _storeParam);
 </script>
 <script src="trend-widget.js"></script>
 </body>

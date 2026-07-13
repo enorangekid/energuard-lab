@@ -117,6 +117,22 @@ function nrEsc(s) {
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
+window.nrSaveAnalysis = function nrSaveAnalysis(entry) {
+  if (!entry || !entry.keyword) return;
+  const normalized = {
+    keyword: String(entry.keyword || "").trim(),
+    store: String(entry.store || "한국 단열").trim(),
+    summary: entry.summary || {},
+    savedAt: new Date().toISOString(),
+  };
+  if (!normalized.keyword) return;
+  const entries = nrHistoryLoad()
+    .filter(item => !(item.keyword === normalized.keyword && item.store === normalized.store));
+  entries.unshift(normalized);
+  localStorage.setItem(NR_HISTORY_KEY, JSON.stringify(entries.slice(0, 40)));
+  nrHistoryRenderList();
+};
+
 function nrHistoryToggle(force) {
   const panel = document.getElementById("historyPanel");
   if (!panel) return;
