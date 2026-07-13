@@ -167,6 +167,11 @@
   .batch-banner.active { border-color: var(--dark); color: #fff; background: var(--dark); }
   .batch-banner.util { color: var(--accent); border-style: dashed; }
   .batch-banner.util:hover { border-color: var(--accent); background: var(--accent-tint); }
+  .batch-utils .batch-banner.util {
+    height: 42px; padding: 0 12px; border-radius: 6px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 800;
+  }
   .batch-banner-remove {
     display: inline-block; margin-left: 6px; font-weight: 800; color: inherit; opacity: .6;
   }
@@ -174,8 +179,8 @@
 
   .batch-run-wrap { display: none; margin-top: 14px; text-align: center; }
   #batchRunBtn {
-    padding: 9px 20px; border: none; border-radius: 4px;
-    background: var(--accent); color: #fff; font-size: 13px; font-weight: 700; cursor: pointer;
+    height: 42px; padding: 0 28px; border: none; border-radius: 6px;
+    background: var(--accent); color: #fff; font-size: 15px; font-weight: 700; cursor: pointer;
     font-family: inherit; transition: background .15s;
   }
   #batchRunBtn:hover { background: var(--accent-dark); }
@@ -302,15 +307,28 @@
 
   /* 아이템 추적 등록 버튼 (내 스토어 순위 · TOP10 공용) */
   .track-btn {
-    width: 28px; height: 28px; flex-shrink: 0;
+    position: relative;
+    width: 30px; height: 30px; flex-shrink: 0;
     border: 1px solid var(--line); border-radius: 50%;
     background: #fff; color: #9aa3b3;
     display: inline-flex; align-items: center; justify-content: center;
     cursor: pointer; transition: all .14s;
   }
-  .track-btn:hover { border-color: #f0b79d; color: var(--accent-dark); background: #fffaf7; }
-  .track-btn.added { border-color: var(--accent); background: var(--accent); color: #fff; cursor: default; }
-  .track-btn svg { width: 14px; height: 14px; }
+  .track-btn:hover { border-color: #d7dde7; color: var(--ink); background: #fafbfc; }
+  .track-btn.added { border-color: #f0b79d; background: var(--accent-tint); color: var(--accent-dark); box-shadow: none; }
+  .track-btn.added:hover { border-color: #d7dde7; background: #fafbfc; color: var(--ink); }
+  .track-btn svg { width: 15px; height: 15px; }
+  .track-tip {
+    position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%) translateY(3px);
+    z-index: 40; padding: 5px 8px; border-radius: 5px; background: #161a22; color: #fff;
+    font-size: 11px; font-weight: 700; line-height: 1; white-space: nowrap;
+    opacity: 0; visibility: hidden; transition: all .12s; pointer-events: none;
+  }
+  .track-tip::after {
+    content: ""; position: absolute; left: 50%; top: 100%; transform: translateX(-50%);
+    border: 4px solid transparent; border-top-color: #161a22;
+  }
+  .track-btn:hover .track-tip { opacity: 1; visibility: visible; transform: translateX(-50%) translateY(0); }
 
   /* 섹션 바로가기 탭 — 스크롤해도 상단에 고정 (sticky 상단바 73px 바로 아래에 붙는다) */
   .sec-nav {
@@ -1436,6 +1454,7 @@ function trackBtnHtml(p) {
   return `<button type="button" class="track-btn" data-code="${esc(code)}" data-item="${data}"
     onclick="trackItemFromAnalysis(this)" aria-label="아이템 추적에 추가" title="아이템 추적에 추가">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v3"/><path d="M12 19v3"/><path d="M2 12h3"/><path d="M19 12h3"/></svg>
+    <span class="track-tip">아이템 추적</span>
   </button>`;
 }
 
@@ -1445,7 +1464,12 @@ async function markTrackedButtons() {
   if (!codes.length) return;
   const set = new Set(codes.map(String));
   document.querySelectorAll(".track-btn[data-code]").forEach(btn => {
-    if (set.has(btn.dataset.code)) { btn.classList.add("added"); btn.title = "추적 중 (누르면 이 키워드 추가)"; }
+    if (set.has(btn.dataset.code)) {
+      btn.classList.add("added");
+      btn.title = "추적 중 (누르면 이 키워드 추가)";
+      const tip = btn.querySelector(".track-tip");
+      if (tip) tip.textContent = "추적 중";
+    }
   });
 }
 
@@ -1495,6 +1519,8 @@ async function trackItemFromAnalysis(btn) {
     });
     btn.classList.add("added");
     btn.title = "추적 중 (누르면 이 키워드 추가)";
+    const tip = btn.querySelector(".track-tip");
+    if (tip) tip.textContent = "추적 중";
   } catch (e) {
     alert("아이템 추적 등록 실패: " + (e.message || "오류"));
   } finally {
