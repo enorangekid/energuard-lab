@@ -433,8 +433,9 @@
   .rank-loading-shell .rank-loading {
     flex-direction: column;
     gap: 12px;
-    font-size: 12px;
   }
+  .rank-loading-shell strong { color: var(--ink); font-size: 14px; font-weight: 900; }
+  .rank-loading-shell span { font-size: 12px; }
   .rank-loading-shell .spinner {
     width: 36px;
     height: 36px;
@@ -1779,7 +1780,7 @@ async function loadAndRender() {
   summary.innerHTML = `<span class="rank-loading"><span class="spinner"></span><span>랭킹 데이터를 불러오는 중...</span></span>`;
   document.getElementById("productGroups").innerHTML = `
     <div class="rank-loading-shell product-table">
-      <span class="rank-loading"><span class="spinner"></span><span>상품 데이터를 불러오는 중...</span></span>
+      <span class="rank-loading"><span class="spinner"></span><strong>상품 데이터를 불러오는 중...</strong></span>
     </div>`;
   try {
     const [rows, masters] = await Promise.all([fetchHistory(selectedStore), fetchProductMasters()]);
