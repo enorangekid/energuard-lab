@@ -52,26 +52,35 @@
   }
   .keyword-result-chip {
     width: 100%;
-    min-height: 42px;
-    padding: 0 18px;
+    min-height: 64px;
+    padding: 11px 18px;
     border: 1px solid var(--ink);
     border-radius: var(--radius);
     background: var(--ink);
     color: #fff;
     font-family: inherit;
-    font-size: 14px;
-    font-weight: 900;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 7px;
-    white-space: nowrap;
+    gap: 4px;
+    text-align: center;
+  }
+  .keyword-result-name {
+    font-size: 15px;
+    font-weight: 900;
+    line-height: 1.2;
   }
   .keyword-result-meta {
-    font-size: 11px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11.5px;
     font-weight: 700;
     opacity: .72;
+    line-height: 1.2;
   }
+  .keyword-result-sep { opacity: .72; }
 
   .keyword-filterbar {
     display: flex; align-items: center; gap: 12px; padding-bottom: 22px;
@@ -899,8 +908,8 @@ function render(d) {
   const resultBanner = document.getElementById("keywordResultBanner");
   const topCategory = d.stats?.topCategory || "";
   resultBanner.innerHTML = `<div class="keyword-result-chip">
-    <span>${esc(d.keyword || document.getElementById("keyword").value.trim())}</span>
-    ${topCategory ? `<span class="keyword-result-meta">주요 카테고리 ${esc(topCategory)}</span>` : ""}
+    <span class="keyword-result-name">${esc(d.keyword || document.getElementById("keyword").value.trim())}</span>
+    ${topCategory ? `<span class="keyword-result-meta">주요 카테고리 <span class="keyword-result-sep">&gt;</span> ${esc(topCategory)}</span>` : ""}
   </div>`;
   resultBanner.style.display = "block";
   const insMeta = document.getElementById("insMeta");
