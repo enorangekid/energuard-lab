@@ -535,10 +535,10 @@
     height: 18px;
     background: #d8dde6;
   }
-  .mode-title-text { display: inline-flex; align-items: center; gap: 12px; }
-  .mode-label { position: relative; display: inline-flex; align-items: center; }
+  .mode-title-text { position: relative; display: inline-flex; align-items: center; gap: 12px; }
+  .mode-label { display: inline-flex; align-items: center; }
   .mode-title-tab.active { color: #07111f; }
-  .mode-title-tab.active .mode-label::after {
+  .mode-title-tab.active .mode-title-text::after {
     content: ""; position: absolute; left: 0; right: 0; bottom: -10px; height: 3px;
     background: var(--accent); border-radius: 999px;
   }
