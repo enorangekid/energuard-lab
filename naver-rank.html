@@ -1771,7 +1771,17 @@ window.nrRestoreAnalysis = function nrRestoreAnalysis(keyword, store, data) {
 const _params = new URLSearchParams(location.search);
 const _kwParam = _params.get("restoreKeyword") || _params.get("keyword");
 const _storeParam = _params.get("restoreStore");
-if (_kwParam) window.nrRestoreAnalysis(_kwParam, _storeParam);
+if (_kwParam) {
+  let _restoreData = null;
+  try {
+    const _entries = JSON.parse(localStorage.getItem("nrAnalysisHistory:v1") || "[]");
+    const _match = _entries.find(entry =>
+      entry.keyword === _kwParam && (!_storeParam || entry.store === _storeParam) && entry.data
+    );
+    _restoreData = _match?.data || null;
+  } catch (_) { /* 저장된 분석 내역이 없으면 기존 방식으로 재조회 */ }
+  window.nrRestoreAnalysis(_kwParam, _storeParam, _restoreData);
+}
 </script>
 <script src="trend-widget.js"></script>
 </body>
