@@ -1,10 +1,46 @@
 /* ─────────────────────────────────────────
-   ENERGUARD LAB — 공통 상단 내비게이션
+   ENERGUARD LAB — 공통 상단 내비게이션 + 푸터 + 공용 패널
    각 페이지의 <style>에서 정의한 CSS 변수
    (--dark, --accent, --accent-dark, --font-mono, --font-main 등)를 그대로 사용합니다.
    ───────────────────────────────────────── */
 
-html { scrollbar-gutter: stable; }
+html {
+  min-height: 100%;
+  scrollbar-gutter: stable;
+  /* 로딩 중(내용 짧음) 스크롤바가 사라졌다 생기며 폭이 출렁이는 문제 방지 —
+     트랙을 항상 표시해 뷰포트 폭을 고정한다 */
+  overflow-y: scroll;
+}
+
+body {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+body > main,
+body > .wrap {
+  flex: 1 0 auto;
+  /* body가 flex column이 되면서 margin:0 auto 컨테이너는 stretch가 풀려
+     내용물 폭으로 쪼그라든다(로딩 중 좁아졌다 넓어지는 원인). 폭을 명시해 고정. */
+  width: 100%;
+}
+
+body.utility-page > main.main-content {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+::selection {
+  background: rgba(232, 93, 47, 0.22);
+  color: inherit;
+}
+
+::-moz-selection {
+  background: rgba(232, 93, 47, 0.22);
+  color: inherit;
+}
 
 /* header.topbar 로 스코프를 걸어(element+class = 특이도 우위) style.css/calc.css 등
    다른 스타일시트의 구식 .topbar 규칙(예: 계산기 티커바)에 덮어써지지 않도록 방어합니다. */
@@ -123,6 +159,61 @@ header.topbar .topbar-icon-btn {
 header.topbar .topbar-icon-btn svg {
   width: 17px;
   height: 17px;
+}
+
+.site-footer {
+  flex-shrink: 0;
+  margin-top: auto;
+  padding: 22px 48px;
+  border-top: 1px solid #e5e8ee;
+  background: #f8f9fb;
+  color: #9aa3b3;
+}
+
+.site-footer-inner {
+  width: min(1180px, 100%);
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.footer-links {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 18px;
+  margin: 0;
+}
+
+.footer-links a {
+  font-size: 12px;
+  color: var(--color-text-muted, var(--sub, #5a6378));
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.footer-links a:hover {
+  color: var(--color-text, var(--ink, #1a1f2e));
+}
+
+.footer-copy {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-light, #9aa3b3);
+}
+
+@media (max-width: 720px) {
+  .site-footer { padding: 20px; }
+  .site-footer-inner {
+    flex-direction: column;
+    justify-content: center;
+    gap: 10px;
+    text-align: center;
+  }
+  .footer-links { flex-wrap: wrap; justify-content: center; gap: 10px 16px; }
 }
 
 .ai-chat-fab {
@@ -532,3 +623,54 @@ header.topbar .topbar-icon-btn svg {
   .ai-work-panel.open { right: 0; }
   .ai-inquiry-controls { grid-template-columns: 1fr; }
 }
+
+/* ─────────────────────────────────────────
+   분석 내역 패널 (칸칸 history-panel 디자인, 전 페이지 공용)
+   상단바 시계 아이콘으로 열고 닫음 
+—
+ common.js가 마크업 주입
+   ───────────────────────────────────────── */
+.history-panel {
+  position: fixed; top: 0; right: 0;
+  width: min(320px, 92vw); height: 100vh;
+  background: var(--card, #fff); border-left: 1px solid var(--line, #e8ecf2);
+  overflow-y: auto; z-index: 300;
+  scrollbar-width: none;
+  transform: translateX(100%);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+.history-panel::-webkit-scrollbar { display: none; }
+.history-panel.open { transform: translateX(0); box-shadow: -12px 0 34px rgba(5, 7, 11, 0.12); }
+.history-header {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 0 16px; height: 56px;
+  font-size: 16px; font-weight: 700; color: var(--ink, #1a1f2e);
+  position: sticky; top: 0; background: var(--card, #fff); z-index: 1; flex-shrink: 0;
+  border-bottom: 1px solid var(--line, #e8ecf2);
+}
+.history-clear-btn {
+  display: inline-flex; align-items: center; flex-shrink: 0;
+  font-size: 11px; font-weight: 500; color: var(--sub, #5a6378);
+  background: none; border: 1px solid var(--line, #e8ecf2); border-radius: 3px;
+  padding: 4px 8px; cursor: pointer; transition: all .12s;
+  font-family: inherit; white-space: nowrap;
+}
+.history-clear-btn:hover { background: #fff5f0; color: var(--accent, #e85d2f); border-color: var(--accent, #e85d2f); }
+.history-list { padding: 8px 0; }
+.history-empty { padding: 20px 14px; font-size: 12px; color: #a8b0bf; text-align: center; line-height: 1.6; }
+.history-item { padding: 14px 16px; cursor: pointer; transition: background .12s; }
+.history-item:hover { background: var(--bg, #f8f9fb); }
+.history-date {
+  font-size: 10px; font-family: 'JetBrains Mono', monospace;
+  background: var(--accent, #e85d2f); color: #fff;
+  display: inline-block; padding: 2px 7px; border-radius: 3px;
+  margin-bottom: 6px; letter-spacing: 0.02em;
+}
+.history-calc-name { font-size: 13px; color: var(--sub, #5a6378); margin-bottom: 5px; }
+.history-result-label { font-size: 16px; font-weight: 700; color: var(--ink, #1a1f2e); margin-bottom: 8px; }
+.history-detail { display: flex; flex-direction: column; gap: 3px; }
+.history-detail .detail-row { display: flex; gap: 6px; font-size: 13px; }
+.history-detail .detail-key { color: var(--sub, #5a6378); }
+.history-detail .detail-val { color: var(--ink, #1a1f2e); font-weight: 600; }
+header.topbar .topbar-icon-btn.history-on { color: var(--accent, #e85d2f); border-color: var(--accent, #e85d2f); }
+

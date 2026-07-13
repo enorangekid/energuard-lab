@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="common.css?v=20260706-topbar2">
+<link rel="stylesheet" href="common.css?v=20260713-fix2">
 <style>
   :root {
     --bg: #f8f9fb; --card: #fff; --ink: #1a1f2e; --sub: #5a6378;
@@ -46,7 +46,7 @@
   .summary a { color: var(--accent); font-weight: 700; }
 
   .category-tabs {
-    margin-top: 18px;
+    margin-top: 24px;
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 8px;
@@ -66,8 +66,16 @@
   .category-tab:hover { border-color: #d7dde7; color: var(--ink); background: #fafbfc; }
   .category-tab.active { background: var(--ink); border-color: var(--ink); color: #fff; }
   .category-tab-count { margin-left: 4px; font-size: 11px; font-weight: 700; opacity: .72; }
-  .category-section { margin-top: 16px; }
-  .category-title-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .category-section { margin-top: 24px; }
+  .category-title-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 -10px;
+    padding: 13px 20px;
+    border-bottom: 1px solid var(--line);
+    background: #fff;
+  }
   .category-title { font-size: 16px; font-weight: 900; color: var(--ink); }
   .category-meta { font-size: 12px; color: var(--sub); }
   .category-title-spacer { flex: 1; }
@@ -85,8 +93,8 @@
     cursor: pointer;
     transition: background .12s, border-color .12s, color .12s;
   }
-  .expand-all-btn:hover { border-color: #f0b79d; color: var(--accent-dark); background: #fffaf7; }
-  .expand-all-btn.is-open { border-color: #f0b79d; color: var(--accent-dark); background: #fffaf7; }
+  .expand-all-btn:hover,
+  .expand-all-btn.is-open { border-color: #c8cdd4; color: var(--ink); background: #fafbfc; }
 
   /* ── 카테고리 요약 대시보드 ── */
   .rank-dash {
@@ -94,7 +102,7 @@
     border-radius: var(--radius);
     background: #fff;
     padding: 16px 18px 14px;
-    margin-bottom: 12px;
+    margin-bottom: 22px;
     box-shadow: 0 14px 34px rgba(5, 7, 11, 0.05);
   }
   .rank-dash-tiles {
@@ -151,17 +159,22 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
-    padding: 10px;
+    padding: 0 10px 10px;
     border: 1px solid var(--line);
     border-radius: var(--radius);
     background: #fff;
+    overflow: hidden;
     box-shadow: 0 14px 34px rgba(5, 7, 11, 0.05);
   }
   .product-table-head {
     display: grid;
     grid-template-columns: 38px 86px minmax(280px, 1fr) 120px 88px 64px 76px 112px;
     align-items: center;
-    padding: 6px 14px;
+    margin: 10px 10px 0;
+    padding: 9px 14px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: #fafbfc;
     color: #8a93a5;
     font-size: 11.5px;
     font-weight: 800;
@@ -172,13 +185,14 @@
     border: 1px solid var(--line);
     border-radius: var(--radius);
     overflow: visible;
-    transition: border-color .14s, box-shadow .14s, transform .14s;
+    margin: 0 10px;
+    transition: border-color .14s, box-shadow .14s;
   }
   .product-group:hover {
     border-color: #d9dee8;
     box-shadow: 0 10px 24px rgba(5, 7, 11, 0.06);
-    transform: translateY(-1px);
   }
+  .product-table .product-group:last-child { margin-bottom: 10px; }
   .product-group.open { border-color: #f0b79d; box-shadow: 0 12px 28px rgba(232, 93, 47, 0.08); }
   .product-group.checked {
     border-color: #f0b79d;
@@ -299,6 +313,39 @@
   .action-btn svg { width: 15px; height: 15px; }
   .action-btn.has-memo { border-color: #f0b79d; background: var(--accent-tint); color: var(--accent-dark); }
   .action-btn.checked { border-color: var(--accent); background: var(--accent); color: #fff; }
+  .action-btn.tracked {
+    border-color: #f0b79d;
+    background: #fff;
+    color: var(--accent-dark);
+    box-shadow: none;
+  }
+  .action-btn.tracked:hover {
+    border-color: #d7dde7;
+    background: #fafbfc;
+    color: var(--ink);
+  }
+  .action-tip {
+    position: absolute;
+    left: 50%;
+    bottom: 38px;
+    z-index: 25;
+    transform: translate(-50%, 4px);
+    padding: 8px 10px;
+    border-radius: 6px;
+    background: #161a22;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1.2;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: all .12s;
+    box-shadow: 0 14px 34px rgba(5, 7, 11, 0.22);
+  }
+  .action-btn:hover .action-tip { opacity: 1; visibility: visible; transform: translate(-50%, 0); }
+  .action-btn.has-memo:hover .action-tip { opacity: 0; visibility: hidden; }
   .memo-tip {
     position: absolute;
     right: 0;
@@ -370,6 +417,32 @@
   }
   .keyword-type.main { background: var(--accent-tint); color: var(--accent-dark); }
   .empty { margin-top: 16px; padding: 18px; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); color: var(--sub); font-size: 13px; }
+  .rank-loading-shell {
+    width: 100%;
+    min-height: 250px;
+    margin-top: 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 52px 20px 60px;
+    color: var(--sub);
+    text-align: center;
+  }
+  .rank-loading-shell .rank-loading {
+    flex-direction: column;
+    gap: 12px;
+    font-size: 12px;
+  }
+  .rank-loading-shell .spinner {
+    width: 36px;
+    height: 36px;
+    border-width: 4px;
+    border-color: var(--dark-tint);
+    border-top-color: var(--accent);
+    animation-duration: .8s;
+  }
 
   .memo-modal-backdrop {
     position: fixed;
@@ -444,60 +517,160 @@
     cursor: pointer;
   }
 
-  /* ── 아이템 추적 ── */
-  .view-tabs { margin-left: auto; display: flex; gap: 6px; }
-  .view-tab {
-    height: 32px; padding: 0 14px; border: 1px solid var(--line); border-radius: var(--radius);
-    background: #fff; color: var(--sub); font-family: inherit; font-size: 12.5px; font-weight: 800; cursor: pointer;
-    transition: all .12s;
+  /* ── 상단 전환 / 필터 ── */
+  .wrap > header { display: flex; align-items: flex-end; gap: 0; margin-bottom: 30px; }
+  .mode-title-tabs { display: inline-flex; align-items: center; gap: 28px; }
+  .mode-title-tab {
+    position: relative; height: 34px; padding: 0 0 8px; border: 0; background: transparent;
+    color: #aeb6c4; font-family: inherit; font-size: 21px; font-weight: 900; cursor: pointer;
   }
-  .view-tab:hover { border-color: #c8cdd4; color: var(--ink); }
-  .view-tab.active { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .mode-title-tab + .mode-title-tab::before {
+    content: "";
+    position: absolute;
+    left: -15px;
+    top: 4px;
+    width: 1px;
+    height: 18px;
+    background: #d8dde6;
+  }
+  .mode-title-text { display: inline-flex; align-items: center; gap: 12px; }
+  .mode-label { position: relative; display: inline-flex; align-items: center; }
+  .mode-title-tab.active { color: #07111f; }
+  .mode-title-tab.active .mode-label::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: -10px; height: 3px;
+    background: var(--accent); border-radius: 999px;
+  }
+  .mode-help {
+    width: 18px; height: 18px; border: 1px solid #cfd5df; border-radius: 50%;
+    background: #f4f6f9; color: #8a93a5; font-size: 12px; font-weight: 900;
+    display: inline-flex; align-items: center; justify-content: center; line-height: 1;
+  }
+  .rank-filterbar {
+    display: flex; align-items: center; gap: 16px; padding-bottom: 22px;
+    border-bottom: 1px solid var(--line);
+  }
+  #rankView,
+  #itemView,
+  #productGroups,
+  #trackedItemList { width: 100%; }
+  .store-chips { position: relative; display: block; flex: 0 0 auto; }
+  .store-select {
+    height: 42px; min-width: 190px; padding: 0 14px 0 18px; border: 1px solid #dfe4ec;
+    border-radius: var(--radius); background: #fff; color: var(--sub); font-family: inherit;
+    font-size: 14px; font-weight: 800; cursor: pointer; display: inline-flex;
+    align-items: center; justify-content: space-between; gap: 18px;
+  }
+  .store-select:hover, .store-chips.open .store-select { border-color: #c8cdd4; background: #fafbfc; }
+  .store-caret { display: inline-flex; align-items: center; justify-content: center; color: #8a93a5; line-height: 1; }
+  .store-caret svg { width: 14px; height: 14px; }
+  .store-menu {
+    position: absolute; z-index: 50; top: calc(100% + 6px); left: 0; min-width: 100%;
+    padding: 6px; border: 1px solid var(--line); border-radius: var(--radius);
+    background: #fff; box-shadow: 0 16px 34px rgba(5, 7, 11, 0.12); display: none;
+  }
+  .store-chips.open .store-menu { display: flex; flex-direction: column; gap: 4px; }
+  .store-chip {
+    height: 34px; padding: 0 12px; border: 0; border-radius: 4px; background: transparent;
+    color: var(--sub); font-family: inherit; font-size: 12.5px; font-weight: 800; text-align: left; cursor: pointer;
+  }
+  .store-chip:hover { background: #f4f6f9; color: var(--ink); }
+  .store-chip.active { background: var(--ink); color: #fff; }
+  .summary {
+    margin-top: 0;
+    margin-left: auto;
+    color: var(--sub);
+    font-size: 12px;
+    text-align: right;
+    white-space: nowrap;
+    flex: 0 0 auto;
+  }
+  .rank-loading { display: inline-flex; align-items: center; gap: 8px; }
+  .spinner {
+    width: 14px; height: 14px; border: 2px solid #f1c9ba; border-top-color: var(--accent);
+    border-radius: 50%; animation: spin .75s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
 
-  .item-toolbar { display: flex; align-items: center; gap: 10px; }
-  .item-toolbar-sub { font-size: 12px; color: var(--sub); }
+  /* ── 아이템 추적 ── */
+  .item-toolbar {
+    display: flex; align-items: center; gap: 12px; padding-bottom: 22px;
+    border-bottom: 1px solid var(--line);
+  }
   .item-toolbar-spacer { flex: 1; }
   .item-collect-status { font-size: 12px; color: var(--sub); }
   .item-btn {
-    height: 34px; padding: 0 14px; border: 1px solid #dfe4ec; border-radius: var(--radius);
+    height: 42px; padding: 0 16px; border: 1px solid #dfe4ec; border-radius: var(--radius);
     background: #fff; color: var(--sub); font-family: inherit; font-size: 12.5px; font-weight: 800; cursor: pointer;
     transition: all .12s; white-space: nowrap;
   }
-  .item-btn:hover { border-color: #f0b79d; color: var(--accent-dark); background: #fffaf7; }
-  .item-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-  .item-btn.primary:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
+  .item-btn:hover { border-color: #c8cdd4; color: var(--ink); background: #fafbfc; }
+  .item-btn.primary { background: #07111f; border-color: #07111f; color: #fff; }
+  .item-btn.primary:hover { background: #111827; border-color: #111827; }
   .item-btn:disabled { opacity: .55; cursor: default; }
 
-  .tracked-item-list { margin-top: 16px; display: flex; flex-direction: column; gap: 8px; }
-  .item-group-title { display: flex; align-items: center; gap: 10px; margin: 10px 2px 2px; font-size: 14px; font-weight: 900; color: var(--ink); }
-  .item-group-title:first-child { margin-top: 0; }
-  .item-group-count { margin-left: 4px; font-size: 12px; font-weight: 700; color: var(--sub); }
-  .item-group-spacer { flex: 1; }
-  .item-owner-badge {
-    font-size: 10.5px; font-weight: 800; padding: 2px 8px; border-radius: 10px;
-    background: var(--dark-tint); color: var(--sub); flex-shrink: 0;
+  .tracked-item-list { margin-top: 24px; display: flex; flex-direction: column; gap: 22px; }
+  .item-table-head {
+    display: grid;
+    grid-template-columns: 38px 86px minmax(240px, 1fr) 90px 88px 64px 120px 96px;
+    align-items: center; margin: 10px 10px 0; padding: 9px 14px;
+    border: 1px solid var(--line); border-radius: var(--radius); background: #fafbfc;
+    color: #8a93a5; font-size: 11.5px; font-weight: 800; text-align: center;
   }
-  .item-owner-badge.mine { background: var(--accent-tint); color: var(--accent-dark); }
-  .item-price-cell { text-align: right; white-space: nowrap; }
+  .item-owner-badge {
+    justify-self: center; display: inline-flex; align-items: center; justify-content: center;
+    min-width: 72px; max-width: max-content; padding: 4px 8px; border-radius: 999px;
+    background: #eef1f5; color: var(--ink); font-size: 13px; font-weight: 900; flex-shrink: 0;
+  }
+  .item-owner-badge.mine { background: var(--accent-tint); color: var(--ink); }
+  .item-price-cell { text-align: center; white-space: nowrap; justify-self: center; }
   .item-price-now { font-size: 14px; font-weight: 800; font-family: var(--font-mono); color: var(--ink); }
   .item-price-delta { display: block; font-size: 11px; font-weight: 700; font-family: var(--font-mono); color: var(--sub); }
   .item-price-delta.up { color: var(--danger); }     /* 가격 인상 = 빨강 */
   .item-price-delta.down { color: #16a34a; }         /* 가격 인하 = 초록 */
   .item-main-row {
     display: grid;
-    grid-template-columns: 38px 86px minmax(240px, 1fr) 90px 88px 120px 96px;
+    grid-template-columns: 38px 86px minmax(240px, 1fr) 90px 88px 64px 120px 96px;
     align-items: center; min-height: 76px; padding: 10px 14px;
     border-radius: calc(var(--radius) - 1px);
   }
-  .item-main-row:hover { background: #fffaf7; }
+  .item-main-row:hover { background: #fafbfc; }
   .product-group.open .item-main-row { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
   .item-detail { display: none; border-top: 1px solid var(--line); background: #fffaf7; border-radius: 0 0 var(--radius) var(--radius); padding: 6px 0; }
   .product-group.open .item-detail { display: block; }
-  .item-price-history { padding: 8px 18px 10px 236px; display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 11.5px; color: var(--sub); border-top: 1px dashed rgba(232, 93, 47, 0.18); }
-  .item-price-history b { color: var(--ink); font-family: var(--font-mono); font-weight: 700; }
-  .item-manage-btn { border: 0; background: transparent; color: var(--sub); font-size: 11.5px; font-weight: 800; cursor: pointer; padding: 4px 6px; }
-  .item-manage-btn:hover { color: var(--accent-dark); }
-  .item-manage-btn.danger:hover { color: var(--danger); }
+  .item-manage-btn.danger:hover { border-color: #f3c6c6; color: var(--danger); background: #fff6f6; }
+  .product-sub .product-mall-inline { font-family: var(--font-mono); font-weight: 800; color: var(--accent-dark); }
+  .rank-trend-wrap {
+    margin: 10px 18px 12px 236px;
+    border: 1px solid rgba(232, 93, 47, 0.18);
+    border-radius: var(--radius);
+    background: #fff;
+    overflow: hidden;
+  }
+  .rank-trend-head {
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px 0;
+    font-size: 12px; font-weight: 900; color: var(--ink);
+  }
+  .rank-trend-range {
+    margin-left: auto; display: inline-flex; align-items: center; gap: 2px;
+    padding: 2px; border: 1px solid var(--line); border-radius: 999px; background: #fff;
+  }
+  .rank-trend-range button {
+    height: 24px; padding: 0 10px; border: 0; border-radius: 999px; background: transparent;
+    color: var(--sub); font-family: inherit; font-size: 11.5px; font-weight: 900; cursor: pointer;
+  }
+  .rank-trend-range button.active { background: var(--ink); color: #fff; }
+  .rank-trend-panel { display: none; height: 118px; padding: 4px 12px 12px; }
+  .rank-trend-panel.active { display: block; }
+  .rank-trend-empty {
+    height: 90px; display: flex; align-items: center; justify-content: center;
+    color: #8a93a5; font-size: 12px; font-weight: 800; background: #fafbfc; border-radius: 4px;
+  }
+  .rank-trend-svg { width: 100%; height: 92px; overflow: visible; }
+  .trend-grid { stroke: #e8ecf2; stroke-width: 1; }
+  .trend-fill { fill: rgba(232, 93, 47, 0.08); }
+  .trend-line { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+  .trend-dot { fill: var(--accent); stroke: #fff; stroke-width: 2; }
+  .trend-axis { fill: #8a93a5; font-size: 11px; font-family: var(--font-mono); }
 
   .item-form { display: flex; flex-direction: column; gap: 12px; }
   .item-field { display: flex; flex-direction: column; gap: 5px; }
@@ -525,40 +698,44 @@
 <header class="topbar" data-topbar></header>
 <div class="wrap">
   <header>
-    <h1>랭킹추적</h1>
-    <span class="tag">상품별 키워드 순위</span>
-    <div class="view-tabs">
-      <button type="button" class="view-tab active" data-view="rank">키워드 랭킹</button>
-      <button type="button" class="view-tab" data-view="items">아이템 추적</button>
+    <div class="mode-title-tabs">
+      <button type="button" class="mode-title-tab view-tab active" data-view="rank">
+        <span class="mode-title-text">
+          <span class="mode-label">키워드 랭킹</span>
+          <span class="mode-help" title="내 스토어 상품이 주요 키워드에서 몇 위에 노출되는지 상품 기준으로 확인합니다.">?</span>
+        </span>
+      </button>
+      <button type="button" class="mode-title-tab view-tab" data-view="items">
+        <span class="mode-title-text">
+          <span class="mode-label">아이템 추적</span>
+          <span class="mode-help" title="내 상품과 경쟁사 상품을 등록해 키워드 순위와 판매가 변동을 추적합니다.">?</span>
+        </span>
+      </button>
     </div>
   </header>
 
   <div id="rankView">
-    <div class="card">
-      <div class="store-label">내 스토어</div>
+    <div class="rank-filterbar">
       <div class="store-chips" id="storeChips"></div>
+      <div class="summary" id="summary">
+        <span class="rank-loading"><span class="spinner"></span><span>랭킹 데이터를 불러오는 중...</span></span>
+      </div>
     </div>
-
-    <div class="summary" id="summary">불러오는 중...</div>
 
     <div id="productGroups"></div>
   </div>
 
   <div id="itemView" style="display:none;">
-    <div class="card item-toolbar">
-      <div>
-        <div class="store-label">추적 아이템</div>
-        <div class="item-toolbar-sub">내 상품·경쟁사 상품의 키워드 순위와 판매가 변동을 추적합니다</div>
-      </div>
+    <div class="item-toolbar">
+      <div class="store-chips item-group-filter" id="itemGroupFilter"></div>
       <span class="item-toolbar-spacer"></span>
       <span class="item-collect-status" id="itemCollectStatus"></span>
       <button type="button" class="item-btn" id="itemCollectBtn" onclick="collectTrackedItems()">순위·가격 수집</button>
-      <button type="button" class="item-btn primary" onclick="openItemModal()">+ 아이템 추가</button>
+      <button type="button" class="item-btn primary" onclick="openItemModal()">아이템 추가</button>
     </div>
     <div id="trackedItemList" class="tracked-item-list"></div>
   </div>
 
-  <footer>키워드 일괄 수집으로 저장된 데이터를 상품 기준으로 묶어 보여줍니다 · 순위는 네이버 쇼핑 검색 API 기준 · 상품은 네이버 상품코드 기준으로 구분</footer>
 </div>
 
 <div class="memo-modal-backdrop" id="itemModal" aria-hidden="true">
@@ -780,20 +957,42 @@ function timeAgo(iso) {
 
 function renderStoreChips() {
   const stores = [...BUILTIN_STORES, ...loadCustomStores()];
-  document.getElementById("storeChips").innerHTML = stores.map(s =>
-    `<button type="button" class="store-chip${s === selectedStore ? " active" : ""}" data-store="${esc(s)}">${esc(s)}</button>`
-  ).join("");
+  document.getElementById("storeChips").innerHTML = `
+    <button type="button" class="store-select" data-action="toggle-store-menu" aria-label="내 스토어 선택">
+      <span>${esc(selectedStore)}</span>
+      <span class="store-caret" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+      </span>
+    </button>
+    <div class="store-menu">
+      ${stores.map(s => `<button type="button" class="store-chip${s === selectedStore ? " active" : ""}" data-store="${esc(s)}">${esc(s)}</button>`).join("")}
+    </div>`;
 }
 
 document.getElementById("storeChips").addEventListener("click", (e) => {
+  const toggle = e.target.closest('[data-action="toggle-store-menu"]');
+  if (toggle) {
+    document.getElementById("storeChips").classList.toggle("open");
+    return;
+  }
   const chip = e.target.closest(".store-chip");
   if (!chip) return;
   selectedStore = chip.dataset.store;
   activeCategory = getTrackerCategories()[0];
   cachedProducts = [];
   expandedCategories.clear();
+  document.getElementById("storeChips").classList.remove("open");
   renderStoreChips();
   loadAndRender();
+});
+
+document.addEventListener("click", (e) => {
+  const storeBox = document.getElementById("storeChips");
+  if (storeBox && !storeBox.contains(e.target)) storeBox.classList.remove("open");
+  const itemGroupBox = document.getElementById("itemGroupFilter");
+  if (itemGroupBox && !itemGroupBox.contains(e.target)) itemGroupBox.classList.remove("open");
 });
 
 async function fetchHistory(store) {
@@ -1032,8 +1231,16 @@ function buildProducts(rows, masterMaps) {
   const latestDate = rows[0]?.collected_date || rows[0]?.checked_at?.slice(0, 10) || "";
   const latestRows = rows.filter(r => rankDate(r) === latestDate && r.rank != null && r.product_code);
   const previousByProductKeyword = new Map();
+  const historyByProductKeyword = new Map();
 
   rows.forEach(row => {
+    if (row.product_code && row.rank != null) {
+      const historyKey = row.product_code + "|" + row.keyword;
+      if (!historyByProductKeyword.has(historyKey)) historyByProductKeyword.set(historyKey, new Map());
+      const dateMap = historyByProductKeyword.get(historyKey);
+      const date = rankDate(row);
+      if (date && !dateMap.has(date)) dateMap.set(date, Number(row.rank));
+    }
     if (!row.product_code || row.rank == null || rankDate(row) === latestDate) return;
     const key = row.product_code + "|" + row.keyword;
     if (!previousByProductKeyword.has(key)) previousByProductKeyword.set(key, row);
@@ -1071,7 +1278,11 @@ function buildProducts(rows, masterMaps) {
     if (new Date(row.checked_at) > new Date(product.checkedAt)) product.checkedAt = row.checked_at;
     const prev = previousByProductKeyword.get(code + "|" + row.keyword);
     const delta = prev && prev.rank != null && row.rank != null ? prev.rank - row.rank : null;
-    product.keywords.push({ ...row, delta });
+    const historyMap = historyByProductKeyword.get(code + "|" + row.keyword) || new Map();
+    const history = [...historyMap.entries()]
+      .map(([date, rank]) => ({ date, rank }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+    product.keywords.push({ ...row, delta, history });
   });
 
   return [...byProduct.values()].map(product => {
@@ -1171,6 +1382,7 @@ function renderProductCard(product, categoryName) {
   const mainKeyword = getCategoryLeadKeyword(product, categoryName);
   const visibleKeywords = getVisibleKeywords(product, categoryName);
   const subCount = Math.max(0, visibleKeywords.length - 1);
+  const isTracked = trackedItems.some(item => String(item.product_code) === String(product.code));
   const itemUrl = productUrl(product);
   const productPrice = formatProductPrice(product.price);
   const priceHtml = productPrice ? ` · <span class="product-price-inline">판매가 ${esc(productPrice)}</span>` : "";
@@ -1186,13 +1398,16 @@ function renderProductCard(product, categoryName) {
       </div>`).join("")
   }</div>` : "";
   const keywordRows = visibleKeywords.map(k => `
-    <div class="keyword-rank-row">
-      <span class="keyword-type${k.is_sub ? "" : " main"}">${k.is_sub ? "보조" : "메인"}</span>
-      <a class="keyword-name" href="${esc(keywordUrl(k.keyword))}" title="${esc(k.keyword)}" onclick="event.stopPropagation()">${esc(k.keyword)}</a>
-      <span class="keyword-main" title="${esc(k.main_keyword)}">${esc(k.is_sub ? k.main_keyword : "메인 키워드")}</span>
-      ${rankBadgeHtml(k.rank)}
-      ${deltaHtml(k.delta)}
-      ${volumeHtml(k.search_volume_total)}
+    <div class="keyword-rank-item">
+      <div class="keyword-rank-row">
+        <span class="keyword-type${k.is_sub ? "" : " main"}">${k.is_sub ? "보조" : "메인"}</span>
+        <a class="keyword-name" href="${esc(keywordUrl(k.keyword))}" title="${esc(k.keyword)}" onclick="event.stopPropagation()">${esc(k.keyword)}</a>
+        <span class="keyword-main" title="${esc(k.main_keyword)}">${esc(k.is_sub ? k.main_keyword : "메인 키워드")}</span>
+        ${rankBadgeHtml(k.rank)}
+        ${deltaHtml(k.delta)}
+        ${volumeHtml(k.search_volume_total)}
+      </div>
+      ${renderRankTrend(k)}
     </div>`).join("");
 
   const isCategoryExpanded = expandedCategories.has(categoryName);
@@ -1212,13 +1427,16 @@ function renderProductCard(product, categoryName) {
       <span class="product-actions">
         <button type="button" class="action-btn${memos.length ? " has-memo" : ""}" onclick="openMemoModal(event, '${esc(product.code)}')" aria-label="메모">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg>
+          <span class="action-tip">메모</span>
           ${memoTip}
         </button>
         <button type="button" class="action-btn${product.isChecked ? " checked" : ""}" onclick="toggleProductCheck(event, '${esc(product.code)}')" aria-label="중요 체크">
           <svg viewBox="0 0 24 24" fill="${product.isChecked ? "currentColor" : "none"}" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          <span class="action-tip">중요 체크</span>
         </button>
-        <button type="button" class="action-btn" onclick="trackFromProduct(event, '${esc(product.code)}')" aria-label="아이템 추적에 추가" title="아이템 추적에 추가">
+        <button type="button" class="action-btn${isTracked ? " tracked" : ""}" onclick="trackFromProduct(event, '${esc(product.code)}')" aria-label="${isTracked ? "아이템 추적 중" : "아이템 추적에 추가"}" title="${isTracked ? "아이템 추적 중" : "아이템 추적에 추가"}">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v3"/><path d="M12 19v3"/><path d="M2 12h3"/><path d="M19 12h3"/></svg>
+          <span class="action-tip">${isTracked ? "추적 중" : "아이템 추적"}</span>
         </button>
       </span>
     </div>
@@ -1351,12 +1569,12 @@ function renderCategoryDashboard(section) {
 
   return `<div class="rank-dash">
     <div class="rank-dash-tiles">
-      <div class="dash-tile"><div class="dash-label">추적 키워드</div><div class="dash-value">${s.total.toLocaleString()}<small>개</small></div></div>
+      <div class="dash-tile"><div class="dash-label">추적 상품</div><div class="dash-value">${section.products.length.toLocaleString()}<small>개</small></div></div>
       <div class="dash-tile"><div class="dash-label">TOP 10</div><div class="dash-value">${s.top10.toLocaleString()}<small>개</small></div></div>
       <div class="dash-tile"><div class="dash-label">1페이지 노출</div><div class="dash-value">${s.page1.toLocaleString()}<small>${pct(s.page1)}%</small></div></div>
       <div class="dash-tile"><div class="dash-label">순위 상승</div><div class="dash-value up">${s.up ? "▲" + s.up.toLocaleString() : "-"}</div></div>
       <div class="dash-tile"><div class="dash-label">순위 하락</div><div class="dash-value down">${s.down ? "▼" + s.down.toLocaleString() : "-"}</div></div>
-      <div class="dash-tile"><div class="dash-label">월간 검색량 합</div><div class="dash-value">${s.hasVolume ? s.volumeTotal.toLocaleString() : "-"}</div></div>
+      <div class="dash-tile"><div class="dash-label">대표 검색량 합</div><div class="dash-value">${s.hasVolume ? s.volumeTotal.toLocaleString() : "-"}</div></div>
     </div>
     ${barHtml}
     ${moversHtml}
@@ -1392,27 +1610,25 @@ function renderProducts(products) {
   const panelHtml = `
     <section class="category-section">
       ${activeSection.products.length ? renderCategoryDashboard(activeSection) : ""}
-      <div class="category-title-row">
-        <h2 class="category-title">${esc(activeSection.name)}</h2>
-        <span class="category-meta">상품 ${activeSection.products.length}개 · 키워드 ${activeSection.keywordCount}개</span>
-        <span class="category-title-spacer"></span>
-        ${activeSection.products.length
-          ? `<button type="button" class="expand-all-btn${isAllExpanded ? " is-open" : ""}" data-action="toggle-all-keywords">
-              ${isAllExpanded ? "전체 접기" : "전체 펼치기"}
-            </button>`
-          : ""}
-      </div>
       ${activeSection.products.length
         ? `<div class="product-table">
+          <div class="category-title-row">
+            <h2 class="category-title">${esc(activeSection.name)}</h2>
+            <span class="category-meta">상품 ${activeSection.products.length}개 · 키워드 ${activeSection.keywordCount}개</span>
+            <span class="category-title-spacer"></span>
+            <button type="button" class="expand-all-btn${isAllExpanded ? " is-open" : ""}" data-action="toggle-all-keywords">
+              ${isAllExpanded ? "전체 접기" : "전체 펼치기"}
+            </button>
+          </div>
           <div class="product-table-head">
             <span></span>
             <span>이미지</span>
             <span>상품명</span>
-              <span>메인 키워드</span>
-              <span>현재 순위</span>
-              <span>변동</span>
-              <span>보조</span>
-              <span>관리</span>
+            <span>메인 키워드</span>
+            <span>현재 순위</span>
+            <span>변동</span>
+            <span>보조</span>
+            <span>관리</span>
             </div>
             ${activeSection.products.map(product => renderProductCard(product, activeSection.name)).join("")}
           </div>`
@@ -1560,7 +1776,11 @@ document.getElementById("memoModal").addEventListener("click", (e) => {
 
 async function loadAndRender() {
   const summary = document.getElementById("summary");
-  summary.textContent = "불러오는 중...";
+  summary.innerHTML = `<span class="rank-loading"><span class="spinner"></span><span>랭킹 데이터를 불러오는 중...</span></span>`;
+  document.getElementById("productGroups").innerHTML = `
+    <div class="rank-loading-shell product-table">
+      <span class="rank-loading"><span class="spinner"></span><span>상품 데이터를 불러오는 중...</span></span>
+    </div>`;
   try {
     const [rows, masters] = await Promise.all([fetchHistory(selectedStore), fetchProductMasters()]);
     if (!rows.length) {
@@ -1575,6 +1795,11 @@ async function loadAndRender() {
     const categoryCount = buildCategorySections(products).length;
     summary.innerHTML = `상품 ${products.length}개 · 카테고리 ${categoryCount}개 · 키워드 ${collectedKeywords.size}개 수집됨 · 최근 수집: ${timeAgo(rows[0].checked_at)}`;
     renderProducts(products);
+    if (!trackedLoaded) {
+      loadTrackedData()
+        .then(() => renderProducts(cachedProducts))
+        .catch(() => {});
+    }
   } catch (e) {
     summary.textContent = "불러오기 실패: " + (e.message || "오류");
   }
@@ -1590,8 +1815,52 @@ let trackedItems = [];
 let trackedHistory = [];
 let trackedLoaded = false;
 let itemCollecting = false;
+let activeTrackedGroup = "competitor";
 let itemModalEditCode = ""; // 수정 모드면 대상 상품코드
 const expandedTrackedItems = new Set();
+
+const TRACKED_GROUPS = [
+  { key: "competitor", label: "경쟁사 상품" },
+  { key: "mine", label: "내 상품" },
+];
+
+function trackedGroupItems(key) {
+  return trackedItems.filter(item => key === "mine" ? item.is_mine : !item.is_mine);
+}
+
+function renderItemGroupFilter() {
+  const target = document.getElementById("itemGroupFilter");
+  if (!target) return;
+  const active = TRACKED_GROUPS.find(group => group.key === activeTrackedGroup) || TRACKED_GROUPS[0];
+  target.innerHTML = `
+    <button type="button" class="store-select" data-action="toggle-item-group-menu" aria-label="추적 아이템 구분 선택">
+      <span>${esc(active.label)}</span>
+      <span class="store-caret" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+      </span>
+    </button>
+    <div class="store-menu">
+      ${TRACKED_GROUPS.map(group => `<button type="button" class="store-chip${group.key === activeTrackedGroup ? " active" : ""}" data-item-group="${group.key}">
+        ${esc(group.label)} ${trackedGroupItems(group.key).length}개
+      </button>`).join("")}
+    </div>`;
+}
+
+document.getElementById("itemGroupFilter").addEventListener("click", (e) => {
+  const toggle = e.target.closest('[data-action="toggle-item-group-menu"]');
+  if (toggle) {
+    document.getElementById("itemGroupFilter").classList.toggle("open");
+    return;
+  }
+  const chip = e.target.closest("[data-item-group]");
+  if (!chip) return;
+  activeTrackedGroup = chip.dataset.itemGroup;
+  document.getElementById("itemGroupFilter").classList.remove("open");
+  renderItemGroupFilter();
+  renderTrackedItems();
+});
 
 document.querySelectorAll(".view-tab").forEach(tab => tab.addEventListener("click", () => {
   activeView = tab.dataset.view;
@@ -1612,7 +1881,7 @@ function sbHeaders(extra) {
 
 async function loadTrackedData() {
   const list = document.getElementById("trackedItemList");
-  list.innerHTML = `<div class="empty">불러오는 중...</div>`;
+  list.innerHTML = `<div class="empty"><span class="rank-loading"><span class="spinner"></span><span>아이템 추적 데이터를 불러오는 중...</span></span></div>`;
   try {
     const [itemsRes, histRes] = await Promise.all([
       fetch(`${SUPABASE_URL}/rest/v1/tracked_items?select=*&order=created_at.asc`, { headers: sbHeaders() }),
@@ -1622,6 +1891,7 @@ async function loadTrackedData() {
     trackedItems = await itemsRes.json();
     trackedHistory = await histRes.json();
     trackedLoaded = true;
+    renderItemGroupFilter();
     renderTrackedItems();
   } catch (e) {
     list.innerHTML = `<div class="empty">아이템 추적 데이터를 불러오지 못했습니다: ${esc(e.message || "오류")}<br>
@@ -1852,7 +2122,16 @@ function buildTrackedView(item) {
     const cur = list[0] || null;
     const prev = list.find(r => cur && r.collected_date !== cur.collected_date) || null;
     const delta = cur && prev && cur.rank != null && prev.rank != null ? prev.rank - cur.rank : null;
-    return { keyword: kw, rank: cur ? cur.rank : undefined, delta, collectedDate: cur?.collected_date || "" };
+    const historyByDate = new Map();
+    list.forEach(r => {
+      if (r.rank != null && !historyByDate.has(r.collected_date)) {
+        historyByDate.set(r.collected_date, Number(r.rank));
+      }
+    });
+    const history = [...historyByDate.entries()]
+      .map(([date, rank]) => ({ date, rank }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+    return { keyword: kw, rank: cur ? cur.rank : undefined, delta, collectedDate: cur?.collected_date || "", history };
   });
 
   // 가격 시계열: 날짜별 대표 가격(0 제외) → 최신가와 직전 "다른" 가격 비교
@@ -1875,7 +2154,10 @@ function buildTrackedView(item) {
     if (last != null && p !== last) changes.push({ date: d, from: last, to: p });
     last = p;
   });
-  return { keywordStates, curPrice, prevPrice, prevPriceDate, priceChanges: changes.slice(-5).reverse() };
+  const priceHistory = [...priceByDate.entries()]
+    .map(([date, price]) => ({ date, price }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  return { keywordStates, curPrice, prevPrice, prevPriceDate, priceChanges: changes.slice(-5).reverse(), priceHistory };
 }
 
 function itemPriceCellHtml(view) {
@@ -1889,29 +2171,123 @@ function itemPriceCellHtml(view) {
   return `<span class="item-price-cell"><span class="item-price-now">${view.curPrice.toLocaleString()}원</span>${deltaHtml}</span>`;
 }
 
+function filterTrendRows(rows, range, valueKey) {
+  const clean = rows.filter(row => row[valueKey] != null).sort((a, b) => a.date.localeCompare(b.date));
+  if (!clean.length) return [];
+  if (range === "week") return clean.slice(-7);
+  if (range === "month6") {
+    const last = new Date(clean[clean.length - 1].date);
+    const from = new Date(last);
+    from.setMonth(from.getMonth() - 6);
+    return clean.filter(row => new Date(row.date) >= from);
+  }
+  if (range === "year") {
+    const last = new Date(clean[clean.length - 1].date);
+    const from = new Date(last);
+    from.setFullYear(from.getFullYear() - 1);
+    return clean.filter(row => new Date(row.date) >= from);
+  }
+  return clean;
+}
+
+function renderMiniTrendSvg(rows, valueKey, formatter, invert = false) {
+  if (rows.length < 2) {
+    return `<div class="rank-trend-empty">표시할 데이터가 아직 부족합니다</div>`;
+  }
+  const values = rows.map(row => Number(row[valueKey]));
+  let min = Math.min(...values);
+  let max = Math.max(...values);
+  if (min === max) { min -= 1; max += 1; }
+  const w = 760, h = 92, padX = 20, padY = 14;
+  const x = i => rows.length === 1 ? padX : padX + (i * (w - padX * 2)) / (rows.length - 1);
+  const y = v => {
+    const t = (v - min) / (max - min);
+    return invert ? padY + t * (h - padY * 2) : h - padY - t * (h - padY * 2);
+  };
+  const points = rows.map((row, i) => `${x(i)},${y(Number(row[valueKey]))}`).join(" ");
+  const area = `${padX},${h - padY} ${points} ${w - padX},${h - padY}`;
+  const labels = rows.map((row, i) => {
+    if (i !== 0 && i !== rows.length - 1 && rows.length > 5 && i % Math.ceil(rows.length / 5) !== 0) return "";
+    return `<text class="trend-axis" x="${x(i)}" y="${h + 10}" text-anchor="middle">${esc(row.date.slice(5).replace("-", "."))}</text>`;
+  }).join("");
+  const dots = rows.map((row, i) =>
+    `<circle class="trend-dot"><title>${esc(row.date)} · ${esc(formatter(Number(row[valueKey])))}</title><animate attributeName="r" from="0" to="4" dur=".12s" fill="freeze" /></circle>`
+      .replace("<circle", `<circle cx="${x(i)}" cy="${y(Number(row[valueKey]))}"`)
+  ).join("");
+  return `<svg class="rank-trend-svg" viewBox="0 0 ${w} ${h + 14}" preserveAspectRatio="none" aria-hidden="true">
+    <line class="trend-grid" x1="${padX}" x2="${w - padX}" y1="${padY}" y2="${padY}"></line>
+    <line class="trend-grid" x1="${padX}" x2="${w - padX}" y1="${h - padY}" y2="${h - padY}"></line>
+    <polygon class="trend-fill" points="${area}"></polygon>
+    <polyline class="trend-line" points="${points}"></polyline>
+    ${dots}
+    ${labels}
+  </svg>`;
+}
+
+function renderTrendWrap(title, rows, valueKey, formatter, invert = false) {
+  const ranges = [
+    { key: "week", label: "1주일" },
+    { key: "month6", label: "6개월" },
+    { key: "year", label: "1년" },
+  ];
+  return `<div class="rank-trend-wrap">
+    <div class="rank-trend-head">
+      <span>${esc(title)}</span>
+      <span class="rank-trend-range">
+        ${ranges.map((range, i) => `<button type="button" class="${i === 0 ? "active" : ""}" data-range="${range.key}">${range.label}</button>`).join("")}
+      </span>
+    </div>
+    ${ranges.map((range, i) => {
+      const filtered = filterTrendRows(rows, range.key, valueKey);
+      return `<div class="rank-trend-panel${i === 0 ? " active" : ""}" data-range="${range.key}">
+        ${renderMiniTrendSvg(filtered, valueKey, formatter, invert)}
+      </div>`;
+    }).join("")}
+  </div>`;
+}
+
+function renderRankTrend(state) {
+  return renderTrendWrap("순위 그래프", state.history || [], "rank", value => `${value}위`, true);
+}
+
+function renderPriceTrend(view) {
+  return renderTrendWrap("가격 그래프", view.priceHistory || [], "price", value => `${value.toLocaleString()}원`);
+}
+
 function renderTrackedItems() {
   const target = document.getElementById("trackedItemList");
+  renderItemGroupFilter();
   if (!trackedItems.length) {
     target.innerHTML = `<div class="empty">추적 중인 아이템이 없습니다. 우측 상단 <b>+ 아이템 추가</b>로 내 상품이나 경쟁사 상품 링크를 등록해 보세요.</div>`;
     return;
   }
-  // 경쟁사가 주력이므로 경쟁사 섹션을 먼저 보여준다
-  const groups = [
-    { key: "competitor", title: "경쟁사 상품", items: trackedItems.filter(i => !i.is_mine) },
-    { key: "mine", title: "내 상품", items: trackedItems.filter(i => i.is_mine) },
-  ].filter(g => g.items.length);
-  target.innerHTML = groups.map(group => {
-    const allExpanded = group.items.every(i => expandedTrackedItems.has(i.product_code));
-    return `
-    <div class="item-group-title">
-      <span>${group.title} <span class="item-group-count">${group.items.length}개</span></span>
-      <span class="item-group-spacer"></span>
-      <button type="button" class="expand-all-btn${allExpanded ? " is-open" : ""}" onclick="toggleTrackedGroup('${group.key}')">
-        ${allExpanded ? "전체 접기" : "전체 펼치기"}
-      </button>
-    </div>
-    ${group.items.map(renderTrackedItemCard).join("")}`;
-  }).join("");
+  const group = TRACKED_GROUPS.find(g => g.key === activeTrackedGroup) || TRACKED_GROUPS[0];
+  const items = trackedGroupItems(group.key);
+  const allExpanded = items.length && items.every(i => expandedTrackedItems.has(i.product_code));
+  target.innerHTML = `
+    <div class="product-table">
+      <div class="category-title-row">
+        <h2 class="category-title">${esc(group.label)}</h2>
+        <span class="category-meta">상품 ${items.length}개</span>
+        <span class="category-title-spacer"></span>
+        ${items.length ? `<button type="button" class="expand-all-btn${allExpanded ? " is-open" : ""}" onclick="toggleTrackedGroup('${group.key}')">
+          ${allExpanded ? "전체 접기" : "전체 펼치기"}
+        </button>` : ""}
+      </div>
+      ${items.length ? `
+        <div class="item-table-head">
+          <span></span>
+          <span>이미지</span>
+          <span>상품명</span>
+          <span>구분</span>
+          <span>최고 순위</span>
+          <span>변동</span>
+          <span>현재 가격</span>
+          <span>관리</span>
+        </div>
+        ${items.map(renderTrackedItemCard).join("")}
+      ` : `<div class="empty">이 구분에 등록된 아이템이 없습니다.</div>`}
+    </div>`;
 }
 
 /* 그룹(경쟁사/내 상품) 단위 전체 펼치기·접기 — 키워드 랭킹의 전체 펼치기와 같은 스타일 */
@@ -1928,24 +2304,25 @@ function toggleTrackedGroup(key) {
 function renderTrackedItemCard(item) {
     const view = buildTrackedView(item);
     const best = view.keywordStates.filter(s => s.rank != null).sort((a, b) => a.rank - b.rank)[0];
+    const bestDelta = best?.delta ?? null;
     const isOpen = expandedTrackedItems.has(item.product_code);
     const name = item.product_name || "(첫 수집 전 — 수집하면 상품명이 채워집니다)";
     const thumb = item.product_image
       ? `<img class="product-thumb" src="${esc(item.product_image)}" loading="lazy" alt="">`
       : `<span class="product-thumb empty">IMG</span>`;
     const keywordRows = view.keywordStates.map(s => `
-      <div class="keyword-rank-row">
-        <span class="keyword-type main">추적</span>
-        <a class="keyword-name" href="${esc(keywordUrl(s.keyword))}" onclick="event.stopPropagation()">${esc(s.keyword)}</a>
-        <span class="keyword-main">${esc(s.collectedDate || "미수집")}</span>
-        ${s.rank === undefined ? `<span class="rank-badge">미수집</span>` : rankBadgeHtml(s.rank)}
-        ${deltaHtml(s.delta)}
-        <span class="keyword-volume"></span>
+      <div class="keyword-rank-item">
+        <div class="keyword-rank-row">
+          <span class="keyword-type main">추적</span>
+          <a class="keyword-name" href="${esc(keywordUrl(s.keyword))}" onclick="event.stopPropagation()">${esc(s.keyword)}</a>
+          <span class="keyword-main">${esc(s.collectedDate || "미수집")}</span>
+          ${s.rank === undefined ? `<span class="rank-badge">미수집</span>` : rankBadgeHtml(s.rank)}
+          ${deltaHtml(s.delta)}
+          <span class="keyword-volume"></span>
+        </div>
+        ${renderRankTrend(s)}
       </div>`).join("");
-    const priceHistoryHtml = view.priceChanges.length
-      ? `<div class="item-price-history">가격 변동:${view.priceChanges.map(c =>
-          ` <span>${esc(c.date.slice(5))} <b>${c.from.toLocaleString()}→${c.to.toLocaleString()}원</b></span>`).join(" ·")}</div>`
-      : "";
+    const priceHistoryHtml = renderPriceTrend(view);
     return `<div class="product-group${isOpen ? " open" : ""}">
       <div class="item-main-row">
         <button type="button" class="expand-btn" onclick="toggleTrackedItem('${esc(item.product_code)}')" aria-label="키워드 상세 보기"></button>
@@ -1954,16 +2331,21 @@ function renderTrackedItemCard(item) {
           <span class="product-name" title="${esc(name)}">${esc(name)}</span>
           <div class="product-sub">
             <span class="product-code-inline">${esc(item.product_code)}</span>
-            ${item.mall_name ? ` · ${esc(item.mall_name)}` : ""} · 키워드 ${view.keywordStates.length}개
+            ${item.mall_name ? ` · <span class="product-mall-inline">${esc(item.mall_name)}</span>` : ""}
             ${item.memo ? ` · ${esc(item.memo)}` : ""}
           </div>
         </div>
         <span class="item-owner-badge${item.is_mine ? " mine" : ""}">${item.is_mine ? "내 상품" : "경쟁사"}</span>
         ${best ? rankBadgeHtml(best.rank) : `<span class="rank-badge">미수집</span>`}
+        ${deltaHtml(bestDelta)}
         ${itemPriceCellHtml(view)}
         <span class="product-actions">
-          <button type="button" class="item-manage-btn" onclick="event.stopPropagation(); openItemModal('${esc(item.product_code)}')">수정</button>
-          <button type="button" class="item-manage-btn danger" onclick="deleteTrackedItem(event, '${esc(item.product_code)}')">삭제</button>
+          <button type="button" class="action-btn item-manage-btn" onclick="event.stopPropagation(); openItemModal('${esc(item.product_code)}')" aria-label="아이템 수정" title="아이템 수정">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>
+          </button>
+          <button type="button" class="action-btn item-manage-btn danger" onclick="deleteTrackedItem(event, '${esc(item.product_code)}')" aria-label="아이템 삭제" title="아이템 삭제">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M19 6l-1 14H6L5 6"></path><path d="M10 11v5"></path><path d="M14 11v5"></path></svg>
+          </button>
         </span>
       </div>
       <div class="item-detail">
@@ -1977,6 +2359,24 @@ function toggleTrackedItem(code) {
   if (expandedTrackedItems.has(code)) expandedTrackedItems.delete(code);
   else expandedTrackedItems.add(code);
   renderTrackedItems();
+}
+
+document.getElementById("trackedItemList").addEventListener("click", (e) => {
+  handleTrendRangeClick(e);
+});
+
+document.getElementById("productGroups").addEventListener("click", (e) => {
+  handleTrendRangeClick(e);
+});
+
+function handleTrendRangeClick(e) {
+  const rangeBtn = e.target.closest(".rank-trend-range button");
+  if (!rangeBtn) return;
+  const wrap = rangeBtn.closest(".rank-trend-wrap");
+  if (!wrap) return;
+  const range = rangeBtn.dataset.range;
+  wrap.querySelectorAll(".rank-trend-range button").forEach(btn => btn.classList.toggle("active", btn === rangeBtn));
+  wrap.querySelectorAll(".rank-trend-panel").forEach(panel => panel.classList.toggle("active", panel.dataset.range === range));
 }
 
 /* 키워드 랭킹의 내 상품 카드 → 아이템 추적 등록. 모달을 상품 정보로 미리 채워서 연다.
@@ -2000,8 +2400,8 @@ async function trackFromProduct(event, code) {
 }
 
 renderStoreChips();
+renderItemGroupFilter();
 loadAndRender();
 </script>
 </body>
 </html>
-

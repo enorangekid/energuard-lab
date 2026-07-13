@@ -186,8 +186,8 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
    실패 시 잠깐 쉬고 최대 3회 재시도하고, 배치 사이에도 짧게 쉬어 폭주를 완화한다. */
 async function enrichRelatedKeywords(rel: Array<Record<string, unknown>>, clientId: string, clientSecret: string) {
   const targets = rel.filter((k) => k.products == null); // 이미 채워진 항목(leftovers 재활용)은 재조회하지 않음
-  for (let i = 0; i < targets.length; i += 5) {
-    await Promise.all(targets.slice(i, i + 5).map(async (k) => {
+  for (let i = 0; i < targets.length; i += 8) { // 8개 병렬 — 429는 아래 재시도가 흡수한다
+    await Promise.all(targets.slice(i, i + 8).map(async (k) => {
       for (let attempt = 0; attempt < 3; attempt++) {
         try {
           const r = await fetch(
@@ -210,7 +210,6 @@ async function enrichRelatedKeywords(rel: Array<Record<string, unknown>>, client
         } catch (_) { await sleep(300); /* 네트워크 오류 — 재시도 */ }
       }
     }));
-    if (i + 5 < targets.length) await sleep(120); // 배치 간 간격으로 429 자체를 줄인다
   }
 }
 
@@ -241,6 +240,38 @@ async function fetchTopOne(keyword: string, clientId: string, clientSecret: stri
   }
 }
 
+/* ── 쇼핑 검색 페이지 병렬 수집 ──
+   1페이지를 먼저 받아 전체 결과 수를 확인한 뒤, 필요한 나머지 페이지를 동시에 요청한다.
+   순차 호출(페이지당 0.3~0.5초 × 10) 대비 스캔 시간이 1/4 수준으로 줄어든다.
+   결과 배열은 페이지 순서대로 이어붙이므로 순위 집계 로직은 그대로 쓸 수 있다. */
+async function fetchShopPageRaw(keyword: string, start: number, clientId: string, clientSecret: string) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const res = await fetch(
+      `https://openapi.naver.com/v1/search/shop.json?query=${encodeURIComponent(keyword)}&display=100&start=${start}&sort=sim`,
+      { headers: { "X-Naver-Client-Id": clientId, "X-Naver-Client-Secret": clientSecret } },
+    );
+    if (res.status === 429) { await sleep(300 * (attempt + 1)); continue; } // 호출 한도 — 쉬었다 재시도
+    if (!res.ok) throw new Error(`네이버 API 오류 (${res.status}): ${(await res.text()).slice(0, 120)}`);
+    return await res.json();
+  }
+  throw new Error("네이버 API 오류 (429 반복)");
+}
+
+async function fetchShopItems(keyword: string, limit: number, clientId: string, clientSecret: string) {
+  const first = await fetchShopPageRaw(keyword, 1, clientId, clientSecret);
+  const total = first.total ?? 0;
+  const items: ShopItem[] = first.items ?? [];
+  const pages = Math.min(Math.ceil(limit / 100), Math.ceil(total / 100));
+  if (pages > 1 && items.length === 100) {
+    const rest = await Promise.all(
+      Array.from({ length: pages - 1 }, (_, i) =>
+        fetchShopPageRaw(keyword, 1 + (i + 1) * 100, clientId, clientSecret)),
+    );
+    rest.forEach((p) => items.push(...((p.items ?? []) as ShopItem[])));
+  }
+  return { total, items };
+}
+
 /* ═══ 아이템 추적 서버 수집 (cron용) ═══
    tracked_items의 모든 상품·키워드를 서버 혼자 수집한다.
    pg_cron이 매일 { action: "collectTracked" }로 호출 — 브라우저를 열 필요가 없다. */
@@ -253,34 +284,25 @@ async function scanKeywordForWatch(
 ) {
   const watched: Array<{ productId: string; rank: number; title: string; price: number; mallName: string; image: string; link: string }> = [];
   let counted = 0;
-  for (let start = 1; start <= 1000; start += 100) {
-    const url = `https://openapi.naver.com/v1/search/shop.json?query=${encodeURIComponent(keyword)}&display=100&start=${start}&sort=sim`;
-    const res = await fetch(url, {
-      headers: { "X-Naver-Client-Id": clientId, "X-Naver-Client-Secret": clientSecret },
-    });
-    if (!res.ok) break;
-    const data = await res.json();
-    const items: ShopItem[] = data.items ?? [];
-    for (const item of items) {
-      if (item.mallName === "네이버") continue; // 카탈로그 — 본 스캔과 동일하게 순위에서 제외
-      counted++;
-      if (counted > 1000) break;
-      const apiId = String(item.productId).trim();
-      const linkId = (String(item.link).match(/\/products\/(\d+)/) || [])[1] || "";
-      const matchedCode = watchSet.has(apiId) ? apiId : (linkId && watchSet.has(linkId) ? linkId : "");
-      if (matchedCode) {
-        watched.push({
-          productId: matchedCode,
-          rank: counted,
-          title: stripTags(item.title),
-          price: Number(item.lprice) || 0,
-          mallName: item.mallName,
-          image: item.image || "",
-          link: item.link,
-        });
-      }
+  const { items } = await fetchShopItems(keyword, 1000, clientId, clientSecret); // 페이지 병렬 수집
+  for (const item of items) {
+    if (item.mallName === "네이버") continue; // 카탈로그 — 본 스캔과 동일하게 순위에서 제외
+    counted++;
+    if (counted > 1000) break;
+    const apiId = String(item.productId).trim();
+    const linkId = (String(item.link).match(/\/products\/(\d+)/) || [])[1] || "";
+    const matchedCode = watchSet.has(apiId) ? apiId : (linkId && watchSet.has(linkId) ? linkId : "");
+    if (matchedCode) {
+      watched.push({
+        productId: matchedCode,
+        rank: counted,
+        title: stripTags(item.title),
+        price: Number(item.lprice) || 0,
+        mallName: item.mallName,
+        image: item.image || "",
+        link: item.link,
+      });
     }
-    if (items.length < 100 || counted >= 1000) break;
   }
   return watched;
 }
@@ -418,7 +440,11 @@ Deno.serve(async (req) => {
     );
     const watched: Array<Record<string, unknown>> = [];
 
-    /* ── 쇼핑 API 스캔 ── */
+    /* ── 쇼핑 API 스캔 + 검색광고 조회 동시 시작 ──
+       키워드도구 조회는 스캔 결과와 무관하므로 미리 던져두고 나중에 기다린다 (0.5~1초 절약).
+       withVolume 경로와 withInsight 경로가 같은 호출을 쓰므로 한 번만 실행된다. */
+    const adStatsPromise = (withInsight || withVolume) ? fetchAdStats(keyword) : null;
+
     const found: Array<Record<string, unknown>> = [];
     const top: Array<Record<string, unknown>> = [];
     let counted = 0;
@@ -429,21 +455,17 @@ Deno.serve(async (req) => {
     const catCount = new Map<string, number>();
     const mallAgg = new Map<string, { count: number; best: number; sum: number; link: string; points: number }>();
 
-    for (let start = 1; start <= limit; start += 100) {
-      const url =
-        `https://openapi.naver.com/v1/search/shop.json` +
-        `?query=${encodeURIComponent(keyword)}&display=100&start=${start}&sort=sim`;
-      const res = await fetch(url, {
-        headers: { "X-Naver-Client-Id": clientId, "X-Naver-Client-Secret": clientSecret },
-      });
-      if (!res.ok) {
-        return json({ error: `네이버 API 오류 (${res.status})`, detail: await res.text() }, 502);
-      }
-      const data = await res.json();
-      total = data.total ?? 0;
-      const items: ShopItem[] = data.items ?? [];
+    let scanItems: ShopItem[] = [];
+    try {
+      const scanRes = await fetchShopItems(keyword, limit, clientId, clientSecret); // 페이지 병렬 수집
+      total = scanRes.total;
+      scanItems = scanRes.items;
+    } catch (e) {
+      return json({ error: e instanceof Error ? e.message : String(e) }, 502);
+    }
 
-      for (const item of items) {
+    {
+      for (const item of scanItems) {
         scannedItems++;
         // 가격비교(카탈로그)
         if (item.mallName === "네이버") { catalogCount++; continue; }
@@ -514,7 +536,6 @@ Deno.serve(async (req) => {
           }
         }
       }
-      if (items.length < 100 || counted >= limit) break;
     }
 
     /* ── 시장 통계 ── */
@@ -573,7 +594,7 @@ Deno.serve(async (req) => {
     let volume = null;
     if (withVolume && !withInsight) {
       try {
-        const volRes = await fetchAdStats(keyword);
+        const volRes = await adStatsPromise!; // 스캔과 동시에 시작해둔 조회
         if (volRes.ok && volRes.main) {
           volume = { pc: volRes.main.pc, mobile: volRes.main.mobile, total: volRes.main.total };
           await saveMonthlyVolume(keyword, volRes.main.pc, volRes.main.mobile);
@@ -586,7 +607,7 @@ Deno.serve(async (req) => {
     let adError = null;
     if (withInsight) {
       try {
-        const adRes = await fetchAdStats(keyword);
+        const adRes = await adStatsPromise!; // 스캔과 동시에 시작해둔 조회
         if (adRes.ok) {
           const volume = adRes.main?.total || 0;
           ad = {
@@ -646,20 +667,17 @@ Deno.serve(async (req) => {
         const leftovers: Array<Record<string, unknown>> = [];
         const TARGET_TOTAL = 50; // 화면에는 10개 먼저, 나머지는 더보기로
 
-        // ① 통째 포함 변형
+        // ① 통째 포함 변형 + ② 부분 토큰 후보를 함께 뽑아 한 번에 병렬 조회 (단계 대기 제거)
         const tier1 = take(all.filter((k) => kwNorm(k).includes(seedN)).slice(0, 15));
-        await enrichRelatedKeywords(tier1, clientId, clientSecret);
+        const tier2Cands = take(all
+          .filter((k) => !used.has(String(k.keyword)) && seedGrams.some((g) => kwNorm(k).includes(g)))
+          .slice(0, 30));
+        await enrichRelatedKeywords([...tier1, ...tier2Cands], clientId, clientSecret);
         let pool = [...tier1];
 
         // ② 부분 토큰 포함 + 같은 카테고리
-        {
-          const cands = take(all
-            .filter((k) => !used.has(String(k.keyword)) && seedGrams.some((g) => kwNorm(k).includes(g)))
-            .slice(0, 30));
-          await enrichRelatedKeywords(cands, clientId, clientSecret);
-          pool = [...pool, ...catSorted(cands.filter(sameCat))];
-          leftovers.push(...cands.filter((k) => !sameCat(k)));
-        }
+        pool = [...pool, ...catSorted(tier2Cands.filter(sameCat))];
+        leftovers.push(...tier2Cands.filter((k) => !sameCat(k)));
 
         // ③ 같은 카테고리 나머지 (헤드 포함)
         if (pool.length < 15) {

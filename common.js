@@ -99,9 +99,161 @@ function initAiChatFab() {
   document.body.appendChild(btn);
 }
 
+/* ─────────────────────────────────────────
+   분석 내역 패널 — 키워드 분석(naver-rank.html) 결과 히스토리를 전 페이지에서 열람.
+   상단바 시계 아이콘으로 토글. 항목 클릭 시:
+   - 키워드분석 페이지에서는 window.nrRestoreAnalysis 훅으로 즉시 복원 (로딩 없음)
+   - 다른 페이지에서는 naver-rank.html?restoreKeyword=... 로 이동해 복원
+   ───────────────────────────────────────── */
+const NR_HISTORY_KEY = "nrAnalysisHistory:v1";
+
+function nrHistoryLoad() {
+  try { return JSON.parse(localStorage.getItem(NR_HISTORY_KEY) || "[]"); }
+  catch (_) { return []; }
+}
+
+function nrEsc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function nrHistoryToggle(force) {
+  const panel = document.getElementById("historyPanel");
+  if (!panel) return;
+  const open = typeof force === "boolean" ? force : !panel.classList.contains("open");
+  panel.classList.toggle("open", open);
+  panel.setAttribute("aria-hidden", String(!open));
+  const btn = document.querySelector('.topbar-actions .topbar-icon-btn[aria-label="분석 내역"]');
+  if (btn) btn.classList.toggle("history-on", open);
+  if (open) nrHistoryRenderList();
+}
+
+function nrHistoryClear() {
+  if (!confirm("분석 내역을 모두 삭제할까요?")) return;
+  localStorage.removeItem(NR_HISTORY_KEY);
+  nrHistoryRenderList();
+}
+
+function nrHistoryRenderList() {
+  const list = document.getElementById("historyList");
+  if (!list) return;
+  const entries = nrHistoryLoad();
+  if (!entries.length) {
+    list.innerHTML = `<div class="history-empty">아직 분석 내역이 없습니다.<br>키워드분석에서 키워드를 분석하면 자동으로 저장됩니다.</div>`;
+    return;
+  }
+  list.innerHTML = entries.map((e, i) => {
+    const d = new Date(e.savedAt);
+    const h = d.getHours();
+    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")} `
+      + `${h >= 12 ? "PM" : "AM"} ${String(h % 12 || 12).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    // summary는 저장 시점에 미리 계산됨(신규). 없으면 원본 데이터에서 가능한 것만 표시.
+    const s = e.summary || {};
+    const best = s.bestRank != null ? s.bestRank : ((e.data && e.data.results || [])[0] || {}).rank;
+    const details = [
+      { key: "검색량", val: s.volume != null ? Number(s.volume).toLocaleString() : "-" },
+      { key: "상품수", val: s.products != null ? Number(s.products).toLocaleString() : "-" },
+      { key: "경쟁지수", val: s.compScore != null ? s.compScore + " / 100" : "-" },
+      { key: "내 순위", val: best != null ? best + "위" : "이탈" },
+    ].map(r => `<div class="detail-row"><span class="detail-key">${r.key}:</span><span class="detail-val">${r.val}</span></div>`).join("");
+    return `<div class="history-item" data-index="${i}">
+      <div class="history-date">${dateStr}</div>
+      <div class="history-calc-name">${nrEsc(e.store)}</div>
+      <div class="history-result-label">${nrEsc(e.keyword)}</div>
+      <div class="history-detail">${details}</div>
+    </div>`;
+  }).join("");
+  list.querySelectorAll(".history-item").forEach(el => {
+    el.addEventListener("click", () => {
+      const entry = nrHistoryLoad()[parseInt(el.dataset.index)];
+      if (!entry) return;
+      nrHistoryToggle(false);
+      if (typeof window.nrRestoreAnalysis === "function") {
+        window.nrRestoreAnalysis(entry.keyword, entry.store); // 키워드분석 페이지 — 즉시 복원
+        return;
+      }
+      const prefix = (typeof window.TOPBAR_PREFIX === "string")
+        ? window.TOPBAR_PREFIX
+        : (document.querySelector("base") ? "../" : "");
+      const params = new URLSearchParams({ restoreKeyword: entry.keyword, restoreStore: entry.store });
+      location.href = `${prefix}naver-rank.html?${params.toString()}`;
+    });
+  });
+}
+
+function initHistoryPanel() {
+  if (!document.getElementById("historyPanel")) {
+    const panel = document.createElement("aside");
+    panel.className = "history-panel";
+    panel.id = "historyPanel";
+    panel.setAttribute("aria-hidden", "true");
+    panel.innerHTML = `
+      <div class="history-header">
+        <span>키워드 분석 내역</span>
+        <button type="button" class="history-clear-btn">전체 삭제</button>
+      </div>
+      <div class="history-list" id="historyList"></div>`;
+    panel.querySelector(".history-clear-btn").addEventListener("click", nrHistoryClear);
+    document.body.appendChild(panel);
+  }
+  const btn = document.querySelector('.topbar-actions .topbar-icon-btn[aria-label="계산 내역"]');
+  if (btn) {
+    btn.setAttribute("aria-label", "분석 내역");
+    btn.removeAttribute("tabindex");
+    const actions = btn.closest(".topbar-actions");
+    if (actions) actions.removeAttribute("aria-hidden");
+    btn.style.cursor = "pointer";
+    btn.addEventListener("click", (e) => { e.stopPropagation(); nrHistoryToggle(); });
+  }
+  document.addEventListener("click", (e) => {
+    const panel = document.getElementById("historyPanel");
+    if (!panel || !panel.classList.contains("open")) return;
+    if (panel.contains(e.target)) return;
+    nrHistoryToggle(false);
+  });
+}
+
+function initCommonFooter() {
+  const footerMarkup = `
+    <div class="site-footer-inner">
+      <p class="footer-copy">Copyright 2026. Energuard Company. All Rights Reserved.</p>
+      <div class="footer-links">
+        <a href="#">맨 위로</a>
+        <a href="#">사용 가이드 ↗</a>
+        <a href="#">이용약관 ↗</a>
+        <a href="#">개인정보처리방침 ↗</a>
+      </div>
+    </div>`;
+
+  function ensureFooter() {
+    let footer = document.getElementById("__commonFooter");
+    if (!footer) {
+      footer = document.createElement("footer");
+      footer.id = "__commonFooter";
+      footer.className = "site-footer common-site-footer";
+      footer.innerHTML = footerMarkup;
+      document.body.appendChild(footer);
+    }
+
+    const pageFooters = Array.from(document.querySelectorAll(".site-footer"))
+      .filter(el => el.id !== "__commonFooter");
+    pageFooters.forEach(el => {
+      if (!el.querySelector(".site-footer-inner")) el.innerHTML = footerMarkup;
+    });
+    const hasPageFooter = pageFooters.length > 0;
+    footer.hidden = hasPageFooter;
+  }
+
+  ensureFooter();
+  const observer = new MutationObserver(ensureFooter);
+  observer.observe(document.body, { childList: true, subtree: true });
+}
+
 function bootCommonUi() {
   initTopbar();
   initAiChatFab();
+  initHistoryPanel();
+  initCommonFooter();
 }
 
 if (document.readyState === "loading") {
