@@ -369,27 +369,37 @@
   /* 섹션 바로가기 탭 — 스크롤해도 상단에 고정 (sticky 상단바 73px 바로 아래에 붙는다) */
   .sec-nav {
     position: sticky; top: 73px; z-index: 40;
-    display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px;
-    margin-top: 24px; padding: 8px;
-    background: #fff; border: 1px solid var(--line); border-radius: var(--radius);
-    box-shadow: 0 10px 24px rgba(5, 7, 11, 0.04);
+    display: flex; align-items: center; justify-content: center; gap: 36px;
+    margin-top: 24px; padding: 0 12px;
+    background: var(--bg); border-bottom: 1px solid var(--line);
   }
   .sec-nav-btn {
-    height: 42px; padding: 0 14px; border: 1px solid transparent; border-radius: 6px;
+    position: relative;
+    height: 52px; padding: 0 2px; border: 0; border-radius: 0;
     background: transparent; color: var(--sub);
-    font-family: inherit; font-size: 14px; font-weight: 800; cursor: pointer;
+    font-family: inherit; font-size: 15px; font-weight: 800; cursor: pointer;
     display: inline-flex; align-items: center; justify-content: center; gap: 6px;
     white-space: nowrap;
-    transition: color .12s, background .12s, border-color .12s;
+    transition: color .12s;
   }
-  .sec-nav-btn:hover { color: var(--ink); background: #fafbfc; border-color: #d7dde7; }
-  .sec-nav-btn.active { color: #fff; background: var(--ink); border-color: var(--ink); font-weight: 900; }
+  .sec-nav-btn::after {
+    content: "";
+    position: absolute;
+    left: 0; right: 0; bottom: -1px;
+    height: 3px;
+    border-radius: 999px 999px 0 0;
+    background: transparent;
+    transition: background .12s;
+  }
+  .sec-nav-btn:hover { color: var(--ink); }
+  .sec-nav-btn.active { color: var(--accent-dark); font-weight: 900; }
+  .sec-nav-btn.active::after { background: var(--accent); }
   .sec-nav-count {
     min-width: 20px; padding: 1px 6px; border-radius: 10px;
     background: var(--accent-tint); color: var(--accent-dark);
     font-size: 11px; font-weight: 800; text-align: center;
   }
-  .sec-nav-btn.active .sec-nav-count { background: rgba(255,255,255,.16); color: #fff; }
+  .sec-nav-btn.active .sec-nav-count { background: var(--accent); color: #fff; }
   /* 고정 상단바(73px) + 탭 높이만큼 앵커 이동 시 여백 확보 */
   #insight, .sec { scroll-margin-top: 132px; }
 
