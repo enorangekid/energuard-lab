@@ -46,6 +46,33 @@
   .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }
   .card + .card { margin-top: 16px; }
 
+  .keyword-result-banner {
+    display: none;
+    margin-top: 24px;
+  }
+  .keyword-result-chip {
+    width: 100%;
+    min-height: 42px;
+    padding: 0 18px;
+    border: 1px solid var(--ink);
+    border-radius: var(--radius);
+    background: var(--ink);
+    color: #fff;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 900;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    white-space: nowrap;
+  }
+  .keyword-result-meta {
+    font-size: 11px;
+    font-weight: 700;
+    opacity: .72;
+  }
+
   .keyword-filterbar {
     display: flex; align-items: center; gap: 12px; padding-bottom: 22px;
     border-bottom: 1px solid var(--line);
@@ -603,6 +630,8 @@
   </div>
 
   <!-- 인사이트 -->
+  <div class="keyword-result-banner" id="keywordResultBanner"></div>
+
   <div id="insight">
     <div class="ins-meta" id="insMeta" style="display:none;"></div>
     <div class="ins-grid" id="insGrid"></div>
@@ -814,7 +843,7 @@ async function runSearch(kwOverride) {
     <div class="spinner"></div>
     <strong>"${esc(keyword)}" ${maxRank}위까지 분석 중...</strong>
   </div>`;
-  ["insight","secNav","secVolTrend","secStore","secTop","secRel","secSellers"].forEach(id => document.getElementById(id).style.display = "none");
+  ["keywordResultBanner","insight","secNav","secVolTrend","secStore","secTop","secRel","secSellers"].forEach(id => document.getElementById(id).style.display = "none");
 
   try {
     const res = await fetch(FN_URL, {
@@ -864,14 +893,15 @@ function render(d) {
     }
   }
   document.getElementById("insGrid").innerHTML = g.join("");
-  // 주요 카테고리는 카드 폭 확보를 위해 그리드 위 한 줄로 표시 (연관키워드 필터 기준이기도 함)
+  const resultBanner = document.getElementById("keywordResultBanner");
+  const topCategory = d.stats?.topCategory || "";
+  resultBanner.innerHTML = `<div class="keyword-result-chip">
+    <span>${esc(d.keyword || document.getElementById("keyword").value.trim())}</span>
+    ${topCategory ? `<span class="keyword-result-meta">주요 카테고리 ${esc(topCategory)}</span>` : ""}
+  </div>`;
+  resultBanner.style.display = "block";
   const insMeta = document.getElementById("insMeta");
-  if (d.stats && d.stats.topCategory) {
-    insMeta.innerHTML = `주요 카테고리 <b>${esc(d.stats.topCategory)}</b>`;
-    insMeta.style.display = "block";
-  } else {
-    insMeta.style.display = "none";
-  }
+  insMeta.style.display = "none";
   if (d.ad && d.ad.monthlyTotal != null) loadVolumeTrend(d.keyword);
   const adWarn = document.getElementById("adWarn");
   if (d.adError) { adWarn.textContent = "검색량 조회 불가: " + d.adError; adWarn.style.display = "block"; }
