@@ -195,27 +195,40 @@
   .batch-item .rk.none { color: var(--danger); font-weight: 600; }
 
   /* 인사이트 카드 */
-  #insight { display: none; margin-top: 24px; }
+  #insight {
+    display: none;
+    margin-top: 24px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 16px 18px 14px;
+    box-shadow: 0 14px 34px rgba(5, 7, 11, 0.05);
+  }
   .ins-meta { margin-bottom: 8px; font-size: 12px; font-weight: 600; color: var(--sub); }
   .ins-meta b { color: var(--ink); font-weight: 800; background: var(--dark-tint); padding: 2px 8px; border-radius: 10px; margin-left: 4px; }
   .ins-grid {
-    display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 10px;
+    display: grid; grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 8px;
   }
   .ins-card {
-    background: var(--card); border: 1px solid var(--line); border-radius: 6px;
-    padding: 13px 15px;
+    min-width: 0;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    padding: 4px 2px;
   }
-  .ins-label { display: flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 700; color: var(--sub); margin-bottom: 4px; }
-  .ins-value { font-family: var(--font-mono); font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
-  .ins-value small { font-family: var(--font-main); font-size: 11.5px; font-weight: 600; color: var(--sub); }
-  /* 근거 노트 — 타이틀 옆 느낌표 아이콘에 마우스를 올리면 툴팁으로 표시 */
+  .ins-card + .ins-card { border-left: 1px solid var(--line); padding-left: 14px; }
+  .ins-label { display: flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 800; color: #8a93a5; margin-bottom: 2px; white-space: nowrap; }
+  .ins-value { font-family: var(--font-mono); font-size: 21px; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; white-space: nowrap; }
+  .ins-value small { margin-left: 4px; font-family: var(--font-main); font-size: 11.5px; font-weight: 700; color: var(--sub); }
+  /* 근거 노트 — 타이틀 옆 물음표 아이콘에 마우스를 올리면 툴팁으로 표시 */
   .ins-info {
     position: relative;
-    width: 14px; height: 14px; flex-shrink: 0;
+    width: 18px; height: 18px; flex-shrink: 0;
     display: inline-flex; align-items: center; justify-content: center;
-    border-radius: 50%; background: var(--sub); color: #fff;
-    font-size: 9.5px; font-weight: 800; cursor: default; line-height: 1;
+    border: 1px solid #cfd5df; border-radius: 50%;
+    background: #f4f6f9; color: #8a93a5;
+    font-size: 12px; font-weight: 900; cursor: default; line-height: 1;
   }
   .ins-tip {
     position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(3px);
@@ -226,6 +239,10 @@
     opacity: 0; visibility: hidden; transition: all .12s; pointer-events: none;
   }
   .ins-info:hover .ins-tip { opacity: 1; visibility: visible; transform: translateX(-50%) translateY(0); }
+  @media (max-width: 900px) {
+    .ins-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .ins-card:nth-child(4) { border-left: 0; padding-left: 2px; }
+  }
   /* 검색량 추세 카드 — 증감 색은 다른 페이지 증감 표기와 동일 */
   .trend-up { color: #16a34a; }
   .trend-down { color: var(--danger); }
@@ -778,7 +795,6 @@ async function runSearch(kwOverride) {
   statusLine.innerHTML = `<div class="search-loading">
     <div class="spinner"></div>
     <strong>"${esc(keyword)}" ${maxRank}위까지 분석 중...</strong>
-    <span>순위 스캔 · 검색량 · 연관 키워드 확장까지 한 번에 처리하고 있어요. 잠시만 기다려 주세요.</span>
   </div>`;
   ["insight","secNav","secVolTrend","secStore","secTop","secRel","secSellers"].forEach(id => document.getElementById(id).style.display = "none");
 
@@ -816,7 +832,7 @@ function render(d) {
         `PC ${d.ad.monthlyPc.toLocaleString()} · 모바일 ${d.ad.monthlyMobile.toLocaleString()}`));
       // 검색량 추세 — keyword_search_volume_monthly 월별 스냅샷의 전월/전년 대비. 렌더 후 비동기로 채운다.
       g.push(`<div class="ins-card">
-        <div class="ins-label">검색량 추세<span class="ins-info">!<span class="ins-tip" id="volTrendNote">확인 중...</span></span></div>
+        <div class="ins-label">검색량 추세<span class="ins-info">?<span class="ins-tip" id="volTrendNote">확인 중...</span></span></div>
         <div class="ins-value" id="volTrendValue">-</div>
         <div class="metric-cmp" id="volTrendChips"></div>
       </div>`);
@@ -1180,7 +1196,7 @@ function volChartHover(e) {
 
 function card(label, value, note) {
   return `<div class="ins-card">
-    <div class="ins-label">${label}${note ? `<span class="ins-info">!<span class="ins-tip">${note}</span></span>` : ""}</div>
+    <div class="ins-label">${label}${note ? `<span class="ins-info">?<span class="ins-tip">${note}</span></span>` : ""}</div>
     <div class="ins-value">${value}</div>
   </div>`;
 }
