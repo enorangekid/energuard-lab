@@ -25,12 +25,66 @@
     background: var(--bg); color: var(--ink); font-size: 15px; line-height: 1.55;
   }
   .wrap { max-width: 1180px; margin: 0 auto; padding: 64px 0 80px; }
-  .wrap > header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 20px; }
-  .wrap > header h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; }
-  .wrap > header .tag { font-size: 12px; font-weight: 600; color: var(--dark); background: var(--dark-tint); padding: 2px 8px; border-radius: 20px; }
+  .wrap > header { display: flex; align-items: flex-end; gap: 0; margin-bottom: 30px; }
+  .mode-title-tabs { display: inline-flex; align-items: center; gap: 28px; }
+  .mode-title-tab {
+    position: relative; height: 34px; padding: 0 0 8px; border: 0; background: transparent;
+    color: #07111f; font-family: inherit; font-size: 21px; font-weight: 900; cursor: default;
+  }
+  .mode-title-text { display: inline-flex; align-items: center; gap: 12px; }
+  .mode-label { position: relative; display: inline-flex; align-items: center; }
+  .mode-title-tab.active .mode-label::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: -10px; height: 3px;
+    background: var(--accent); border-radius: 999px;
+  }
+  .mode-help {
+    width: 18px; height: 18px; border: 1px solid #cfd5df; border-radius: 50%;
+    background: #f4f6f9; color: #8a93a5; font-size: 12px; font-weight: 900;
+    display: inline-flex; align-items: center; justify-content: center; line-height: 1;
+  }
 
   .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }
   .card + .card { margin-top: 16px; }
+
+  .keyword-filterbar {
+    display: flex; align-items: center; gap: 12px; padding-bottom: 22px;
+    border-bottom: 1px solid var(--line);
+  }
+  .keyword-store-row { display: inline-flex; align-items: center; gap: 8px; }
+  .store-chips { position: relative; display: block; flex: 0 0 auto; }
+  .store-select {
+    height: 42px; min-width: 190px; padding: 0 14px 0 18px; border: 1px solid #dfe4ec;
+    border-radius: var(--radius); background: #fff; color: var(--sub); font-family: inherit;
+    font-size: 14px; font-weight: 800; cursor: pointer; display: inline-flex;
+    align-items: center; justify-content: space-between; gap: 18px;
+  }
+  .store-select:hover, .store-chips.open .store-select { border-color: #c8cdd4; background: #fafbfc; }
+  .store-caret { display: inline-flex; align-items: center; justify-content: center; color: #8a93a5; line-height: 1; }
+  .store-caret svg { width: 14px; height: 14px; }
+  .store-menu {
+    position: absolute; z-index: 50; top: calc(100% + 6px); left: 0; min-width: 100%;
+    padding: 6px; border: 1px solid var(--line); border-radius: var(--radius);
+    background: #fff; box-shadow: 0 16px 34px rgba(5, 7, 11, 0.12); display: none;
+  }
+  .store-chips.open .store-menu { display: flex; flex-direction: column; gap: 4px; }
+  .store-option {
+    height: 34px; padding: 0 12px; border: 0; border-radius: 4px; background: transparent;
+    color: var(--sub); font-family: inherit; font-size: 12.5px; font-weight: 800; text-align: left; cursor: pointer;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .store-option:hover { background: #f4f6f9; color: var(--ink); }
+  .store-option.active { background: var(--ink); color: #fff; }
+  .store-option-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .store-option-remove { opacity: .6; font-weight: 900; }
+  .store-option-remove:hover { opacity: 1; }
+  .store-add-icon {
+    width: 42px; height: 42px; border: 1px solid #dfe4ec; border-radius: var(--radius);
+    background: #fff; color: var(--sub); display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: all .12s;
+  }
+  .store-add-icon:hover { border-color: #c8cdd4; color: var(--ink); background: #fafbfc; }
+  .store-add-icon svg { width: 16px; height: 16px; }
+  .keyword-search-panel { margin-top: 24px; }
 
   /* 검색 폼 */
   .field { margin-bottom: 14px; }
@@ -421,33 +475,39 @@
 <header class="topbar" data-topbar></header>
 <div class="wrap">
   <header>
-    <h1>키워드 분석</h1>
-    <span class="tag">쇼핑 순위 + 시장 데이터</span>
+    <div class="mode-title-tabs">
+      <button type="button" class="mode-title-tab active">
+        <span class="mode-title-text">
+          <span class="mode-label">키워드 분석</span>
+          <span class="mode-help" title="키워드 검색량, 내 스토어 순위, 검색 노출 상태를 한 곳에서 확인합니다.">?</span>
+        </span>
+      </button>
+    </div>
   </header>
 
-  <div class="card">
-    <div class="field">
-      <label>내 스토어</label>
-      <div class="chips" id="storeChips">
-        <button type="button" class="chip active" data-store="한국 단열">한국 단열</button>
-        <button type="button" class="chip" data-store="에너가드컴퍼니">에너가드컴퍼니</button>
-        <button type="button" class="chip chip-add" id="addStoreBtn">+ 스토어 추가</button>
-      </div>
-    </div>
-    <div class="field">
-      <label>키워드</label>
-      <div class="form-row">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+  <div class="keyword-filterbar">
+    <div class="keyword-store-row">
+      <div class="store-chips" id="storeChips"></div>
+      <button type="button" class="store-add-icon" id="addStoreBtn" aria-label="스토어 추가" title="스토어 추가">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 5v14"></path><path d="M5 12h14"></path>
         </svg>
-        <input type="text" id="keyword" placeholder="예: 아이소핑크" onkeydown="if(event.key==='Enter')runSearch()">
-        <select id="range">
-          <option value="100">100위</option>
-          <option value="400" selected>400위</option>
-          <option value="1000">1,000위</option>
-        </select>
-        <button id="searchBtn" onclick="runSearch()">검색</button>
-      </div>
+      </button>
+    </div>
+  </div>
+
+  <div class="keyword-search-panel">
+    <div class="form-row">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input type="text" id="keyword" placeholder="예: 아이소핑크" onkeydown="if(event.key==='Enter')runSearch()">
+      <select id="range">
+        <option value="100">100위</option>
+        <option value="400" selected>400위</option>
+        <option value="1000">1,000위</option>
+      </select>
+      <button id="searchBtn" onclick="runSearch()">검색</button>
     </div>
     <div id="statusLine" style="display:none;font-size:13px;color:var(--sub);margin-top:4px;"></div>
   </div>
@@ -623,28 +683,58 @@ function storeLink(mall, fallback) {
 let selectedStore = "한국 단열";
 const storeChipsEl = document.getElementById("storeChips");
 
-function selectStoreChip(chip) {
-  storeChipsEl.querySelectorAll(".chip").forEach(c => c.classList.remove("active"));
-  chip.classList.add("active");
-  selectedStore = chip.dataset.store;
+function allStores() {
+  return ["한국 단열", "에너가드컴퍼니", ...loadCustomStores()];
+}
+
+function renderStoreSelect() {
+  storeChipsEl.innerHTML = `
+    <button type="button" class="store-select" data-action="toggle-store-menu" aria-label="내 스토어 선택">
+      <span>${esc(selectedStore)}</span>
+      <span class="store-caret" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+      </span>
+    </button>
+    <div class="store-menu">
+      ${allStores().map(name => `
+        <button type="button" class="store-option${name === selectedStore ? " active" : ""}" data-store="${esc(name)}">
+          <span class="store-option-name">${esc(name)}</span>
+          ${loadCustomStores().includes(name) ? `<span class="store-option-remove" data-remove-store="${esc(name)}">&times;</span>` : ""}
+        </button>
+      `).join("")}
+    </div>`;
+}
+
+function selectStore(name) {
+  selectedStore = name;
   batchSelected.clear();
   updateBatchStoreLabel();
   renderBatchBanners();
   updateBatchRunUi();
+  renderStoreSelect();
 }
 
 storeChipsEl.addEventListener("click", (e) => {
-  const removeBtn = e.target.closest(".chip-remove");
-  if (removeBtn) {
-    e.stopPropagation();
-    const chip = removeBtn.closest(".chip");
-    removeCustomStore(chip.dataset.store);
-    chip.remove();
+  const toggle = e.target.closest('[data-action="toggle-store-menu"]');
+  if (toggle) {
+    storeChipsEl.classList.toggle("open");
     return;
   }
-  if (e.target.closest("#addStoreBtn")) return; // 아래 별도 핸들러에서 처리
-  const chip = e.target.closest(".chip");
-  if (chip) selectStoreChip(chip);
+  const removeBtn = e.target.closest("[data-remove-store]");
+  if (removeBtn) {
+    e.stopPropagation();
+    const name = removeBtn.dataset.removeStore;
+    removeCustomStore(name);
+    if (selectedStore === name) selectStore("한국 단열");
+    else renderStoreSelect();
+    return;
+  }
+  const option = e.target.closest("[data-store]");
+  if (!option) return;
+  storeChipsEl.classList.remove("open");
+  selectStore(option.dataset.store);
 });
 
 /* ───────── 스토어 추가(직접 등록한 칩은 로컬에 저장돼 다음에도 남아있음) ───────── */
@@ -655,16 +745,7 @@ function loadCustomStores() {
 function saveCustomStores(list) { localStorage.setItem(CUSTOM_STORE_KEY, JSON.stringify(list)); }
 function removeCustomStore(name) { saveCustomStores(loadCustomStores().filter(n => n !== name)); }
 
-function renderCustomChip(name) {
-  const btn = document.createElement("button");
-  btn.type = "button";
-  btn.className = "chip chip-custom";
-  btn.dataset.store = name;
-  btn.innerHTML = `${esc(name)}<span class="chip-remove">&times;</span>`;
-  document.getElementById("addStoreBtn").insertAdjacentElement("beforebegin", btn);
-  return btn;
-}
-loadCustomStores().forEach(renderCustomChip);
+renderStoreSelect();
 
 document.getElementById("addStoreBtn").addEventListener("click", () => {
   const name = (prompt("추가할 스토어명을 입력하세요") || "").trim();
@@ -673,7 +754,11 @@ document.getElementById("addStoreBtn").addEventListener("click", () => {
   if (list.includes(name)) return;
   list.push(name);
   saveCustomStores(list);
-  selectStoreChip(renderCustomChip(name));
+  selectStore(name);
+});
+
+document.addEventListener("click", (e) => {
+  if (!storeChipsEl.contains(e.target)) storeChipsEl.classList.remove("open");
 });
 
 /* ───────── 분석 실행 ───────── */
