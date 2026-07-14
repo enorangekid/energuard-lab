@@ -432,7 +432,13 @@
     transition: all .12s;
   }
   .rel-more-btn:hover { color: var(--accent-dark); background: #fffaf7; }
-  .rel-table th, .rel-table td { padding: 9px 18px; text-align: left; font-size: 13px; border-bottom: 1px solid #f4f5f7; }
+  .rel-table th, .rel-table td {
+    padding: 9px 18px;
+    text-align: center;
+    vertical-align: middle;
+    font-size: 13px;
+    border-bottom: 1px solid #f4f5f7;
+  }
   .rel-table th {
     border-top: 1px solid var(--line);
     border-bottom: 1px solid var(--line);
@@ -452,6 +458,8 @@
   }
   .rel-table tbody tr { background: #fff; }
   .rel-table tr:last-child td { border-bottom: none; }
+  .rel-table th:first-child,
+  .rel-table td:first-child { text-align: left; }
   .rel-table td.num { font-variant-numeric: tabular-nums; font-family: var(--font-mono); color: var(--ink); }
   .rel-kw { font-weight: 700; color: var(--accent); cursor: pointer; }
   .rel-kw:hover { text-decoration: underline; }
@@ -1060,7 +1068,7 @@ function render(d) {
     const moreBtn = document.getElementById("relMoreBtn");
     if (rel.length > 10) {
       moreBtn.style.display = "block";
-      moreBtn.textContent = `연관 키워드 ${rel.length - 10}개 더보기`;
+      moreBtn.textContent = "+ 더보기";
     } else {
       moreBtn.style.display = "none";
     }
@@ -1076,8 +1084,7 @@ function render(d) {
 function toggleRelMore() {
   const table = document.querySelector("#secRel .rel-table");
   const expanded = table.classList.toggle("rel-expanded");
-  const extraCount = table.querySelectorAll(".rel-extra").length;
-  document.getElementById("relMoreBtn").textContent = expanded ? "접기" : `연관 키워드 ${extraCount}개 더보기`;
+  document.getElementById("relMoreBtn").textContent = expanded ? "접기" : "+ 더보기";
 }
 
 /* ── 섹션 탭 (스크롤 이동 없이 해당 섹션만 바로 표시) ──
