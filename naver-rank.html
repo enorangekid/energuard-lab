@@ -312,11 +312,12 @@
   .row { display: flex; align-items: center; gap: 14px; padding: 12px 18px; border-bottom: 1px solid var(--line); }
   .row:last-child { border-bottom: none; }
   .rank-badge {
-    min-width: 64px; text-align: center; padding: 6px 4px; border-radius: 4px;
-    font-weight: 800; font-size: 15px; font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+    min-width: 56px; text-align: center; padding: 5px 4px; border-radius: var(--radius);
+    font-weight: 800; font-size: 14px; font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+    line-height: 1.1;
     background: var(--gray-badge); color: var(--sub);
   }
-  .rank-badge small { display: block; font-family: var(--font-main); font-size: 10.5px; font-weight: 600; margin-top: 1px; }
+  .rank-badge small { display: block; font-family: var(--font-main); font-size: 10px; font-weight: 700; margin-top: 2px; }
   .rank-badge.p1 { background: var(--accent-tint); color: var(--accent-dark); }
   .rank-badge.p23 { background: var(--dark-tint); color: var(--ink); }
   .row img { width: 44px; height: 44px; border-radius: 4px; object-fit: cover; border: 1px solid var(--line); }
@@ -333,7 +334,7 @@
   .top-row { display: flex; align-items: center; gap: 14px; padding: 12px 18px; border-bottom: 1px solid #f4f5f7; font-size: 13px; }
   .top-row:last-child { border-bottom: none; }
   .top-row.mine { background: var(--accent-tint); }
-  .top-rank { min-width: 64px; text-align: center; font-weight: 800; font-family: var(--font-mono); color: var(--sub); background: var(--gray-badge); border-radius: 4px; padding: 6px 4px; font-size: 15px; font-variant-numeric: tabular-nums; }
+  .top-rank { min-width: 56px; text-align: center; font-weight: 800; font-family: var(--font-mono); color: var(--sub); background: var(--gray-badge); border-radius: var(--radius); padding: 5px 4px; font-size: 14px; line-height: 1.1; font-variant-numeric: tabular-nums; }
   .top-row.mine .top-rank { background: #f8d3bd; color: var(--accent-dark); }
   .top-row img { width: 44px; height: 44px; border-radius: 4px; object-fit: cover; border: 1px solid var(--line); }
   .top-info { min-width: 0; flex: 1; }
@@ -344,6 +345,7 @@
   .top-sub .product-code-inline { font-family: var(--font-mono); font-weight: 800; color: #687386; }
   .top-sub .product-mall-inline,
   .top-sub .product-price-inline { font-family: var(--font-mono); font-weight: 800; color: var(--accent-dark); }
+  .top-own-badge { display: inline-flex; align-items: center; height: 18px; padding: 0 7px; border-radius: 999px; background: var(--accent-tint); color: var(--accent-dark); font-size: 10.5px; font-weight: 900; vertical-align: middle; }
 
   /* 아이템 추적 등록 버튼 (내 스토어 순위 · TOP10 공용) */
   .track-btn {
@@ -1025,6 +1027,7 @@ function render(d) {
         <div class="top-sub">
           <span class="product-code-inline">${esc(t.productId || "")}</span>
           ${t.mall ? ` · <span class="product-mall-inline">${esc(t.mall)}</span>` : ""}
+          ${mine ? ` · <span class="top-own-badge">내 상품</span>` : ""}
           ${t.price ? ` · <span class="product-price-inline">판매가 ${t.price.toLocaleString()}원</span>` : ""}
         </div>
       </div>
