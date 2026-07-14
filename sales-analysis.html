@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="common.css?v=20260714-logo2">
+<link rel="stylesheet" href="common.css?v=20260714-tipfix">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   :root {
@@ -158,28 +158,66 @@
   .btn.primary:hover { background: var(--accent-dark); border-color: var(--accent-dark); color: #fff; }
   .btn.danger { color: var(--bad); }
 
-  .platform-tabs {
-    margin-top: 16px;
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
+  /* ── 상단 카테고리 전환(스토어 분석/광고 분석) + 스토어 드롭박스 ──
+     랭킹추적과 완전히 동일한 값: 탭 줄(.wrap > header)과 드롭박스 줄(.rank-filterbar)이
+     세로로 분리된 두 블록이라 이 페이지도 같은 구조(.analysis-mode-header / .analysis-filterbar)로 맞춘다. */
+  .analysis-mode-header { display: flex; align-items: flex-end; gap: 0; margin-bottom: 30px; }
+  .analysis-filterbar {
+    display: flex; align-items: center; gap: 16px; padding-bottom: 22px;
+    border-bottom: 1px solid var(--line); margin-bottom: 24px;
   }
-  .platform-tab, .sub-tab {
-    border: 1.5px solid var(--line);
-    border-radius: 4px;
-    background: #fff;
-    color: var(--sub);
-    font-family: inherit;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all .12s;
+  /* 스토어 드롭박스 + 엑셀 업로드(+) 버튼 묶음 — 키워드분석(.keyword-store-row)과 동일하게
+     좁은 간격(8px)으로 한 그룹처럼 붙여준다. */
+  .analysis-store-row { display: inline-flex; align-items: center; gap: 8px; }
+  .mode-title-tabs { display: inline-flex; align-items: center; gap: 28px; }
+  .mode-title-tab {
+    position: relative; height: 34px; padding: 0 0 8px; border: 0; background: transparent;
+    color: #aeb6c4; font-family: inherit; font-size: 21px; font-weight: 900; cursor: pointer;
   }
-  .platform-tab { height: 38px; font-size: 13px; }
-  .platform-tab.active, .sub-tab.active { background: var(--ink); border-color: var(--ink); color: #fff; }
-  .platform-tab:hover, .sub-tab:hover { border-color: #c8cdd4; color: var(--ink); background: #fff; }
-  .platform-tab.active:hover, .sub-tab.active:hover { color: #fff; background: var(--ink); }
-  .sub-tabs { margin-top: 8px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-  .sub-tab { height: 34px; min-width: 88px; padding: 0 14px; font-size: 12px; }
+  .mode-title-tab:not(.active):hover { color: #7f8795; }
+  .mode-title-tab + .mode-title-tab::before {
+    content: "";
+    position: absolute;
+    left: -15px;
+    top: 4px;
+    width: 1px;
+    height: 18px;
+    background: #d8dde6;
+  }
+  .mode-title-text { display: inline-flex; align-items: center; gap: 12px; }
+  .mode-label { position: relative; display: inline-flex; align-items: center; }
+  .mode-title-tab.active { color: #07111f; }
+  .mode-title-tab.active .mode-label::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: -10px; height: 3px;
+    background: var(--accent); border-radius: 999px;
+  }
+  .mode-help {
+    width: 18px; height: 18px; border: 1px solid #cfd5df; border-radius: 50%;
+    background: #f4f6f9; color: #8a93a5; font-size: 12px; font-weight: 900;
+    display: inline-flex; align-items: center; justify-content: center; line-height: 1;
+  }
+  .store-chips { position: relative; display: block; flex: 0 0 auto; }
+  .store-select {
+    height: 42px; min-width: 150px; padding: 0 14px 0 18px; border: 1px solid #dfe4ec;
+    border-radius: var(--radius); background: #fff; color: var(--sub); font-family: inherit;
+    font-size: 14px; font-weight: 800; cursor: pointer; display: inline-flex;
+    align-items: center; justify-content: space-between; gap: 18px;
+  }
+  .store-select:hover, .store-chips.open .store-select { border-color: #c8cdd4; background: #fafbfc; }
+  .store-caret { display: inline-flex; align-items: center; justify-content: center; color: #8a93a5; line-height: 1; }
+  .store-caret svg { width: 14px; height: 14px; }
+  .store-menu {
+    position: absolute; z-index: 50; top: calc(100% + 6px); right: 0; min-width: 100%;
+    padding: 6px; border: 1px solid var(--line); border-radius: var(--radius);
+    background: #fff; box-shadow: 0 16px 34px rgba(5, 7, 11, 0.12); display: none;
+  }
+  .store-chips.open .store-menu { display: flex; flex-direction: column; gap: 4px; }
+  .store-chip {
+    height: 34px; padding: 0 12px; border: 0; border-radius: 4px; background: transparent;
+    color: var(--sub); font-family: inherit; font-size: 12.5px; font-weight: 800; text-align: left; cursor: pointer;
+  }
+  .store-chip:hover { background: #f4f6f9; color: var(--ink); }
+  .store-chip.active { background: var(--ink); color: #fff; }
 
   .summary { margin-top: 12px; color: var(--sub); font-size: 13px; }
   .summary b { color: var(--ink); }
@@ -187,14 +225,95 @@
   .status.error { color: var(--bad); }
   .status.ok { color: var(--good); }
 
-  .metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 16px; }
-  .metric { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 13px 15px; }
-  .metric span { display: block; color: var(--sub); font-size: 11.5px; font-weight: 700; margin-bottom: 4px; }
-  .metric strong {
-    display: block; font-family: var(--font-mono); font-size: 18px; font-weight: 700;
-    font-variant-numeric: tabular-nums; letter-spacing: -0.01em;
+  /* ── 요약 대시보드 — 랭킹추적의 .rank-dash와 동일한 스타일(하나의 박스 + 구분선) ── */
+  .metric-grid { margin-top: 24px; }
+  .rank-dash {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: #fff;
+    padding: 16px 18px 14px;
+    box-shadow: 0 14px 34px rgba(5, 7, 11, 0.05);
   }
-  .metric small { display: block; margin-top: 2px; color: var(--sub); font-size: 11px; }
+  .rank-dash-tiles {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .dash-tile { padding: 4px 2px; min-width: 0; }
+  .dash-tile + .dash-tile { border-left: 1px solid var(--line); padding-left: 14px; }
+  .dash-label { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 800; color: #8a93a5; white-space: nowrap; }
+  /* 값은 랭킹추적·키워드분석과 동일하게 본문 폰트(Pretendard) 사용 — 모노스페이스 강제하지 않음 */
+  .dash-value {
+    margin-top: 2px; font-size: 21px; font-weight: 800; color: var(--ink);
+    font-variant-numeric: tabular-nums; letter-spacing: -0.01em; white-space: nowrap;
+  }
+  /* 근거 노트 — 키워드분석(.ins-info/.ins-tip)과 동일하게 타이틀 옆 물음표 아이콘에 마우스를 올리면 툴팁으로 표시 */
+  .dash-info {
+    position: relative;
+    width: 14px; height: 14px; flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 1px solid #cfd5df; border-radius: 50%;
+    background: #f4f6f9; color: #8a93a5;
+    font-size: 9.5px; font-weight: 900; cursor: default; line-height: 1;
+  }
+  /* 대시보드 타일 안에서는 .dash-label의 flex gap이 간격을 만들지만, 카드 제목(h2)처럼
+     flex가 아닌 자리에 단독으로 들어갈 땐 글자와 바로 붙으므로 직접 여백을 준다 */
+  h2 .dash-info { margin-left: 7px; }
+  .dash-tip {
+    position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(3px);
+    z-index: 60; width: max-content; max-width: 230px;
+    padding: 8px 11px; border-radius: 6px;
+    background: #161a22; color: #fff;
+    font-size: 11.5px; font-weight: 600; line-height: 1.5; text-align: left; white-space: normal;
+    opacity: 0; visibility: hidden; transition: all .12s; pointer-events: none;
+  }
+  .dash-info:hover .dash-tip { opacity: 1; visibility: visible; transform: translateX(-50%) translateY(0); }
+  /* 카드 맨 위(overflow:hidden으로 잘리는 위치)의 아이콘은 위로 띄우면 카드 경계에 잘리므로 아래로 펼친다 */
+  .dash-tip.down { bottom: auto; top: 22px; transform: translateX(-50%) translateY(-3px); }
+  .dash-info:hover .dash-tip.down { transform: translateX(-50%) translateY(0); }
+
+  /* 유입경로 비율 — 랭킹추적의 페이지 분포 바(.dash-bar-wrap)와 동일한 구조·스타일.
+     채널은 순서(정체성) 데이터라 단일 색조 램프 대신 카테고리 팔레트를 쓴다(색상 6개 고정 순서 + 기타). */
+  .dash-bar-wrap { margin-top: 14px; }
+  .dash-bar { display: flex; gap: 2px; height: 12px; }
+  .dash-bar-seg { min-width: 3px; }
+  .dash-bar-seg:first-child { border-radius: 6px 0 0 6px; }
+  .dash-bar-seg:last-child { border-radius: 0 6px 6px 0; }
+  .dash-bar-seg:only-child { border-radius: 6px; }
+  .dash-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 8px; font-size: 11.5px; color: var(--sub); font-weight: 700; }
+  .dash-legend-item { display: inline-flex; align-items: center; gap: 5px; }
+  .dash-legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .dash-legend-item b { color: var(--ink); font-weight: 800; }
+
+  /* 상품별 판매량 랭킹 막대 — 같은 종류(상품)의 크기 비교이므로 카테고리 색이 아니라
+     accent 단일 색조(랭킹추적·이 페이지 전반의 accent와 동일)로 그린다. */
+  .rank-bar-list { display: flex; flex-direction: column; gap: 9px; padding: 16px; border-bottom: 1px solid var(--line); }
+  .rank-bar-row { display: grid; grid-template-columns: 160px 1fr 76px; align-items: center; gap: 10px; }
+  .rank-bar-name { font-size: 12px; font-weight: 700; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rank-bar-track { position: relative; height: 10px; background: var(--dark-tint); border-radius: 999px; overflow: hidden; }
+  .rank-bar-fill { position: absolute; top: 0; left: 0; height: 100%; background: var(--accent); border-radius: 999px; }
+  .rank-bar-value { font-size: 12px; font-weight: 800; color: var(--ink); text-align: right; font-family: var(--font-mono); white-space: nowrap; }
+
+  /* 카테고리별 비율 도넛 — 순서 없는 정체성 데이터라 유입경로 바와 같은 카테고리 팔레트를 쓰고,
+     범례도 같은 .dash-legend 컴포넌트를 재사용한다(≥2 시리즈는 항상 범례를 둔다는 원칙). */
+  .donut-wrap { display: flex; align-items: center; gap: 20px; padding: 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .donut-wrap .dash-legend { flex-direction: column; gap: 6px; margin-top: 0; flex: 1 1 200px; }
+
+  /* 매출 급증·급감 TOP — 랭킹추적의 .dash-movers(상승 TOP/하락 TOP)와 동일한 구조·스타일 */
+  .dash-movers { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
+  .dash-mover-row { display: grid; grid-template-columns: 132px 1fr; align-items: start; gap: 8px; }
+  .dash-mover-title { font-size: 11px; font-weight: 800; color: #8a93a5; padding-top: 6px; white-space: nowrap; }
+  .dash-mover-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .dash-mover-chip {
+    display: inline-flex; align-items: center; gap: 6px; min-width: 0;
+    padding: 5px 10px; border: 1px solid var(--line); border-radius: var(--radius);
+    background: #fafbfc; font-size: 12px; font-weight: 700; color: var(--ink);
+  }
+  .dash-mover-name { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dash-mover-delta { font-family: var(--font-mono); font-size: 11px; font-weight: 800; white-space: nowrap; }
+  .dash-mover-delta.up { color: var(--good); }
+  .dash-mover-delta.down { color: var(--bad); }
+  .dash-mover-value { font-size: 11px; color: var(--sub); font-family: var(--font-mono); white-space: nowrap; }
   .metric-cmp { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
   .metric-cmp .cmp {
     display: inline-flex; align-items: center; gap: 2px; font-size: 10.5px; font-weight: 800;
@@ -203,33 +322,86 @@
   .metric-cmp .cmp.up, .cmp-row .cmp.up { color: var(--good); background: #e7f6ec; }
   .metric-cmp .cmp.down, .cmp-row .cmp.down { color: var(--bad); background: #fdecec; }
 
-  /* 상세 테이블 비교 행 (전기간/전년) — 버튼으로 켜고 끔, 기본은 숨김 */
-  .cmp-toggle-bar { display: flex; justify-content: flex-end; padding: 10px 14px 0; }
-  .cmp-toggle-btn {
-    height: 26px; padding: 0 10px; border: 1px solid #dfe4ec; border-radius: 4px;
-    background: #fff; color: var(--sub); font-family: inherit; font-size: 11.5px; font-weight: 800; cursor: pointer;
-    transition: all .12s;
+  /* 상세 비교 행(전기간/전년) — 토글 스위치로 켜고 끔, 기본은 숨김 */
+  .cmp-toggle-bar { display: flex; justify-content: flex-end; align-items: center; padding: 10px 14px 0; }
+  .switch-row { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+  .switch-row-label { font-size: 12px; font-weight: 700; color: var(--sub); }
+  .switch-row.on .switch-row-label { color: var(--ink); }
+  .switch-track {
+    position: relative; width: 34px; height: 20px; border-radius: 999px; flex-shrink: 0;
+    background: #d8dde6; transition: background .15s;
   }
-  .cmp-toggle-btn:hover, .cmp-toggle-btn.on { border-color: #f0b79d; color: var(--accent-dark); background: #fffaf7; }
+  .switch-track::after {
+    content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
+    border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(5, 7, 11, .25); transition: transform .15s;
+  }
+  .switch-row.on .switch-track { background: var(--accent); }
+  .switch-row.on .switch-track::after { transform: translateX(14px); }
   tr.cmp-row td {
-    background: #fafbfc; font-size: 11px; font-weight: 700; color: var(--sub);
-    padding: 5px 10px; border-top: 1px dashed var(--line);
+    background: var(--dark-tint); font-size: 13px; font-weight: 700; color: var(--ink);
+    padding: 10px 12px; border-top: none;
   }
   tr.cmp-row .cmp {
     display: inline-flex; align-items: center; gap: 2px; font-size: 10.5px; font-weight: 800;
-    padding: 1px 6px; border-radius: 8px; background: var(--dark-tint); color: var(--sub); white-space: nowrap;
+    padding: 1px 6px; border-radius: 8px; background: #fff; color: var(--sub); white-space: nowrap;
   }
 
-  .content-card { margin-top: 16px; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  /* 섹션 바로가기 탭 — 키워드분석(.sec-nav)과 동일한 스타일. 요약 대시보드 아래에서
+     이번 화면에 뜬 콘텐츠 카드(일별매출/상품별매출/유입경로/고객분석 등)로 바로 이동. */
+  .sec-nav {
+    display: none;
+    position: sticky; top: 73px; z-index: 40;
+    align-items: center; justify-content: center; gap: 28px;
+    margin: 64px 0 20px; padding: 0 12px;
+    background: var(--bg);
+  }
+  .sec-nav.on { display: flex; }
+  .sec-nav-btn {
+    padding: 10px 0 12px; border: 0; border-radius: 0;
+    background: transparent; color: #b8bdc7;
+    font-family: inherit; font-size: 19px; font-weight: 700; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    white-space: nowrap;
+    border-bottom: 2px solid transparent;
+    transition: color .15s, border-color .15s;
+  }
+  .sec-nav-btn:hover { color: var(--ink); }
+  .sec-nav-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* 일별 추이 차트 — 키워드분석의 검색량 추이 차트(.vol-chart-wrap/.vol-tip)와 동일한 스타일 */
+  .vol-chart-wrap { position: relative; padding: 14px 16px 8px; border-bottom: 1px solid var(--line); }
+  .vol-chart-wrap svg { display: block; width: 100%; height: auto; }
+  .vol-tip {
+    position: absolute; top: 6px; transform: translateX(-50%);
+    padding: 5px 10px; border-radius: 6px;
+    background: #161a22; color: #fff;
+    font-size: 12px; font-weight: 700; font-family: var(--font-mono, monospace);
+    white-space: nowrap; pointer-events: none; z-index: 10;
+  }
+
+  /* 고정 상단바(73px) + 탭 높이만큼 앵커 이동 시 여백 확보 */
+  .content-card { scroll-margin-top: 132px; margin-top: 24px; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
   .content-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px; border-bottom: 1px solid var(--line); }
   .content-head h2 { font-size: 15px; font-weight: 800; }
   .content-head span { color: var(--sub); font-size: 12px; }
+  /* 위 규칙(span 전체)이 카드 제목(h2) 안에 중첩된 물음표 툴팁(.dash-info/.dash-tip)의
+     색상까지 덮어써 버려서, 어두운 배경의 툴팁 글자가 흐린 회색으로 보이던 문제를 되돌린다. */
+  .content-head .dash-info { color: #8a93a5; font-size: 9.5px; }
+  .content-head .dash-tip { color: #fff; font-size: 11.5px; }
   .content-head-main { display: flex; align-items: baseline; gap: 10px; min-width: 0; flex: 1 1 auto; }
   .content-head-main h2 { flex-shrink: 0; }
   .content-meta { color: var(--sub); font-size: 12px; font-weight: 600; white-space: nowrap; }
   .content-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-left: auto; }
   .upload-inline { display: inline-flex; align-items: center; gap: 8px; color: var(--sub); font-size: 12px; font-weight: 800; }
   .file-input { max-width: 260px; font-family: inherit; font-size: 12px; color: var(--sub); }
+  /* 파일 업로드 트리거 — 키워드분석의 스토어 추가(+) 버튼과 동일한 스타일 */
+  .store-add-icon {
+    width: 42px; height: 42px; border: 1px solid #07111f; border-radius: var(--radius);
+    background: #07111f; color: #fff; display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: all .12s; flex-shrink: 0;
+  }
+  .store-add-icon:hover { border-color: #111827; color: #fff; background: #111827; }
+  .store-add-icon svg { width: 16px; height: 16px; }
 
   table { width: 100%; border-collapse: collapse; table-layout: fixed; }
   .table-scroll { overflow-x: visible; }
@@ -412,13 +584,32 @@
     border-radius: 999px; background: var(--accent-tint); color: var(--accent-dark);
     font-size: 11px; font-weight: 900; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
+  /* 일별매출 표 헤드 — 랭킹추적의 상품목록 헤드(.product-table-head)와 동일하게
+     둥근 테두리 박스로 감싸서 본문 행과 분리해 보이도록 한다. 랭킹추적 쪽처럼
+     카드 좌우 끝에 바로 붙지 않도록 좌우 여백도 함께 준다. */
+  .table-scroll.inset { padding: 10px; }
+  table.boxed-head { border-collapse: separate; border-spacing: 0; }
+  /* 본문 글자 크기를 키워드분석 연관키워드 표(.rel-table, 13px)와 동일하게 맞춘다. */
+  table.boxed-head tbody td, table.boxed-head tfoot td { font-size: 13px; }
+  table.boxed-head thead th {
+    background: #fafbfc; color: #8a93a5; font-size: 11.5px; font-weight: 800;
+    border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+  }
+  /* th.num이 숫자 데이터용 모노스페이스 폰트(--font-mono)를 쓰던 규칙을 그대로 물려받아
+     "방문수/구매전환율" 같은 헤드 글자만 날짜 헤드와 다른 폰트로 보이던 문제를 바로잡는다. */
+  table.boxed-head thead th.num { font-family: var(--font-main); }
+  table.boxed-head thead th:first-child { border-left: 1px solid var(--line); border-top-left-radius: var(--radius); border-bottom-left-radius: var(--radius); }
+  table.boxed-head thead th:last-child { border-right: 1px solid var(--line); border-top-right-radius: var(--radius); border-bottom-right-radius: var(--radius); }
+  /* 마지막 행의 밑줄이 카드 바깥 테두리와 거의 붙어 선이 겹쳐 보이므로, 맨 아래 줄은 밑줄을 없앤다. */
+  table.boxed-head tbody tr:last-child td { border-bottom: none; }
   .empty { padding: 42px 22px; color: var(--sub); text-align: center; font-size: 13px; }
   .placeholder { padding: 44px 22px; color: var(--sub); text-align: center; font-size: 13px; }
   .placeholder strong { display: block; margin-bottom: 6px; color: var(--ink); font-size: 15px; }
 
   @media (max-width: 900px) {
     .wrap { padding: 42px 14px 70px; }
-    .metric-grid { grid-template-columns: 1fr; }
+    .rank-dash-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .dash-tile:nth-child(odd) { border-left: none; padding-left: 2px; }
     .content-head { align-items: flex-start; flex-direction: column; }
     .content-head.collapsible { align-items: center; flex-direction: row; flex-wrap: wrap; }
     table { table-layout: auto; }
@@ -450,10 +641,36 @@
 </header>
 
 <div class="wrap">
-  <header class="page-head">
-    <h1>매출분석</h1>
-    <span class="tag">매출 + 광고 성과</span>
+  <header class="analysis-mode-header">
+    <div class="mode-title-tabs" id="categoryTabs">
+      <button type="button" class="mode-title-tab active" data-subtab="sales">
+        <span class="mode-title-text">
+          <span class="mode-label">스토어 분석</span>
+          <span class="mode-help" title="네이버/쿠팡 스토어의 매출·방문·전환 데이터를 확인합니다.">?</span>
+        </span>
+      </button>
+      <button type="button" class="mode-title-tab" data-subtab="ads">
+        <span class="mode-title-text">
+          <span class="mode-label">광고 분석</span>
+          <span class="mode-help" title="네이버/쿠팡 광고 캠페인의 노출·클릭·전환·비용을 확인합니다.">?</span>
+        </span>
+      </button>
+    </div>
   </header>
+
+  <div class="analysis-filterbar">
+    <div class="analysis-store-row">
+      <div class="store-chips" id="platformChips"></div>
+      <label class="store-add-icon" id="naverStatUploadBtn" title="판매분석 엑셀 업로드 (상품성과·유입경로·고객, 여러 개 선택 가능)" style="display:none;">
+        <input type="file" id="naverStatFiles" accept=".xlsx,.xls,.csv" multiple style="display:none;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
+      </label>
+      <label class="store-add-icon" id="coupangSalesUploadBtn" title="일별 요약 엑셀 업로드 (쿠팡 Wing 셀러 인사이트)" style="display:none;">
+        <input type="file" id="coupangSalesFile" accept=".xlsx,.xls,.csv" style="display:none;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
+      </label>
+    </div>
+  </div>
 
   <section class="card">
     <div class="toolbar">
@@ -496,19 +713,12 @@
       <select class="month-quick-year" id="monthQuickYear"></select>
       <div class="month-quick-grid" id="monthQuick"></div>
     </div>
-    <div class="platform-tabs" id="platformTabs">
-      <button type="button" class="platform-tab active" data-platform="naver">네이버</button>
-      <button type="button" class="platform-tab" data-platform="coupang">쿠팡</button>
-    </div>
-    <div class="sub-tabs" id="subTabs">
-      <button type="button" class="sub-tab active" data-subtab="sales">매출</button>
-      <button type="button" class="sub-tab" data-subtab="ads">광고</button>
-    </div>
     <div class="summary" id="uploadSummary"></div>
     <div class="status" id="adStatus"></div>
   </section>
 
   <section class="metric-grid" id="metricGrid"></section>
+  <nav class="sec-nav" id="mainNav"></nav>
   <section id="mainPanel"></section>
 </div>
 
@@ -526,6 +736,8 @@
 
 <button id="__aiChatFab" class="ai-chat-fab" type="button" aria-label="AI 업무도우미 열기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.6 8.6 0 0 1-7.7 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.6a8.4 8.4 0 0 1-.9-3.8 8.6 8.6 0 0 1 4.7-7.7 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5Z"></path><path d="M8.2 11.8h.01"></path><path d="M12 11.8h.01"></path><path d="M15.8 11.8h.01"></path></svg></button>
 
+<!-- common.js는 showLoading/hideLoading 등을 정의하므로, 이를 호출하는 아래 메인 스크립트보다 먼저 로드되어야 한다 -->
+<script src="common.js?v=20260714-tipfix"></script>
 <script>
 const SUPABASE_URL = "https://eukwfypbfqojbaihfqye.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_MiBvlf3d6ulcVBsi7Odcgw_PTXSmXKj";
@@ -1047,13 +1259,13 @@ async function loadCoupangAds() {
   const dateFrom = document.getElementById("dateFrom").value;
   const dateTo = document.getElementById("dateTo").value;
   if (coupangAdLoading) return;
-  coupangAdLoading = true;
+  coupangAdLoading = true; showLoading("저장된 쿠팡 광고 데이터를 불러오는 중...");
   coupangAdLoadKey = currentAdLoadKey();
   renderAdsPanel();
   try {
     const data = await callAdFn({ action: "coupangSummary", dateFrom, dateTo });
     coupangAdRows = data.items || [];
-    coupangAdLoading = false;
+    coupangAdLoading = false; hideLoading();
     status.className = "status ok";
     status.textContent = coupangAdRows.length
       ? `쿠팡 광고 ${num(new Set(coupangAdRows.map(row => row.date)).size)}일치를 불러왔습니다.`
@@ -1061,7 +1273,7 @@ async function loadCoupangAds() {
     render();
     loadCoupangAdCompare(); // 비교기간은 백그라운드로 읽어와 준비되는 대로 반영
   } catch (e) {
-    coupangAdLoading = false;
+    coupangAdLoading = false; hideLoading();
     coupangAdLoadKey = "";
     status.className = "status error";
     status.textContent = "쿠팡 광고 불러오기 실패: " + String(e.message || e);
@@ -1177,7 +1389,7 @@ function ensureCoupangSalesLoaded() {
 async function loadCoupangSales() {
   const status = document.getElementById("adStatus");
   if (coupangSalesLoading) return;
-  coupangSalesLoading = true;
+  coupangSalesLoading = true; showLoading("저장된 쿠팡 매출 데이터를 불러오는 중...");
   coupangSalesLoadKey = currentAdLoadKey();
   renderSalesPanel();
   try {
@@ -1190,11 +1402,11 @@ async function loadCoupangSales() {
     const exact = coupangItemPeriods.find(p => p.from === dateFrom && p.to === dateTo);
     if (exact) coupangItemPeriod = `${exact.from}|${exact.to}`;
     await loadCoupangItemRows();
-    coupangSalesLoading = false;
+    coupangSalesLoading = false; hideLoading();
     render();
     loadCoupangSalesCompare(); // 비교기간은 백그라운드로 읽어와 준비되는 대로 반영
   } catch (e) {
-    coupangSalesLoading = false;
+    coupangSalesLoading = false; hideLoading();
     coupangSalesLoadKey = "";
     status.className = "status error";
     status.textContent = "쿠팡 매출 불러오기 실패: " + String(e.message || e);
@@ -1338,7 +1550,7 @@ function ensureNaverStatLoaded() {
 async function loadNaverStat() {
   const status = document.getElementById("adStatus");
   if (naverStatLoading) return;
-  naverStatLoading = true;
+  naverStatLoading = true; showLoading("저장된 판매분석 데이터를 불러오는 중...");
   naverStatLoadKey = naverStatKey();
   renderSalesPanel();
   try {
@@ -1353,12 +1565,12 @@ async function loadNaverStat() {
       customerPeriods: data.customerPeriods || [],
       customerPeriod: data.customerPeriod || "",
     };
-    naverStatLoading = false;
+    naverStatLoading = false; hideLoading();
     naverStatLoadKey = naverStatKey();
     render();
     loadNaverSalesCompare(); // 비교기간은 백그라운드로 읽어와 준비되는 대로 반영
   } catch (e) {
-    naverStatLoading = false;
+    naverStatLoading = false; hideLoading();
     naverStatLoadKey = "";
     status.className = "status error";
     status.textContent = "판매분석 불러오기 실패: " + String(e.message || e);
@@ -1485,8 +1697,29 @@ function adTotals() {
 }
 
 function renderTabs() {
-  document.querySelectorAll(".platform-tab").forEach(btn => btn.classList.toggle("active", btn.dataset.platform === activePlatform));
-  document.querySelectorAll(".sub-tab").forEach(btn => btn.classList.toggle("active", btn.dataset.subtab === activeSubtab[activePlatform]));
+  document.querySelectorAll(".mode-title-tab").forEach(btn => btn.classList.toggle("active", btn.dataset.subtab === activeSubtab[activePlatform]));
+  renderPlatformChips();
+  // 판매분석 엑셀 업로드(+) 버튼은 스토어 드롭박스 옆에 고정 — 각 플랫폼의 스토어 분석 탭에서만 표시
+  const naverUploadBtn = document.getElementById("naverStatUploadBtn");
+  if (naverUploadBtn) naverUploadBtn.style.display = (activePlatform === "naver" && activeSubtab.naver === "sales") ? "" : "none";
+  const coupangUploadBtn = document.getElementById("coupangSalesUploadBtn");
+  if (coupangUploadBtn) coupangUploadBtn.style.display = (activePlatform === "coupang" && activeSubtab.coupang === "sales") ? "" : "none";
+}
+
+// 스토어(네이버/쿠팡) 드롭박스 — 랭킹추적의 store-select와 동일한 구조
+function renderPlatformChips() {
+  const el = document.getElementById("platformChips");
+  if (!el) return;
+  el.innerHTML = `
+    <button type="button" class="store-select" data-action="toggle-platform-menu" aria-label="스토어 선택">
+      <span>${esc(PLATFORM_LABEL[activePlatform])}</span>
+      <span class="store-caret" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+      </span>
+    </button>
+    <div class="store-menu">
+      ${Object.keys(PLATFORM_LABEL).map(p => `<button type="button" class="store-chip${p === activePlatform ? " active" : ""}" data-platform="${p}">${esc(PLATFORM_LABEL[p])}</button>`).join("")}
+    </div>`;
 }
 
 function renderSummary() {
@@ -1502,24 +1735,28 @@ function renderMetrics() {
   if (tab === "sales" && activePlatform === "coupang") {
     const t = coupangSalesTotals();
     const conv = t.views ? (t.orders / t.views) * 100 : 0;
-    document.getElementById("metricGrid").innerHTML = `
-      <div class="metric"><span>쿠팡 매출</span><strong>${money(t.sales)}</strong><small>일별 요약 기준</small>${metricCompareHtml(coupangSalesCompare, "sales", t.sales)}</div>
-      <div class="metric"><span>주문</span><strong>${num(t.orders)}건</strong><small>판매량 ${num(t.qty)}개</small>${metricCompareHtml(coupangSalesCompare, "orders", t.orders)}</div>
-      <div class="metric"><span>방문자</span><strong>${num(t.visitors)}명</strong><small>조회 ${num(t.views)}회</small>${metricCompareHtml(coupangSalesCompare, "visitors", t.visitors)}</div>
-      <div class="metric"><span>구매전환율</span><strong>${formatPercentValue(conv)}</strong><small>주문 ÷ 조회</small>${metricCompareHtml(coupangSalesCompare, "convRate", conv, "rate")}</div>
-    `;
+    const avgOrder = t.orders ? t.sales / t.orders : 0;
+    renderMetricDash([
+      { label: "쿠팡 매출", value: money(t.sales), note: "일별 요약 기준", cmp: metricCompareHtml(coupangSalesCompare, "sales", t.sales) },
+      { label: "주문", value: num(t.orders) + "건", note: `판매량 ${num(t.qty)}개`, cmp: metricCompareHtml(coupangSalesCompare, "orders", t.orders) },
+      { label: "방문자", value: num(t.visitors) + "명", note: `조회 ${num(t.views)}회`, cmp: metricCompareHtml(coupangSalesCompare, "visitors", t.visitors) },
+      { label: "구매전환율", value: formatPercentValue(conv), note: "주문 ÷ 조회", cmp: metricCompareHtml(coupangSalesCompare, "convRate", conv, "rate") },
+      { label: "객단가", value: money(avgOrder), note: "매출 ÷ 주문", cmp: metricCompareHtml(coupangSalesCompare, "avgOrder", avgOrder) },
+    ]);
     return;
   }
 
   if (tab === "sales") {
     const t = naverDailyTotals();
     const conv = t.visits ? (t.payCount / t.visits) * 100 : 0;
-    document.getElementById("metricGrid").innerHTML = `
-      <div class="metric"><span>네이버 매출(순)</span><strong>${money(t.salesNet)}</strong><small>총 ${money(t.salesTotal)} · 환불 ${money(t.refundAmount)}</small>${metricCompareHtml(naverSalesCompare, "salesNet", t.salesNet)}</div>
-      <div class="metric"><span>결제 건수</span><strong>${num(t.payCount)}건</strong><small>수량 ${num(t.qty)}개</small>${metricCompareHtml(naverSalesCompare, "payCount", t.payCount)}</div>
-      <div class="metric"><span>방문수</span><strong>${num(t.visits)}회</strong><small>판매분석 기준</small>${metricCompareHtml(naverSalesCompare, "visits", t.visits)}</div>
-      <div class="metric"><span>구매전환율</span><strong>${formatPercentValue(conv)}</strong><small>결제 ÷ 방문</small>${metricCompareHtml(naverSalesCompare, "convRate", conv, "rate")}</div>
-    `;
+    const avgOrder = t.payCount ? t.salesTotal / t.payCount : 0;
+    renderMetricDash([
+      { label: "네이버 매출(순)", value: money(t.salesNet), note: `총 ${money(t.salesTotal)} · 환불 ${money(t.refundAmount)}`, cmp: metricCompareHtml(naverSalesCompare, "salesNet", t.salesNet) },
+      { label: "결제 건수", value: num(t.payCount) + "건", note: `수량 ${num(t.qty)}개`, cmp: metricCompareHtml(naverSalesCompare, "payCount", t.payCount) },
+      { label: "방문수", value: num(t.visits) + "회", note: "판매분석 기준", cmp: metricCompareHtml(naverSalesCompare, "visits", t.visits) },
+      { label: "구매전환율", value: formatPercentValue(conv), note: "결제 ÷ 방문", cmp: metricCompareHtml(naverSalesCompare, "convRate", conv, "rate") },
+      { label: "객단가", value: money(avgOrder), note: "매출 ÷ 결제건수", cmp: metricCompareHtml(naverSalesCompare, "avgOrder", avgOrder) },
+    ], naverVisitChannelBarHtml() + naverSalesMoversHtml());
     return;
   }
 
@@ -1527,36 +1764,390 @@ function renderMetrics() {
     const ads = adTotals();
     const purchaseRoas = ads.purchaseRoas || (ads.cost ? (ads.purchaseSales / ads.cost) * 100 : 0);
     const purchaseConvRate = ads.clicks ? (ads.purchaseConversions / ads.clicks) * 100 : 0;
-    document.getElementById("metricGrid").innerHTML = `
-      <div class="metric"><span>광고비</span><strong>${money(ads.cost)}</strong><small>캠페인 합계</small>${metricCompareHtml(adCompare, "cost", ads.cost)}</div>
-      <div class="metric"><span>클릭수</span><strong>${num(ads.clicks)}회</strong><small>노출 ${num(ads.impressions)}회</small>${metricCompareHtml(adCompare, "clicks", ads.clicks)}</div>
-      <div class="metric"><span>전환율</span><strong>${formatPercentValue(purchaseConvRate)}</strong><small>전환수 ${num(ads.purchaseConversions)}건</small>${metricCompareHtml(adCompare, "convRate", purchaseConvRate, "rate")}</div>
-      <div class="metric"><span>광고수익률</span><strong>${formatPercentValue(purchaseRoas)}</strong><small>구매 매출 ${money(ads.purchaseSales)}</small>${metricCompareHtml(adCompare, "roas", purchaseRoas, "rate")}</div>
-    `;
+    const cpa = ads.purchaseConversions ? ads.cost / ads.purchaseConversions : 0;
+    renderMetricDash([
+      { label: "광고비", value: money(ads.cost), note: "캠페인 합계", cmp: metricCompareHtml(adCompare, "cost", ads.cost) },
+      { label: "클릭수", value: num(ads.clicks) + "회", note: `노출 ${num(ads.impressions)}회`, cmp: metricCompareHtml(adCompare, "clicks", ads.clicks) },
+      { label: "전환율", value: formatPercentValue(purchaseConvRate), note: `전환수 ${num(ads.purchaseConversions)}건`, cmp: metricCompareHtml(adCompare, "convRate", purchaseConvRate, "rate") },
+      { label: "광고수익률", value: formatPercentValue(purchaseRoas), note: `구매 매출 ${money(ads.purchaseSales)}`, cmp: metricCompareHtml(adCompare, "roas", purchaseRoas, "rate") },
+      { label: "전환당 비용", value: money(cpa), note: "광고비 ÷ 전환수", cmp: metricCompareHtml(adCompare, "cpa", cpa) },
+    ]);
     return;
   }
 
   const coupang = coupangAdGroups();
-  const t = coupang.total || { cost: 0, clicks: 0, impressions: 0, conversions: 0, conversionRate: 0, purchaseSales: 0, purchaseRoas: 0 };
+  const t = coupang.total || { cost: 0, clicks: 0, impressions: 0, conversions: 0, conversionRate: 0, purchaseConversions: 0, purchaseSales: 0, purchaseRoas: 0 };
+  const cpa = t.purchaseConversions ? t.cost / t.purchaseConversions : 0;
+  renderMetricDash([
+    { label: "광고비", value: money(t.cost), note: "광고그룹 합계", cmp: metricCompareHtml(coupangAdCompare, "cost", t.cost) },
+    { label: "클릭수", value: num(t.clicks) + "회", note: `노출 ${num(t.impressions)}회`, cmp: metricCompareHtml(coupangAdCompare, "clicks", t.clicks) },
+    { label: "전환율", value: formatPercentValue(t.conversionRate), note: `주문 ${num(t.conversions)}건 · 14일 기여`, cmp: metricCompareHtml(coupangAdCompare, "convRate", t.conversionRate, "rate") },
+    { label: "광고수익률", value: formatPercentValue(t.purchaseRoas), note: `전환매출 ${money(t.purchaseSales)}`, cmp: metricCompareHtml(coupangAdCompare, "roas", t.purchaseRoas, "rate") },
+    { label: "전환당 비용", value: money(cpa), note: "광고비 ÷ 전환수(14일 기여)", cmp: metricCompareHtml(coupangAdCompare, "cpa", cpa) },
+  ]);
+}
+
+// 요약 대시보드 — 랭킹추적의 .rank-dash와 동일한 구조(하나의 박스 + 구분선 타일)로 렌더링.
+// 근거 설명은 항상 보이는 텍스트 대신 키워드분석(.ins-info/.ins-tip)처럼 타이틀 옆 물음표 툴팁으로만 표시.
+function renderMetricDash(tiles, moversHtml = "") {
   document.getElementById("metricGrid").innerHTML = `
-    <div class="metric"><span>광고비</span><strong>${money(t.cost)}</strong><small>광고그룹 합계</small>${metricCompareHtml(coupangAdCompare, "cost", t.cost)}</div>
-    <div class="metric"><span>클릭수</span><strong>${num(t.clicks)}회</strong><small>노출 ${num(t.impressions)}회</small>${metricCompareHtml(coupangAdCompare, "clicks", t.clicks)}</div>
-    <div class="metric"><span>전환율</span><strong>${formatPercentValue(t.conversionRate)}</strong><small>주문 ${num(t.conversions)}건 · 14일 기여</small>${metricCompareHtml(coupangAdCompare, "convRate", t.conversionRate, "rate")}</div>
-    <div class="metric"><span>광고수익률</span><strong>${formatPercentValue(t.purchaseRoas)}</strong><small>전환매출 ${money(t.purchaseSales)}</small>${metricCompareHtml(coupangAdCompare, "roas", t.purchaseRoas, "rate")}</div>
-  `;
+    <div class="rank-dash">
+      <div class="rank-dash-tiles">
+        ${tiles.map(t => `
+          <div class="dash-tile">
+            <div class="dash-label">${esc(t.label)}<span class="dash-info">?<span class="dash-tip">${esc(t.note)}</span></span></div>
+            <div class="dash-value">${t.value}</div>
+            ${t.cmp}
+          </div>`).join("")}
+      </div>
+      ${moversHtml}
+    </div>`;
+}
+
+// 유입경로(path1 › path2) 채널별 방문수 비율 — 랭킹추적의 페이지 분포 바(1페이지/2~3페이지/4페이지 이하)와
+// 같은 "세그먼트 바 + 범례" 형태. path1만으로 묶으면 "네이버 검색"에 통합검색·가격비교·플러스스토어검색이
+// 다 섞이고 "네이버 서비스"에 플러스스토어·네이버페이가 섞여 뭉개지므로, path1+path2 조합으로 세분화한다.
+// path2를 지정하지 않은 규칙(네이버광고)은 그 path1의 모든 하위 유형(검색광고·디스플레이광고 등)을 합친다.
+const CHANNEL_RULES = [
+  { name: "네이버 통합검색", path1: "네이버 검색", path2: "통합검색" },
+  { name: "네이버 가격비교", path1: "네이버 검색", path2: "가격비교 검색" },
+  { name: "플러스스토어 검색", path1: "네이버 검색", path2: "네이버플러스스토어 검색" },
+  { name: "플러스스토어", path1: "네이버 서비스", path2: "네이버플러스스토어" },
+  { name: "네이버광고", path1: "네이버 광고" },
+  { name: "직유입", path1: "직유입" },
+  { name: "네이버페이", path1: "네이버 서비스", path2: "네이버 페이" },
+];
+// 네이버 검색 계열(통합검색·가격비교)은 초록 계열 두 톤, 플러스스토어 계열(검색·서비스)은 보라 계열 두 톤으로
+// 묶어서 "네이버 쪽"과 "플러스스토어 쪽"이 한눈에 구분되게 하고, 나머지는 서로 겹치지 않는 색으로 배열했다.
+// dataviz 스킬 validate_palette.js로 7색 전체 CVD 분리·명도·채도 통과 확인함(기타의 회색은 카테고리색이 아니라 검증 대상 제외).
+const CHANNEL_BAR_COLORS = ["#16803c", "#5fb87f", "#8f7fe0", "#4a3aa7", "#eda100", "#2a78d6", "#e34948"];
+const CHANNEL_ETC_COLOR = "#c3c2b7";
+// 네이버 판매분석 원본 데이터의 공백 표기가 "네이버 광고"/"네이버광고"처럼 들쭉날쭉해서
+// 정확히 일치하는 문자열로만 비교하면 다 "기타"로 새어 나간다 — 공백을 지우고 비교한다.
+const normChannelName = s => (s || "").replace(/\s+/g, "");
+function classifyChannel(row) {
+  const p1 = normChannelName(row.path1);
+  const p2 = normChannelName(row.path2);
+  const rule = CHANNEL_RULES.find(r => normChannelName(r.path1) === p1 && (!r.path2 || normChannelName(r.path2) === p2));
+  return rule ? rule.name : "기타";
+}
+function naverVisitChannelBarHtml() {
+  const order = CHANNEL_RULES.map(r => r.name).concat(["기타"]);
+  const colors = CHANNEL_BAR_COLORS.concat([CHANNEL_ETC_COLOR]);
+  const totals = new Map(order.map(name => [name, 0]));
+  naverStat.visitPaths.forEach(row => {
+    const visits = Number(row.visits) || 0;
+    const name = classifyChannel(row);
+    totals.set(name, totals.get(name) + visits);
+  });
+  const list = order.map((name, i) => ({ name, visits: totals.get(name), color: colors[i] }));
+  const total = list.reduce((sum, c) => sum + c.visits, 0);
+  if (!total) return "";
+  const pct = n => Math.round(n / total * 100);
+  // 색은 채널마다 고정(위 순서)이지만, 화면에는 방문수가 많은 채널이 왼쪽부터 오도록 정렬해서 보여준다.
+  const segs = list.filter(c => c.visits > 0).sort((a, b) => b.visits - a.visits);
+  return `
+    <div class="dash-bar-wrap">
+      <div class="dash-bar">
+        ${segs.map(c => `<span class="dash-bar-seg" style="flex:${c.visits};background:${c.color};" title="${esc(c.name)} ${num(c.visits)}회 (${pct(c.visits)}%)"></span>`).join("")}
+      </div>
+      <div class="dash-legend">
+        ${segs.map(c => `<span class="dash-legend-item"><span class="dash-legend-dot" style="background:${c.color};"></span>${esc(c.name)} <b>${num(c.visits)}회</b> · ${pct(c.visits)}%</span>`).join("")}
+      </div>
+    </div>`;
+}
+
+// ── 매출 급증·급감 TOP — 랭킹추적의 "상승 TOP/하락 TOP"(moveScore/buildNotableProducts)과 같은 개념을
+// 네이버 상품별 매출 데이터에 적용한다. 비교 대상 중 하나라도 최소 기준(minFloor) 이상이고
+// 변화율이 SALES_MOVER_MIN_PCT 이상이어야 "급"으로 인정 — 기준 미달이면 억지로 채우지 않고 그 줄을 비워둔다.
+const SALES_MOVER_MIN_PCT = 30;
+const SALES_MOVER_MIN_SALES = 10000; // 상품 매출 비교 시 노이즈 컷(원)
+
+function buildMovers(curList, prevList, idFn, valueKey, minFloor) {
+  const curMap = new Map(curList.map(r => [idFn(r), r]));
+  const prevMap = new Map(prevList.map(r => [idFn(r), r]));
+  const ids = new Set([...curMap.keys(), ...prevMap.keys()]);
+  const moves = [];
+  ids.forEach(id => {
+    const cur = curMap.get(id);
+    const prev = prevMap.get(id);
+    const curVal = cur ? Number(cur[valueKey]) || 0 : 0;
+    const prevVal = prev ? Number(prev[valueKey]) || 0 : 0;
+    if (curVal < minFloor && prevVal < minFloor) return;
+    if (!prevVal && curVal) { moves.push({ item: cur, curVal, prevVal, pct: null, isNew: true }); return; }
+    if (prevVal && !curVal) { moves.push({ item: prev, curVal, prevVal, pct: -100, isGone: true }); return; }
+    if (!prevVal) return;
+    const pct = (curVal - prevVal) / prevVal * 100;
+    if (Math.abs(pct) < SALES_MOVER_MIN_PCT) return;
+    moves.push({ item: cur, curVal, prevVal, pct });
+  });
+  const rising = moves.filter(m => m.isNew || (m.pct != null && m.pct > 0))
+    .sort((a, b) => (b.isNew ? Infinity : b.pct) - (a.isNew ? Infinity : a.pct)).slice(0, 3);
+  const falling = moves.filter(m => m.isGone || (m.pct != null && m.pct < 0))
+    .sort((a, b) => (a.isGone ? -Infinity : a.pct) - (b.isGone ? -Infinity : b.pct)).slice(0, 3);
+  return { rising, falling };
+}
+
+function moverChip(m, nameFn, valueFmt) {
+  const isRising = m.isNew || (m.pct != null && m.pct > 0);
+  const cls = isRising ? "up" : "down";
+  const deltaText = m.isNew ? "신규" : m.isGone ? "중단" : `${m.pct > 0 ? "▲" : "▼"}${Math.abs(m.pct).toFixed(0)}%`;
+  const name = nameFn(m.item);
+  return `<span class="dash-mover-chip">
+    <span class="dash-mover-name" title="${esc(name)}">${esc(name)}</span>
+    <span class="dash-mover-delta ${cls}">${deltaText}</span>
+    <span class="dash-mover-value">${valueFmt(m.prevVal)} → ${valueFmt(m.curVal)}</span>
+  </span>`;
+}
+
+function moverRowHtml(title, items, nameFn, valueFmt) {
+  if (!items.length) return "";
+  return `<div class="dash-mover-row"><span class="dash-mover-title">${esc(title)}</span><div class="dash-mover-chips">${items.map(m => moverChip(m, nameFn, valueFmt)).join("")}</div></div>`;
+}
+
+const productMoverName = item => item.productName || item.productId || "-";
+
+// 전기간·전년 비교 데이터가 모두 준비된 뒤 상품 매출 급증/급감만 비교한다(유입경로는 아래 유입비율 그래프가 대신함).
+function naverSalesMoversHtml() {
+  if (!naverSalesCompare || naverSalesCompare.key !== currentAdLoadKey()) return "";
+  const rows = [];
+  [{ key: "prev", label: "전기간" }, { key: "year", label: "전년" }].forEach(p => {
+    const period = naverSalesCompare[p.key];
+    if (!period || !period.hasData) return;
+    const productMoves = buildMovers(naverStat.products, period.products || [], r => r.productId, "salesTotal", SALES_MOVER_MIN_SALES);
+    rows.push(moverRowHtml(`매출 급증 (${p.label})`, productMoves.rising, productMoverName, money));
+    rows.push(moverRowHtml(`매출 급감 (${p.label})`, productMoves.falling, productMoverName, money));
+  });
+  const html = rows.filter(Boolean).join("");
+  return html ? `<div class="dash-movers">${html}</div>` : "";
+}
+
+/* ── 섹션 바로가기 탭 (키워드분석 .sec-nav와 완전히 동일한 "탭 전환" 방식) ──
+   스크롤 이동이 아니라, 선택한 카드 하나만 즉시 보여주고 나머지는 숨긴다.
+   맨 왼쪽 "종합분석"은 naver-rank.html과 동일하게 전체를 한 번에 보여주는 기본 탭. */
+let mainNavActiveIdx = "all"; // "all" = 종합분석, 그 외는 카드 인덱스(숫자) — 재렌더링에도 선택 유지
+
+// 카드 제목의 순수 텍스트만 추출 — h2 안에 물음표 툴팁(.dash-info > .dash-tip)이 들어있으면
+// textContent가 툴팁 문구까지 통째로 이어붙여지므로, 툴팁 노드를 떼어내고 읽는다.
+function cardTitleText(card) {
+  const h2 = card.querySelector("h2");
+  if (!h2) return "";
+  const clone = h2.cloneNode(true);
+  clone.querySelectorAll(".dash-info").forEach(el => el.remove());
+  return clone.textContent.trim();
+}
+
+function renderMainNav() {
+  const nav = document.getElementById("mainNav");
+  if (!nav) return;
+  const cards = [...document.querySelectorAll("#mainPanel .content-card")];
+  if (cards.length < 2) {
+    nav.classList.remove("on");
+    nav.innerHTML = "";
+    cards.forEach(card => { card.style.display = ""; });
+    return;
+  }
+  nav.classList.add("on");
+  nav.innerHTML = `<button type="button" class="sec-nav-btn" data-idx="all">종합분석</button>` +
+    cards.map((card, i) => {
+      const label = cardTitleText(card) || `섹션 ${i + 1}`;
+      return `<button type="button" class="sec-nav-btn" data-idx="${i}">${esc(label)}</button>`;
+    }).join("");
+  applyMainNavTab(mainNavActiveIdx);
+}
+
+function applyMainNavTab(idx) {
+  const cards = [...document.querySelectorAll("#mainPanel .content-card")];
+  if (idx !== "all" && cards[idx]) {
+    // 접혀 있는 카드를 선택하면 먼저 펼친다 — 펼치기는 패널 재렌더링을 일으키므로
+    // 여기서 재렌더링을 한 번 거치고, 다음 패스에서 펼쳐진 상태로 표시만 전환한다.
+    const toggleHead = cards[idx].querySelector("[data-toggle-card]");
+    if (toggleHead && !cards[idx].querySelector(".section-body")) {
+      coupangCardOpen[toggleHead.dataset.toggleCard] = true;
+      saveCoupangCardOpen();
+      mainNavActiveIdx = idx;
+      renderSalesPanel(); // → 내부에서 renderMainNav() → applyMainNavTab()이 다시 호출됨
+      return;
+    }
+  }
+  mainNavActiveIdx = idx;
+  cards.forEach((card, i) => { card.style.display = (idx === "all" || idx === i) ? "" : "none"; });
+  document.querySelectorAll("#mainNav .sec-nav-btn").forEach(b => {
+    b.classList.toggle("active", b.dataset.idx === String(idx));
+  });
+}
+
+document.getElementById("mainNav").addEventListener("click", e => {
+  const btn = e.target.closest(".sec-nav-btn");
+  if (!btn) return;
+  applyMainNavTab(btn.dataset.idx === "all" ? "all" : Number(btn.dataset.idx));
+});
+
+/* ── 일별 매출 추이 차트 (키워드분석의 검색량 추이 차트와 동일한 SVG 직접 그리기 방식) ──
+   naverDailyTableHtml/coupangDailyTableHtml이 <div id="[bodyId]"></div> 플레이스홀더를 반환하면,
+   그 HTML이 실제로 DOM에 꽂힌 뒤(각 render*SalesPanel 끝에서) 이 함수로 SVG를 채워 넣는다. */
+function nsNiceCeil(v) {
+  if (v <= 0) return 1;
+  const pow = Math.pow(10, Math.floor(Math.log10(v)));
+  for (const m of [1, 2, 2.5, 5, 10]) { if (v <= m * pow) return m * pow; }
+  return 10 * pow;
+}
+
+const salesTrendChartState = {}; // bodyId → { data, x, y, W } (네이버·쿠팡 두 차트가 동시에 상태를 가질 수 있음)
+
+function renderSalesTrendChart(bodyId, rowsAsc) {
+  const body = document.getElementById(bodyId);
+  if (!body) return;
+  const raw = (rowsAsc || []).filter(r => r.date).map(r => ({ date: r.date, total: Number(r.total) || 0 }));
+  if (raw.length < 2) { body.innerHTML = ""; return; }
+
+  // 빠진 날짜를 0으로 채워 연속된 일자 시퀀스로 만든다 — missing 플래그로 빗살 표시 구간을 기억
+  const byDate = new Map(raw.map(d => [d.date, d]));
+  const data = [];
+  let cur = new Date(raw[0].date + "T00:00:00Z");
+  const end = new Date(raw[raw.length - 1].date + "T00:00:00Z");
+  while (cur.getTime() <= end.getTime()) {
+    const key = cur.toISOString().slice(0, 10);
+    const src = byDate.get(key);
+    data.push(src ? { date: key, total: src.total, missing: false } : { date: key, total: 0, missing: true });
+    cur = new Date(cur.getTime() + 86400000);
+  }
+
+  // padL: 검색량(4~5자리)보다 매출 금액(최대 7~8자리, 예: 4,407,700)이 훨씬 길어서
+  // 축 라벨이 잘리지 않을 만큼만 잡고(너무 넉넉하면 그래프가 오른쪽으로 쏠려 보임),
+  // padR도 함께 넓혀 좌우 여백 차이를 줄인다.
+  const W = 900, H = 270, padL = 70, padR = 34, padT = 30, padB = 32;
+  const iw = W - padL - padR, ih = H - padT - padB;
+  const vals = data.map(d => d.total);
+  const yMax = nsNiceCeil(Math.max(...vals));
+  const x = i => padL + i * iw / (data.length - 1);
+  const y = v => padT + ih - v / yMax * ih;
+
+  let grid = "", labels = "";
+  for (let s = 0; s <= 4; s++) {
+    const v = yMax * s / 4, yy = y(v);
+    grid += `<line x1="${padL}" y1="${yy}" x2="${W - padR}" y2="${yy}" stroke="#e8ecf2" stroke-width="1"/>`;
+    labels += `<text x="${padL - 8}" y="${yy + 4}" text-anchor="end" font-size="11" fill="#8a93a5">${Math.round(v).toLocaleString()}</text>`;
+  }
+  const step = Math.max(1, Math.ceil(data.length / 8));
+  data.forEach((d, i) => {
+    if (i % step !== 0 && i !== data.length - 1) return;
+    const [, mm, dd] = d.date.split("-");
+    labels += `<text x="${x(i)}" y="${H - 8}" text-anchor="middle" font-size="11" fill="#8a93a5">${Number(mm)}.${Number(dd)}</text>`;
+  });
+
+  const pts = vals.map((v, i) => `${x(i)},${y(v)}`).join(" ");
+  const areaPts = `${pts} ${x(data.length - 1)},${padT + ih} ${x(0)},${padT + ih}`;
+
+  // 데이터 없는 구간(연속된 missing 날짜들) 위에 45° 빗살 밴드
+  const halfStep = data.length > 1 ? iw / (data.length - 1) / 2 : 0;
+  let hatches = "";
+  const hatchId = bodyId + "Hatch";
+  for (let i = 0; i < data.length; i++) {
+    if (!data[i].missing) continue;
+    let j = i;
+    while (j + 1 < data.length && data[j + 1].missing) j++;
+    const x1 = Math.max(padL, x(i) - halfStep);
+    const x2 = Math.min(W - padR, x(j) + halfStep);
+    hatches += `<rect x="${x1}" y="${padT}" width="${x2 - x1}" height="${ih}" fill="url(#${hatchId})" opacity="0.5"/>`;
+    i = j;
+  }
+
+  // 최대/최소 주석 — 최소는 데이터 없는 날(0) 제외, 텍스트는 차트 안쪽으로 고정
+  const realVals = data.map((d, i) => d.missing ? null : { v: d.total, i }).filter(Boolean);
+  let marks = "";
+  if (realVals.length) {
+    const maxI = realVals.reduce((best, c) => c.v > best.v ? c : best).i;
+    const minI = realVals.reduce((best, c) => c.v < best.v ? c : best).i;
+    const clampX = v => Math.min(Math.max(v, padL + 44), W - padR - 44);
+    const fmtDate = d => { const [, mm, dd] = d.split("-"); return `${Number(mm)}.${Number(dd)}`; };
+    marks = `
+      <circle cx="${x(maxI)}" cy="${y(vals[maxI])}" r="4" fill="var(--accent)" stroke="#fff" stroke-width="2"/>
+      <text x="${clampX(x(maxI))}" y="${Math.max(y(vals[maxI]) - 10, 14)}" text-anchor="middle" font-size="11.5" font-weight="700" fill="#1a1f2e">최대 ${fmtDate(data[maxI].date)} · ${vals[maxI].toLocaleString()}원</text>`;
+    if (minI !== maxI) {
+      marks += `
+      <circle cx="${x(minI)}" cy="${y(vals[minI])}" r="4" fill="var(--accent)" stroke="#fff" stroke-width="2"/>
+      <text x="${clampX(x(minI))}" y="${Math.min(y(vals[minI]) + 20, H - padB - 6)}" text-anchor="middle" font-size="11.5" font-weight="700" fill="#5a6378">최소 ${fmtDate(data[minI].date)} · ${vals[minI].toLocaleString()}원</text>`;
+    }
+  }
+
+  const svgId = bodyId + "Svg";
+  body.innerHTML = `<div class="vol-chart-wrap">
+    <svg id="${svgId}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
+      <defs>
+        <pattern id="${hatchId}" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <line x1="0" y1="0" x2="0" y2="6" stroke="#c3c9d4" stroke-width="1.4"/>
+        </pattern>
+      </defs>
+      ${grid}${hatches}${labels}
+      <polygon points="${areaPts}" fill="var(--accent)" opacity="0.08"/>
+      <polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+      ${marks}
+      <line id="${bodyId}Cross" x1="0" y1="${padT}" x2="0" y2="${padT + ih}" stroke="#c3c9d4" stroke-width="1" style="display:none;"/>
+      <circle id="${bodyId}Dot" r="4.5" fill="var(--accent)" stroke="#fff" stroke-width="2" style="display:none;"/>
+    </svg>
+    <div class="vol-tip" id="${bodyId}Tip" style="display:none;"></div>
+  </div>`;
+
+  salesTrendChartState[bodyId] = { data, x, y, W };
+  const svg = document.getElementById(svgId);
+  svg.addEventListener("mousemove", (e) => salesTrendChartHover(bodyId, e));
+  svg.addEventListener("mouseleave", () => {
+    document.getElementById(bodyId + "Cross").style.display = "none";
+    document.getElementById(bodyId + "Dot").style.display = "none";
+    document.getElementById(bodyId + "Tip").style.display = "none";
+  });
+}
+
+function salesTrendChartHover(bodyId, e) {
+  const state = salesTrendChartState[bodyId];
+  if (!state) return;
+  const { data, x, y, W } = state;
+  const svg = document.getElementById(bodyId + "Svg");
+  const rect = svg.getBoundingClientRect();
+  const svgX = (e.clientX - rect.left) / rect.width * W;
+  let best = 0, bestDist = Infinity;
+  data.forEach((_, i) => {
+    const d = Math.abs(x(i) - svgX);
+    if (d < bestDist) { bestDist = d; best = i; }
+  });
+  const px = x(best), py = y(data[best].total);
+  const cross = document.getElementById(bodyId + "Cross");
+  const dot = document.getElementById(bodyId + "Dot");
+  const tip = document.getElementById(bodyId + "Tip");
+  cross.setAttribute("x1", px); cross.setAttribute("x2", px);
+  cross.style.display = "";
+  dot.setAttribute("cx", px); dot.setAttribute("cy", py);
+  dot.style.display = "";
+  tip.textContent = data[best].missing
+    ? `${data[best].date} · 데이터 없음`
+    : `${data[best].date} · ${data[best].total.toLocaleString()}원`;
+  tip.style.display = "block";
+  const leftPx = px / W * rect.width;
+  tip.style.left = Math.min(Math.max(leftPx, 60), rect.width - 60) + "px";
 }
 
 function coupangDailyTableHtml() {
   const t = coupangSalesTotals();
+  const cmpSpecs = [
+    { key: "visitors", cur: t.visitors },
+    { key: "views", cur: t.views },
+    { key: "carts", cur: t.carts },
+    { key: "orders", cur: t.orders },
+    { key: "convRate", cur: t.views ? t.orders / t.views * 100 : 0, type: "rate" },
+    { key: "qty", cur: t.qty },
+    { key: "sales", cur: t.sales },
+  ];
   return `
+    <div id="coupangSalesTrendBody"></div>
     ${cmpToggleBarHtml()}
-    <div class="table-scroll">
-    <table>
+    <div class="table-scroll inset">
+    <table class="boxed-head">
       <thead><tr><th style="width:110px">날짜</th><th class="num">방문자</th><th class="num">조회</th><th class="num">장바구니</th><th class="num">주문</th><th class="num">구매전환율</th><th class="num">판매량</th><th class="num" style="width:120px">매출</th></tr></thead>
       <tbody>
         ${coupangSalesRows.map(row => `
           <tr>
-            <td>${esc(row.date)}</td>
+            <td><b>${esc(row.date)}</b></td>
             <td class="num">${num(row.visitors)}</td>
             <td class="num">${num(row.views)}</td>
             <td class="num">${num(row.carts)}</td>
@@ -1568,7 +2159,7 @@ function coupangDailyTableHtml() {
       </tbody>
       <tfoot>
         <tr>
-          <td>합계</td>
+          <td><b>합계</b></td>
           <td class="num">${num(t.visitors)}</td>
           <td class="num">${num(t.views)}</td>
           <td class="num">${num(t.carts)}</td>
@@ -1577,24 +2168,80 @@ function coupangDailyTableHtml() {
           <td class="num">${num(t.qty)}</td>
           <td class="num">${money(t.sales)}</td>
         </tr>
-        ${detailCmpRows(coupangSalesCompare, [
-          { key: "visitors", cur: t.visitors },
-          { key: "views", cur: t.views },
-          { key: "carts", cur: t.carts },
-          { key: "orders", cur: t.orders },
-          { key: "convRate", cur: t.views ? t.orders / t.views * 100 : 0, type: "rate" },
-          { key: "qty", cur: t.qty },
-          { key: "sales", cur: t.sales },
-        ])}
+        ${detailCmpRows(coupangSalesCompare, cmpSpecs)}
       </tfoot>
     </table>
     </div>`;
 }
 
+// 상품별 판매량 랭킹 막대 — rows를 qtyFn 기준 내림차순으로 top N개만 그린다(전부 그리면 표와 중복).
+function topQtyBarHtml(rows, nameFn, qtyFn, limit = 10) {
+  const list = rows.filter(r => qtyFn(r) > 0).slice().sort((a, b) => qtyFn(b) - qtyFn(a)).slice(0, limit);
+  if (!list.length) return "";
+  const max = qtyFn(list[0]);
+  return `
+    <div class="rank-bar-list">
+      ${list.map(r => `
+        <div class="rank-bar-row">
+          <div class="rank-bar-name" title="${esc(nameFn(r))}">${esc(nameFn(r))}</div>
+          <div class="rank-bar-track"><div class="rank-bar-fill" style="width:${max ? qtyFn(r) / max * 100 : 0}%"></div></div>
+          <div class="rank-bar-value">${num(qtyFn(r))}개</div>
+        </div>`).join("")}
+    </div>`;
+}
+
+// 카테고리별 비율 도넛(SVG) — 세그먼트 사이 2px 여백을 두고, 12시 방향에서 시작하도록 전체를 -90도 회전.
+function donutChartSvg(segs, size = 120, thickness = 18) {
+  const r = (size - thickness) / 2;
+  const c = 2 * Math.PI * r;
+  const gap = 2;
+  let offset = 0;
+  const circles = segs.map(s => {
+    const fullLen = s.pct / 100 * c;
+    const drawLen = Math.max(fullLen - gap, 0.001);
+    const html = `<circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${s.color}" stroke-width="${thickness}" stroke-dasharray="${drawLen} ${c - drawLen}" stroke-dashoffset="${-offset}"></circle>`;
+    offset += fullLen;
+    return html;
+  }).join("");
+  return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" style="transform:rotate(-90deg);flex-shrink:0;">${circles}</svg>`;
+}
+
+// 쿠팡 상품별(옵션) 카테고리 매출 비율 — 상위 6개 + "기타"로 묶어 카테고리 팔레트(유입경로 바와 같은 6색)를 쓴다.
+const COUPANG_CATEGORY_COLORS = ["#2a78d6", "#1baf7a", "#eda100", "#008300", "#4a3aa7", "#e34948"];
+const COUPANG_CATEGORY_ETC_COLOR = "#c3c2b7";
+function coupangCategoryDonutHtml() {
+  const byCategory = new Map();
+  coupangItemRows.forEach(row => {
+    const name = row.category || "기타";
+    byCategory.set(name, (byCategory.get(name) || 0) + (Number(row.sales) || 0));
+  });
+  let list = [...byCategory.entries()].map(([name, sales]) => ({ name, sales })).sort((a, b) => b.sales - a.sales);
+  if (list.length > 7) {
+    const etc = list.slice(6).reduce((sum, c) => sum + c.sales, 0);
+    list = list.slice(0, 6).concat([{ name: "기타", sales: etc }]);
+  }
+  const total = list.reduce((sum, c) => sum + c.sales, 0);
+  if (!total) return "";
+  const segs = list.filter(c => c.sales > 0).map((c, i) => ({
+    ...c,
+    pct: c.sales / total * 100,
+    color: c.name === "기타" ? COUPANG_CATEGORY_ETC_COLOR : COUPANG_CATEGORY_COLORS[i % COUPANG_CATEGORY_COLORS.length],
+  }));
+  return `
+    <div class="donut-wrap">
+      ${donutChartSvg(segs)}
+      <div class="dash-legend">
+        ${segs.map(c => `<span class="dash-legend-item"><span class="dash-legend-dot" style="background:${c.color};"></span>${esc(c.name)} <b>${money(c.sales)}</b> · ${Math.round(c.pct)}%</span>`).join("")}
+      </div>
+    </div>`;
+}
+
 function coupangItemTableHtml() {
   return `
-    <div class="table-scroll">
-    <table>
+    ${topQtyBarHtml(coupangItemRows, r => r.optionName, r => r.qty)}
+    ${coupangCategoryDonutHtml()}
+    <div class="table-scroll inset">
+    <table class="boxed-head">
       <thead><tr><th>옵션명</th><th class="num" style="width:110px">매출</th><th class="num" style="width:66px">주문</th><th class="num" style="width:72px">판매량</th><th class="num" style="width:72px">방문자</th><th class="num" style="width:66px">조회</th><th class="num" style="width:78px">장바구니</th><th class="num" style="width:88px">구매전환율</th><th class="num" style="width:90px">아이템위너</th><th class="num" style="width:100px">취소 금액</th></tr></thead>
       <tbody>
         ${coupangItemRows.slice(0, 200).map(row => `
@@ -1617,12 +2264,12 @@ function coupangItemTableHtml() {
 
 function renderCoupangSalesPanel() {
   const dailyContent = coupangSalesLoading
-    ? `<div class="ad-loading"><div class="spinner"></div><strong>저장된 쿠팡 매출 데이터를 불러오는 중...</strong></div>`
+    ? `<div class="empty">불러오는 중...</div>`
     : coupangSalesRows.length
       ? coupangDailyTableHtml()
       : `<div class="empty">이 기간에 저장된 일별 매출 데이터가 없습니다. 셀러 인사이트의 기간별(일별 요약) 엑셀을 업로드해 주세요.</div>`;
   const itemContent = coupangItemLoading
-    ? `<div class="ad-loading"><div class="spinner"></div><strong>상품별 실적을 불러오는 중...</strong></div>`
+    ? `<div class="empty">불러오는 중...</div>`
     : coupangItemRows.length
       ? coupangItemTableHtml()
       : `<div class="empty">저장된 상품별 스냅샷이 없습니다. 상단 달력을 파일 다운로드 기간과 맞춘 뒤 상품별 엑셀을 업로드해 주세요.</div>`;
@@ -1636,11 +2283,7 @@ function renderCoupangSalesPanel() {
           <h2>쿠팡 일별 매출</h2>
           <span class="content-meta">${coupangSalesLoading ? "불러오는 중..." : coupangSalesRows.length ? num(coupangSalesRows.length) + "일치" : "데이터 없음"}</span>
         </div>
-        <div class="content-tools">
-          <label class="upload-inline">일별 요약 엑셀
-            <input class="file-input" id="coupangSalesFile" type="file" accept=".xlsx,.xls,.csv">
-          </label>
-        </div>
+        <div class="content-tools"></div>
         ${cardCaret(coupangCardOpen.sales)}
       </div>
       ${coupangCardOpen.sales ? `
@@ -1670,10 +2313,6 @@ function renderCoupangSalesPanel() {
       </div>` : ""}
     </div>
   `;
-  document.getElementById("coupangSalesFile").addEventListener("change", e => {
-    const file = e.target.files?.[0];
-    if (file) importCoupangSalesFile(file);
-  });
   document.getElementById("coupangItemFile").addEventListener("change", e => {
     const file = e.target.files?.[0];
     if (file) importCoupangItemFile(file);
@@ -1682,7 +2321,7 @@ function renderCoupangSalesPanel() {
   if (periodSelect) {
     periodSelect.addEventListener("change", async () => {
       coupangItemPeriod = periodSelect.value;
-      coupangItemLoading = true;
+      coupangItemLoading = true; showLoading("상품별 실적을 불러오는 중...");
       renderCoupangSalesPanel();
       try {
         await loadCoupangItemRows();
@@ -1691,11 +2330,13 @@ function renderCoupangSalesPanel() {
         status.className = "status error";
         status.textContent = "상품별 실적 불러오기 실패: " + String(e.message || e);
       }
-      coupangItemLoading = false;
+      coupangItemLoading = false; hideLoading();
       renderCoupangSalesPanel();
     });
   }
   ensureCoupangSalesLoaded();
+  renderSalesTrendChart("coupangSalesTrendBody", coupangSalesRows.map(r => ({ date: r.date, total: r.sales })));
+  renderMainNav();
 }
 
 function naverDailyTableHtml() {
@@ -1706,7 +2347,7 @@ function naverDailyTableHtml() {
             <td class="num">${formatPercentValue(row.visits ? row.payCount / row.visits * 100 : 0)}</td>
             <td class="num">${money(row.salesTotal)}</td>
             <td class="num">${money(row.refundAmount)}</td>
-            <td class="num">${money(row.salesNet)}</td>
+            <td class="num"><b>${money(row.salesNet)}</b></td>
             <td class="num">${row.payCount ? money(row.salesTotal / row.payCount) : "-"}</td>`;
   const cmpSpecs = [
     { key: "visits", cur: t.visits },
@@ -1718,22 +2359,24 @@ function naverDailyTableHtml() {
     { key: "avgOrder", cur: t.payCount ? t.salesTotal / t.payCount : 0 },
   ];
   return `
+    <div id="naverSalesTrendBody"></div>
     ${cmpToggleBarHtml()}
-    <div class="table-scroll">
-    <table>
+    <div class="table-scroll inset">
+    <table class="boxed-head">
       <thead><tr><th style="width:110px">날짜</th><th class="num">방문수</th><th class="num">결제건수</th><th class="num">구매전환율</th><th class="num" style="width:116px">판매금액(총)</th><th class="num" style="width:104px">환불금액</th><th class="num" style="width:116px">판매금액(순)</th><th class="num" style="width:100px">객단가</th></tr></thead>
       <tbody>
-        ${naverStat.daily.map(row => `<tr><td>${esc(row.date)}</td>${cells(row)}</tr>`).join("")}
+        ${naverStat.daily.map(row => `<tr><td><b>${esc(row.date)}</b></td>${cells(row)}</tr>`).join("")}
       </tbody>
-      <tfoot><tr><td>합계</td>${cells({ ...t })}</tr>${detailCmpRows(naverSalesCompare, cmpSpecs)}</tfoot>
+      <tfoot><tr><td><b>합계</b></td>${cells({ ...t })}</tr>${detailCmpRows(naverSalesCompare, cmpSpecs)}</tfoot>
     </table>
     </div>`;
 }
 
 function naverProductTableHtml() {
   return `
-    <div class="table-scroll">
-    <table>
+    ${topQtyBarHtml(naverStat.products, r => r.productName, r => r.qty)}
+    <div class="table-scroll inset">
+    <table class="boxed-head">
       <thead><tr><th>상품명</th><th class="num" style="width:80px">결제건수</th><th class="num" style="width:72px">수량</th><th class="num" style="width:116px">판매금액(총)</th><th class="num" style="width:100px">환불금액</th><th class="num" style="width:116px">판매금액(순)</th><th class="num" style="width:80px">방문수</th><th class="num" style="width:88px">구매전환율</th></tr></thead>
       <tbody>
         ${naverStat.products.slice(0, 200).map(row => `
@@ -1743,7 +2386,7 @@ function naverProductTableHtml() {
             <td class="num">${num(row.qty)}</td>
             <td class="num">${money(row.salesTotal)}</td>
             <td class="num">${money(row.refundAmount)}</td>
-            <td class="num">${money(row.salesNet)}</td>
+            <td class="num"><b>${money(row.salesNet)}</b></td>
             <td class="num">${num(row.visits)}</td>
             <td class="num">${formatPercentValue(row.conversion)}</td>
           </tr>`).join("")}
@@ -1754,8 +2397,8 @@ function naverProductTableHtml() {
 
 function naverVisitTableHtml() {
   return `
-    <div class="table-scroll">
-    <table>
+    <div class="table-scroll inset">
+    <table class="boxed-head">
       <thead><tr><th>유입경로</th><th class="num" style="width:96px">방문수</th><th class="num" style="width:90px">결제건수</th><th class="num" style="width:96px">구매전환율</th><th class="num" style="width:130px">판매금액(총)</th></tr></thead>
       <tbody>
         ${naverStat.visitPaths.slice(0, 100).map(row => `
@@ -1773,8 +2416,8 @@ function naverVisitTableHtml() {
 
 function naverCustomerTableHtml() {
   return `
-    <div class="table-scroll">
-    <table>
+    <div class="table-scroll inset">
+    <table class="boxed-head">
       <thead><tr><th style="width:110px">고객분류</th><th class="num">방문고객수</th><th class="num">결제고객수</th><th class="num">구매전환율</th><th class="num" style="width:130px">판매금액(총)</th><th class="num" style="width:104px">객단가</th></tr></thead>
       <tbody>
         ${naverStat.customer.map(row => `
@@ -1795,7 +2438,7 @@ function renderNaverSalesPanel() {
   if (naverStatLoading) {
     document.getElementById("mainPanel").innerHTML = `
       <div class="content-card">
-        <div class="ad-loading"><div class="spinner"></div><strong>저장된 판매분석 데이터를 불러오는 중...</strong></div>
+        <div class="empty">불러오는 중...</div>
       </div>`;
     return;
   }
@@ -1816,12 +2459,10 @@ function renderNaverSalesPanel() {
       ${cardOpenState(key) ? `<div class="section-body">${hint}${body}</div>` : ""}
     </div>`;
   document.getElementById("mainPanel").innerHTML =
-    card("nDaily", "네이버 일별 매출",
+    card("nDaily", `네이버 일별 매출<span class="dash-info">?<span class="dash-tip down">스마트스토어센터 통계 판매분석에서 <b>상품성과·유입경로·고객</b> 엑셀을 받아 한꺼번에 선택해 업로드하세요. 파일 종류는 자동으로 구분되고, 같은 날짜는 재업로드 시 교체됩니다.</span></span>`,
       naverStat.daily.length ? `${num(naverStat.daily.length)}일치` : "데이터 없음",
-      `<label class="upload-inline">판매분석 엑셀(여러 개 가능)
-        <input class="file-input" id="naverStatFiles" type="file" accept=".xlsx,.xls,.csv" multiple>
-      </label>`,
-      `<div class="upload-hint">스마트스토어센터 통계 판매분석에서 <b>상품성과·유입경로·고객</b> 엑셀을 받아 한꺼번에 선택해 업로드하세요. 파일 종류는 자동으로 구분되고, 같은 날짜는 재업로드 시 교체됩니다.</div>`,
+      "",
+      "",
       naverStat.daily.length ? naverDailyTableHtml() : `<div class="empty">이 기간에 저장된 데이터가 없습니다. 상품성과 엑셀을 업로드하거나 기간을 변경해 보세요.</div>`)
     + card("nProduct", "상품별 매출",
       naverStat.products.length ? `${num(naverStat.products.length)}개 상품` : "데이터 없음",
@@ -1839,10 +2480,6 @@ function renderNaverSalesPanel() {
       `<div class="upload-hint">고객 엑셀은 월별 스냅샷입니다. 아래는 선택한 월의 신규/재구매 고객 구성입니다.</div>`,
       naverStat.customer.length ? naverCustomerTableHtml() : `<div class="empty">저장된 고객 데이터가 없습니다. 고객 엑셀을 업로드해 주세요.</div>`);
 
-  document.getElementById("naverStatFiles").addEventListener("change", e => {
-    const files = [...(e.target.files || [])];
-    if (files.length) importNaverStatFiles(files);
-  });
   const periodSelect = document.getElementById("naverCustomerPeriodSelect");
   if (periodSelect) {
     periodSelect.addEventListener("change", () => {
@@ -1852,6 +2489,8 @@ function renderNaverSalesPanel() {
     });
   }
   ensureNaverStatLoaded();
+  renderSalesTrendChart("naverSalesTrendBody", naverStat.daily.map(r => ({ date: r.date, total: r.salesNet })));
+  renderMainNav();
 }
 
 function renderSalesPanel() {
@@ -1885,10 +2524,7 @@ function renderAdsPanel() {
     const grouped = coupangAdGroups();
     const rows = grouped.items.sort(compareAdRows);
     const content = coupangAdLoading
-      ? `<div class="ad-loading">
-          <div class="spinner"></div>
-          <strong>저장된 쿠팡 광고 데이터를 불러오는 중...</strong>
-        </div>`
+      ? `<div class="empty">불러오는 중...</div>`
       : rows.length
         ? adsTableHtml(rows, grouped.total, coupangAdCompare)
         : `<div class="empty">이 기간에 저장된 쿠팡 광고 데이터가 없습니다. 쿠팡 광고관리에서 내려받은 보고서 엑셀(일별 × 광고그룹)을 업로드하거나, 상단 달력에서 기간을 변경해 보세요.</div>`;
@@ -1919,6 +2555,7 @@ function renderAdsPanel() {
       if (file) importCoupangAdFile(file);
     });
     ensureCoupangAdsLoaded();
+    renderMainNav();
     return;
   }
 
@@ -1929,13 +2566,9 @@ function renderAdsPanel() {
 
   let content;
   if (adLoading) {
-    content = `<div class="ad-loading">
-        <div class="spinner"></div>
-        <strong>저장된 광고 데이터를 불러오는 중...</strong>
-      </div>`;
+    content = `<div class="empty">불러오는 중...</div>`;
   } else if (adCollecting) {
     content = `<div class="ad-loading">
-        <div class="spinner"></div>
         <strong>광고 데이터 수집 중... (${num(adCollectProgress.done)}일 완료${adCollectProgress.remaining ? ` · ${num(adCollectProgress.remaining)}일 남음` : ""})</strong>
         <span>네이버 대용량 보고서를 날짜별로 받아 저장하고 있어요. 창을 닫지 말고 잠시 기다려 주세요.</span>
       </div>`;
@@ -1976,6 +2609,7 @@ function renderAdsPanel() {
     </div>
   `;
   ensureNaverAdsLoaded();
+  renderMainNav();
 }
 
 function adSortValue(row, key) {
@@ -2181,18 +2815,20 @@ async function fetchAdCompareTotals(store, dateFrom, dateTo) {
     const impressions = Number(t.impressions) || 0;
     const clicks = Number(t.clicks) || 0;
     const cost = Number(t.cost) || 0;
+    const purchaseConversions = Number(t.purchaseConversions) || 0;
     return {
       hasData: (data.items || []).length > 0 || cost > 0,
       cost, clicks, impressions,
       ctr: impressions ? clicks / impressions * 100 : 0,
       cpc: clicks ? cost / clicks : 0,
-      purchaseConversions: Number(t.purchaseConversions) || 0,
+      purchaseConversions,
       purchaseSales: Number(t.purchaseSales) || 0,
-      convRate: clicks ? (Number(t.purchaseConversions) || 0) / clicks * 100 : 0,
+      convRate: clicks ? purchaseConversions / clicks * 100 : 0,
       roas: Number(t.purchaseRoas) || (cost ? (Number(t.purchaseSales) || 0) / cost * 100 : 0),
+      cpa: purchaseConversions ? cost / purchaseConversions : 0,
     };
   } catch (_) {
-    return { hasData: false, cost: 0, clicks: 0, impressions: 0, ctr: 0, cpc: 0, purchaseConversions: 0, purchaseSales: 0, convRate: 0, roas: 0 };
+    return { hasData: false, cost: 0, clicks: 0, impressions: 0, ctr: 0, cpc: 0, purchaseConversions: 0, purchaseSales: 0, convRate: 0, roas: 0, cpa: 0 };
   }
 }
 
@@ -2200,7 +2836,7 @@ async function fetchCoupangAdCompareTotals(dateFrom, dateTo) {
   try {
     const data = await callAdFn({ action: "coupangSummary", dateFrom, dateTo });
     const rows = data.items || [];
-    if (!rows.length) return { hasData: false, cost: 0, clicks: 0, impressions: 0, ctr: 0, cpc: 0, purchaseConversions: 0, purchaseSales: 0, convRate: 0, roas: 0 };
+    if (!rows.length) return { hasData: false, cost: 0, clicks: 0, impressions: 0, ctr: 0, cpc: 0, purchaseConversions: 0, purchaseSales: 0, convRate: 0, roas: 0, cpa: 0 };
     const t = rows.reduce((acc, row) => {
       acc.cost += row.cost; acc.clicks += row.clicks; acc.orders += row.orders; acc.sales += row.sales;
       acc.impressions += row.impressions;
@@ -2215,9 +2851,10 @@ async function fetchCoupangAdCompareTotals(dateFrom, dateTo) {
       purchaseSales: t.sales,
       convRate: t.clicks ? (t.orders / t.clicks) * 100 : 0,
       roas: t.cost ? (t.sales / t.cost) * 100 : 0,
+      cpa: t.orders ? t.cost / t.orders : 0,
     };
   } catch (_) {
-    return { hasData: false, cost: 0, clicks: 0, impressions: 0, ctr: 0, cpc: 0, purchaseConversions: 0, purchaseSales: 0, convRate: 0, roas: 0 };
+    return { hasData: false, cost: 0, clicks: 0, impressions: 0, ctr: 0, cpc: 0, purchaseConversions: 0, purchaseSales: 0, convRate: 0, roas: 0, cpa: 0 };
   }
 }
 
@@ -2259,7 +2896,10 @@ async function fetchNaverSalesCompareTotals(dateFrom, dateTo) {
   try {
     const data = await callAdFn({ action: "naverStatSummary", dateFrom, dateTo });
     const daily = data.daily || [];
-    if (!daily.length) return { hasData: false, salesNet: 0, salesTotal: 0, refundAmount: 0, payCount: 0, visits: 0, convRate: 0, avgOrder: 0 };
+    // products/visitPaths는 급증·급감 상품/유입경로 TOP(대시보드 무버)을 뽑을 때 그대로 재사용한다.
+    const products = data.products || [];
+    const visitPaths = data.visitPaths || [];
+    if (!daily.length) return { hasData: false, salesNet: 0, salesTotal: 0, refundAmount: 0, payCount: 0, visits: 0, convRate: 0, avgOrder: 0, products, visitPaths };
     const t = daily.reduce((acc, row) => {
       acc.visits += row.visits;
       acc.payCount += row.payCount;
@@ -2277,9 +2917,10 @@ async function fetchNaverSalesCompareTotals(dateFrom, dateTo) {
       visits: t.visits,
       convRate: t.visits ? (t.payCount / t.visits) * 100 : 0,
       avgOrder: t.payCount ? t.salesTotal / t.payCount : 0,
+      products, visitPaths,
     };
   } catch (_) {
-    return { hasData: false, salesNet: 0, salesTotal: 0, refundAmount: 0, payCount: 0, visits: 0, convRate: 0, avgOrder: 0 };
+    return { hasData: false, salesNet: 0, salesTotal: 0, refundAmount: 0, payCount: 0, visits: 0, convRate: 0, avgOrder: 0, products: [], visitPaths: [] };
   }
 }
 
@@ -2287,7 +2928,7 @@ async function fetchCoupangSalesCompareTotals(dateFrom, dateTo) {
   try {
     const data = await callAdFn({ action: "coupangSalesSummary", dateFrom, dateTo });
     const rows = data.items || [];
-    if (!rows.length) return { hasData: false, sales: 0, orders: 0, visitors: 0, views: 0, carts: 0, qty: 0, convRate: 0 };
+    if (!rows.length) return { hasData: false, sales: 0, orders: 0, visitors: 0, views: 0, carts: 0, qty: 0, convRate: 0, avgOrder: 0 };
     const t = rows.reduce((acc, row) => {
       acc.visitors += row.visitors;
       acc.views += row.views;
@@ -2306,9 +2947,10 @@ async function fetchCoupangSalesCompareTotals(dateFrom, dateTo) {
       carts: t.carts,
       qty: t.qty,
       convRate: t.views ? (t.orders / t.views) * 100 : 0,
+      avgOrder: t.orders ? t.sales / t.orders : 0,
     };
   } catch (_) {
-    return { hasData: false, sales: 0, orders: 0, visitors: 0, views: 0, carts: 0, qty: 0, convRate: 0 };
+    return { hasData: false, sales: 0, orders: 0, visitors: 0, views: 0, carts: 0, qty: 0, convRate: 0, avgOrder: 0 };
   }
 }
 
@@ -2357,9 +2999,10 @@ function toggleDetailCompare() {
 
 function cmpToggleBarHtml() {
   return `<div class="cmp-toggle-bar">
-    <button type="button" class="cmp-toggle-btn${detailCompareOpen ? " on" : ""}" onclick="toggleDetailCompare()">
-      ${detailCompareOpen ? "비교 숨기기" : "전기간·전년 비교 보기"}
-    </button>
+    <label class="switch-row${detailCompareOpen ? " on" : ""}" onclick="toggleDetailCompare()">
+      <span class="switch-row-label">비교기간 함께보기</span>
+      <span class="switch-track" role="switch" aria-checked="${detailCompareOpen}"></span>
+    </label>
   </div>`;
 }
 
@@ -2424,7 +3067,7 @@ async function loadNaverAds() {
   const store = DEFAULT_STORE;
   const loadKey = currentAdLoadKey();
   if (adLoading) return;
-  adLoading = true;
+  adLoading = true; showLoading("저장된 광고 데이터를 불러오는 중...");
   adLoadKey = loadKey;
   status.className = "status";
   status.textContent = "저장된 광고 데이터를 불러오는 중...";
@@ -2443,11 +3086,11 @@ async function loadNaverAds() {
     const needDates = adMissingDates.length + adStaleDates.length;
     status.textContent = `네이버 광고 ${data.count || 0}개 캠페인 · 저장 데이터 기준`
       + (needDates ? ` · 수집 필요 ${needDates}일` : " · 최신 상태");
-    adLoading = false;
+    adLoading = false; hideLoading();
     render();
     loadAdCompare(); // 비교기간(이전/1년 전)은 백그라운드로 읽어와 준비되는 대로 반영
   } catch (e) {
-    adLoading = false;
+    adLoading = false; hideLoading();
     status.className = "status error";
     const message = String(e.message || e);
     status.textContent = message.includes("Failed to fetch")
@@ -2464,7 +3107,7 @@ async function collectNaverAds() {
   const dateFrom = document.getElementById("dateFrom").value;
   const dateTo = document.getElementById("dateTo").value;
   const store = DEFAULT_STORE;
-  adCollecting = true;
+  adCollecting = true; showLoading("광고 데이터 수집 중...");
   adCollectProgress = { done: 0, remaining: adMissingDates.length + adStaleDates.length };
   status.className = "status";
   status.textContent = "광고 데이터 수집을 시작했습니다...";
@@ -2476,17 +3119,18 @@ async function collectNaverAds() {
       adCollectProgress.done += (data.collected || []).length;
       adCollectProgress.remaining = Number(data.remaining) || 0;
       if (data.purchaseError) purchaseError = data.purchaseError;
+      setLoadingMessage(`광고 데이터 수집 중... (${num(adCollectProgress.done)}일 완료${adCollectProgress.remaining ? ` · ${num(adCollectProgress.remaining)}일 남음` : ""})`);
       renderAdsPanel();
       if (data.done || !(data.collected || []).length) break;
     }
-    adCollecting = false;
+    adCollecting = false; hideLoading();
     status.className = "status ok";
     status.textContent = `수집 완료 (${num(adCollectProgress.done)}일)`
       + (purchaseError ? ` · 일부 실패: ${purchaseError}` : "");
     adLoadKey = "";
     loadNaverAds();
   } catch (e) {
-    adCollecting = false;
+    adCollecting = false; hideLoading();
     status.className = "status error";
     status.textContent = "광고 수집 실패: " + String(e.message || e)
       + (adCollectProgress.done ? ` (${num(adCollectProgress.done)}일은 저장됨 — 다시 수집하면 이어서 진행됩니다)` : "");
@@ -2499,20 +3143,50 @@ function setDefaultDates() {
   setDateRange(range.from, range.to, activePreset);
 }
 
-document.getElementById("platformTabs").addEventListener("click", e => {
-  const tab = e.target.closest(".platform-tab");
+// 카테고리(스토어 분석/광고 분석) — 플랫폼과 무관한 전역 축이므로 두 플랫폼 모두 같은 값으로 맞춘다
+document.getElementById("categoryTabs").addEventListener("click", e => {
+  const tab = e.target.closest(".mode-title-tab");
   if (!tab) return;
-  activePlatform = tab.dataset.platform;
+  const next = tab.dataset.subtab;
+  activeSubtab.naver = next;
+  activeSubtab.coupang = next;
   document.getElementById("adStatus").textContent = "";
+  mainNavActiveIdx = "all"; // 카드 구성 자체가 바뀌므로 종합분석으로 리셋
   render();
 });
 
-document.getElementById("subTabs").addEventListener("click", e => {
-  const tab = e.target.closest(".sub-tab");
-  if (!tab) return;
-  activeSubtab[activePlatform] = tab.dataset.subtab;
+// 스토어(네이버/쿠팡) 드롭박스
+document.getElementById("platformChips").addEventListener("click", e => {
+  const toggle = e.target.closest('[data-action="toggle-platform-menu"]');
+  if (toggle) {
+    document.getElementById("platformChips").classList.toggle("open");
+    return;
+  }
+  const chip = e.target.closest(".store-chip");
+  if (!chip) return;
+  activePlatform = chip.dataset.platform;
+  document.getElementById("platformChips").classList.remove("open");
   document.getElementById("adStatus").textContent = "";
+  mainNavActiveIdx = "all"; // 카드 구성 자체가 바뀌므로 종합분석으로 리셋
   render();
+});
+
+// 판매분석 엑셀 업로드(+) 버튼 — 필터바에 고정된 엘리먼트라 리스너도 한 번만 붙인다
+// (mainPanel처럼 매 렌더마다 innerHTML로 새로 만들어지는 요소가 아니므로 중복 바인딩 주의)
+document.getElementById("naverStatFiles").addEventListener("change", e => {
+  const files = [...(e.target.files || [])];
+  if (files.length) importNaverStatFiles(files);
+  e.target.value = ""; // 같은 파일을 다시 선택해도 change가 발생하도록 초기화
+});
+document.getElementById("coupangSalesFile").addEventListener("change", e => {
+  const file = e.target.files?.[0];
+  if (file) importCoupangSalesFile(file);
+  e.target.value = ""; // 같은 파일을 다시 선택해도 change가 발생하도록 초기화
+});
+
+document.addEventListener("click", e => {
+  const box = document.getElementById("platformChips");
+  if (box && !box.contains(e.target)) box.classList.remove("open");
 });
 
 document.getElementById("dateRangeBtn").addEventListener("click", () => {
@@ -2623,6 +3297,5 @@ document.getElementById("mainPanel").addEventListener("click", e => {
 setDefaultDates();
 render();
 </script>
-<script src="common.js?v=20260714-history3"></script>
 </body>
 </html>
