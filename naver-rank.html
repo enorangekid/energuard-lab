@@ -313,7 +313,7 @@
   .row:last-child { border-bottom: none; }
   .rank-badge {
     min-width: 56px; text-align: center; padding: 5px 4px; border-radius: var(--radius);
-    font-weight: 800; font-size: 14px; font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+    font-weight: 800; font-size: 14px; font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap;
     line-height: 1.1;
     background: var(--gray-badge); color: var(--sub);
   }
@@ -334,7 +334,7 @@
   .top-row { display: flex; align-items: center; gap: 14px; padding: 12px 18px; border-bottom: 1px solid #f4f5f7; font-size: 13px; }
   .top-row:last-child { border-bottom: none; }
   .top-row.mine { background: var(--accent-tint); }
-  .top-rank { min-width: 56px; text-align: center; font-weight: 800; font-family: var(--font-mono); color: var(--sub); background: var(--gray-badge); border-radius: var(--radius); padding: 5px 4px; font-size: 14px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .top-rank { min-width: 56px; text-align: center; font-weight: 800; font-family: var(--font-mono); color: var(--sub); background: var(--gray-badge); border-radius: var(--radius); padding: 5px 4px; font-size: 14px; line-height: 1.1; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .top-row.mine .top-rank { background: #f8d3bd; color: var(--accent-dark); }
   .top-row img { width: 44px; height: 44px; border-radius: 4px; object-fit: cover; border: 1px solid var(--line); }
   .top-info { min-width: 0; flex: 1; }
@@ -478,8 +478,8 @@
   .sel-row { display: flex; align-items: center; gap: 12px; padding: 9px 18px; border-bottom: 1px solid #f4f5f7; font-size: 13px; }
   .sel-row:last-child { border-bottom: none; }
   .sel-row.mine { background: var(--accent-tint); }
-  .sel-rank { min-width: 26px; text-align: center; font-family: var(--font-mono); font-weight: 700; font-size: 12px; color: var(--sub); background: var(--gray-badge); border-radius: 4px; padding: 3px 0; }
-  .sel-row.mine .sel-rank { background: var(--accent); color: #fff; }
+  .sel-rank { min-width: 56px; text-align: center; font-family: var(--font-mono); font-weight: 800; font-size: 14px; line-height: 1.1; color: var(--sub); background: var(--gray-badge); border-radius: var(--radius); padding: 5px 4px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .sel-row.mine .sel-rank { background: var(--accent-tint); color: var(--accent-dark); }
   .sel-mall { min-width: 130px; font-weight: 700; }
   .sel-mall .star { color: var(--accent); font-size: 11px; }
   .sel-mall a { color: inherit; text-decoration: none; }
