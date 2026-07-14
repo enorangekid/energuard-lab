@@ -397,11 +397,55 @@ function initCommonFooter() {
   if (footer) footer.hidden = pageFooters.length > 0;
 }
 
+/* ─────────────────────────────────────────
+   전역 로딩 오버레이 — 모든 페이지의 로딩 표시를 하나로 통일.
+   사용법: showLoading("메시지") → 작업 → hideLoading()
+   동시에 여러 로딩이 겹칠 수 있으므로(예: 매출분석의 광고+매출 병렬 조회)
+   카운터로 관리 — 모든 로딩이 끝나야 오버레이가 사라진다.
+   ───────────────────────────────────────── */
+let __glCount = 0;
+
+function ensureGlobalLoading() {
+  let el = document.getElementById("globalLoading");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "globalLoading";
+    el.innerHTML = `<div class="gl-spinner"></div><div class="gl-msg"></div>`;
+    document.body.appendChild(el);
+  }
+  return el;
+}
+
+window.showLoading = function (msg) {
+  const el = ensureGlobalLoading();
+  __glCount++;
+  if (msg != null) el.querySelector(".gl-msg").textContent = msg;
+  el.classList.add("on");
+};
+
+// 오버레이는 유지한 채 진행 메시지만 갱신 (배치 수집 등 장시간 작업용)
+window.setLoadingMessage = function (msg) {
+  const el = ensureGlobalLoading();
+  el.querySelector(".gl-msg").textContent = msg || "";
+};
+
+window.hideLoading = function () {
+  __glCount = Math.max(0, __glCount - 1);
+  if (__glCount === 0) {
+    const el = document.getElementById("globalLoading");
+    if (el) {
+      el.classList.remove("on");
+      el.querySelector(".gl-msg").textContent = "";
+    }
+  }
+};
+
 function bootCommonUi() {
   initTopbar();
   initAiChatFab();
   initHistoryPanel();
   initCommonFooter();
+  ensureGlobalLoading();
 }
 
 // common.js는 body 끝에서 로드되므로 위쪽 DOM은 이미 전부 존재한다.

@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="common.css?v=20260714-logo2">
+<link rel="stylesheet" href="common.css?v=20260714-footerfix2">
 <style>
   :root {
     --bg: #f8f9fb; --card: #fff; --ink: #1a1f2e; --sub: #5a6378;
@@ -774,9 +774,7 @@
   <div id="rankView">
     <div class="rank-filterbar">
       <div class="store-chips" id="storeChips"></div>
-      <div class="summary" id="summary">
-        <span class="rank-loading"><span class="spinner"></span><span>랭킹 데이터를 불러오는 중...</span></span>
-      </div>
+      <div class="summary" id="summary">불러오는 중...</div>
     </div>
 
     <div id="productGroups"></div>
@@ -876,7 +874,7 @@
 const SUPABASE_URL = "https://eukwfypbfqojbaihfqye.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_MiBvlf3d6ulcVBsi7Odcgw_PTXSmXKj";
 </script>
-<script src="common.js?v=20260714-history3"></script>
+<script src="common.js?v=20260714-loading4"></script>
 <script src="keywords.js"></script>
 <script>
 const BUILTIN_STORES = ["한국 단열", "에너가드컴퍼니"];
@@ -1874,11 +1872,8 @@ document.getElementById("memoModal").addEventListener("click", (e) => {
 
 async function loadAndRender() {
   const summary = document.getElementById("summary");
-  summary.innerHTML = `<span class="rank-loading"><span class="spinner"></span><span>랭킹 데이터를 불러오는 중...</span></span>`;
-  document.getElementById("productGroups").innerHTML = `
-    <div class="rank-loading-shell product-table">
-      <span class="rank-loading"><span class="spinner"></span><strong>상품 데이터를 불러오는 중...</strong></span>
-    </div>`;
+  summary.textContent = "불러오는 중...";
+  showLoading("랭킹 데이터를 불러오는 중..."); // 전역 로딩 오버레이 (전 페이지 공통)
   try {
     const [rows, masters] = await Promise.all([fetchHistory(selectedStore), fetchProductMasters()]);
     if (!rows.length) {
@@ -1900,6 +1895,8 @@ async function loadAndRender() {
     }
   } catch (e) {
     summary.textContent = "불러오기 실패: " + (e.message || "오류");
+  } finally {
+    hideLoading();
   }
 }
 
@@ -1979,7 +1976,8 @@ function sbHeaders(extra) {
 
 async function loadTrackedData() {
   const list = document.getElementById("trackedItemList");
-  list.innerHTML = `<div class="empty"><span class="rank-loading"><span class="spinner"></span><span>아이템 추적 데이터를 불러오는 중...</span></span></div>`;
+  list.innerHTML = `<div class="empty">불러오는 중...</div>`;
+  showLoading("아이템 추적 데이터를 불러오는 중...");
   try {
     const [itemsRes, histRes] = await Promise.all([
       fetch(`${SUPABASE_URL}/rest/v1/tracked_items?select=*&order=created_at.asc`, { headers: sbHeaders() }),
@@ -1994,6 +1992,8 @@ async function loadTrackedData() {
   } catch (e) {
     list.innerHTML = `<div class="empty">아이템 추적 데이터를 불러오지 못했습니다: ${esc(e.message || "오류")}<br>
       Supabase에서 <b>tracked_items.sql</b>을 실행했는지 확인해 주세요.</div>`;
+  } finally {
+    hideLoading();
   }
 }
 
@@ -2127,12 +2127,14 @@ async function collectTrackedItems(onlyCodes) {
   const btn = document.getElementById("itemCollectBtn");
   itemCollecting = true;
   btn.disabled = true;
+  showLoading(`아이템 추적 수집 중... (0/${keywordMap.size})`); // 전역 로딩 오버레이 (전 페이지 공통)
   const collectedDate = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10); // KST
   let done = 0;
 
   try {
     for (const [keyword, codes] of keywordMap) {
       status.textContent = `수집 중... (${++done}/${keywordMap.size}) ${keyword}`;
+      setLoadingMessage(`아이템 추적 수집 중... (${done}/${keywordMap.size}) ${keyword}`);
       try {
         const res = await fetch(RANK_FN_URL, {
           method: "POST",
@@ -2203,6 +2205,7 @@ async function collectTrackedItems(onlyCodes) {
   } finally {
     itemCollecting = false;
     btn.disabled = false;
+    hideLoading();
     await loadTrackedData();
     if (cachedProducts.length) renderProducts(cachedProducts);
     setTimeout(() => { if (!itemCollecting) status.textContent = ""; }, 4000);
