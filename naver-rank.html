@@ -421,7 +421,7 @@
   @keyframes spin { to { transform: rotate(360deg); } }
 
   /* 연관 키워드 */
-  .rel-table { width: 100%; border-collapse: collapse; }
+  .rel-table { width: 100%; border-collapse: separate; border-spacing: 0 8px; padding: 0 10px 10px; }
   .rel-table .rel-extra { display: none; }
   .rel-table.rel-expanded .rel-extra { display: table-row; }
   .rel-more-btn {
@@ -433,7 +433,24 @@
   }
   .rel-more-btn:hover { color: var(--accent-dark); background: #fffaf7; }
   .rel-table th, .rel-table td { padding: 9px 18px; text-align: left; font-size: 13px; border-bottom: 1px solid #f4f5f7; }
-  .rel-table th { background: var(--dark); font-size: 11.5px; color: rgba(255,255,255,0.85); font-weight: 700; letter-spacing: 0.02em; }
+  .rel-table th {
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    background: #fafbfc;
+    font-size: 11.5px;
+    color: #8a93a5;
+    font-weight: 800;
+    letter-spacing: 0;
+  }
+  .rel-table th:first-child {
+    border-left: 1px solid var(--line);
+    border-radius: var(--radius) 0 0 var(--radius);
+  }
+  .rel-table th:last-child {
+    border-right: 1px solid var(--line);
+    border-radius: 0 var(--radius) var(--radius) 0;
+  }
+  .rel-table tbody tr { background: #fff; }
   .rel-table tr:last-child td { border-bottom: none; }
   .rel-table td.num { font-variant-numeric: tabular-nums; font-family: var(--font-mono); color: var(--ink); }
   .rel-kw { font-weight: 700; color: var(--accent); cursor: pointer; }
