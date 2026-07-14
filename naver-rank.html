@@ -369,37 +369,21 @@
   /* 섹션 바로가기 탭 — 스크롤해도 상단에 고정 (sticky 상단바 73px 바로 아래에 붙는다) */
   .sec-nav {
     position: sticky; top: 73px; z-index: 40;
-    display: flex; align-items: center; justify-content: center; gap: 36px;
-    margin-top: 24px; padding: 0 12px;
-    background: var(--bg); border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: center; gap: 28px;
+    margin: 24px 0 20px; padding: 0 12px;
+    background: var(--bg);
   }
   .sec-nav-btn {
-    position: relative;
-    height: 52px; padding: 0 2px; border: 0; border-radius: 0;
-    background: transparent; color: var(--sub);
-    font-family: inherit; font-size: 15px; font-weight: 800; cursor: pointer;
+    padding: 10px 0 12px; border: 0; border-radius: 0;
+    background: transparent; color: #b8bdc7;
+    font-family: inherit; font-size: 19px; font-weight: 700; cursor: pointer;
     display: inline-flex; align-items: center; justify-content: center; gap: 6px;
     white-space: nowrap;
-    transition: color .12s;
-  }
-  .sec-nav-btn::after {
-    content: "";
-    position: absolute;
-    left: 0; right: 0; bottom: -1px;
-    height: 3px;
-    border-radius: 999px 999px 0 0;
-    background: transparent;
-    transition: background .12s;
+    border-bottom: 2px solid transparent;
+    transition: color .15s, border-color .15s;
   }
   .sec-nav-btn:hover { color: var(--ink); }
-  .sec-nav-btn.active { color: var(--accent-dark); font-weight: 900; }
-  .sec-nav-btn.active::after { background: var(--accent); }
-  .sec-nav-count {
-    min-width: 20px; padding: 1px 6px; border-radius: 10px;
-    background: var(--accent-tint); color: var(--accent-dark);
-    font-size: 11px; font-weight: 800; text-align: center;
-  }
-  .sec-nav-btn.active .sec-nav-count { background: var(--accent); color: #fff; }
+  .sec-nav-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
   /* 고정 상단바(73px) + 탭 높이만큼 앵커 이동 시 여백 확보 */
   #insight, .sec { scroll-margin-top: 132px; }
 
@@ -683,7 +667,7 @@
   <nav class="sec-nav" id="secNav" style="display:none;">
     <button type="button" class="sec-nav-btn active" data-target="insight">종합분석</button>
     <button type="button" class="sec-nav-btn" data-target="secVolTrend">검색량 추이</button>
-    <button type="button" class="sec-nav-btn" data-target="secRel">연관 키워드<span class="sec-nav-count" id="secNavRelCount"></span></button>
+    <button type="button" class="sec-nav-btn" data-target="secRel">연관 키워드</button>
     <button type="button" class="sec-nav-btn" data-target="secStore">내 스토어 순위</button>
     <button type="button" class="sec-nav-btn" data-target="secTop">TOP10</button>
     <button type="button" class="sec-nav-btn" data-target="secSellers">검색 노출 분석</button>
@@ -1066,8 +1050,7 @@ function render(d) {
     document.getElementById("secRel").style.display = "block";
   }
 
-  /* 섹션 탭 표시 + 연관키워드 개수 뱃지 — 검색 직후엔 종합분석(전체 보기)으로 초기화 */
-  document.getElementById("secNavRelCount").textContent = rel.length || "";
+  /* 섹션 탭 표시 — 검색 직후엔 종합분석(전체 보기)으로 초기화 */
   document.getElementById("secNav").style.display = "flex";
   markSecAvail();
   applySecTab("insight");
