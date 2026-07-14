@@ -54,7 +54,8 @@ header.topbar {
   left: auto;
   right: auto;
   z-index: 200;
-  height: auto;
+  height: 72px;
+  min-height: 72px;
   width: auto;
   max-width: none;
   overflow: visible;
@@ -80,17 +81,31 @@ header.topbar .topbar-inner {
 header.topbar .topbar-logo {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-family: var(--font-mono);
+  gap: 4px;
+  /* 로고는 웹폰트 교체(font-display:swap)의 폭 변화가 그대로 보이므로
+     운영체제에 항상 있는 고정폭 글꼴만 사용하고 영역 폭도 고정한다. */
+  font-family: Consolas, "Liberation Mono", "Courier New", monospace;
   font-weight: 700;
-  font-size: 18px;
+  font-size: 20px;
   color: #fff;
   letter-spacing: 0.1em;
   white-space: nowrap;
   text-decoration: none;
   transition: color 0.15s;
   z-index: 2;
+  width: 171px;
+  min-width: 171px;
+  flex: 0 0 171px;
+  box-sizing: border-box;
 }
+
+header.topbar .topbar-logo span {
+  display: block;
+  flex: none;
+}
+
+header.topbar .topbar-logo span:first-child { width: 126px; }
+header.topbar .topbar-logo span:last-child { width: 41px; }
 
 header.topbar .topbar-logo:hover { color: #9aa1b0; }
 

@@ -32,6 +32,17 @@ function initTopbar() {
 
   const current = (location.pathname.split("/").pop() || "index.html").toLowerCase();
 
+  // ★ 깜빡임 방지의 핵심: 페이지에 정적 상단바 마크업이 이미 있으면 절대 다시 그리지 않는다.
+  //   innerHTML로 재구축하면 첫 페인트(빈 바) → JS 후(내용 등장)의 두 단계가 생겨
+  //   페이지를 이동할 때마다 상단바가 깜빡인다. active 표시만 동기화하고 끝낸다.
+  if (bar.querySelector(".topbar-inner")) {
+    bar.querySelectorAll(".topbar-nav a").forEach((a) => {
+      const href = (a.getAttribute("href") || "").split("/").pop().toLowerCase();
+      a.classList.toggle("active", href === current);
+    });
+    return;
+  }
+
   const navHtml = TOPBAR_MENU.map((item) => {
     if (!item.href) return `<a href="#" class="nav-dummy">${item.label}</a>`;
     const active = current === item.href.toLowerCase() ? ' class="active"' : "";
@@ -81,22 +92,28 @@ const AI_CHAT_HISTORY_LIMIT = 12;
 let aiWorkChatHistory = [];
 
 function initAiChatFab() {
-  if (document.getElementById("__aiChatFab")) return;
   initAiWorkPanel();
-  const btn = document.createElement("button");
-  btn.id = "__aiChatFab";
-  btn.className = "ai-chat-fab";
-  btn.type = "button";
-  btn.setAttribute("aria-label", "AI 업무도우미 열기");
-  btn.innerHTML = `
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.6 8.6 0 0 1-7.7 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.6a8.4 8.4 0 0 1-.9-3.8 8.6 8.6 0 0 1 4.7-7.7 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5Z"></path>
-      <path d="M8.2 11.8h.01"></path>
-      <path d="M12 11.8h.01"></path>
-      <path d="M15.8 11.8h.01"></path>
-    </svg>`;
-  btn.addEventListener("click", toggleAiWorkPanel);
-  document.body.appendChild(btn);
+  // 정적 마크업이 있으면 그대로 쓰고(깜빡임 방지) 클릭 동작만 붙인다. 없을 때만 생성(폴백).
+  let btn = document.getElementById("__aiChatFab");
+  if (!btn) {
+    btn = document.createElement("button");
+    btn.id = "__aiChatFab";
+    btn.className = "ai-chat-fab";
+    btn.type = "button";
+    btn.setAttribute("aria-label", "AI 업무도우미 열기");
+    btn.innerHTML = `
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.6 8.6 0 0 1-7.7 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.6a8.4 8.4 0 0 1-.9-3.8 8.6 8.6 0 0 1 4.7-7.7 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5Z"></path>
+        <path d="M8.2 11.8h.01"></path>
+        <path d="M12 11.8h.01"></path>
+        <path d="M15.8 11.8h.01"></path>
+      </svg>`;
+    document.body.appendChild(btn);
+  }
+  if (!btn.dataset.bound) {
+    btn.dataset.bound = "1";
+    btn.addEventListener("click", toggleAiWorkPanel);
+  }
 }
 
 /* ─────────────────────────────────────────
@@ -242,28 +259,23 @@ function initCommonFooter() {
       </div>
     </div>`;
 
-  function ensureFooter() {
-    let footer = document.getElementById("__commonFooter");
-    if (!footer) {
-      footer = document.createElement("footer");
-      footer.id = "__commonFooter";
-      footer.className = "site-footer common-site-footer";
-      footer.innerHTML = footerMarkup;
-      document.body.appendChild(footer);
-    }
-
-    const pageFooters = Array.from(document.querySelectorAll(".site-footer"))
-      .filter(el => el.id !== "__commonFooter");
-    pageFooters.forEach(el => {
-      if (!el.querySelector(".site-footer-inner")) el.innerHTML = footerMarkup;
-    });
-    const hasPageFooter = pageFooters.length > 0;
-    footer.hidden = hasPageFooter;
+  // 정적 푸터가 이미 페이지 HTML에 있으므로(전 페이지 배치 완료) 한 번만 확인한다.
+  // 이전의 MutationObserver(body 전체 감시)는 페이지 내 렌더링(카테고리/탭 전환)마다
+  // 푸터 검사를 재실행해 깜빡임과 성능 저하를 일으키던 원인이라 제거했다.
+  let footer = document.getElementById("__commonFooter");
+  const pageFooters = Array.from(document.querySelectorAll(".site-footer"))
+    .filter(el => el.id !== "__commonFooter");
+  if (!footer && !pageFooters.length) {
+    footer = document.createElement("footer");
+    footer.id = "__commonFooter";
+    footer.className = "site-footer common-site-footer";
+    footer.innerHTML = footerMarkup;
+    document.body.appendChild(footer);
   }
-
-  ensureFooter();
-  const observer = new MutationObserver(ensureFooter);
-  observer.observe(document.body, { childList: true, subtree: true });
+  pageFooters.forEach(el => {
+    if (!el.querySelector(".site-footer-inner")) el.innerHTML = footerMarkup;
+  });
+  if (footer) footer.hidden = pageFooters.length > 0;
 }
 
 function bootCommonUi() {
@@ -273,11 +285,10 @@ function bootCommonUi() {
   initCommonFooter();
 }
 
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", bootCommonUi);
-} else {
-  bootCommonUi();
-}
+// common.js는 body 끝에서 로드되므로 위쪽 DOM은 이미 전부 존재한다.
+// DOMContentLoaded를 기다리면 크롬(상단바 내용·FAB)이 첫 페인트보다 늦게 떠서
+// 페이지 이동/새로고침마다 깜빡이므로 즉시 실행한다.
+bootCommonUi();
 
 function initAiWorkPanel() {
   if (document.getElementById("__aiWorkPanel")) return;

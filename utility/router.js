@@ -34,7 +34,7 @@
   window.addEventListener('popstate', () => navigate(location.href, { pushState: false }));
 
   // ── Navigate ─────────────────────────────────────────────────────────────────
-  async function navigate(url, { pushState = true } = {}) {
+  async function navigate(url, { pushState = true, replaceState = false } = {}) {
     if (navigating) return;
     const target = resolvedUrl(url);
     if (pushState && target === resolvedUrl(location.href)) return;
@@ -53,6 +53,8 @@
       const mainEl = document.querySelector('main.main-content');
       const clone = newMain.cloneNode(true);
       clone.querySelectorAll('script').forEach(s => s.remove());
+      // 계산기 조각에 남아 있는 구형 푸터는 셸의 공통 푸터와 중복되므로 주입하지 않는다.
+      clone.querySelectorAll('.site-footer').forEach(footer => footer.remove());
       mainEl.innerHTML = clone.innerHTML;
 
       // Fix relative hrefs in injected content
@@ -60,8 +62,10 @@
 
       // Update URL, title, body class
       if (pushState) history.pushState({}, doc.title, target);
+      else if (replaceState) history.replaceState({}, doc.title, target);
       document.title = doc.title;
       document.body.className = doc.body.className || document.body.className;
+      document.documentElement.classList.remove('is-direct-calc');
 
       window.scrollTo(0, 0);
 
@@ -94,6 +98,7 @@
 
     } catch (err) {
       console.error('[Router]', err);
+      document.documentElement.classList.remove('is-direct-calc');
       location.href = url;
     } finally {
       navigating = false;

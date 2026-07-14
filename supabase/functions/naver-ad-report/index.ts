@@ -801,9 +801,10 @@ async function insertRowsChunked(table: string, rows: JsonMap[]) {
 }
 
 async function deleteDateRange(table: string, dates: string[]) {
-  const sorted = [...dates].sort();
+  const exactDates = [...new Set(dates)].sort();
+  if (!exactDates.length) return;
   await supabaseRequest(
-    `/rest/v1/${table}?report_date=gte.${sorted[0]}&report_date=lte.${sorted[sorted.length - 1]}`,
+    `/rest/v1/${table}?report_date=in.(${exactDates.join(",")})`,
     { method: "DELETE" },
   );
 }

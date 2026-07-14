@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="common.css?v=20260713-fix2">
+<link rel="stylesheet" href="common.css?v=20260714-logo2">
 <style>
   :root {
     --bg: #f8f9fb; --card: #fff; --ink: #1a1f2e; --sub: #5a6378;
@@ -20,7 +20,7 @@
     --radius: 6px;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html { scrollbar-gutter: stable; }
+  html { overflow-y: scroll; scrollbar-gutter: stable; }
   body {
     font-family: var(--font-main);
     background: var(--bg); color: var(--ink); font-size: 15px; line-height: 1.55;
@@ -66,6 +66,20 @@
   .category-tab:hover { border-color: #d7dde7; color: var(--ink); background: #fafbfc; }
   .category-tab.active { background: var(--ink); border-color: var(--ink); color: #fff; }
   .category-tab-count { margin-left: 4px; font-size: 11px; font-weight: 700; opacity: .72; }
+  .category-panels {
+    display: grid;
+    align-items: start;
+  }
+  .category-panel {
+    grid-area: 1 / 1;
+    min-width: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+  .category-panel.active {
+    visibility: visible;
+    pointer-events: auto;
+  }
   .category-section { margin-top: 24px; }
   .category-title-row {
     display: flex;
@@ -718,7 +732,26 @@
 </style>
 </head>
 <body>
-<header class="topbar" data-topbar></header>
+<header class="topbar" data-topbar>
+  <div class="topbar-inner">
+    <a href="index.html" class="topbar-logo"><span>ENERGUARD</span><span>LAB</span></a>
+    <nav class="topbar-nav">
+      <a href="rank-tracker.html" class="active">랭킹추적</a>
+      <a href="naver-rank.html">키워드분석</a>
+      <a href="sales-analysis.html">매출분석</a>
+      <a href="item-discovery.html">아이템발굴</a>
+      <a href="utility.html">유틸리티</a>
+    </nav>
+    <div class="topbar-actions" aria-hidden="true">
+      <button type="button" class="topbar-icon-btn" tabindex="-1" aria-label="검색">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+      </button>
+      <button type="button" class="topbar-icon-btn" tabindex="-1" aria-label="계산 내역">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><polyline points="12 7 12 12 15 15"></polyline></svg>
+      </button>
+    </div>
+  </div>
+</header>
 <div class="wrap">
   <header>
     <div class="mode-title-tabs">
@@ -824,11 +857,25 @@
   </div>
 </div>
 
+<footer id="__commonFooter" class="site-footer common-site-footer">
+  <div class="site-footer-inner">
+    <p class="footer-copy">Copyright 2026. Energuard Company. All Rights Reserved.</p>
+    <div class="footer-links">
+      <a href="#">맨 위로</a>
+      <a href="#">사용 가이드 ↗</a>
+      <a href="#">이용약관 ↗</a>
+      <a href="#">개인정보처리방침 ↗</a>
+    </div>
+  </div>
+</footer>
+
+<button id="__aiChatFab" class="ai-chat-fab" type="button" aria-label="AI 업무도우미 열기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.6 8.6 0 0 1-7.7 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.6a8.4 8.4 0 0 1-.9-3.8 8.6 8.6 0 0 1 4.7-7.7 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5Z"></path><path d="M8.2 11.8h.01"></path><path d="M12 11.8h.01"></path><path d="M15.8 11.8h.01"></path></svg></button>
+
 <script>
 const SUPABASE_URL = "https://eukwfypbfqojbaihfqye.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_MiBvlf3d6ulcVBsi7Odcgw_PTXSmXKj";
 </script>
-<script src="common.js?v=20260706-ranktrack"></script>
+<script src="common.js?v=20260714-static1"></script>
 <script src="keywords.js"></script>
 <script>
 const BUILTIN_STORES = ["한국 단열", "에너가드컴퍼니"];
@@ -1629,9 +1676,6 @@ function renderProducts(products) {
   if (!trackerCategories.includes(activeCategory)) {
     activeCategory = trackerCategories[0];
   }
-  const activeSection = sectionByName.get(activeCategory) || { name: activeCategory, products: [], keywordCount: 0 };
-  const isAllExpanded = expandedCategories.has(activeSection.name);
-
   const tabsHtml = `<div class="category-tabs">
     ${trackerCategories.map(category => {
       const section = sectionByName.get(category);
@@ -1642,36 +1686,55 @@ function renderProducts(products) {
     }).join("")}
   </div>`;
 
-  const panelHtml = `
-    <section class="category-section">
-      ${activeSection.products.length ? renderCategoryDashboard(activeSection) : ""}
-      ${activeSection.products.length
-        ? `<div class="product-table">
-          <div class="category-title-row">
-            <h2 class="category-title">${esc(activeSection.name)}</h2>
-            <span class="category-meta">상품 ${activeSection.products.length}개 · 키워드 ${activeSection.keywordCount}개</span>
-            <span class="category-title-spacer"></span>
-            <button type="button" class="expand-all-btn${isAllExpanded ? " is-open" : ""}" data-action="toggle-all-keywords">
-              ${isAllExpanded ? "전체 접기" : "전체 펼치기"}
-            </button>
-          </div>
-          <div class="product-table-head">
-            <span></span>
-            <span>이미지</span>
-            <span>상품명</span>
-            <span>메인 키워드</span>
-            <span>현재 순위</span>
-            <span>변동</span>
-            <span>보조</span>
-            <span>관리</span>
+  const panelsHtml = trackerCategories.map(category => {
+    const section = sectionByName.get(category) || { name: category, products: [], keywordCount: 0 };
+    const isAllExpanded = expandedCategories.has(section.name);
+    return `
+      <section class="category-section category-panel${category === activeCategory ? " active" : ""}" data-category-panel="${esc(category)}" aria-hidden="${category === activeCategory ? "false" : "true"}"${category === activeCategory ? "" : " inert"}>
+        ${section.products.length ? renderCategoryDashboard(section) : ""}
+        ${section.products.length
+          ? `<div class="product-table">
+            <div class="category-title-row">
+              <h2 class="category-title">${esc(section.name)}</h2>
+              <span class="category-meta">상품 ${section.products.length}개 · 키워드 ${section.keywordCount}개</span>
+              <span class="category-title-spacer"></span>
+              <button type="button" class="expand-all-btn${isAllExpanded ? " is-open" : ""}" data-action="toggle-all-keywords">
+                ${isAllExpanded ? "전체 접기" : "전체 펼치기"}
+              </button>
             </div>
-            ${activeSection.products.map(product => renderProductCard(product, activeSection.name)).join("")}
+            <div class="product-table-head">
+              <span></span>
+              <span>이미지</span>
+              <span>상품명</span>
+              <span>메인 키워드</span>
+              <span>현재 순위</span>
+              <span>변동</span>
+              <span>보조</span>
+              <span>관리</span>
+            </div>
+            ${section.products.map(product => renderProductCard(product, section.name)).join("")}
           </div>`
-        : `<div class="empty">이 카테고리에 잡힌 상품이 없습니다.</div>`}
-    </section>
-  `;
+          : `<div class="empty">이 카테고리에 잡힌 상품이 없습니다.</div>`}
+      </section>`;
+  }).join("");
 
-  target.innerHTML = tabsHtml + panelHtml;
+  target.innerHTML = tabsHtml + `<div class="category-panels">${panelsHtml}</div>`;
+}
+
+function switchCategory(category) {
+  const trackerCategories = getTrackerCategories();
+  if (!trackerCategories.includes(category)) return;
+  activeCategory = category;
+  const target = document.getElementById("productGroups");
+  target.querySelectorAll(".category-tab").forEach(tab => {
+    tab.classList.toggle("active", tab.dataset.category === activeCategory);
+  });
+  target.querySelectorAll("[data-category-panel]").forEach(panel => {
+    const isActive = panel.dataset.categoryPanel === activeCategory;
+    panel.classList.toggle("active", isActive);
+    panel.setAttribute("aria-hidden", String(!isActive));
+    panel.inert = !isActive;
+  });
 }
 
 document.getElementById("productGroups").addEventListener("click", (e) => {
@@ -1688,8 +1751,7 @@ document.getElementById("productGroups").addEventListener("click", (e) => {
 
   const tab = e.target.closest(".category-tab");
   if (!tab) return;
-  activeCategory = tab.dataset.category;
-  renderProducts(cachedProducts);
+  switchCategory(tab.dataset.category);
 });
 
 function findCachedProduct(code) {

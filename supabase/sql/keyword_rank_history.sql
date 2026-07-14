@@ -1,7 +1,6 @@
 -- 랭킹추적 기능용 테이블
 -- Supabase 대시보드 SQL Editor에서 위에서 아래로 그대로 실행하세요.
 -- (테이블이 이미 있든 없든 처음부터 끝까지 그대로 실행해도 안전합니다 — 전부 idempotent)
--- ⚠ 아래에 기존 데이터를 비우는 truncate가 포함되어 있습니다 (테스트 데이터라 삭제해도 된다고 확인함).
 
 create table if not exists public.keyword_rank_history (
   id bigint generated always as identity primary key,
@@ -22,9 +21,6 @@ alter table public.keyword_rank_history add column if not exists product_link te
 alter table public.keyword_rank_history add column if not exists product_price integer;
 alter table public.keyword_rank_history add column if not exists batch_id text;   -- 더 이상 안 쓰지만 컬럼만 남겨둠 (참조 데이터 없음)
 alter table public.keyword_rank_history add column if not exists collected_date date;
-
--- 기존(테스트) 데이터 비우기 — 새 구조(날짜별 upsert)와 맞지 않는 예전 방식으로 쌓인 데이터라 정리
-truncate table public.keyword_rank_history;
 
 -- 날짜 단위 upsert(같은 스토어+키워드+상품이면 하루에 한 행만 유지)를 위한 컬럼 정리
 -- (NULL은 유니크 제약에서 서로 다른 값 취급되므로 빈 문자열/기본값으로 통일)

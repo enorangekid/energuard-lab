@@ -38,7 +38,7 @@ body {
 
 /* ─── 히어로 ─── */
 .hero { padding: 64px 24px 56px; }
-.hero-inner { max-width: 760px; margin: 0 auto; text-align: center; }
+.hero-inner { max-width: 1180px; margin: 0 auto; text-align: center; }
 .hero-title {
   font-size: 32px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.35;
   margin-bottom: 28px;
@@ -65,14 +65,14 @@ body {
 /* ─── 트렌드 ─── */
 .trend { padding: 8px 24px 80px; }
 .trend-inner {
-  max-width: 980px; margin: 0 auto; background: #fff;
+  max-width: 1180px; margin: 0 auto; background: #fff;
   border: 1px solid var(--line); border-radius: 8px;
   box-shadow: 0 8px 24px rgba(5, 7, 11, 0.05);
   padding: 28px 32px 32px;
 }
 
 .trend-tabs {
-  max-width: 980px; margin: 0 auto 20px; display: flex; justify-content: center; gap: 28px;
+  max-width: 1180px; margin: 0 auto 20px; display: flex; justify-content: center; gap: 28px;
 }
 .trend-tab {
   border: none; background: none; padding: 10px 0 12px; font-size: 19px; font-weight: 700;
