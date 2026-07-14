@@ -120,13 +120,95 @@ function initAiChatFab() {
    분석 내역 패널 — 키워드 분석(naver-rank.html) 결과 히스토리를 전 페이지에서 열람.
    상단바 시계 아이콘으로 토글. 항목 클릭 시:
    - 키워드분석 페이지에서는 window.nrRestoreAnalysis 훅으로 즉시 복원 (로딩 없음)
-   - 다른 페이지에서는 naver-rank.html?restoreKeyword=... 로 이동해 복원
+   - 다른 페이지에서는 고유 히스토리 ID와 함께 키워드분석으로 이동해 정확한 결과를 복원
    ───────────────────────────────────────── */
 const NR_HISTORY_KEY = "nrAnalysisHistory:v1";
+const NR_HISTORY_DB_NAME = "nrAnalysisHistory";
+const NR_HISTORY_STORE = "entries";
+let nrHistoryDbPromise = null;
+let nrHistoryMigrationPromise = null;
+let nrHistoryRenderVersion = 0;
 
-function nrHistoryLoad() {
-  try { return JSON.parse(localStorage.getItem(NR_HISTORY_KEY) || "[]"); }
-  catch (_) { return []; }
+function nrHistoryId() {
+  if (window.crypto && typeof window.crypto.randomUUID === "function") return window.crypto.randomUUID();
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function nrHistoryOpenDb() {
+  if (nrHistoryDbPromise) return nrHistoryDbPromise;
+  nrHistoryDbPromise = new Promise((resolve, reject) => {
+    const request = indexedDB.open(NR_HISTORY_DB_NAME, 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(NR_HISTORY_STORE)) {
+        const store = db.createObjectStore(NR_HISTORY_STORE, { keyPath: "id" });
+        store.createIndex("savedAt", "savedAt");
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error || new Error("히스토리 저장소를 열 수 없습니다."));
+  });
+  return nrHistoryDbPromise;
+}
+
+async function nrHistoryMigrateLegacy() {
+  if (nrHistoryMigrationPromise) return nrHistoryMigrationPromise;
+  nrHistoryMigrationPromise = (async () => {
+    let legacy = [];
+    try { legacy = JSON.parse(localStorage.getItem(NR_HISTORY_KEY) || "[]"); }
+    catch (_) { legacy = []; }
+    if (!Array.isArray(legacy) || !legacy.length) return;
+
+    const db = await nrHistoryOpenDb();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(NR_HISTORY_STORE, "readwrite");
+      const store = tx.objectStore(NR_HISTORY_STORE);
+      legacy.forEach(item => store.put({
+        ...item,
+        id: item.id || nrHistoryId(),
+        savedAt: item.savedAt || new Date().toISOString(),
+      }));
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error || new Error("기존 히스토리 이전에 실패했습니다."));
+      tx.onabort = () => reject(tx.error || new Error("기존 히스토리 이전이 중단됐습니다."));
+    });
+    localStorage.removeItem(NR_HISTORY_KEY);
+  })().catch(error => {
+    console.warn("분석 히스토리 이전 실패", error);
+  });
+  return nrHistoryMigrationPromise;
+}
+
+async function nrHistoryLoad() {
+  try {
+    await nrHistoryMigrateLegacy();
+    const db = await nrHistoryOpenDb();
+    const entries = await new Promise((resolve, reject) => {
+      const request = db.transaction(NR_HISTORY_STORE, "readonly").objectStore(NR_HISTORY_STORE).getAll();
+      request.onsuccess = () => resolve(request.result || []);
+      request.onerror = () => reject(request.error || new Error("히스토리를 불러올 수 없습니다."));
+    });
+    return entries.sort((a, b) => String(b.savedAt).localeCompare(String(a.savedAt)));
+  } catch (error) {
+    console.warn("분석 히스토리 조회 실패", error);
+    return [];
+  }
+}
+
+async function nrHistoryGet(id) {
+  if (!id) return null;
+  try {
+    await nrHistoryMigrateLegacy();
+    const db = await nrHistoryOpenDb();
+    return await new Promise((resolve, reject) => {
+      const request = db.transaction(NR_HISTORY_STORE, "readonly").objectStore(NR_HISTORY_STORE).get(id);
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error || new Error("히스토리를 불러올 수 없습니다."));
+    });
+  } catch (error) {
+    console.warn("분석 히스토리 단건 조회 실패", error);
+    return null;
+  }
 }
 
 function nrEsc(s) {
@@ -134,9 +216,10 @@ function nrEsc(s) {
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
-window.nrSaveAnalysis = function nrSaveAnalysis(entry) {
+window.nrSaveAnalysis = async function nrSaveAnalysis(entry) {
   if (!entry || !entry.keyword) return;
   const normalized = {
+    id: nrHistoryId(),
     keyword: String(entry.keyword || "").trim(),
     store: String(entry.store || "한국 단열").trim(),
     summary: entry.summary || {},
@@ -144,11 +227,30 @@ window.nrSaveAnalysis = function nrSaveAnalysis(entry) {
     savedAt: new Date().toISOString(),
   };
   if (!normalized.keyword) return;
-  const entries = nrHistoryLoad()
-    .filter(item => !(item.keyword === normalized.keyword && item.store === normalized.store));
-  entries.unshift(normalized);
-  localStorage.setItem(NR_HISTORY_KEY, JSON.stringify(entries.slice(0, 40)));
-  nrHistoryRenderList();
+  try {
+    await nrHistoryMigrateLegacy();
+    const db = await nrHistoryOpenDb();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(NR_HISTORY_STORE, "readwrite");
+      tx.objectStore(NR_HISTORY_STORE).put(normalized);
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error || new Error("히스토리를 저장할 수 없습니다."));
+      tx.onabort = () => reject(tx.error || new Error("히스토리 저장이 중단됐습니다."));
+    });
+    nrHistoryRenderList();
+    return normalized;
+  } catch (error) {
+    console.warn("분석 히스토리 저장 실패", error);
+    return null;
+  }
+};
+
+window.nrLoadAnalysisById = nrHistoryGet;
+window.nrFindAnalysis = async function nrFindAnalysis(keyword, store) {
+  const entries = await nrHistoryLoad();
+  return entries.find(entry =>
+    entry.keyword === keyword && (!store || entry.store === store) && entry.data
+  ) || null;
 };
 
 function nrHistoryToggle(force) {
@@ -162,16 +264,29 @@ function nrHistoryToggle(force) {
   if (open) nrHistoryRenderList();
 }
 
-function nrHistoryClear() {
+async function nrHistoryClear() {
   if (!confirm("분석 내역을 모두 삭제할까요?")) return;
+  try {
+    const db = await nrHistoryOpenDb();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(NR_HISTORY_STORE, "readwrite");
+      tx.objectStore(NR_HISTORY_STORE).clear();
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error || new Error("히스토리를 삭제할 수 없습니다."));
+    });
+  } catch (error) {
+    console.warn("분석 히스토리 삭제 실패", error);
+  }
   localStorage.removeItem(NR_HISTORY_KEY);
   nrHistoryRenderList();
 }
 
-function nrHistoryRenderList() {
+async function nrHistoryRenderList() {
   const list = document.getElementById("historyList");
   if (!list) return;
-  const entries = nrHistoryLoad();
+  const renderVersion = ++nrHistoryRenderVersion;
+  const entries = await nrHistoryLoad();
+  if (renderVersion !== nrHistoryRenderVersion) return;
   if (!entries.length) {
     list.innerHTML = `<div class="history-empty">아직 분석 내역이 없습니다.<br>키워드분석에서 키워드를 분석하면 자동으로 저장됩니다.</div>`;
     return;
@@ -199,7 +314,7 @@ function nrHistoryRenderList() {
   }).join("");
   list.querySelectorAll(".history-item").forEach(el => {
     el.addEventListener("click", () => {
-      const entry = nrHistoryLoad()[parseInt(el.dataset.index)];
+      const entry = entries[parseInt(el.dataset.index)];
       if (!entry) return;
       nrHistoryToggle(false);
       if (typeof window.nrRestoreAnalysis === "function") {
@@ -209,7 +324,11 @@ function nrHistoryRenderList() {
       const prefix = (typeof window.TOPBAR_PREFIX === "string")
         ? window.TOPBAR_PREFIX
         : (document.querySelector("base") ? "../" : "");
-      const params = new URLSearchParams({ restoreKeyword: entry.keyword, restoreStore: entry.store });
+      const params = new URLSearchParams({
+        restoreHistoryId: entry.id,
+        restoreKeyword: entry.keyword,
+        restoreStore: entry.store,
+      });
       location.href = `${prefix}naver-rank.html?${params.toString()}`;
     });
   });
