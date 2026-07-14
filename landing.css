@@ -78,7 +78,7 @@ body {
 .trend-tab {
   border: none; background: none; padding: 10px 0 12px; font-size: 19px; font-weight: 700;
   color: #b8bdc7; cursor: pointer; font-family: inherit;
-  border-bottom: 2px solid transparent; transition: color 0.15s, border-color 0.15s;
+  border-bottom: 3px solid transparent; transition: color 0.15s, border-color 0.15s;
 }
 .trend-tab:hover { color: var(--ink); }
 .trend-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
