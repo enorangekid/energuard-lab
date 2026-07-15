@@ -112,6 +112,20 @@ create table if not exists public.coupang_item_snapshot (
 alter table public.coupang_item_snapshot enable row level security;
 
 -- ─────────────────────────────────────────────────────────────
+-- 쿠팡 상품목록(Wing "가격/재고 관리" 다운로드) — 옵션ID → 노출상품ID(Product ID) 매핑.
+-- 노출상품ID는 상품이 다른 그룹으로 묶이거나 분리될 때 바뀔 수 있어서, 상품목록을 다시
+-- 업로드하면 그때마다 전체를 지우고 새로 채운다(스냅샷이 아니라 "현재 상태" 하나만 유지).
+-- ─────────────────────────────────────────────────────────────
+create table if not exists public.coupang_product_map (
+  option_id text primary key,
+  product_id text not null default '',
+  vendor_product_id text not null default '',
+  product_name text not null default '',
+  fetched_at timestamptz not null default now()
+);
+alter table public.coupang_product_map enable row level security;
+
+-- ─────────────────────────────────────────────────────────────
 -- 네이버 판매분석 (비즈어드바이저 엑셀 3종 업로드)
 -- 상품성과(sales2): 일별 × 채널상품 ("전체" 행 = 스토어 일별 합계)
 -- ─────────────────────────────────────────────────────────────

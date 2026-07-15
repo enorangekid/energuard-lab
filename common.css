@@ -10,26 +10,25 @@ html {
   /* 로딩 중(내용 짧음) 스크롤바가 사라졌다 생기며 폭이 출렁이는 문제 방지 —
      트랙을 항상 표시해 뷰포트 폭을 고정한다 */
   overflow-y: scroll;
+  background: var(--bg);
 }
 
 body {
-  min-height: 100vh;
+  /* 내용이 짧은 페이지(예: 아이템 추적 탭)에서도 푸터가 뷰포트 맨 아래에 붙도록
+     sticky footer 구성: body를 최소 한 화면 높이로 잡고, 아래 .wrap이 flex-grow로
+     남는 공간을 채워 footer를 바닥까지 밀어낸다. */
   display: flex;
   flex-direction: column;
+  min-height: 100vh;
 }
 
 body > main,
 body > .wrap {
+  /* 남는 세로 공간을 채워서 footer가 항상 뷰포트 하단에 붙게 한다. */
   flex: 1 0 auto;
   /* body가 flex column이 되면서 margin:0 auto 컨테이너는 stretch가 풀려
      내용물 폭으로 쪼그라든다(로딩 중 좁아졌다 넓어지는 원인). 폭을 명시해 고정. */
   width: 100%;
-}
-
-body.utility-page > main.main-content {
-  flex: 1 0 auto;
-  display: flex;
-  flex-direction: column;
 }
 
 ::selection {
@@ -178,7 +177,9 @@ header.topbar .topbar-icon-btn svg {
 
 .site-footer {
   flex-shrink: 0;
-  margin-top: auto;
+  /* auto였을 때는 .wrap의 flex-grow와 맞물려 내용이 짧아도 푸터를 뷰포트 맨 아래로 밀어냈다.
+     .wrap 쪽 여백(하단 padding 80px)만으로 충분해서 여기선 따로 더 안 준다. */
+  margin-top: 0;
   padding: 22px 48px;
   border-top: 1px solid #e5e8ee;
   /* 배경(--bg #f8f9fb)과 완전히 같았던 것을 살짝만 밝게 올려 경계가 은은하게 보이게 함 */

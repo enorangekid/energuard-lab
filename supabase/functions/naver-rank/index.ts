@@ -479,6 +479,12 @@ Deno.serve(async (req) => {
                     [item.category1, item.category2].filter(Boolean).join(" > ");
         if (cat) catCount.set(cat, (catCount.get(cat) || 0) + 1);
 
+        // 네이버쇼핑 API의 productId는 가격비교(통합) ID일 때가 있어, 스마트스토어 링크(/products/{id})에
+        // 박힌 "그 판매처의 실제 상품코드"가 있으면 그걸 우선한다 — 안 그러면 같은 상품인데도 스캔마다
+        // productId가 달라져서(그룹상품 대표코드 로테이션과는 별개 현상) 이력이 계속 끊겨 보인다.
+        const linkId = (String(item.link).match(/\/products\/(\d+)/) || [])[1] || "";
+        const realProductId = linkId || String(item.productId).trim();
+
         if (counted <= 200) { // 노출 분석은 상위 200위(5페이지) 고정 기준
           const agg = mallAgg.get(item.mallName) ?? { count: 0, best: counted, sum: 0, link: item.link, points: 0 };
           agg.count += 1;
@@ -498,7 +504,7 @@ Deno.serve(async (req) => {
             mall: item.mallName,
             image: item.image || "",
             link: item.link,
-            productId: item.productId, // 아이템 추적 등록용
+            productId: realProductId, // 아이템 추적 등록용
           });
         }
 
@@ -509,7 +515,7 @@ Deno.serve(async (req) => {
             title: stripTags(item.title),
             price,
             link: item.link,
-            productId: item.productId,
+            productId: realProductId,
             mallName: item.mallName,
             image: item.image || "",
           });
@@ -520,7 +526,6 @@ Deno.serve(async (req) => {
           // 다른 상품이 있어 둘 다 대조한다. 응답의 productId는 "등록된 코드"로 돌려줘야
           // tracked_items/tracked_item_history와 조인이 맞는다.
           const apiId = String(item.productId).trim();
-          const linkId = (String(item.link).match(/\/products\/(\d+)/) || [])[1] || "";
           const matchedCode = watchSet.has(apiId) ? apiId : (linkId && watchSet.has(linkId) ? linkId : "");
           if (matchedCode) {
             watched.push({

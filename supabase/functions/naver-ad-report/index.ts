@@ -9,6 +9,7 @@ const CACHE_TABLE = "naver_ad_campaign_daily";
 const COUPANG_TABLE = "coupang_ad_daily";
 const COUPANG_SALES_TABLE = "coupang_sales_daily";
 const COUPANG_ITEM_TABLE = "coupang_item_snapshot";
+const COUPANG_PRODUCT_MAP_TABLE = "coupang_product_map";
 const NAVER_PRODUCT_TABLE = "naver_product_daily";
 const NAVER_VISIT_TABLE = "naver_visit_daily";
 const NAVER_CUSTOMER_TABLE = "naver_customer_snapshot";
@@ -684,6 +685,21 @@ async function coupangSalesUpload(body: JsonMap) {
   return { saved: rows.length, dayCount: dates.length, dateFrom: dates[0], dateTo: dates[dates.length - 1] };
 }
 
+// "월별 바로가기"에서 어느 달에 데이터가 있는지만 확인할 때 쓴다. coupangSalesSummary처럼 전체 컬럼을
+// 끌어오지 않고 report_date 하나만 선택해서 훨씬 가볍게 응답한다.
+async function coupangSalesMonths(body: JsonMap) {
+  const { dateFrom, dateTo } = dateRange(body);
+  const query = new URLSearchParams({ select: "report_date", report_date: `gte.${dateFrom}` });
+  query.append("report_date", `lte.${dateTo}`);
+  const rows = await supabaseSelectAll(`/rest/v1/${COUPANG_SALES_TABLE}?${query.toString()}`);
+  const months = new Set<string>();
+  rows.forEach(row => {
+    const d = normalizeDate(row.report_date);
+    if (d) months.add(d.slice(0, 7));
+  });
+  return { months: [...months] };
+}
+
 async function coupangSalesSummary(body: JsonMap) {
   const { dateFrom, dateTo } = dateRange(body);
   const query = new URLSearchParams({ select: "*", report_date: `gte.${dateFrom}`, order: "report_date.asc" });
@@ -757,6 +773,48 @@ async function coupangItemPeriods() {
   });
   periods.sort((a, b) => b.to.localeCompare(a.to) || b.from.localeCompare(a.from));
   return { periods };
+}
+
+// 쿠팡 상품목록(Wing "가격/재고 관리" 다운로드)을 옵션ID 기준으로 통째로 교체한다.
+// 노출상품ID가 바뀌면 이 목록을 다시 업로드해서 갱신하는 구조라, 스냅샷이 아니라
+// "현재 상태 하나"만 유지한다(매번 전체 삭제 후 새로 채움).
+async function coupangProductMapUpload(body: JsonMap) {
+  const rawRows = Array.isArray(body.rows) ? body.rows as JsonMap[] : [];
+  if (!rawRows.length) throw new Error("업로드할 행이 없습니다.");
+  const byOption = new Map<string, JsonMap>();
+  rawRows.forEach(row => {
+    const optionId = String(row.optionId || "").trim();
+    if (!optionId) return;
+    byOption.set(optionId, {
+      option_id: optionId,
+      product_id: String(row.productId || ""),
+      vendor_product_id: String(row.vendorProductId || ""),
+      product_name: String(row.productName || ""),
+      fetched_at: new Date().toISOString(),
+    });
+  });
+  const rows = [...byOption.values()];
+  if (!rows.length) throw new Error("옵션 ID를 인식할 수 있는 행이 없습니다.");
+  await supabaseRequest(`/rest/v1/${COUPANG_PRODUCT_MAP_TABLE}?option_id=not.is.null`, { method: "DELETE" });
+  for (let i = 0; i < rows.length; i += 1000) {
+    await supabaseRequest(`/rest/v1/${COUPANG_PRODUCT_MAP_TABLE}`, {
+      method: "POST",
+      headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify(rows.slice(i, i + 1000)),
+    });
+  }
+  return { saved: rows.length };
+}
+
+async function coupangProductMapAll() {
+  const rows = await supabaseSelectAll(`/rest/v1/${COUPANG_PRODUCT_MAP_TABLE}?select=option_id,product_id,vendor_product_id`);
+  return {
+    items: rows.map(row => ({
+      optionId: String(row.option_id || ""),
+      productId: String(row.product_id || ""),
+      vendorProductId: String(row.vendor_product_id || ""),
+    })),
+  };
 }
 
 async function coupangItemSummary(body: JsonMap) {
@@ -907,6 +965,21 @@ async function naverCustomerUpload(body: JsonMap) {
 }
 
 // 조회: 일별 합계("전체" 행) + 상품별 집계 + 유입경로 집계 + 고객 스냅샷을 한 번에 반환
+// "월별 바로가기"에서 어느 달에 데이터가 있는지만 확인할 때 쓴다. naverStatSummary는 상품별·유입경로별·
+// 고객 스냅샷까지 한꺼번에 조회/집계해서 무거우므로, report_date 하나만 선택하는 가벼운 버전을 따로 둔다.
+async function naverStatMonths(body: JsonMap) {
+  const { dateFrom, dateTo } = dateRange(body);
+  const query = new URLSearchParams({ select: "report_date", report_date: `gte.${dateFrom}` });
+  query.append("report_date", `lte.${dateTo}`);
+  const rows = await supabaseSelectAll(`/rest/v1/${NAVER_PRODUCT_TABLE}?${query.toString()}`);
+  const months = new Set<string>();
+  rows.forEach(row => {
+    const d = normalizeDate(row.report_date);
+    if (d) months.add(d.slice(0, 7));
+  });
+  return { months: [...months] };
+}
+
 async function naverStatSummary(body: JsonMap) {
   const { dateFrom, dateTo } = dateRange(body);
 
@@ -1065,13 +1138,17 @@ Deno.serve(async (req) => {
     if (action === "coupangSummary") return json(await coupangSummary(body));
     if (action === "coupangSalesUpload") return json(await coupangSalesUpload(body));
     if (action === "coupangSalesSummary") return json(await coupangSalesSummary(body));
+    if (action === "coupangSalesMonths") return json(await coupangSalesMonths(body));
     if (action === "coupangItemUpload") return json(await coupangItemUpload(body));
     if (action === "coupangItemPeriods") return json(await coupangItemPeriods());
     if (action === "coupangItemSummary") return json(await coupangItemSummary(body));
+    if (action === "coupangProductMapUpload") return json(await coupangProductMapUpload(body));
+    if (action === "coupangProductMapAll") return json(await coupangProductMapAll());
     if (action === "naverProductUpload") return json(await naverProductUpload(body));
     if (action === "naverVisitUpload") return json(await naverVisitUpload(body));
     if (action === "naverCustomerUpload") return json(await naverCustomerUpload(body));
     if (action === "naverStatSummary") return json(await naverStatSummary(body));
+    if (action === "naverStatMonths") return json(await naverStatMonths(body));
     if (action === "daily") return json(await dailySummary(body));
     if (action === "purchaseDebug") {
       const statDt = String(body.statDt || ymd(new Date(Date.now() + 9 * 3600 * 1000 - 86400000).toISOString().slice(0, 10))).replace(/\D/g, "").slice(0, 8);

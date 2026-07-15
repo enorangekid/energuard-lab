@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="common.css?v=20260714-tipfix">
+<link rel="stylesheet" href="common.css?v=20260715-stickyfooter">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   :root {
@@ -289,7 +289,8 @@
      accent 단일 색조(랭킹추적·이 페이지 전반의 accent와 동일)로 그린다. */
   .rank-bar-list { display: flex; flex-direction: column; gap: 9px; padding: 16px; border-bottom: 1px solid var(--line); }
   .rank-bar-row { display: grid; grid-template-columns: 160px 1fr 76px; align-items: center; gap: 10px; }
-  .rank-bar-name { font-size: 12px; font-weight: 700; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rank-bar-name { font-size: 12px; font-weight: 700; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-decoration: none; }
+  a.rank-bar-name:hover { color: var(--accent); text-decoration: underline; }
   .rank-bar-track { position: relative; height: 10px; background: var(--dark-tint); border-radius: 999px; overflow: hidden; }
   .rank-bar-fill { position: absolute; top: 0; left: 0; height: 100%; background: var(--accent); border-radius: 999px; }
   .rank-bar-value { font-size: 12px; font-weight: 800; color: var(--ink); text-align: right; font-family: var(--font-mono); white-space: nowrap; }
@@ -299,21 +300,65 @@
   .donut-wrap { display: flex; align-items: center; gap: 20px; padding: 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
   .donut-wrap .dash-legend { flex-direction: column; gap: 6px; margin-top: 0; flex: 1 1 200px; }
 
-  /* 매출 급증·급감 TOP — 랭킹추적의 .dash-movers(상승 TOP/하락 TOP)와 동일한 구조·스타일 */
+  /* 판매량 막대 + 카테고리 도넛을 한 줄에 나란히 — 바깥 줄(product-charts-row)이 여백·구분선을 갖고,
+     안쪽 두 컴포넌트는 자기 몫의 여백/테두리를 비운다(이중 테두리 방지). */
+  .product-charts-row { display: flex; align-items: stretch; gap: 24px; padding: 16px; border-bottom: 1px solid var(--line); }
+  .product-charts-row .rank-bar-list { flex: 7 1 0; min-width: 0; padding: 0; border-bottom: 0; }
+  .product-charts-row .donut-wrap { flex: 3 1 0; min-width: 0; padding: 0; border-bottom: 0; border-left: 1px solid var(--line); padding-left: 24px; }
+  .product-charts-row .donut-wrap .dash-legend { flex-basis: 150px; }
+
+  /* 매출/유입 상승·하락 TOP — 랭킹추적의 .dash-movers(상승 TOP/하락 TOP)와 동일한 구조·스타일 */
   .dash-movers { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
+  /* 전기간/전년 중 하나만 골라 보는 토글 — 세그먼트 버튼 한 쌍 */
+  .mover-period-toggle { display: inline-flex; gap: 2px; padding: 2px; background: var(--dark-tint); border-radius: 999px; width: fit-content; }
+  .mover-period-btn {
+    height: 24px; padding: 0 12px; border: 0; border-radius: 999px; background: transparent;
+    color: var(--sub); font-family: inherit; font-size: 11.5px; font-weight: 800; cursor: pointer; transition: all .12s;
+  }
+  .mover-period-btn.on { background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(5, 7, 11, .12); }
   .dash-mover-row { display: grid; grid-template-columns: 132px 1fr; align-items: start; gap: 8px; }
   .dash-mover-title { font-size: 11px; font-weight: 800; color: #8a93a5; padding-top: 6px; white-space: nowrap; }
   .dash-mover-chips { display: flex; flex-wrap: wrap; gap: 6px; }
   .dash-mover-chip {
     display: inline-flex; align-items: center; gap: 6px; min-width: 0;
     padding: 5px 10px; border: 1px solid var(--line); border-radius: var(--radius);
-    background: #fafbfc; font-size: 12px; font-weight: 700; color: var(--ink);
+    background: #fafbfc; font-size: 12px; font-weight: 700; color: var(--ink); text-decoration: none;
   }
+  a.dash-mover-chip:hover { border-color: #f0b79d; background: #fffaf7; }
   .dash-mover-name { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .dash-mover-delta { font-family: var(--font-mono); font-size: 11px; font-weight: 800; white-space: nowrap; }
   .dash-mover-delta.up { color: var(--good); }
   .dash-mover-delta.down { color: var(--bad); }
   .dash-mover-value { font-size: 11px; color: var(--sub); font-family: var(--font-mono); white-space: nowrap; }
+
+  /* 유입경로 — 키워드분석 "검색 노출 분석"(.sel-row)과 동일한 순위 리스트 + 막대 스타일.
+     "영향력" 개념 대신 방문수를 막대·굵은 값으로 쓰고, 나머지 지표는 오른쪽에 나눠 붙인다.
+     각 행을 별도 grid 컨테이너로 두면 칸 폭(특히 1fr/auto)이 "그 행의 내용"만 보고 행마다 따로
+     계산돼서 좌우 끝선이 행마다 미묘하게 어긋난다 — 리스트 전체를 하나의 grid로 두고 셀들을
+     바로 자식으로 흘려 넣어야, 같은 열의 폭이 전체 행을 통틀어 한 번에 계산되어 항상 맞는다. */
+  .visit-list {
+    display: grid; grid-template-columns: 56px 260px minmax(60px, 1fr) 90px auto;
+    align-items: center; column-gap: 12px; padding: 0 18px; font-size: 13px;
+  }
+  .visit-cell { padding: 9px 0; border-bottom: 1px solid #f4f5f7; }
+  .visit-list .visit-cell:nth-last-child(-n+5) { border-bottom: none; }
+  .visit-rank {
+    text-align: center; font-family: var(--font-mono); font-weight: 800; font-size: 14px;
+    line-height: 1.1; color: var(--sub); font-variant-numeric: tabular-nums; white-space: nowrap;
+  }
+  .visit-rank span { display: inline-block; min-width: 56px; background: var(--dark-tint); border-radius: var(--radius); padding: 5px 4px; }
+  /* 넘치는 이름은 말줄임표로 잘라내고 title 툴팁으로만 전체를 보여준다. */
+  .visit-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* .visit-cell의 padding(9px 0)과 트랙 자체의 height(8px)를 같은 요소에 같이 주면 border-box라
+     패딩이 높이를 다 잡아먹어 안쪽 막대(.visit-bar)가 찌그러져 안 보인다 — 셀(패딩·구분선 담당)과
+     트랙(8px 높이·배경·막대 담당)을 별도 요소로 분리한다. */
+  .visit-bar-wrap { display: flex; align-items: center; }
+  .visit-bar-track { width: 100%; height: 8px; background: var(--dark-tint); border-radius: 4px; overflow: hidden; }
+  .visit-bar { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+  .visit-share { font-family: var(--font-mono); font-size: 12px; color: var(--ink); text-align: right; white-space: nowrap; }
+  .visit-share b { color: var(--accent-dark); }
+  .visit-detail { font-size: 11.5px; color: var(--sub); text-align: left; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
   .metric-cmp { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
   .metric-cmp .cmp {
     display: inline-flex; align-items: center; gap: 2px; font-size: 10.5px; font-weight: 800;
@@ -445,7 +490,9 @@
     font-weight: 900;
     color: var(--ink);
     letter-spacing: 0;
+    text-decoration: none;
   }
+  a.ad-name:hover { color: var(--accent); text-decoration: underline; }
   .ad-type-badge,
   .ad-status-badge {
     display: inline-flex;
@@ -661,7 +708,7 @@
   <div class="analysis-filterbar">
     <div class="analysis-store-row">
       <div class="store-chips" id="platformChips"></div>
-      <label class="store-add-icon" id="naverStatUploadBtn" title="판매분석 엑셀 업로드 (상품성과·유입경로·고객, 여러 개 선택 가능)" style="display:none;">
+      <label class="store-add-icon" id="naverStatUploadBtn" title="판매분석 엑셀 업로드 (상품성과·유입경로, 여러 개 선택 가능)" style="display:none;">
         <input type="file" id="naverStatFiles" accept=".xlsx,.xls,.csv" multiple style="display:none;">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
       </label>
@@ -762,8 +809,10 @@ let coupangItemPeriods = []; // 상품별 스냅샷 기간 목록
 let coupangItemPeriod = ""; // "from|to"
 let coupangItemRows = [];
 let coupangItemLoading = false;
+let coupangProductMap = new Map(); // optionId -> { productId, vendorProductId } (Wing 상품목록 업로드로 채워짐)
+let coupangProductMapLoaded = false;
 let coupangCardOpen = loadJson("nrCoupangCardOpen:v1", null) || { sales: true, item: true };
-let naverStat = { daily: [], products: [], visitPaths: [], customer: [], customerPeriods: [], customerPeriod: "" };
+let naverStat = { daily: [], products: [], visitPaths: [] };
 let naverStatLoadKey = "";
 let naverStatLoading = false;
 
@@ -790,6 +839,9 @@ let adCompare = { key: "", prev: null, year: null };         // 네이버 광고
 let coupangAdCompare = { key: "", prev: null, year: null };  // 쿠팡 광고 비교기간
 let naverSalesCompare = { key: "", prev: null, year: null };   // 네이버 매출 비교기간
 let coupangSalesCompare = { key: "", prev: null, year: null }; // 쿠팡 매출 비교기간
+let coupangItemPrevRows = []; // 상품별 실적 — 직전 스냅샷 기간 데이터(상승·하락 TOP 비교용)
+let coupangItemPrevKey = ""; // 위 데이터가 어떤 coupangItemPeriod를 기준으로 준비됐는지
+let coupangItemPrevLabel = "";
 
 const DATE_PRESETS = [
   { key: "today", label: "오늘" },
@@ -954,14 +1006,16 @@ async function ensureMonthFillLoaded(year) {
   const months = new Set();
   try {
     if (platform === "naver" && subtab === "sales") {
-      const data = await callAdFn({ action: "naverStatSummary", dateFrom, dateTo });
-      (data.daily || []).forEach(row => row.date && months.add(String(row.date).slice(0, 7)));
+      // naverStatSummary는 상품별·유입경로별·고객 스냅샷까지 같이 조회/집계해서 무거우므로,
+      // "어느 달에 데이터가 있는지"만 가볍게 확인하는 전용 액션을 대신 쓴다.
+      const data = await callAdFn({ action: "naverStatMonths", dateFrom, dateTo });
+      (data.months || []).forEach(m => months.add(m));
     } else if (platform === "naver" && subtab === "ads") {
       const data = await callAdFn({ action: "daily", store: DEFAULT_STORE, dateFrom, dateTo });
       (data.rows || []).forEach(row => row.date && months.add(String(row.date).slice(0, 7)));
     } else if (platform === "coupang" && subtab === "sales") {
-      const data = await callAdFn({ action: "coupangSalesSummary", dateFrom, dateTo });
-      (data.items || []).forEach(row => row.date && months.add(String(row.date).slice(0, 7)));
+      const data = await callAdFn({ action: "coupangSalesMonths", dateFrom, dateTo });
+      (data.months || []).forEach(m => months.add(m));
     } else if (platform === "coupang" && subtab === "ads") {
       const data = await callAdFn({ action: "coupangSummary", dateFrom, dateTo });
       (data.items || []).forEach(row => row.date && months.add(String(row.date).slice(0, 7)));
@@ -981,7 +1035,9 @@ function renderMonthQuick() {
   const from = document.getElementById("dateFrom").value;
   const to = document.getElementById("dateTo").value;
   const today = kstDate(0);
-  const fillSet = monthFillCache[monthFillCacheKey(monthQuickYear)];
+  const cacheKey = monthFillCacheKey(monthQuickYear);
+  const fillSet = monthFillCache[cacheKey]; // Set(채워진 월) | null(조회 실패) | undefined(아직 조회 전/조회 중)
+  const stillLoading = !(cacheKey in monthFillCache);
   ensureMonthFillLoaded(monthQuickYear);
   grid.innerHTML = Array.from({ length: 12 }, (_, i) => i + 1).map(month => {
     const start = new Date(Date.UTC(monthQuickYear, month - 1, 1));
@@ -991,7 +1047,10 @@ function renderMonthQuick() {
     const rangeFrom = formatDate(start);
     const rangeTo = formatDate(end);
     const monthKey = `${monthQuickYear}-${String(month).padStart(2, "0")}`;
-    const isEmpty = !isFuture && fillSet && !fillSet.has(monthKey);
+    // 연도를 막 바꿔서 아직 그 연도의 "채워진 월" 목록을 조회 중일 때는, 조회가 끝나기 전까지
+    // 잘못 활성화되어 보이지 않도록(= 데이터 있는 것처럼 클릭 가능해 보이지 않도록) 우선 비활성 처리한다.
+    // 조회가 끝나면 ensureMonthFillLoaded가 다시 renderMonthQuick()을 불러서 실제 값으로 바뀐다.
+    const isEmpty = !isFuture && (stillLoading || (fillSet && !fillSet.has(monthKey)));
     const disabled = isFuture || isEmpty;
     const active = !disabled && from === rangeFrom && to === rangeTo;
     return disabled
@@ -1379,6 +1438,55 @@ async function importCoupangItemFile(file) {
   }
 }
 
+// 쿠팡 Wing "가격/재고 관리" 상품목록 엑셀: 옵션ID ↔ 노출상품ID(Product ID) 매핑용.
+// 노출상품ID가 바뀌면 이 파일을 다시 받아서 재업로드하면 된다(현재 상태 하나만 유지, 스냅샷 아님).
+function parseCoupangProductMapRows(rawRows) {
+  return rawRows.map(row => {
+    const optionId = String(pick(row, ["옵션 ID", "옵션ID"]) ?? "").trim();
+    if (!optionId) return null;
+    return {
+      optionId,
+      productId: String(pick(row, ["Product ID", "노출상품ID", "노출상품 ID"]) ?? "").trim(),
+      vendorProductId: String(pick(row, ["업체상품ID", "업체상품 ID"]) ?? "").trim(),
+      productName: norm(pick(row, ["쿠팡 노출 상품명", "업체 등록 상품명", "상품명"])),
+    };
+  }).filter(Boolean);
+}
+
+async function importCoupangProductMapFile(file) {
+  const status = document.getElementById("adStatus");
+  try {
+    const parsed = parseCoupangProductMapRows(await readWorkbookRows(file));
+    if (!parsed.length) {
+      status.className = "status error";
+      status.textContent = "상품목록 파일 형식을 인식하지 못했습니다. Wing 가격/재고 관리 다운로드 엑셀인지 확인해 주세요.";
+      return;
+    }
+    status.className = "status";
+    status.textContent = "상품목록(옵션ID↔노출상품ID)을 저장하는 중...";
+    const result = await callAdFn({ action: "coupangProductMapUpload", rows: parsed });
+    status.className = "status ok";
+    status.textContent = `상품목록 ${num(result.saved)}개 옵션 매핑 저장 완료`;
+    coupangProductMapLoaded = false;
+    await loadCoupangProductMap();
+    render();
+  } catch (e) {
+    status.className = "status error";
+    status.textContent = "상품목록 업로드 실패: " + String(e.message || e);
+  }
+}
+
+async function loadCoupangProductMap() {
+  if (coupangProductMapLoaded) return;
+  coupangProductMapLoaded = true;
+  try {
+    const data = await callAdFn({ action: "coupangProductMapAll" });
+    coupangProductMap = new Map((data.items || []).map(item => [item.optionId, item]));
+  } catch (_) {
+    coupangProductMapLoaded = false; // 실패하면 다음 진입 때 재시도
+  }
+}
+
 function ensureCoupangSalesLoaded() {
   if (activePlatform !== "coupang" || activeSubtab.coupang !== "sales" || coupangSalesLoading) return;
   const key = currentAdLoadKey();
@@ -1397,6 +1505,7 @@ async function loadCoupangSales() {
     const dateTo = document.getElementById("dateTo").value;
     const data = await callAdFn({ action: "coupangSalesSummary", dateFrom, dateTo });
     coupangSalesRows = data.items || [];
+    await loadCoupangProductMap();
     await loadCoupangItemPeriods();
     // 달력 기간과 정확히 일치하는 스냅샷이 있으면 자동 선택
     const exact = coupangItemPeriods.find(p => p.from === dateFrom && p.to === dateTo);
@@ -1405,6 +1514,7 @@ async function loadCoupangSales() {
     coupangSalesLoading = false; hideLoading();
     render();
     loadCoupangSalesCompare(); // 비교기간은 백그라운드로 읽어와 준비되는 대로 반영
+    loadCoupangItemPrev(); // 상품별 상승·하락 TOP용 직전 스냅샷도 백그라운드로 준비
   } catch (e) {
     coupangSalesLoading = false; hideLoading();
     coupangSalesLoadKey = "";
@@ -1427,6 +1537,28 @@ async function loadCoupangItemRows() {
   const [periodFrom, periodTo] = coupangItemPeriod.split("|");
   const data = await callAdFn({ action: "coupangItemSummary", periodFrom, periodTo });
   coupangItemRows = data.items || [];
+}
+
+// 상품별 실적은 날짜범위가 아니라 업로드 스냅샷(기간) 단위라, "전기간" 비교는 캘린더가 아니라
+// coupangItemPeriods 목록에서 현재 선택된 기간 바로 다음(= 그 직전에 업로드된) 스냅샷과 비교한다.
+// 업로드 간격이 불규칙해서 "전년" 비교는 만들지 않는다 — 실패해도 보조지표라 조용히 무시한다.
+async function loadCoupangItemPrev() {
+  const key = coupangItemPeriod;
+  coupangItemPrevRows = []; coupangItemPrevKey = ""; coupangItemPrevLabel = "";
+  if (!key || coupangItemPeriods.length < 2) { renderMetrics(); return; }
+  const idx = coupangItemPeriods.findIndex(p => `${p.from}|${p.to}` === key);
+  const prev = idx >= 0 ? coupangItemPeriods[idx + 1] : null;
+  if (!prev) { renderMetrics(); return; }
+  try {
+    const data = await callAdFn({ action: "coupangItemSummary", periodFrom: prev.from, periodTo: prev.to });
+    if (coupangItemPeriod !== key) return; // 응답 오는 사이 다른 기간으로 바뀌었으면 버림
+    coupangItemPrevRows = data.items || [];
+    coupangItemPrevKey = key;
+    coupangItemPrevLabel = `${prev.from} ~ ${prev.to}`;
+    renderMetrics();
+  } catch (e) {
+    // 보조지표 로딩 실패는 메인 데이터에 영향 없이 조용히 무시
+  }
 }
 
 // ─── 네이버 판매분석 (비즈어드바이저 엑셀) ───
@@ -1472,26 +1604,6 @@ function parseNaverVisitRows(rawRows) {
   }).filter(Boolean);
 }
 
-// 고객 파일: 행마다 "2026-06-01~2026-06-30" 형식의 기간이 들어있는 월별 스냅샷
-function parseNaverCustomerRows(rawRows) {
-  return rawRows.map(row => {
-    const period = String(pick(row, ["날짜"]) || "");
-    const m = period.match(/(\d{4}-\d{2}-\d{2})\s*~\s*(\d{4}-\d{2}-\d{2})/);
-    const segment = norm(pick(row, ["고객분류"]));
-    if (!m || !segment) return null;
-    return {
-      periodFrom: m[1],
-      periodTo: m[2],
-      segment,
-      visitors: toNumber(pick(row, ["방문고객수"])),
-      payers: toNumber(pick(row, ["결제고객수"])),
-      conversion: toNumber(pick(row, ["구매전환율(고객)", "구매전환율"])),
-      salesTotal: toNumber(pick(row, ["판매금액(총)"])),
-      avgPayment: toNumber(pick(row, ["객단가"])),
-    };
-  }).filter(Boolean);
-}
-
 function detectNaverStatType(rows) {
   if (!rows.length) return "";
   const keys = Object.keys(rows[0]).map(key => compact(key));
@@ -1518,8 +1630,7 @@ async function importNaverStatFiles(files) {
         const result = await callAdFn({ action: "naverVisitUpload", rows: parseNaverVisitRows(rows) });
         messages.push(`유입경로 ${num(result.dayCount)}일치`);
       } else if (type === "customer") {
-        const result = await callAdFn({ action: "naverCustomerUpload", rows: parseNaverCustomerRows(rows) });
-        messages.push(`고객 ${num(result.periodCount)}개 기간`);
+        messages.push(`${file.name}: 고객 파일은 더 이상 사용하지 않음`);
       } else if (type === "category") {
         messages.push(`${file.name}: 카테고리 파일은 사용하지 않음(상품성과 파일로 대체)`);
       } else {
@@ -1537,13 +1648,9 @@ async function importNaverStatFiles(files) {
   }
 }
 
-function naverStatKey() {
-  return currentAdLoadKey() + "|" + naverStat.customerPeriod;
-}
-
 function ensureNaverStatLoaded() {
   if (activePlatform !== "naver" || activeSubtab.naver !== "sales" || naverStatLoading) return;
-  if (naverStatLoadKey === naverStatKey()) return;
+  if (naverStatLoadKey === currentAdLoadKey()) return;
   loadNaverStat();
 }
 
@@ -1551,22 +1658,19 @@ async function loadNaverStat() {
   const status = document.getElementById("adStatus");
   if (naverStatLoading) return;
   naverStatLoading = true; showLoading("저장된 판매분석 데이터를 불러오는 중...");
-  naverStatLoadKey = naverStatKey();
+  naverStatLoadKey = currentAdLoadKey();
   renderSalesPanel();
   try {
     const dateFrom = document.getElementById("dateFrom").value;
     const dateTo = document.getElementById("dateTo").value;
-    const data = await callAdFn({ action: "naverStatSummary", dateFrom, dateTo, customerPeriod: naverStat.customerPeriod });
+    const data = await callAdFn({ action: "naverStatSummary", dateFrom, dateTo });
     naverStat = {
       daily: data.daily || [],
       products: data.products || [],
       visitPaths: data.visitPaths || [],
-      customer: data.customer || [],
-      customerPeriods: data.customerPeriods || [],
-      customerPeriod: data.customerPeriod || "",
     };
     naverStatLoading = false; hideLoading();
-    naverStatLoadKey = naverStatKey();
+    naverStatLoadKey = currentAdLoadKey();
     render();
     loadNaverSalesCompare(); // 비교기간은 백그라운드로 읽어와 준비되는 대로 반영
   } catch (e) {
@@ -1742,7 +1846,7 @@ function renderMetrics() {
       { label: "방문자", value: num(t.visitors) + "명", note: `조회 ${num(t.views)}회`, cmp: metricCompareHtml(coupangSalesCompare, "visitors", t.visitors) },
       { label: "구매전환율", value: formatPercentValue(conv), note: "주문 ÷ 조회", cmp: metricCompareHtml(coupangSalesCompare, "convRate", conv, "rate") },
       { label: "객단가", value: money(avgOrder), note: "매출 ÷ 주문", cmp: metricCompareHtml(coupangSalesCompare, "avgOrder", avgOrder) },
-    ]);
+    ], coupangSalesMoversHtml());
     return;
   }
 
@@ -1857,8 +1961,10 @@ function naverVisitChannelBarHtml() {
     </div>`;
 }
 
-// ── 매출 급증·급감 TOP — 랭킹추적의 "상승 TOP/하락 TOP"(moveScore/buildNotableProducts)과 같은 개념을
-// 네이버 상품별 매출 데이터에 적용한다. 비교 대상 중 하나라도 최소 기준(minFloor) 이상이고
+// ── 매출 상승·하락 TOP — 랭킹추적의 "상승 TOP/하락 TOP"(moveScore/buildNotableProducts)과 같은 개념을
+// 네이버 상품별 매출 데이터에 적용한다. "급증/급감"은 어느 정도 꾸준히 팔리던 상품이 크게 움직인 경우를
+// 보려는 것이므로, 두 기간 다 minFloor 이상 팔린(또는 유입된) 항목만 대상으로 한다 — 안 팔리던 게 갑자기
+// 팔리거나(신규) 아예 끊긴(중단) 경우는 성격이 다른 신호라서 여기서는 제외한다.
 // 변화율이 SALES_MOVER_MIN_PCT 이상이어야 "급"으로 인정 — 기준 미달이면 억지로 채우지 않고 그 줄을 비워둔다.
 const SALES_MOVER_MIN_PCT = 30;
 const SALES_MOVER_MIN_SALES = 10000; // 상품 매출 비교 시 노이즈 컷(원)
@@ -1873,53 +1979,116 @@ function buildMovers(curList, prevList, idFn, valueKey, minFloor) {
     const prev = prevMap.get(id);
     const curVal = cur ? Number(cur[valueKey]) || 0 : 0;
     const prevVal = prev ? Number(prev[valueKey]) || 0 : 0;
-    if (curVal < minFloor && prevVal < minFloor) return;
-    if (!prevVal && curVal) { moves.push({ item: cur, curVal, prevVal, pct: null, isNew: true }); return; }
-    if (prevVal && !curVal) { moves.push({ item: prev, curVal, prevVal, pct: -100, isGone: true }); return; }
-    if (!prevVal) return;
+    if (curVal < minFloor || prevVal < minFloor) return;
     const pct = (curVal - prevVal) / prevVal * 100;
     if (Math.abs(pct) < SALES_MOVER_MIN_PCT) return;
     moves.push({ item: cur, curVal, prevVal, pct });
   });
-  const rising = moves.filter(m => m.isNew || (m.pct != null && m.pct > 0))
-    .sort((a, b) => (b.isNew ? Infinity : b.pct) - (a.isNew ? Infinity : a.pct)).slice(0, 3);
-  const falling = moves.filter(m => m.isGone || (m.pct != null && m.pct < 0))
-    .sort((a, b) => (a.isGone ? -Infinity : a.pct) - (b.isGone ? -Infinity : b.pct)).slice(0, 3);
+  const rising = moves.filter(m => m.pct > 0).sort((a, b) => b.pct - a.pct).slice(0, 3);
+  const falling = moves.filter(m => m.pct < 0).sort((a, b) => a.pct - b.pct).slice(0, 3);
   return { rising, falling };
 }
 
-function moverChip(m, nameFn, valueFmt) {
-  const isRising = m.isNew || (m.pct != null && m.pct > 0);
-  const cls = isRising ? "up" : "down";
-  const deltaText = m.isNew ? "신규" : m.isGone ? "중단" : `${m.pct > 0 ? "▲" : "▼"}${Math.abs(m.pct).toFixed(0)}%`;
-  const name = nameFn(m.item);
-  return `<span class="dash-mover-chip">
-    <span class="dash-mover-name" title="${esc(name)}">${esc(name)}</span>
-    <span class="dash-mover-delta ${cls}">${deltaText}</span>
-    <span class="dash-mover-value">${valueFmt(m.prevVal)} → ${valueFmt(m.curVal)}</span>
-  </span>`;
+// 네이버 상품성과의 productId는 "채널상품번호"(숫자)라서 스마트스토어 상품 링크를 그대로 만들 수 있다.
+// 채널상품번호가 없어 상품명으로 대체된 경우(숫자가 아님)는 링크를 만들지 않는다.
+const NAVER_STORE_SLUG = "hkdy";
+function naverProductUrl(productId) {
+  return /^\d+$/.test(String(productId || "")) ? `https://smartstore.naver.com/${NAVER_STORE_SLUG}/products/${productId}` : "";
 }
 
-function moverRowHtml(title, items, nameFn, valueFmt) {
+// 쿠팡은 상품 페이지 링크(vp/products/{노출상품ID})를 만들려면 자주 바뀌는 "노출상품ID"가 필요한데
+// 셀러 인사이트 엑셀엔 그게 없다(등록상품ID·옵션ID만 있음, 둘 다 URL 경로엔 못 씀).
+// 그 ID를 별도로 동기화하면 로테이션될 때마다 링크가 깨져서(네이버 가격비교 코드와 같은 문제) 계속
+// 손봐야 한다 — 여기선 "이 상품이 뭔지 확인"이 목적이므로 검색결과로 충분해 상품명 검색으로 대체한다.
+function coupangSearchUrl(name) {
+  const q = String(name || "").trim();
+  return q ? `https://www.coupang.com/np/search?q=${encodeURIComponent(q)}` : "";
+}
+
+// 테스트용: 경로의 노출상품ID 자리에 더미값(0)을 넣고 vendorItemId(옵션ID)만 정확히 넣어본다.
+// 실제로 상품 페이지까지 뜨는지 사용자가 직접 확인해보기 위한 실험적 버전 — 옵션ID 없으면 검색으로 대체.
+function coupangProductUrl(row) {
+  const vid = String(row?.optionId || "").trim();
+  if (!/^\d+$/.test(vid)) return coupangSearchUrl(row?.productName || row?.optionName);
+  // 상품목록(Wing) 업로드로 옵션ID↔노출상품ID 매핑이 있으면 정확한 경로로, 없으면 더미 경로(0)로 —
+  // 더미 경로도 vendorItemId로 정확한 상품을 찾아가되 "오류가 발생했습니다" 팝업 한 번 뜨는 정도라
+  // 매핑이 없거나(아직 업로드 전) 오래돼도(노출상품ID 로테이션) 안전하게 저하된다.
+  const mapped = coupangProductMap.get(vid);
+  const pid = mapped?.productId && /^\d+$/.test(mapped.productId) ? mapped.productId : "0";
+  return `https://www.coupang.com/vp/products/${pid}?vendorItemId=${vid}`;
+}
+
+// 랭킹추적 요약 대시보드의 dashMoverChip/dashProductChip과 동일하게, 링크가 있으면 칩 전체를 <a>로 감싼다
+// (텍스트만 링크가 아니라 칩 하나가 통째로 클릭 영역이고, 호버 시 칩 테두리·배경이 바뀌는 것도 그쪽과 동일).
+function moverChip(m, nameFn, valueFmt, urlFn) {
+  const cls = m.pct > 0 ? "up" : "down";
+  const deltaText = `${m.pct > 0 ? "▲" : "▼"}${Math.abs(m.pct).toFixed(0)}%`;
+  const name = nameFn(m.item);
+  const url = urlFn ? urlFn(m.item) : "";
+  const inner = `<span class="dash-mover-name" title="${esc(name)}">${esc(name)}</span>
+    <span class="dash-mover-delta ${cls}">${deltaText}</span>
+    <span class="dash-mover-value">${valueFmt(m.prevVal)} → ${valueFmt(m.curVal)}</span>`;
+  return url
+    ? `<a class="dash-mover-chip" href="${esc(url)}" target="_blank" rel="noopener">${inner}</a>`
+    : `<span class="dash-mover-chip">${inner}</span>`;
+}
+
+function moverRowHtml(title, items, nameFn, valueFmt, urlFn) {
   if (!items.length) return "";
-  return `<div class="dash-mover-row"><span class="dash-mover-title">${esc(title)}</span><div class="dash-mover-chips">${items.map(m => moverChip(m, nameFn, valueFmt)).join("")}</div></div>`;
+  return `<div class="dash-mover-row"><span class="dash-mover-title">${esc(title)}</span><div class="dash-mover-chips">${items.map(m => moverChip(m, nameFn, valueFmt, urlFn)).join("")}</div></div>`;
 }
 
 const productMoverName = item => item.productName || item.productId || "-";
+const pathMoverName = item => item.path2 && item.path2 !== "-" ? `${item.path1} › ${item.path2}` : item.path1;
+const SALES_MOVER_MIN_VISITS = 10; // 유입경로 비교 시 노이즈 컷(회)
 
-// 전기간·전년 비교 데이터가 모두 준비된 뒤 상품 매출 급증/급감만 비교한다(유입경로는 아래 유입비율 그래프가 대신함).
+// 전기간·전년을 한번에 다 보여주면 너무 많아서, 토글로 하나만 골라 보여준다.
+let salesMoverPeriod = "prev"; // "prev" | "year"
+function setSalesMoverPeriod(key) {
+  if (salesMoverPeriod === key) return;
+  salesMoverPeriod = key;
+  renderMetrics();
+}
+function salesMoverPeriodToggleHtml() {
+  const opt = (key, label) => `<button type="button" class="mover-period-btn${salesMoverPeriod === key ? " on" : ""}" onclick="setSalesMoverPeriod('${key}')">${label}</button>`;
+  return `<div class="mover-period-toggle">${opt("prev", "전기간")}${opt("year", "전년")}</div>`;
+}
+
+// 선택된 비교기간(전기간/전년) 기준으로 상품 매출 상승/하락, 유입경로 상승/하락 TOP을 보여준다.
 function naverSalesMoversHtml() {
   if (!naverSalesCompare || naverSalesCompare.key !== currentAdLoadKey()) return "";
-  const rows = [];
-  [{ key: "prev", label: "전기간" }, { key: "year", label: "전년" }].forEach(p => {
-    const period = naverSalesCompare[p.key];
-    if (!period || !period.hasData) return;
-    const productMoves = buildMovers(naverStat.products, period.products || [], r => r.productId, "salesTotal", SALES_MOVER_MIN_SALES);
-    rows.push(moverRowHtml(`매출 급증 (${p.label})`, productMoves.rising, productMoverName, money));
-    rows.push(moverRowHtml(`매출 급감 (${p.label})`, productMoves.falling, productMoverName, money));
-  });
-  const html = rows.filter(Boolean).join("");
-  return html ? `<div class="dash-movers">${html}</div>` : "";
+  const toggle = salesMoverPeriodToggleHtml();
+  const period = naverSalesCompare[salesMoverPeriod];
+  const periodLabel = salesMoverPeriod === "prev" ? "전기간" : "전년";
+  if (!period || !period.hasData) return `<div class="dash-movers">${toggle}</div>`;
+  const productMoves = buildMovers(naverStat.products, period.products || [], r => r.productId, "salesTotal", SALES_MOVER_MIN_SALES);
+  const pathMoves = buildMovers(naverStat.visitPaths, period.visitPaths || [], r => `${r.path1}|${r.path2}`, "visits", SALES_MOVER_MIN_VISITS);
+  const rows = [
+    moverRowHtml(`매출 상승 (${periodLabel})`, productMoves.rising, productMoverName, money, item => naverProductUrl(item.productId)),
+    moverRowHtml(`매출 하락 (${periodLabel})`, productMoves.falling, productMoverName, money, item => naverProductUrl(item.productId)),
+    moverRowHtml(`유입 상승 (${periodLabel})`, pathMoves.rising, pathMoverName, v => num(v) + "회"),
+    moverRowHtml(`유입 하락 (${periodLabel})`, pathMoves.falling, pathMoverName, v => num(v) + "회"),
+  ].filter(Boolean).join("");
+  return `<div class="dash-movers">${toggle}${rows}</div>`;
+}
+
+const coupangMoverName = item => item.optionName || item.productName || "-";
+
+// 쿠팡 옵션별 매출·조회수 상승/하락 TOP. 상품별 실적이 날짜범위가 아니라 업로드 스냅샷 단위라
+// 네이버처럼 전기간/전년 토글은 없고, 현재 선택된 스냅샷과 그 직전 스냅샷(loadCoupangItemPrev)만 비교한다.
+function coupangSalesMoversHtml() {
+  if (!coupangItemPrevRows.length || coupangItemPrevKey !== coupangItemPeriod) return "";
+  const urlFn = item => coupangProductUrl(item);
+  const salesMoves = buildMovers(coupangItemRows, coupangItemPrevRows, r => r.optionId, "sales", SALES_MOVER_MIN_SALES);
+  const viewMoves = buildMovers(coupangItemRows, coupangItemPrevRows, r => r.optionId, "views", SALES_MOVER_MIN_VISITS);
+  const label = `이전 기간 ${coupangItemPrevLabel}`;
+  const rows = [
+    moverRowHtml(`매출 상승 (${label})`, salesMoves.rising, coupangMoverName, money, urlFn),
+    moverRowHtml(`매출 하락 (${label})`, salesMoves.falling, coupangMoverName, money, urlFn),
+    moverRowHtml(`조회 상승 (${label})`, viewMoves.rising, coupangMoverName, v => num(v) + "회", urlFn),
+    moverRowHtml(`조회 하락 (${label})`, viewMoves.falling, coupangMoverName, v => num(v) + "회", urlFn),
+  ].filter(Boolean).join("");
+  return rows ? `<div class="dash-movers">${rows}</div>` : "";
 }
 
 /* ── 섹션 바로가기 탭 (키워드분석 .sec-nav와 완전히 동일한 "탭 전환" 방식) ──
@@ -2174,23 +2343,31 @@ function coupangDailyTableHtml() {
     </div>`;
 }
 
-// 상품별 판매량 랭킹 막대 — rows를 qtyFn 기준 내림차순으로 top N개만 그린다(전부 그리면 표와 중복).
-function topQtyBarHtml(rows, nameFn, qtyFn, limit = 10) {
-  const list = rows.filter(r => qtyFn(r) > 0).slice().sort((a, b) => qtyFn(b) - qtyFn(a)).slice(0, limit);
+// 상품별 매출 랭킹 막대 — rows를 valueFn(매출) 기준 내림차순으로 top N개만 그린다(전부 그리면 표와 중복).
+function topValueBarHtml(rows, nameFn, valueFn, valueFmt, limit = 10, urlFn) {
+  const list = rows.filter(r => valueFn(r) > 0).slice().sort((a, b) => valueFn(b) - valueFn(a)).slice(0, limit);
   if (!list.length) return "";
-  const max = qtyFn(list[0]);
+  const max = valueFn(list[0]);
   return `
     <div class="rank-bar-list">
-      ${list.map(r => `
+      ${list.map(r => {
+        const name = nameFn(r);
+        const url = urlFn ? urlFn(r) : "";
+        const nameHtml = url
+          ? `<a class="rank-bar-name" href="${esc(url)}" target="_blank" rel="noopener" title="${esc(name)}">${esc(name)}</a>`
+          : `<div class="rank-bar-name" title="${esc(name)}">${esc(name)}</div>`;
+        return `
         <div class="rank-bar-row">
-          <div class="rank-bar-name" title="${esc(nameFn(r))}">${esc(nameFn(r))}</div>
-          <div class="rank-bar-track"><div class="rank-bar-fill" style="width:${max ? qtyFn(r) / max * 100 : 0}%"></div></div>
-          <div class="rank-bar-value">${num(qtyFn(r))}개</div>
-        </div>`).join("")}
+          ${nameHtml}
+          <div class="rank-bar-track"><div class="rank-bar-fill" style="width:${max ? valueFn(r) / max * 100 : 0}%"></div></div>
+          <div class="rank-bar-value">${valueFmt(valueFn(r))}</div>
+        </div>`;
+      }).join("")}
     </div>`;
 }
 
 // 카테고리별 비율 도넛(SVG) — 세그먼트 사이 2px 여백을 두고, 12시 방향에서 시작하도록 전체를 -90도 회전.
+// 각 조각에 <title>을 넣어 마우스 오버 시 이름·금액·비율이 브라우저 기본 툴팁으로 뜨게 한다.
 function donutChartSvg(segs, size = 120, thickness = 18) {
   const r = (size - thickness) / 2;
   const c = 2 * Math.PI * r;
@@ -2199,54 +2376,86 @@ function donutChartSvg(segs, size = 120, thickness = 18) {
   const circles = segs.map(s => {
     const fullLen = s.pct / 100 * c;
     const drawLen = Math.max(fullLen - gap, 0.001);
-    const html = `<circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${s.color}" stroke-width="${thickness}" stroke-dasharray="${drawLen} ${c - drawLen}" stroke-dashoffset="${-offset}"></circle>`;
+    const tip = `${esc(s.name)} ${money(s.value)} · ${Math.round(s.pct)}%`;
+    const html = `<circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${s.color}" stroke-width="${thickness}" stroke-dasharray="${drawLen} ${c - drawLen}" stroke-dashoffset="${-offset}"><title>${tip}</title></circle>`;
     offset += fullLen;
     return html;
   }).join("");
   return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" style="transform:rotate(-90deg);flex-shrink:0;">${circles}</svg>`;
 }
 
-// 쿠팡 상품별(옵션) 카테고리 매출 비율 — 상위 6개 + "기타"로 묶어 카테고리 팔레트(유입경로 바와 같은 6색)를 쓴다.
-const COUPANG_CATEGORY_COLORS = ["#2a78d6", "#1baf7a", "#eda100", "#008300", "#4a3aa7", "#e34948"];
-const COUPANG_CATEGORY_ETC_COLOR = "#c3c2b7";
-function coupangCategoryDonutHtml() {
-  const byCategory = new Map();
-  coupangItemRows.forEach(row => {
-    const name = row.category || "기타";
-    byCategory.set(name, (byCategory.get(name) || 0) + (Number(row.sales) || 0));
+// 사이트에 등록된 카테고리가 아니라, 상품명에서 키워드를 매칭해 우리가 직접 정한 제품 라인으로 분류한다.
+// 새 라인을 추가하거나 키워드를 넓히려면 이 배열만 고치면 된다 — 어느 키워드에도 안 걸리면 "기타".
+// 네이버·쿠팡 둘 다 상품명 텍스트만 있으면 되므로 같은 분류를 두 플랫폼에 그대로 쓴다.
+const CUSTOM_PRODUCT_CATEGORIES = [
+  { name: "아이소핑크", keywords: ["아이소핑크"] },
+  { name: "스티로폼", keywords: ["스티로폼", "EPS"] },
+  { name: "열반사단열재", keywords: ["열반사"] },
+  { name: "단열벽지", keywords: ["단열벽지"] },
+  { name: "창문형 단열재", keywords: ["창문"] },
+];
+// 아이소핑크는 이름 그대로 핑크 계열로. 단열벽지는 원래 초록이라 스티로폼(아쿠아)과 헷갈려서 파란색으로 교체.
+const CATEGORY_DONUT_COLORS = ["#e87ba4", "#1baf7a", "#eda100", "#2a78d6", "#4a3aa7"];
+const CATEGORY_DONUT_ETC_COLOR = "#c3c2b7";
+// 상품명에 "아이소핑크"·"열반사단열재"처럼 두 카테고리 키워드가 동시에 들어간 경우가 있어서,
+// 배열 순서가 아니라 상품명 안에서 실제로 더 앞에 나오는 키워드를 기준으로 분류한다.
+function classifyProductCategory(name) {
+  const n = name || "";
+  let best = null;
+  CUSTOM_PRODUCT_CATEGORIES.forEach(c => {
+    c.keywords.forEach(k => {
+      const idx = n.indexOf(k);
+      if (idx !== -1 && (!best || idx < best.index)) best = { name: c.name, index: idx };
+    });
   });
-  let list = [...byCategory.entries()].map(([name, sales]) => ({ name, sales })).sort((a, b) => b.sales - a.sales);
-  if (list.length > 7) {
-    const etc = list.slice(6).reduce((sum, c) => sum + c.sales, 0);
-    list = list.slice(0, 6).concat([{ name: "기타", sales: etc }]);
-  }
-  const total = list.reduce((sum, c) => sum + c.sales, 0);
+  return best ? best.name : "기타";
+}
+function productCategoryDonutHtml(rows, nameFn, valueFn) {
+  const order = CUSTOM_PRODUCT_CATEGORIES.map(c => c.name).concat(["기타"]);
+  const colors = CATEGORY_DONUT_COLORS.concat([CATEGORY_DONUT_ETC_COLOR]);
+  const totals = new Map(order.map(name => [name, 0]));
+  rows.forEach(row => {
+    const name = classifyProductCategory(nameFn(row));
+    totals.set(name, totals.get(name) + (Number(valueFn(row)) || 0));
+  });
+  const list = order.map((name, i) => ({ name, value: totals.get(name), color: colors[i] }));
+  const total = list.reduce((sum, c) => sum + c.value, 0);
   if (!total) return "";
-  const segs = list.filter(c => c.sales > 0).map((c, i) => ({
-    ...c,
-    pct: c.sales / total * 100,
-    color: c.name === "기타" ? COUPANG_CATEGORY_ETC_COLOR : COUPANG_CATEGORY_COLORS[i % COUPANG_CATEGORY_COLORS.length],
-  }));
+  // 색은 카테고리마다 고정하되, 화면에는 매출이 큰 카테고리가 먼저 오도록 정렬해서 보여준다.
+  const segs = list.filter(c => c.value > 0).map(c => ({ ...c, pct: c.value / total * 100 })).sort((a, b) => b.value - a.value);
   return `
     <div class="donut-wrap">
-      ${donutChartSvg(segs)}
+      ${donutChartSvg(segs, 96, 15)}
       <div class="dash-legend">
-        ${segs.map(c => `<span class="dash-legend-item"><span class="dash-legend-dot" style="background:${c.color};"></span>${esc(c.name)} <b>${money(c.sales)}</b> · ${Math.round(c.pct)}%</span>`).join("")}
+        ${segs.map(c => `<span class="dash-legend-item"><span class="dash-legend-dot" style="background:${c.color};"></span>${esc(c.name)} <b>${money(c.value)}</b> · ${Math.round(c.pct)}%</span>`).join("")}
       </div>
     </div>`;
 }
 
+// 판매량 막대와 카테고리 도넛을 한 줄에 나란히 배치 — 둘 다 없으면 빈 줄 자체를 만들지 않는다.
+function productChartsRowHtml(barHtml, donutHtml) {
+  if (!barHtml && !donutHtml) return "";
+  return `<div class="product-charts-row">${barHtml}${donutHtml}</div>`;
+}
+
 function coupangItemTableHtml() {
   return `
-    ${topQtyBarHtml(coupangItemRows, r => r.optionName, r => r.qty)}
-    ${coupangCategoryDonutHtml()}
+    ${productChartsRowHtml(
+      topValueBarHtml(coupangItemRows, r => r.optionName, r => r.sales, money, 10, r => coupangProductUrl(r)),
+      productCategoryDonutHtml(coupangItemRows, r => r.productName || r.optionName, r => r.sales)
+    )}
     <div class="table-scroll inset">
     <table class="boxed-head">
       <thead><tr><th>옵션명</th><th class="num" style="width:110px">매출</th><th class="num" style="width:66px">주문</th><th class="num" style="width:72px">판매량</th><th class="num" style="width:72px">방문자</th><th class="num" style="width:66px">조회</th><th class="num" style="width:78px">장바구니</th><th class="num" style="width:88px">구매전환율</th><th class="num" style="width:90px">아이템위너</th><th class="num" style="width:100px">취소 금액</th></tr></thead>
       <tbody>
-        ${coupangItemRows.slice(0, 200).map(row => `
+        ${coupangItemRows.slice(0, 200).map(row => {
+          const url = coupangProductUrl(row);
+          const nameHtml = url
+            ? `<a class="ad-name" href="${esc(url)}" target="_blank" rel="noopener" title="${esc(row.optionName)}">${esc(row.optionName)}</a>`
+            : `<span class="ad-name" title="${esc(row.optionName)}">${esc(row.optionName)}</span>`;
+          return `
           <tr>
-            <td class="ad-name-cell"><span class="ad-name" title="${esc(row.optionName)}">${esc(row.optionName)}</span></td>
+            <td class="ad-name-cell">${nameHtml}</td>
             <td class="num">${money(row.sales)}</td>
             <td class="num">${num(row.orders)}</td>
             <td class="num">${num(row.qty)}</td>
@@ -2256,7 +2465,8 @@ function coupangItemTableHtml() {
             <td class="num">${formatPercentValue(row.views ? row.orders / row.views * 100 : 0)}</td>
             <td class="num">${formatPercentValue(row.itemWinner)}</td>
             <td class="num">${money(row.cancelAmount)}</td>
-          </tr>`).join("")}
+          </tr>`;
+        }).join("")}
       </tbody>
     </table>
     </div>`;
@@ -2300,6 +2510,9 @@ function renderCoupangSalesPanel() {
         </div>
         <div class="content-tools">
           ${coupangItemPeriods.length ? `<select id="coupangItemPeriodSelect" class="period-select">${periodOptions}</select>` : ""}
+          <label class="upload-inline">상품목록 엑셀${coupangProductMap.size ? ` (${num(coupangProductMap.size)})` : ""}
+            <input class="file-input" id="coupangProductMapFile" type="file" accept=".xlsx,.xls,.csv">
+          </label>
           <label class="upload-inline">상품별 엑셀
             <input class="file-input" id="coupangItemFile" type="file" accept=".xlsx,.xls,.csv">
           </label>
@@ -2308,7 +2521,7 @@ function renderCoupangSalesPanel() {
       </div>
       ${coupangCardOpen.item ? `
       <div class="section-body">
-        <div class="upload-hint"><b>상품별</b> 엑셀은 날짜 정보가 없어, 업로드 시 <b>상단 달력에서 선택된 기간</b>이 스냅샷 기간으로 저장됩니다. 다운로드한 기간과 달력을 맞춘 뒤 업로드하세요.</div>
+        <div class="upload-hint"><b>상품별</b> 엑셀은 날짜 정보가 없어, 업로드 시 <b>상단 달력에서 선택된 기간</b>이 스냅샷 기간으로 저장됩니다. 다운로드한 기간과 달력을 맞춘 뒤 업로드하세요. <b>상품목록</b> 엑셀(Wing 가격/재고 관리)은 옵션명을 클릭했을 때 정확한 상품 페이지로 이동하기 위한 매핑용이라 선택사항이고, 안 넣어도 클릭은 됩니다.</div>
         ${itemContent}
       </div>` : ""}
     </div>
@@ -2316,6 +2529,10 @@ function renderCoupangSalesPanel() {
   document.getElementById("coupangItemFile").addEventListener("change", e => {
     const file = e.target.files?.[0];
     if (file) importCoupangItemFile(file);
+  });
+  document.getElementById("coupangProductMapFile").addEventListener("change", e => {
+    const file = e.target.files?.[0];
+    if (file) importCoupangProductMapFile(file);
   });
   const periodSelect = document.getElementById("coupangItemPeriodSelect");
   if (periodSelect) {
@@ -2332,6 +2549,7 @@ function renderCoupangSalesPanel() {
       }
       coupangItemLoading = false; hideLoading();
       renderCoupangSalesPanel();
+      loadCoupangItemPrev();
     });
   }
   ensureCoupangSalesLoaded();
@@ -2340,48 +2558,44 @@ function renderCoupangSalesPanel() {
 }
 
 function naverDailyTableHtml() {
-  const t = naverDailyTotals();
   const cells = row => `
-            <td class="num">${num(row.visits)}</td>
+            <td class="num"><b>${num(row.visits)}</b></td>
             <td class="num">${num(row.payCount)}</td>
             <td class="num">${formatPercentValue(row.visits ? row.payCount / row.visits * 100 : 0)}</td>
             <td class="num">${money(row.salesTotal)}</td>
             <td class="num">${money(row.refundAmount)}</td>
             <td class="num"><b>${money(row.salesNet)}</b></td>
             <td class="num">${row.payCount ? money(row.salesTotal / row.payCount) : "-"}</td>`;
-  const cmpSpecs = [
-    { key: "visits", cur: t.visits },
-    { key: "payCount", cur: t.payCount },
-    { key: "convRate", cur: t.visits ? t.payCount / t.visits * 100 : 0, type: "rate" },
-    { key: "salesTotal", cur: t.salesTotal },
-    { key: "refundAmount", cur: t.refundAmount },
-    { key: "salesNet", cur: t.salesNet },
-    { key: "avgOrder", cur: t.payCount ? t.salesTotal / t.payCount : 0 },
-  ];
   return `
     <div id="naverSalesTrendBody"></div>
-    ${cmpToggleBarHtml()}
     <div class="table-scroll inset">
     <table class="boxed-head">
       <thead><tr><th style="width:110px">날짜</th><th class="num">방문수</th><th class="num">결제건수</th><th class="num">구매전환율</th><th class="num" style="width:116px">판매금액(총)</th><th class="num" style="width:104px">환불금액</th><th class="num" style="width:116px">판매금액(순)</th><th class="num" style="width:100px">객단가</th></tr></thead>
       <tbody>
         ${naverStat.daily.map(row => `<tr><td><b>${esc(row.date)}</b></td>${cells(row)}</tr>`).join("")}
       </tbody>
-      <tfoot><tr><td><b>합계</b></td>${cells({ ...t })}</tr>${detailCmpRows(naverSalesCompare, cmpSpecs)}</tfoot>
     </table>
     </div>`;
 }
 
 function naverProductTableHtml() {
   return `
-    ${topQtyBarHtml(naverStat.products, r => r.productName, r => r.qty)}
+    ${productChartsRowHtml(
+      topValueBarHtml(naverStat.products, r => r.productName, r => r.salesTotal, money, 10, r => naverProductUrl(r.productId)),
+      productCategoryDonutHtml(naverStat.products, r => r.productName, r => r.salesTotal)
+    )}
     <div class="table-scroll inset">
     <table class="boxed-head">
       <thead><tr><th>상품명</th><th class="num" style="width:80px">결제건수</th><th class="num" style="width:72px">수량</th><th class="num" style="width:116px">판매금액(총)</th><th class="num" style="width:100px">환불금액</th><th class="num" style="width:116px">판매금액(순)</th><th class="num" style="width:80px">방문수</th><th class="num" style="width:88px">구매전환율</th></tr></thead>
       <tbody>
-        ${naverStat.products.slice(0, 200).map(row => `
+        ${naverStat.products.slice(0, 200).map(row => {
+          const url = naverProductUrl(row.productId);
+          const nameHtml = url
+            ? `<a class="ad-name" href="${esc(url)}" target="_blank" rel="noopener" title="${esc(row.productName)}">${esc(row.productName)}</a>`
+            : `<span class="ad-name" title="${esc(row.productName)}">${esc(row.productName)}</span>`;
+          return `
           <tr>
-            <td class="ad-name-cell"><span class="ad-name" title="${esc(row.productName)}">${esc(row.productName)}</span></td>
+            <td class="ad-name-cell">${nameHtml}</td>
             <td class="num">${num(row.payCount)}</td>
             <td class="num">${num(row.qty)}</td>
             <td class="num">${money(row.salesTotal)}</td>
@@ -2389,49 +2603,26 @@ function naverProductTableHtml() {
             <td class="num"><b>${money(row.salesNet)}</b></td>
             <td class="num">${num(row.visits)}</td>
             <td class="num">${formatPercentValue(row.conversion)}</td>
-          </tr>`).join("")}
+          </tr>`;
+        }).join("")}
       </tbody>
     </table>
     </div>`;
 }
 
-function naverVisitTableHtml() {
-  return `
-    <div class="table-scroll inset">
-    <table class="boxed-head">
-      <thead><tr><th>유입경로</th><th class="num" style="width:96px">방문수</th><th class="num" style="width:90px">결제건수</th><th class="num" style="width:96px">구매전환율</th><th class="num" style="width:130px">판매금액(총)</th></tr></thead>
-      <tbody>
-        ${naverStat.visitPaths.slice(0, 100).map(row => `
-          <tr>
-            <td><span class="badge">${esc(row.path1)}${row.path2 && row.path2 !== "-" ? " › " + esc(row.path2) : ""}</span></td>
-            <td class="num">${num(row.visits)}</td>
-            <td class="num">${num(row.payCount)}</td>
-            <td class="num">${formatPercentValue(row.conversion)}</td>
-            <td class="num">${money(row.salesTotal)}</td>
-          </tr>`).join("")}
-      </tbody>
-    </table>
-    </div>`;
-}
-
-function naverCustomerTableHtml() {
-  return `
-    <div class="table-scroll inset">
-    <table class="boxed-head">
-      <thead><tr><th style="width:110px">고객분류</th><th class="num">방문고객수</th><th class="num">결제고객수</th><th class="num">구매전환율</th><th class="num" style="width:130px">판매금액(총)</th><th class="num" style="width:104px">객단가</th></tr></thead>
-      <tbody>
-        ${naverStat.customer.map(row => `
-          <tr>
-            <td><b>${esc(row.segment)}</b></td>
-            <td class="num">${num(row.visitors)}</td>
-            <td class="num">${num(row.payers)}</td>
-            <td class="num">${formatPercentValue(row.conversion)}</td>
-            <td class="num">${money(row.salesTotal)}</td>
-            <td class="num">${money(row.avgPayment)}</td>
-          </tr>`).join("")}
-      </tbody>
-    </table>
-    </div>`;
+function naverVisitListHtml() {
+  const rows = naverStat.visitPaths.slice(0, 100);
+  const max = Math.max(...rows.map(r => r.visits), 1);
+  const cells = rows.map((row, i) => {
+    const name = row.path2 && row.path2 !== "-" ? `${row.path1} › ${row.path2}` : row.path1;
+    return `
+      <span class="visit-cell visit-rank"><span>${i + 1}</span></span>
+      <span class="visit-cell visit-name" title="${esc(name)}">${esc(name)}</span>
+      <span class="visit-cell visit-bar-wrap"><span class="visit-bar-track"><span class="visit-bar" style="width:${Math.max(3, row.visits / max * 100)}%"></span></span></span>
+      <span class="visit-cell visit-share"><b>${num(row.visits)}회</b></span>
+      <span class="visit-cell visit-detail">결제 ${num(row.payCount)}건 · 전환 ${formatPercentValue(row.conversion)} · 매출 ${money(row.salesTotal)}</span>`;
+  }).join("");
+  return `<div class="visit-list">${cells}</div>`;
 }
 
 function renderNaverSalesPanel() {
@@ -2442,10 +2633,6 @@ function renderNaverSalesPanel() {
       </div>`;
     return;
   }
-  const emptyAll = !naverStat.daily.length && !naverStat.products.length && !naverStat.customerPeriods.length;
-  const customerOptions = naverStat.customerPeriods.map(p =>
-    `<option value="${p.from}|${p.to}"${naverStat.customerPeriod === `${p.from}|${p.to}` ? " selected" : ""}>${p.from} ~ ${p.to}</option>`
-  ).join("");
   const card = (key, title, meta, tools, hint, body) => `
     <div class="content-card">
       <div class="content-head collapsible" data-toggle-card="${key}">
@@ -2459,7 +2646,7 @@ function renderNaverSalesPanel() {
       ${cardOpenState(key) ? `<div class="section-body">${hint}${body}</div>` : ""}
     </div>`;
   document.getElementById("mainPanel").innerHTML =
-    card("nDaily", `네이버 일별 매출<span class="dash-info">?<span class="dash-tip down">스마트스토어센터 통계 판매분석에서 <b>상품성과·유입경로·고객</b> 엑셀을 받아 한꺼번에 선택해 업로드하세요. 파일 종류는 자동으로 구분되고, 같은 날짜는 재업로드 시 교체됩니다.</span></span>`,
+    card("nDaily", `네이버 일별 매출<span class="dash-info">?<span class="dash-tip down">스마트스토어센터 통계 판매분석에서 <b>상품성과·유입경로</b> 엑셀을 받아 한꺼번에 선택해 업로드하세요. 파일 종류는 자동으로 구분되고, 같은 날짜는 재업로드 시 교체됩니다.</span></span>`,
       naverStat.daily.length ? `${num(naverStat.daily.length)}일치` : "데이터 없음",
       "",
       "",
@@ -2473,21 +2660,8 @@ function renderNaverSalesPanel() {
       naverStat.visitPaths.length ? `${num(naverStat.visitPaths.length)}개 경로` : "데이터 없음",
       "",
       "",
-      naverStat.visitPaths.length ? naverVisitTableHtml() : `<div class="empty">이 기간에 저장된 유입경로 데이터가 없습니다. 유입경로 엑셀을 업로드해 주세요.</div>`)
-    + card("nCustomer", "고객 분석",
-      naverStat.customerPeriod ? naverStat.customerPeriod.replace("|", " ~ ") : "데이터 없음",
-      naverStat.customerPeriods.length ? `<select id="naverCustomerPeriodSelect" class="period-select">${customerOptions}</select>` : "",
-      `<div class="upload-hint">고객 엑셀은 월별 스냅샷입니다. 아래는 선택한 월의 신규/재구매 고객 구성입니다.</div>`,
-      naverStat.customer.length ? naverCustomerTableHtml() : `<div class="empty">저장된 고객 데이터가 없습니다. 고객 엑셀을 업로드해 주세요.</div>`);
+      naverStat.visitPaths.length ? naverVisitListHtml() : `<div class="empty">이 기간에 저장된 유입경로 데이터가 없습니다. 유입경로 엑셀을 업로드해 주세요.</div>`);
 
-  const periodSelect = document.getElementById("naverCustomerPeriodSelect");
-  if (periodSelect) {
-    periodSelect.addEventListener("change", () => {
-      naverStat.customerPeriod = periodSelect.value;
-      naverStatLoadKey = "";
-      loadNaverStat();
-    });
-  }
   ensureNaverStatLoaded();
   renderSalesTrendChart("naverSalesTrendBody", naverStat.daily.map(r => ({ date: r.date, total: r.salesNet })));
   renderMainNav();

@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="common.css?v=20260714-footerfix2">
+<link rel="stylesheet" href="common.css?v=20260715-stickyfooter">
 <style>
   :root {
     --bg: #f8f9fb; --card: #fff; --ink: #1a1f2e; --sub: #5a6378;
@@ -66,6 +66,16 @@
   .category-tab:hover { border-color: #d7dde7; color: var(--ink); background: #fafbfc; }
   .category-tab.active { background: var(--ink); border-color: var(--ink); color: #fff; }
   .category-tab-count { margin-left: 4px; font-size: 11px; font-weight: 700; opacity: .72; }
+  /* 카테고리 안에서 재질별로 한 번 더 나누는 하위탭 — 메인 탭보다 한 톤 가벼운 알약형으로 */
+  .subcategory-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 18px; }
+  .subcategory-tab {
+    height: 34px; padding: 0 14px; border: 1px solid var(--line); border-radius: 20px;
+    background: #fff; color: var(--sub); font-family: inherit; font-size: 12.5px; font-weight: 800;
+    cursor: pointer; transition: all .12s;
+  }
+  .subcategory-tab:hover { border-color: #d7dde7; color: var(--ink); background: #fafbfc; }
+  .subcategory-tab.active { background: var(--accent-tint); border-color: var(--accent); color: var(--accent-dark); }
+  .subcategory-tab-count { margin-left: 4px; font-size: 11px; font-weight: 700; opacity: .72; }
   .category-panels {
     display: grid;
     align-items: start;
@@ -75,10 +85,16 @@
     min-width: 0;
     visibility: hidden;
     pointer-events: none;
+    /* visibility:hidden만으로는 레이아웃 공간을 계속 차지해서, 숨은 패널 중 가장 긴 것 기준으로
+       그리드 높이가 잡혀 짧은 카테고리를 볼 때 빈 여백이 크게 남는다 — 높이를 0으로 눌러 죽인다. */
+    max-height: 0;
+    overflow: hidden;
   }
   .category-panel.active {
     visibility: visible;
     pointer-events: auto;
+    max-height: none;
+    overflow: visible;
   }
   .category-section { margin-top: 24px; }
   .category-title-row {
@@ -156,6 +172,10 @@
   }
   .dash-mover-chip:hover { border-color: #f0b79d; background: #fffaf7; }
   .dash-mover-chips.products .dash-mover-chip { border-radius: var(--radius); padding: 5px 10px; }
+  /* 이탈 칩은 담을 정보(순위+날짜+안내문구)가 길어서 한 줄에 다 못 넣는다 — 위/아래 두 줄로 나눈다 */
+  .dash-mover-chip.dropout { flex-direction: column; align-items: stretch; gap: 4px; }
+  .dropout-chip-top { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .dropout-chip-bottom { display: flex; align-items: center; gap: 6px; padding-left: 24px; }
   .dash-mover-delta { font-family: var(--font-mono); font-size: 11px; font-weight: 700; }
   .dash-mover-delta.up { color: #16a34a; }
   .dash-mover-delta.down { color: var(--danger); }
@@ -706,6 +726,10 @@
   .trend-tip-box { fill: #161a22; rx: 5; ry: 5; }
   .trend-tip-text { fill: #fff; font-size: 11px; font-weight: 800; font-family: var(--font-main); }
   .trend-hit-zone { fill: transparent; cursor: crosshair; }
+  .trend-line-dropped { stroke: var(--danger); stroke-width: 2; stroke-dasharray: 4 4; stroke-linecap: round; }
+  .trend-dropped-marker { fill: #fff; stroke: var(--danger); stroke-width: 2; }
+  .trend-dropped-tag { fill: var(--danger); font-size: 10.5px; font-weight: 800; font-family: var(--font-main); }
+  .trend-axis-dropped { fill: var(--danger); font-weight: 800; }
   .trend-point:hover .trend-hover-line,
   .trend-point:hover .trend-hover-dot,
   .trend-point:hover .trend-tip { opacity: 1; }
@@ -913,6 +937,28 @@ const STORE_CATEGORY_DETAIL_KEYWORDS = {
     "열반사단열재": ["열반사단열재", "은박단열재", "온도리"],
   },
 };
+// 카테고리 안에서 상품 수가 너무 많아지면(예: 준불연단열재) 재질별로 한 번 더 나눠서 보여준다.
+// 여기 등록 안 된 카테고리는 지금처럼 하위탭 없이 그대로 보인다.
+// "심재준불연"·"난연단열재"·"준불연단열재" 같은 키워드는 PF보드·비드법·열반사 어디에나 붙는
+// 등급 표기라 키워드만으로는 재질을 구분할 수 없다 — 상품명에 실제 재질명이 있으므로 이름으로 구분한다.
+const CATEGORY_SUBGROUPS = {
+  "준불연단열재": [
+    { key: "pf", label: "PF보드/페놀폼", test: /PF보드|페놀폼/ },
+    { key: "urethane", label: "경질우레탄보드", test: /우레탄보드/ },
+    { key: "bead", label: "비드법", test: /비드법|EPS|스티로폼/ },
+    { key: "mineral", label: "미네랄울/열반사", test: /미네랄울|락울|열반사/ },
+  ],
+};
+const activeSubgroups = {}; // 카테고리명 -> 선택된 하위탭 key ("all"이면 전체)
+
+function resolveSubgroup(product, categoryName) {
+  const groups = CATEGORY_SUBGROUPS[categoryName];
+  if (!groups) return null;
+  const name = String(product.name || "");
+  const hit = groups.find(group => group.test.test(name));
+  return hit ? hit.key : "etc";
+}
+
 const CATEGORY_MAIN_KEYWORD = {
   "아이소핑크": "아이소핑크",
   "스티로폼": "스티로폼",
@@ -949,7 +995,13 @@ const SOFT_ETC_MAIN_KEYWORDS = [
   "우레탄폼건",
 ];
 const PRODUCT_CATEGORY_OVERRIDES = {
+  // 네이버쇼핑 API가 이 상품들을 가격비교(통합) ID로 돌려줄 때가 있어 코드가 자꾸 바뀌었다
+  // (10396653217→505443624, 81325598721→3781080651). 지금은 스마트스토어 링크 기준
+  // 실제 코드로 수집하도록 고쳐서 안정됐지만, 혹시 예전 코드로 남은 찌꺼기 행이 다시
+  // 보이더라도 같은 카테고리로 잡히게 구코드도 같이 남겨둔다.
+  "505443624": "열반사단열재",
   "10396653217": "열반사단열재",
+  "3781080651": "열반사단열재",
   "81325598721": "열반사단열재",
 };
 const CATEGORY_KEYWORD_GROUPS = {
@@ -979,6 +1031,7 @@ function loadCustomStores() {
 let selectedStore = BUILTIN_STORES[0];
 let activeCategory = TRACKER_CATEGORIES[0];
 let cachedProducts = [];
+let cachedDropped = [];
 let memoTargetCode = "";
 const expandedCategories = new Set();
 
@@ -1016,7 +1069,17 @@ function isBlockedFromCategory(product, categoryName) {
     return productHasKeyword(product, [
       "PF보드", "경질우레탄보드", "준불연열반사",
       "우레탄보드", "페놀폼", "심재준불연", "난연단열재",
+      // 아이소핑크(압출법 XPS)류가 "스티로폼단열재" 보조 키워드에도 걸려서 비드법단열재(EPS)
+      // 카테고리에 같이 뜨는 걸 막는다 — 아이소핑크 키워드가 있으면 그쪽이 원 카테고리다.
+      "아이소핑크",
     ]);
+  }
+  if (categoryName === "준불연단열재") {
+    // "준불연비드법" 검색 결과에 등급 표기 없는 일반 비드법 상품도 같이 걸려서 섞여 들어온다 —
+    // 실제 상품명에 "준불연"이 없으면(등급 미표기) 제외한다.
+    if (productHasKeyword(product, ["준불연비드법"]) && !String(product.name || "").includes("준불연")) {
+      return true;
+    }
   }
   return false;
 }
@@ -1106,17 +1169,30 @@ async function fetchHistory(store) {
 }
 
 async function fetchProductMasters() {
-  const url = `${SUPABASE_URL}/rest/v1/product_rankings?select=code,keyword,category_tab,image_url,name,memo,is_checked`;
+  const base = `${SUPABASE_URL}/rest/v1/product_rankings`;
   const headers = { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer " + SUPABASE_ANON_KEY };
-  const rows = [];
-  for (let page = 0; page < 10; page++) {
-    const res = await fetch(url + `&offset=${page * 1000}&limit=1000`, { headers });
-    if (!res.ok) throw new Error("상품 마스터 조회 실패 (" + res.status + ")");
-    const more = await res.json();
-    rows.push(...more);
-    if (more.length < 1000) break;
+  // alt_codes(그룹상품 대체 코드) 컬럼이 아직 마이그레이션 전이면 400이 나므로, 없는 채로도 동작하게 폴백
+  const selects = [
+    `?select=code,keyword,category_tab,image_url,name,memo,is_checked,alt_codes`,
+    `?select=code,keyword,category_tab,image_url,name,memo,is_checked`,
+  ];
+  for (const select of selects) {
+    const first = await fetch(base + select + `&offset=0&limit=1000`, { headers });
+    if (!first.ok) {
+      if (first.status === 400) continue;
+      throw new Error("상품 마스터 조회 실패 (" + first.status + ")");
+    }
+    const rows = await first.json();
+    for (let page = 1; page < 10 && rows.length === page * 1000; page++) {
+      const res = await fetch(base + select + `&offset=${page * 1000}&limit=1000`, { headers });
+      if (!res.ok) break;
+      const more = await res.json();
+      rows.push(...more);
+      if (more.length < 1000) break;
+    }
+    return rows;
   }
-  return rows;
+  throw new Error("상품 마스터 조회 실패 (컬럼 불일치)");
 }
 
 function deltaHtml(delta) {
@@ -1290,6 +1366,13 @@ function buildMasterMaps(masters) {
     if (code && !byCode.has(code)) byCode.set(code, normalized);
     if (name && keyword) byNameKeyword.set(name + "|" + keyword, normalized);
     if (name && !byName.has(name)) byName.set(name, normalized);
+    // 그룹상품 대체 코드 — 대표 노출 코드가 A↔B로 바뀌어도 같은 상품(normalized.code는 항상 기준 code)으로 잡히게
+    (master.alt_codes || []).forEach(alt => {
+      const altCode = normalizeText(alt);
+      if (!altCode) return;
+      if (!byCode.has(altCode)) byCode.set(altCode, normalized);
+      if (keyword) byCodeKeyword.set(altCode + "|" + keyword, normalized);
+    });
   });
 
   return { byCodeKeyword, byCode, byNameKeyword, byName };
@@ -1307,34 +1390,46 @@ function findProductMaster(row, masterMaps) {
     || null;
 }
 
+// 그룹상품(대체 코드) 대응 — 오늘 잡힌 코드가 대표 코드든 alt_codes에 등록된 대체 코드든
+// masterMaps.byCode가 같은 normalized 객체를 돌려주므로, 항상 그 normalized.code(기준 코드)로
+// 통일해서 묶는다. 마스터에 없는 상품은 그냥 원래 코드를 그대로 쓴다.
+function canonicalProductCode(row, masterMaps) {
+  return findProductMaster(row, masterMaps)?.code || row.product_code;
+}
+
 function buildProducts(rows, masterMaps) {
   const latestDate = rows[0]?.collected_date || rows[0]?.checked_at?.slice(0, 10) || "";
   const latestRows = rows.filter(r => rankDate(r) === latestDate && r.rank != null && r.product_code);
   const previousByProductKeyword = new Map();
   const historyByProductKeyword = new Map();
+  const latestRowByCode = new Map(); // 코드별 가장 최근 행(오늘 데이터가 없으면 과거 중 최신) — 완전 이탈 상품의 카드 기본정보용
 
   rows.forEach(row => {
     if (row.product_code && row.rank != null) {
-      const historyKey = row.product_code + "|" + row.keyword;
+      const code = canonicalProductCode(row, masterMaps);
+      const historyKey = code + "|" + row.keyword;
       if (!historyByProductKeyword.has(historyKey)) historyByProductKeyword.set(historyKey, new Map());
       const dateMap = historyByProductKeyword.get(historyKey);
       const date = rankDate(row);
       if (date && !dateMap.has(date)) dateMap.set(date, Number(row.rank));
+      if (!latestRowByCode.has(code)) latestRowByCode.set(code, row); // rows는 최신순 정렬이라 첫 등장이 최신
     }
     if (!row.product_code || row.rank == null || rankDate(row) === latestDate) return;
-    const key = row.product_code + "|" + row.keyword;
+    const key = canonicalProductCode(row, masterMaps) + "|" + row.keyword;
     if (!previousByProductKeyword.has(key)) previousByProductKeyword.set(key, row);
   });
 
   const byProduct = new Map();
   latestRows.forEach(row => {
-    const code = row.product_code;
     const master = findProductMaster(row, masterMaps);
+    const code = master?.code || row.product_code;
     if (!byProduct.has(code)) {
       byProduct.set(code, {
         code,
         name: master?.name || row.product_name || "(상품명 없음)",
-        image: master?.image || row.product_image || "",
+        // 오늘 실제 수집된 이미지를 우선한다 — 통합어드민(마스터) 쪽 이미지는 수집과 무관하게
+        // 수동으로 입력되는 값이라 오래되거나 다른 상품 사진으로 잘못 들어가 있을 수 있다.
+        image: row.product_image || master?.image || "",
         link: row.product_link || "",
         price: Number(row.product_price) || 0,
         category: master?.category || "기타",
@@ -1350,7 +1445,7 @@ function buildProducts(rows, masterMaps) {
     if (!product.masterCode && master?.code) product.masterCode = master.code;
     if (!product.isChecked && master?.isChecked) product.isChecked = true;
     if ((!product.memos || !product.memos.length) && master?.memos?.length) product.memos = master.memos;
-    if (!product.image && (master?.image || row.product_image)) product.image = master?.image || row.product_image;
+    if (!product.image && (row.product_image || master?.image)) product.image = row.product_image || master?.image;
     if (!product.link && row.product_link) product.link = row.product_link;
     if (!product.price && row.product_price) product.price = Number(row.product_price) || 0;
     if (master?.name && product.name === "(상품명 없음)") product.name = master.name;
@@ -1365,6 +1460,53 @@ function buildProducts(rows, masterMaps) {
     product.keywords.push({ ...row, delta, history });
   });
 
+  // 오늘 데이터가 하나도 없어(키워드 전부 이탈) 위 루프에서 카드가 안 만들어진 상품도, 과거
+  // 정보로 카드 껍데기를 만든다 — 완전히 사라지면 그동안 쌓인 기록을 카드에서 확인할 방법이
+  // 없어지므로, 목록에는 남기고 아래에서 키워드 전부를 "이탈" 상태로 채워 넣는다.
+  latestRowByCode.forEach((row, code) => {
+    if (byProduct.has(code)) return;
+    const master = findProductMaster(row, masterMaps);
+    byProduct.set(code, {
+      code,
+      name: master?.name || row.product_name || "(상품명 없음)",
+      image: row.product_image || master?.image || "",
+      link: row.product_link || "",
+      price: Number(row.product_price) || 0,
+      category: master?.category || "기타",
+      masterCode: master?.code || code,
+      memos: master?.memos || [],
+      isChecked: master?.isChecked || false,
+      checkedAt: row.checked_at,
+      keywords: [],
+      isFullyDropped: true,
+    });
+  });
+
+  // 이탈한 키워드도 그래프가 사라지지 않게 남긴다 — 상품 카드가 있으면(위에서 만들어졌든,
+  // 방금 완전 이탈 껍데기로 만들어졌든) 이탈한 키워드 줄도 지우지 않고 rank만 null로 남겨서
+  // "이탈" 배지 + 과거 그래프를 그대로 보여준다.
+  const latestKeys = new Set(latestRows.map(row => canonicalProductCode(row, masterMaps) + "|" + row.keyword));
+  previousByProductKeyword.forEach((prevRow, key) => {
+    if (latestKeys.has(key)) return;
+    const code = key.slice(0, key.indexOf("|"));
+    const product = byProduct.get(code);
+    if (!product) return;
+    const historyMap = historyByProductKeyword.get(key) || new Map();
+    const history = [...historyMap.entries()]
+      .map(([date, rank]) => ({ date, rank }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+    product.keywords.push({
+      ...prevRow,
+      rank: null,
+      delta: null,
+      isDropped: true,
+      lastRank: prevRow.rank,
+      lastSeenDate: rankDate(prevRow),
+      latestDate,
+      history,
+    });
+  });
+
   return [...byProduct.values()].map(product => {
     product.keywords.sort((a, b) => Number(a.is_sub) - Number(b.is_sub) || rankSortValue(a.rank) - rankSortValue(b.rank) || keywordSortIndex(a) - keywordSortIndex(b));
     product.bestRank = product.keywords[0]?.rank ?? null;
@@ -1372,6 +1514,57 @@ function buildProducts(rows, masterMaps) {
     product.mainKeywordCount = product.keywords.filter(k => !k.is_sub).length;
     return product;
   }).sort((a, b) => (a.mainBestRank ?? 9999) - (b.mainBestRank ?? 9999) || (a.bestRank ?? 9999) - (b.bestRank ?? 9999) || b.keywords.length - a.keywords.length || a.name.localeCompare(b.name, "ko"));
+}
+
+/* 이탈(수집 누락) 키워드 — 특정 상품이 특정 키워드 검색에서 max_rank 밖으로 밀려나거나
+   결과에서 아예 안 잡히면, 그날은 그 (상품, 키워드) 조합의 행 자체가 저장되지 않는다
+   (전체 검색 결과가 0건일 때만 별도 플레이스홀더 행이 남는 것과 달리, 개별 상품 이탈은
+   행이 조용히 없어질 뿐이라 buildProducts()가 만드는 최신 스냅샷에는 흔적이 안 남는다).
+   그래서 여기서는 rows 전체를 훑어 "최신 수집일 이전엔 순위가 있었는데 최신 수집일엔
+   없는" 조합을 따로 찾아낸다. */
+function buildDroppedKeywords(rows, masterMaps) {
+  const latestDate = rows[0]?.collected_date || rows[0]?.checked_at?.slice(0, 10) || "";
+  const latestKeys = new Set();
+  rows.forEach(row => {
+    if (row.product_code && row.rank != null && rankDate(row) === latestDate) {
+      latestKeys.add(canonicalProductCode(row, masterMaps) + "|" + row.keyword);
+    }
+  });
+  const seen = new Set();
+  const dropped = [];
+  rows.forEach(row => {
+    if (!row.product_code || row.rank == null) return;
+    const date = rankDate(row);
+    if (date === latestDate) return;
+    const master = findProductMaster(row, masterMaps);
+    const code = master?.code || row.product_code;
+    const key = code + "|" + row.keyword;
+    if (seen.has(key) || latestKeys.has(key)) return;
+    seen.add(key);
+    dropped.push({
+      code,
+      keyword: row.keyword,
+      main_keyword: row.main_keyword,
+      is_sub: row.is_sub,
+      name: master?.name || row.product_name || "(상품명 없음)",
+      image: row.product_image || master?.image || "",
+      link: row.product_link || "",
+      category: master?.category || null,
+      prevRank: Number(row.rank),
+      prevDate: date,
+    });
+  });
+  return dropped;
+}
+
+function resolveDropoutCategory(entry) {
+  if (PRODUCT_CATEGORY_OVERRIDES[entry.code]) return PRODUCT_CATEGORY_OVERRIDES[entry.code];
+  const keywords = [{ keyword: entry.keyword, main_keyword: entry.main_keyword, is_sub: entry.is_sub }];
+  if (selectedStore === "에너가드컴퍼니") return inferCategoryFromKeywords(keywords);
+  if (hasMainKeyword(keywords, HARD_ETC_MAIN_KEYWORDS)) return "기타";
+  const normalized = normalizeCategory(entry.category);
+  if (normalized !== "기타") return normalized;
+  return inferCategoryFromKeywords(keywords);
 }
 
 function categorySortIndex(categoryName) {
@@ -1526,30 +1719,51 @@ function renderProductCard(product, categoryName) {
 }
 
 /* ── 카테고리 요약 대시보드 ──
-   같은 키워드가 여러 상품에 걸려 있으면 그중 "가장 좋은 순위" 1건을 그 키워드의 오늘 상태로 본다.
-   (스토어 입장에서 그 키워드로 몇 위에 노출되고 있는지가 관심사이므로) */
+   메인 지표(추적 상품 수 제외 상단 타일)는 상품 카드에 뜨는 "메인" 배지와 같은 기준
+   (getCategoryLeadKeyword)으로 상품마다 대표 키워드를 하나씩 뽑아 그 개별 순위로 집계한다 —
+   같은 키워드를 여러 상품이 나눠 갖고 있어도(예: 23개 상품이 모두 "아이소핑크"를 대표 키워드로
+   삼되 노출 순위는 저마다 다름) 상품별 순위를 그대로 반영하기 위해 키워드 텍스트로 통합하지 않는다.
+   검색량도 같은 이유로 이 목록에서 뽑되, 같은 키워드를 여러 상품이 공유하면 중복 합산되므로
+   그 부분만 키워드 단위로 따로 중복 제거한다.
+   반면 상승/하락 TOP(보조 지표)는 보조 키워드까지 포함한 전체 키워드 풀에서 가장 크게 움직인
+   키워드를 보여주는 게 목적이라 메인/보조 구분 없이 전부 모아 키워드 단위로 중복 제거한다. */
 function buildDashStats(section) {
+  const list = section.products
+    .map(product => {
+      const k = getCategoryLeadKeyword(product, section.name);
+      return k ? { product, k } : null;
+    })
+    .filter(Boolean);
+  const ranked = list.filter(({ k }) => k.rank != null);
+
   const byKeyword = new Map();
+  list.forEach(({ k }) => {
+    const cur = byKeyword.get(k.keyword);
+    if (!cur || rankSortValue(k.rank) < rankSortValue(cur.rank)) byKeyword.set(k.keyword, k);
+  });
+  const uniqueKeywords = [...byKeyword.values()];
+
+  const byKeywordAll = new Map();
   section.products.forEach(product => {
     getVisibleKeywords(product, section.name).forEach(k => {
-      const cur = byKeyword.get(k.keyword);
-      if (!cur || rankSortValue(k.rank) < rankSortValue(cur.rank)) byKeyword.set(k.keyword, k);
+      const cur = byKeywordAll.get(k.keyword);
+      if (!cur || rankSortValue(k.rank) < rankSortValue(cur.rank)) byKeywordAll.set(k.keyword, k);
     });
   });
-  const list = [...byKeyword.values()];
-  const ranked = list.filter(k => k.rank != null);
+  const allKeywords = [...byKeywordAll.values()];
+
   const stats = {
     total: list.length,
-    top10: ranked.filter(k => k.rank <= 10).length,
-    page1: ranked.filter(k => k.rank <= 40).length,
-    page23: ranked.filter(k => k.rank > 40 && k.rank <= 120).length,
-    page4plus: ranked.filter(k => k.rank > 120).length,
-    up: list.filter(k => k.delta != null && k.delta > 0).length,
-    down: list.filter(k => k.delta != null && k.delta < 0).length,
-    volumeTotal: list.reduce((sum, k) => sum + (k.search_volume_total != null ? Number(k.search_volume_total) : 0), 0),
-    hasVolume: list.some(k => k.search_volume_total != null),
-    upMovers: list.filter(k => moveScore(k) > 0).sort((a, b) => moveScore(b) - moveScore(a)).slice(0, 3),
-    downMovers: list.filter(k => moveScore(k) < 0).sort((a, b) => moveScore(a) - moveScore(b)).slice(0, 3),
+    top10: ranked.filter(({ k }) => k.rank <= 10).length,
+    page1: ranked.filter(({ k }) => k.rank <= 40).length,
+    page23: ranked.filter(({ k }) => k.rank > 40 && k.rank <= 120).length,
+    page4plus: ranked.filter(({ k }) => k.rank > 120).length,
+    up: list.filter(({ k }) => k.delta != null && k.delta > 0).length,
+    down: list.filter(({ k }) => k.delta != null && k.delta < 0).length,
+    volumeTotal: uniqueKeywords.reduce((sum, k) => sum + (k.search_volume_total != null ? Number(k.search_volume_total) : 0), 0),
+    hasVolume: uniqueKeywords.some(k => k.search_volume_total != null),
+    upMovers: allKeywords.filter(k => moveScore(k) > 0).sort((a, b) => moveScore(b) - moveScore(a)).slice(0, 3),
+    downMovers: allKeywords.filter(k => moveScore(k) < 0).sort((a, b) => moveScore(a) - moveScore(b)).slice(0, 3),
   };
   return stats;
 }
@@ -1617,6 +1831,22 @@ function dashMoverChip(k) {
   </a>`;
 }
 
+function dashDropoutChip(entry) {
+  const thumb = entry.image ? `<img class="chip-thumb" src="${esc(entry.image)}" loading="lazy" alt="">` : "";
+  const dateLabel = esc(entry.prevDate.slice(5).replace("-", "/"));
+  const inner = `<span class="dropout-chip-top">
+      ${thumb}<span class="chip-name" title="${esc(entry.name)}">${esc(entry.name)}</span>
+      <span class="chip-keyword">${esc(entry.keyword)}</span>
+    </span>
+    <span class="dropout-chip-bottom">
+      <span class="dash-mover-delta down">이탈</span>
+      <span class="dash-mover-rank">최근 ${entry.prevRank}위 · ${dateLabel} 이후 미확인</span>
+    </span>`;
+  return entry.link
+    ? `<a class="dash-mover-chip dropout" href="${esc(entry.link)}" target="_blank" rel="noopener">${inner}</a>`
+    : `<span class="dash-mover-chip dropout">${inner}</span>`;
+}
+
 function renderCategoryDashboard(section) {
   const s = buildDashStats(section);
   if (!s.total) return "";
@@ -1640,12 +1870,16 @@ function renderCategoryDashboard(section) {
     </div>` : "";
 
   const notable = buildNotableProducts(section);
-  const moversHtml = (s.upMovers.length || s.downMovers.length || notable.rising.length || notable.falling.length) ? `
+  const dropped = cachedDropped
+    .filter(entry => resolveDropoutCategory(entry) === section.name)
+    .sort((a, b) => rankSortValue(a.prevRank) - rankSortValue(b.prevRank));
+  const moversHtml = (s.upMovers.length || s.downMovers.length || notable.rising.length || notable.falling.length || dropped.length) ? `
     <div class="dash-movers">
       ${s.upMovers.length ? `<div class="dash-mover-row"><span class="dash-mover-title">상승 TOP</span><div class="dash-mover-chips">${s.upMovers.map(dashMoverChip).join("")}</div></div>` : ""}
       ${s.downMovers.length ? `<div class="dash-mover-row"><span class="dash-mover-title">하락 TOP</span><div class="dash-mover-chips">${s.downMovers.map(dashMoverChip).join("")}</div></div>` : ""}
       ${notable.rising.length ? `<div class="dash-mover-row"><span class="dash-mover-title">급상승 상품</span><div class="dash-mover-chips products">${notable.rising.map(m => dashProductChip(m.product, m.best.k)).join("")}</div></div>` : ""}
       ${notable.falling.length ? `<div class="dash-mover-row"><span class="dash-mover-title">급하락 상품</span><div class="dash-mover-chips products">${notable.falling.map(m => dashProductChip(m.product, m.worst.k)).join("")}</div></div>` : ""}
+      ${dropped.length ? `<div class="dash-mover-row"><span class="dash-mover-title">이탈 상품</span><div class="dash-mover-chips products">${dropped.map(dashDropoutChip).join("")}</div></div>` : ""}
     </div>` : "";
 
   return `<div class="rank-dash">
@@ -1660,6 +1894,39 @@ function renderCategoryDashboard(section) {
     ${barHtml}
     ${moversHtml}
   </div>`;
+}
+
+function renderSubgroupTabs(section) {
+  const groups = CATEGORY_SUBGROUPS[section.name];
+  if (!groups) return "";
+  const counts = new Map();
+  section.products.forEach(product => {
+    const key = resolveSubgroup(product, section.name);
+    counts.set(key, (counts.get(key) || 0) + 1);
+  });
+  const activeKey = activeSubgroups[section.name] || "all";
+  const tabs = [{ key: "all", label: "전체", count: section.products.length }]
+    .concat(groups.map(g => ({ key: g.key, label: g.label, count: counts.get(g.key) || 0 })))
+    .concat(counts.get("etc") ? [{ key: "etc", label: "기타", count: counts.get("etc") }] : []);
+  return `<div class="subcategory-tabs">
+    ${tabs.filter(t => t.key === "all" || t.count > 0).map(t => `
+      <button type="button" class="subcategory-tab${t.key === activeKey ? " active" : ""}" data-subgroup="${esc(t.key)}" data-subgroup-category="${esc(section.name)}">
+        ${esc(t.label)}<span class="subcategory-tab-count">${t.count}</span>
+      </button>`).join("")}
+  </div>`;
+}
+
+function filterBySubgroup(section) {
+  const groups = CATEGORY_SUBGROUPS[section.name];
+  if (!groups) return section.products;
+  const activeKey = activeSubgroups[section.name] || "all";
+  if (activeKey === "all") return section.products;
+  return section.products.filter(product => resolveSubgroup(product, section.name) === activeKey);
+}
+
+function switchSubgroup(categoryName, key) {
+  activeSubgroups[categoryName] = key;
+  renderProducts(cachedProducts);
 }
 
 function renderProducts(products) {
@@ -1691,11 +1958,14 @@ function renderProducts(products) {
     return `
       <section class="category-section category-panel${category === activeCategory ? " active" : ""}" data-category-panel="${esc(category)}" aria-hidden="${category === activeCategory ? "false" : "true"}"${category === activeCategory ? "" : " inert"}>
         ${section.products.length ? renderCategoryDashboard(section) : ""}
+        ${section.products.length ? renderSubgroupTabs(section) : ""}
         ${section.products.length
-          ? `<div class="product-table">
+          ? (() => {
+            const displayProducts = filterBySubgroup(section);
+            return `<div class="product-table">
             <div class="category-title-row">
               <h2 class="category-title">${esc(section.name)}</h2>
-              <span class="category-meta">상품 ${section.products.length}개 · 키워드 ${section.keywordCount}개</span>
+              <span class="category-meta">상품 ${displayProducts.length}개 · 키워드 ${section.keywordCount}개</span>
               <span class="category-title-spacer"></span>
               <button type="button" class="expand-all-btn${isAllExpanded ? " is-open" : ""}" data-action="toggle-all-keywords">
                 ${isAllExpanded ? "전체 접기" : "전체 펼치기"}
@@ -1711,8 +1981,11 @@ function renderProducts(products) {
               <span>보조</span>
               <span>관리</span>
             </div>
-            ${section.products.map(product => renderProductCard(product, section.name)).join("")}
-          </div>`
+            ${displayProducts.length
+              ? displayProducts.map(product => renderProductCard(product, section.name)).join("")
+              : `<div class="empty">이 분류에 잡힌 상품이 없습니다.</div>`}
+          </div>`;
+          })()
           : `<div class="empty">이 카테고리에 잡힌 상품이 없습니다.</div>`}
       </section>`;
   }).join("");
@@ -1745,6 +2018,12 @@ document.getElementById("productGroups").addEventListener("click", (e) => {
       expandedCategories.add(activeCategory);
     }
     renderProducts(cachedProducts);
+    return;
+  }
+
+  const subTab = e.target.closest(".subcategory-tab");
+  if (subTab) {
+    switchSubgroup(subTab.dataset.subgroupCategory, subTab.dataset.subgroup);
     return;
   }
 
@@ -1884,6 +2163,7 @@ async function loadAndRender() {
     const masterMaps = buildMasterMaps(masters);
     const products = buildProducts(rows, masterMaps);
     cachedProducts = products;
+    cachedDropped = buildDroppedKeywords(rows, masterMaps);
     const collectedKeywords = new Set(rows.filter(r => rankDate(r) === rankDate(rows[0])).map(r => r.keyword));
     const categoryCount = buildCategorySections(products).length;
     summary.innerHTML = `상품 ${products.length}개 · 카테고리 ${categoryCount}개 · 키워드 ${collectedKeywords.size}개 수집됨 · 최근 수집: ${timeAgo(rows[0].checked_at)}`;
@@ -2308,16 +2588,20 @@ function renderTrendEmpty(message, hint = "데이터가 쌓이면 자동으로 �
   return `<div class="rank-trend-stage"><div class="rank-trend-empty">${esc(message)}<small>${esc(hint)}</small></div></div>`;
 }
 
-function renderMiniTrendSvg(rows, valueKey, formatter, invert = false) {
+function renderMiniTrendSvg(rows, valueKey, formatter, invert = false, dropMarker = null) {
   if (rows.length < 2) {
     return renderTrendEmpty("표시할 데이터가 아직 부족합니다");
   }
+  // 이탈한 키워드는 마지막 실데이터 이후로 한 칸 더(오늘 날짜) 자리를 만들어 그 구간을
+  // 점선 + "이탈" 마커로 표시한다 — 그래프가 예전 날짜에서 뚝 끊긴 것처럼 안 보이게.
+  const showDrop = !!(dropMarker && dropMarker.date > rows[rows.length - 1].date);
+  const slots = rows.length + (showDrop ? 1 : 0);
   const values = rows.map(row => Number(row[valueKey]));
   let min = Math.min(...values);
   let max = Math.max(...values);
   if (min === max) { min -= 1; max += 1; }
   const w = 760, h = 102, padX = 22, padY = 15;
-  const x = i => rows.length === 1 ? padX : padX + (i * (w - padX * 2)) / (rows.length - 1);
+  const x = i => slots === 1 ? padX : padX + (i * (w - padX * 2)) / (slots - 1);
   const y = v => {
     const t = (v - min) / (max - min);
     return invert ? padY + t * (h - padY * 2 - 14) : h - padY - 14 - t * (h - padY * 2 - 14);
@@ -2325,9 +2609,12 @@ function renderMiniTrendSvg(rows, valueKey, formatter, invert = false) {
   const points = rows.map((row, i) => `${x(i)},${y(Number(row[valueKey]))}`).join(" ");
   const areaBase = h - padY - 14;
   const area = `${padX},${areaBase} ${points} ${w - padX},${areaBase}`;
-  const labels = rows.map((row, i) => {
-    if (i !== 0 && i !== rows.length - 1 && rows.length > 5 && i % Math.ceil(rows.length / 5) !== 0) return "";
-    return `<text class="trend-axis" x="${x(i)}" y="${h - 3}" text-anchor="middle">${esc(row.date.slice(5).replace("-", "."))}</text>`;
+  const labelSlots = rows.map((row, i) => ({ i, date: row.date }));
+  if (showDrop) labelSlots.push({ i: rows.length, date: dropMarker.date, isDrop: true });
+  const labels = labelSlots.map(({ i, date, isDrop }) => {
+    const isEdge = i === 0 || i === slots - 1;
+    if (!isEdge && slots > 5 && i % Math.ceil(slots / 5) !== 0) return "";
+    return `<text class="trend-axis${isDrop ? " trend-axis-dropped" : ""}" x="${x(i)}" y="${h - 3}" text-anchor="middle">${esc(date.slice(5).replace("-", "."))}</text>`;
   }).join("");
   const dots = rows.map((row, i) => {
     const px = x(i);
@@ -2342,7 +2629,7 @@ function renderMiniTrendSvg(rows, valueKey, formatter, invert = false) {
     const boxX = Math.min(Math.max(px - boxW / 2, 8), w - boxW - 8);
     const boxY = Math.max(4, py - 35);
     const hitLeft = i === 0 ? 0 : (x(i - 1) + px) / 2;
-    const hitRight = i === rows.length - 1 ? w : (px + x(i + 1)) / 2;
+    const hitRight = i === rows.length - 1 ? (showDrop ? (px + x(rows.length)) / 2 : w) : (px + x(i + 1)) / 2;
     return `<g class="trend-point">
       <line class="trend-hover-line" x1="${px}" x2="${px}" y1="${padY}" y2="${areaBase}"></line>
       <circle class="trend-hover-dot" cx="${px}" cy="${py}" r="5"></circle>
@@ -2353,18 +2640,27 @@ function renderMiniTrendSvg(rows, valueKey, formatter, invert = false) {
       <rect class="trend-hit-zone" x="${hitLeft}" y="0" width="${hitRight - hitLeft}" height="${h}"></rect>
     </g>`;
   }).join("");
+  const dropHtml = showDrop ? (() => {
+    const lastX = x(rows.length - 1);
+    const lastY = y(Number(rows[rows.length - 1][valueKey]));
+    const dropX = x(rows.length);
+    return `<line class="trend-line-dropped" x1="${lastX}" y1="${lastY}" x2="${dropX}" y2="${lastY}"></line>
+      <circle class="trend-dropped-marker" cx="${dropX}" cy="${lastY}" r="5"></circle>
+      <text class="trend-dropped-tag" x="${dropX}" y="${Math.max(12, lastY - 10)}" text-anchor="middle">이탈</text>`;
+  })() : "";
   return `<div class="rank-trend-stage"><svg class="rank-trend-svg" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true">
     <line class="trend-grid" x1="${padX}" x2="${w - padX}" y1="${padY}" y2="${padY}"></line>
     <line class="trend-grid" x1="${padX}" x2="${w - padX}" y1="${areaBase}" y2="${areaBase}"></line>
     <polygon class="trend-fill" points="${area}"></polygon>
     <polyline class="trend-line" points="${points}"></polyline>
+    ${dropHtml}
     ${dots}
     ${labels}
     ${hovers}
   </svg></div>`;
 }
 
-function renderTrendWrap(title, rows, valueKey, formatter, invert = false) {
+function renderTrendWrap(title, rows, valueKey, formatter, invert = false, dropMarker = null) {
   const ranges = [
     { key: "week", label: "1주일" },
     { key: "month6", label: "6개월" },
@@ -2380,7 +2676,7 @@ function renderTrendWrap(title, rows, valueKey, formatter, invert = false) {
     ${ranges.map((range, i) => {
       const filtered = filterTrendRows(rows, range.key, valueKey);
       const content = hasEnoughTrendRange(filtered, range.key)
-        ? renderMiniTrendSvg(filtered, valueKey, formatter, invert)
+        ? renderMiniTrendSvg(filtered, valueKey, formatter, invert, dropMarker)
         : renderTrendEmpty(`${range.label} 데이터가 아직 부족합니다`, "최근 수집 데이터 기준으로 표시됩니다");
       return `<div class="rank-trend-panel${i === 0 ? " active" : ""}" data-range="${range.key}">
         ${content}
@@ -2390,7 +2686,8 @@ function renderTrendWrap(title, rows, valueKey, formatter, invert = false) {
 }
 
 function renderRankTrend(state) {
-  return renderTrendWrap("순위 그래프", state.history || [], "rank", value => `${value}위`, true);
+  const dropMarker = state.isDropped && state.latestDate ? { date: state.latestDate } : null;
+  return renderTrendWrap("순위 그래프", state.history || [], "rank", value => `${value}위`, true, dropMarker);
 }
 
 function renderPriceTrend(view) {
