@@ -507,7 +507,7 @@ function toggleRateTable() {
 
 // ── 히스토리 ──
 function addHistory(vehicleName, totalBundles, detailText, volume, thickness) {
-  const list = document.getElementById('historyList');
+  const list = document.getElementById('calcHistoryList');
   if (!list) return;
   const empty = list.querySelector('.history-empty');
   if (empty) empty.remove();
