@@ -397,6 +397,210 @@ async function collectTrackedItems() {
   return { ok: true, collectedDate, keywords: keywordMap.size, keywordsDone, rowsSaved };
 }
 
+/* ═══ 랭킹추적 키워드 일괄 수집 서버 수집 (cron용) ═══
+   naver-rank.html의 "키워드 일괄 수집"(runBatchCollect)을 브라우저 없이 서버 혼자 재현한다.
+   기본 키워드 트리는 이 파일에 그대로 복제해뒀다(변경이 드물고 Claude가 코드로 수정하므로) —
+   런타임에 사용자가 늘리는 커스텀 키워드만 custom_tracked_keywords 테이블에서 읽어 합친다.
+   ⚠ keywords.js(KW_TREE)나 naver-rank.html의 STORE_BATCH_KEYWORDS를 고치면 여기도 같이 고칠 것. */
+
+const CUSTOM_KEYWORDS_TABLE = "custom_tracked_keywords";
+
+const KW_TREE_DEFAULT: Array<{ main: string; subs: string[] }> = [
+  { main: "아이소핑크", subs: ["XPS단열재", "압출법보온판", "벽산아이소핑크", "아이소핑크특호", "아이소핑크규격", "압출법단열재"] },
+  { main: "압축스티로폼", subs: ["미술용스티로폼", "EPS블럭"] },
+  { main: "스티로폼", subs: ["EPS블럭", "압축스티로폼", "대형스티로폼", "조각용스티로폼", "폼보드"] },
+  { main: "스티로폼단열재", subs: ["EPS단열재", "비드법단열재", "네오폴"] },
+  { main: "열반사단열재", subs: ["은박단열재", "온도리", "결로방지단열재", "단열필름", "외벽단열재", "보온시트"] },
+  { main: "캠핑단열재", subs: ["장박단열재", "캠핑바닥공사", "장박바닥공사", "텐트바닥공사"] },
+  { main: "은박매트", subs: ["은박돗자리", "두꺼운돗자리", "돗자리"] },
+  { main: "길고양이겨울집", subs: ["고양이겨울집", "고보협겨울집", "길냥이급식소"] },
+  { main: "창문방풍", subs: ["창문우풍", "창문방풍비닐", "베란다방풍비닐", "방풍비닐커튼"] },
+  { main: "에어컨커버", subs: ["실외기커버"] },
+  { main: "차박창문가리개", subs: ["뒷유리햇빛가리개", "조수석햇빛가리개", "운전석햇빛가리개", "자동차햇빛가리개", "차량용햇빛가리개"] },
+  { main: "단열벽지", subs: ["접착식단열벽지", "보온벽지", "결로방지벽지", "곰팡이벽지", "방한벽지"] },
+  { main: "바닥단열재", subs: ["바닥보온재"] },
+  { main: "전기난방필름", subs: ["난방필름단열재", "난방단열재", "난방필름", "전기판넬"] },
+  { main: "우레탄뿜칠", subs: ["타이거폼2K", "라이트폼", "스프레이폼", "단열뿜칠"] },
+  { main: "열선커터기", subs: ["스티로폼절단기"] },
+  { main: "우레탄폼건", subs: ["폼건", "스프레이폼"] },
+  { main: "창문열차단", subs: ["창문단열재", "단열뽁뽁이"] },
+  { main: "창문햇빛가리개", subs: ["베란다햇빛가리개", "사무실햇빛가리개"] },
+  { main: "에어컨가림막", subs: ["창문형에어컨가림막"] },
+  { main: "어싱매트", subs: ["맨발걷기", "어싱패드"] },
+  { main: "실외기커버", subs: ["실외기방수커버"] },
+];
+
+const STORE_KEYWORD_TREES: Record<string, Array<{ main: string; subs: string[] }>> = {
+  "에너가드컴퍼니": [
+    { main: "아이소핑크", subs: ["XPS단열재", "압출법단열재"] },
+    { main: "비드법단열재", subs: ["EPS단열재", "스티로폼단열재"] },
+    { main: "준불연단열재", subs: ["PF보드", "경질우레탄보드", "준불연비드법", "준불연열반사", "우레탄보드", "페놀폼", "심재준불연", "난연단열재"] },
+    { main: "불연단열재", subs: ["불연열반사", "미네랄울", "글라스울"] },
+    { main: "열반사단열재", subs: ["은박단열재", "온도리"] },
+  ],
+};
+
+function flattenTree(tree: Array<{ main: string; subs: string[] }>) {
+  const list: Array<{ keyword: string; mainKeyword: string; isSub: boolean }> = [];
+  tree.forEach((g) => {
+    list.push({ keyword: g.main, mainKeyword: g.main, isSub: false });
+    g.subs.forEach((s) => list.push({ keyword: s, mainKeyword: g.main, isSub: true }));
+  });
+  return list;
+}
+
+/* 키워드 하나를 스캔해 이 스토어의 매칭 상품(전부)·검색량·아이템추적 피기백 결과를 반환.
+   main 핸들러의 검색 로직(연관키워드·판매자점유율 등)은 배치 수집엔 불필요해 덜어내고,
+   naver-rank.html의 withInsight:false·withVolume:true 배치 호출과 동등한 만큼만 재현한다. */
+async function scanKeywordForStore(
+  keyword: string,
+  storeName: string,
+  watchSet: Set<string>,
+  clientId: string,
+  clientSecret: string,
+) {
+  const adStatsPromise = fetchAdStats(keyword); // 스캔과 동시에 시작 — 검색량 조회는 스캔과 무관
+  const { items } = await fetchShopItems(keyword, 1000, clientId, clientSecret);
+
+  const foundRows: Array<Record<string, unknown>> = [];
+  const watchedRows: Array<Record<string, unknown>> = [];
+  let counted = 0;
+  for (const item of items) {
+    if (item.mallName === "네이버") continue; // 가격비교(카탈로그) 제외 — 본 스캔과 동일 기준
+    counted++;
+    if (counted > 1000) break;
+
+    const linkId = (String(item.link).match(/\/products\/(\d+)/) || [])[1] || "";
+    const realProductId = linkId || String(item.productId).trim();
+
+    if (isExactStore(item.mallName, storeName)) {
+      foundRows.push({
+        rank: counted,
+        productId: realProductId,
+        title: stripTags(item.title),
+        price: Number(item.lprice) || 0,
+        image: item.image || "",
+        link: item.link,
+      });
+    }
+
+    if (watchSet.size) {
+      const apiId = String(item.productId).trim();
+      const matchedCode = watchSet.has(apiId) ? apiId : (linkId && watchSet.has(linkId) ? linkId : "");
+      if (matchedCode) {
+        watchedRows.push({ productId: matchedCode, rank: counted, price: Number(item.lprice) || 0, mallName: item.mallName });
+      }
+    }
+  }
+
+  let volume: { pc: number; mobile: number; total: number } | null = null;
+  try {
+    const volRes = await adStatsPromise;
+    if (volRes.ok && volRes.main) {
+      volume = { pc: volRes.main.pc, mobile: volRes.main.mobile, total: volRes.main.total };
+      await saveMonthlyVolume(keyword, volRes.main.pc, volRes.main.mobile);
+    }
+  } catch (_) { /* 검색량 조회 실패는 무시 — 순위 수집은 계속 진행 */ }
+
+  return { foundRows, watchedRows, volume };
+}
+
+async function collectStoreKeywords(storeName: string) {
+  const clientId = Deno.env.get("NAVER_CLIENT_ID");
+  const clientSecret = Deno.env.get("NAVER_CLIENT_SECRET");
+  if (!clientId || !clientSecret) throw new Error("NAVER_CLIENT_ID / NAVER_CLIENT_SECRET 필요");
+  if (!storeName) throw new Error("storeName 필요");
+
+  const baseList = flattenTree(STORE_KEYWORD_TREES[storeName] || KW_TREE_DEFAULT);
+  const customRows: Array<Record<string, unknown>> = await supabaseRequest(
+    `/rest/v1/${CUSTOM_KEYWORDS_TABLE}?select=keyword,main_keyword,is_sub`,
+  ) || [];
+  const customList = customRows.map((r) => ({
+    keyword: String(r.keyword),
+    isSub: !!r.is_sub,
+    mainKeyword: String(r.main_keyword || r.keyword),
+  }));
+
+  const seen = new Set<string>();
+  const list = [...baseList, ...customList].filter((k) => {
+    if (seen.has(k.keyword)) return false;
+    seen.add(k.keyword);
+    return true;
+  });
+
+  const watchItems: Array<Record<string, unknown>> = await supabaseRequest(
+    `/rest/v1/tracked_items?select=product_code`,
+  ) || [];
+  const watchSet = new Set(watchItems.map((i) => String(i.product_code)));
+
+  const kst = new Date(Date.now() + 9 * 3600 * 1000);
+  const collectedDate = kst.toISOString().slice(0, 10);
+  const deadline = Date.now() + 100_000; // Edge Function 실행시간 한도 대비 100초 예산 (collectTrackedItems와 동일)
+  let keywordsDone = 0;
+  let rowsSaved = 0;
+
+  for (const { keyword, mainKeyword, isSub } of list) {
+    if (Date.now() > deadline) break; // 남은 키워드는 다음 실행에서 (하루 1회라 이월돼도 무방)
+    try {
+      const { foundRows, watchedRows, volume } = await scanKeywordForStore(keyword, storeName, watchSet, clientId, clientSecret);
+
+      const uniqueRows: Array<Record<string, unknown>> = [];
+      const seenCodes = new Set<string>();
+      foundRows.forEach((r) => {
+        const code = String(r.productId || "").trim();
+        if (!code || seenCodes.has(code)) return;
+        seenCodes.add(code);
+        uniqueRows.push(r);
+      });
+
+      const volumeFields = volume
+        ? { search_volume_pc: volume.pc, search_volume_mobile: volume.mobile, search_volume_total: volume.total }
+        : {};
+
+      const payload = uniqueRows.length
+        ? uniqueRows.map((r) => ({
+          store_name: storeName, keyword, main_keyword: mainKeyword, is_sub: isSub,
+          rank: r.rank, max_rank: 1000,
+          product_code: r.productId || "", product_name: r.title || "",
+          product_image: r.image || "", product_link: r.link || "",
+          product_price: Number(r.price) || 0,
+          collected_date: collectedDate,
+          ...volumeFields,
+        }))
+        : [{
+          store_name: storeName, keyword, main_keyword: mainKeyword, is_sub: isSub,
+          rank: null, max_rank: 1000,
+          product_code: "", product_name: "", product_image: "", product_link: "", product_price: 0,
+          collected_date: collectedDate,
+          ...volumeFields,
+        }];
+
+      await supabaseRequest(`/rest/v1/keyword_rank_history?on_conflict=store_name,keyword,product_code,collected_date`, {
+        method: "POST",
+        headers: { "Prefer": "resolution=merge-duplicates,return=minimal" },
+        body: JSON.stringify(payload),
+      });
+      rowsSaved += payload.length;
+
+      if (watchedRows.length) {
+        const rows = watchedRows.map((w) => ({
+          product_code: String(w.productId), keyword,
+          rank: w.rank, price: Number(w.price) || 0, mall_name: w.mallName || "",
+          collected_date: collectedDate, checked_at: new Date().toISOString(),
+        }));
+        await supabaseRequest(`/rest/v1/tracked_item_history?on_conflict=product_code,keyword,collected_date`, {
+          method: "POST",
+          headers: { "Prefer": "resolution=merge-duplicates,return=minimal" },
+          body: JSON.stringify(rows),
+        });
+      }
+      keywordsDone++;
+    } catch (_) { /* 개별 키워드 실패는 건너뛰고 계속 */ }
+  }
+
+  return { ok: true, storeName, collectedDate, keywords: list.length, keywordsDone, rowsSaved };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -409,6 +613,11 @@ Deno.serve(async (req) => {
     /* cron 일괄 수집: 추적 아이템 전체의 순위·가격 스냅샷 (pg_cron이 매일 호출) */
     if (body.action === "collectTracked") {
       return json(await collectTrackedItems());
+    }
+
+    /* cron 키워드 일괄 수집: naver-rank.html "키워드 일괄 수집"의 서버 버전 (pg_cron이 스토어별로 호출) */
+    if (body.action === "collectStoreKeywords") {
+      return json(await collectStoreKeywords(String(body.storeName || "")));
     }
 
     const clientId = Deno.env.get("NAVER_CLIENT_ID");

@@ -12,7 +12,9 @@ const COUPANG_ITEM_TABLE = "coupang_item_snapshot";
 const COUPANG_PRODUCT_MAP_TABLE = "coupang_product_map";
 const NAVER_PRODUCT_TABLE = "naver_product_daily";
 const NAVER_VISIT_TABLE = "naver_visit_daily";
+const NAVER_SEARCH_TABLE = "naver_search_daily";
 const NAVER_CUSTOMER_TABLE = "naver_customer_snapshot";
+const NAVER_CUSTOMER_INTEREST_TABLE = "naver_customer_interest_monthly";
 
 type JsonMap = Record<string, unknown>;
 type QueryValue = string | string[];
@@ -931,10 +933,42 @@ async function naverVisitUpload(body: JsonMap) {
   return { saved: rows.length, dayCount: dates.length, dateFrom: sorted[0], dateTo: sorted[sorted.length - 1] };
 }
 
-// 고객 파일(행마다 기간이 들어있는 월별 스냅샷 × 고객분류)
+// 검색분석 파일(일별 × 검색어, "전체" 행 포함)
+async function naverSearchUpload(body: JsonMap) {
+  const rawRows = Array.isArray(body.rows) ? body.rows as JsonMap[] : [];
+  if (!rawRows.length) throw new Error("업로드할 행이 없습니다.");
+  const byKey = new Map<string, JsonMap>();
+  rawRows.forEach(row => {
+    const reportDate = normalizeDate(row.date);
+    if (!reportDate) return;
+    const term = String(row.term || "전체");
+    byKey.set(`${reportDate}|${term}`, {
+      report_date: reportDate,
+      term,
+      visits: toNumber(row.visits),
+      pay_count: toNumber(row.payCount),
+      conversion: toNumber(row.conversion),
+      sales_total: toNumber(row.salesTotal),
+      avg_order: toNumber(row.avgOrder),
+      fetched_at: new Date().toISOString(),
+    });
+  });
+  const rows = [...byKey.values()];
+  if (!rows.length) throw new Error("날짜를 인식할 수 있는 행이 없습니다.");
+  const dates = [...new Set(rows.map(row => String(row.report_date)))];
+  await deleteDateRange(NAVER_SEARCH_TABLE, dates);
+  await insertRowsChunked(NAVER_SEARCH_TABLE, rows);
+  const sorted = dates.sort();
+  return { saved: rows.length, dayCount: dates.length, dateFrom: sorted[0], dateTo: sorted[sorted.length - 1] };
+}
+
+// 고객 파일(행마다 기간이 들어있는 월별 스냅샷 × 고객분류). dimension으로 축을 구분한다
+// ("ltv" = 신규/재구매, "gender_age" = 성별+연령대) — 같은 기간이라도 축이 다르면 서로
+// 덮어쓰지 않도록 삭제 범위도 dimension까지 포함해서 제한한다.
 async function naverCustomerUpload(body: JsonMap) {
   const rawRows = Array.isArray(body.rows) ? body.rows as JsonMap[] : [];
   if (!rawRows.length) throw new Error("업로드할 행이 없습니다.");
+  const dimension = String(body.dimension || "ltv").trim() || "ltv";
   const byKey = new Map<string, JsonMap>();
   rawRows.forEach(row => {
     const periodFrom = normalizeDate(row.periodFrom);
@@ -945,6 +979,7 @@ async function naverCustomerUpload(body: JsonMap) {
       period_from: periodFrom,
       period_to: periodTo,
       segment,
+      dimension,
       visitor_count: toNumber(row.visitors),
       payer_count: toNumber(row.payers),
       conversion: toNumber(row.conversion),
@@ -958,10 +993,42 @@ async function naverCustomerUpload(body: JsonMap) {
   const periods = [...new Set(rows.map(row => `${row.period_from}|${row.period_to}`))];
   for (const period of periods) {
     const [from, to] = period.split("|");
-    await supabaseRequest(`/rest/v1/${NAVER_CUSTOMER_TABLE}?period_from=eq.${from}&period_to=eq.${to}`, { method: "DELETE" });
+    await supabaseRequest(`/rest/v1/${NAVER_CUSTOMER_TABLE}?period_from=eq.${from}&period_to=eq.${to}&dimension=eq.${dimension}`, { method: "DELETE" });
   }
   await insertRowsChunked(NAVER_CUSTOMER_TABLE, rows);
   return { saved: rows.length, periodCount: periods.length };
+}
+
+// 고객현황 파일("통계_고객현황_YYYYMM_YYYYMM.csv") — 관심고객수/알림고객수 월별 스냅샷.
+// 한 행 = 한 달이고, 같은 달을 다시 올리면 그 달만 교체한다.
+async function naverCustomerInterestUpload(body: JsonMap) {
+  const rawRows = Array.isArray(body.rows) ? body.rows as JsonMap[] : [];
+  if (!rawRows.length) throw new Error("업로드할 행이 없습니다.");
+  const byKey = new Map<string, JsonMap>();
+  rawRows.forEach(row => {
+    const periodFrom = normalizeDate(row.periodFrom);
+    const periodTo = normalizeDate(row.periodTo);
+    if (!periodFrom || !periodTo) return;
+    byKey.set(`${periodFrom}|${periodTo}`, {
+      period_from: periodFrom,
+      period_to: periodTo,
+      interest_new: toNumber(row.interestNew),
+      interest_total: toNumber(row.interestTotal),
+      notify_new: toNumber(row.notifyNew),
+      notify_total: toNumber(row.notifyTotal),
+      fetched_at: new Date().toISOString(),
+    });
+  });
+  const rows = [...byKey.values()];
+  if (!rows.length) throw new Error("기간을 인식할 수 있는 행이 없습니다.");
+  for (const row of rows) {
+    await supabaseRequest(
+      `/rest/v1/${NAVER_CUSTOMER_INTEREST_TABLE}?period_from=eq.${row.period_from}&period_to=eq.${row.period_to}`,
+      { method: "DELETE" },
+    );
+  }
+  await insertRowsChunked(NAVER_CUSTOMER_INTEREST_TABLE, rows);
+  return { saved: rows.length };
 }
 
 // 조회: 일별 합계("전체" 행) + 상품별 집계 + 유입경로 집계 + 고객 스냅샷을 한 번에 반환
@@ -978,6 +1045,31 @@ async function naverStatMonths(body: JsonMap) {
     if (d) months.add(d.slice(0, 7));
   });
   return { months: [...months] };
+}
+
+// 매출 추이 차트의 6개월/1년 확장 조회 전용 — naverStatSummary처럼 상품별·유입경로별·검색어·고객
+// 스냅샷까지 다 집계하면 넓은 기간(6~12개월)에서 너무 느려지므로, "전체"(일별 합계) 행만
+// select 컬럼도 최소로 좁혀서 가져온다.
+async function naverDailyOnly(body: JsonMap) {
+  const { dateFrom, dateTo } = dateRange(body);
+  const query = new URLSearchParams({
+    select: "report_date,visits,pay_count,sales_total,sales_net,refund_amount,qty",
+    report_date: `gte.${dateFrom}`,
+    or: "(product_id.eq.전체,product_name.eq.전체)",
+    order: "report_date.asc",
+  });
+  query.append("report_date", `lte.${dateTo}`);
+  const rows = await supabaseSelectAll(`/rest/v1/${NAVER_PRODUCT_TABLE}?${query.toString()}`);
+  const daily = rows.map(row => ({
+    date: normalizeDate(row.report_date) || String(row.report_date || ""),
+    visits: toNumber(row.visits),
+    payCount: toNumber(row.pay_count),
+    salesTotal: toNumber(row.sales_total),
+    salesNet: toNumber(row.sales_net),
+    refundAmount: toNumber(row.refund_amount),
+    qty: toNumber(row.qty),
+  }));
+  return { dateFrom, dateTo, daily };
 }
 
 async function naverStatSummary(body: JsonMap) {
@@ -1050,6 +1142,25 @@ async function naverStatSummary(body: JsonMap) {
     return item;
   }).sort((a, b) => toNumber(b.visits) - toNumber(a.visits));
 
+  const q3 = new URLSearchParams({ select: "*", report_date: `gte.${dateFrom}`, order: "report_date.asc" });
+  q3.append("report_date", `lte.${dateTo}`);
+  const searchRows = await supabaseSelectAll(`/rest/v1/${NAVER_SEARCH_TABLE}?${q3.toString()}`);
+  const byTerm = new Map<string, JsonMap>();
+  searchRows.forEach(row => {
+    const term = String(row.term || "전체");
+    if (term === "전체") return;
+    if (!byTerm.has(term)) byTerm.set(term, { term, days: 0, visits: 0, payCount: 0, conversion: 0, salesTotal: 0 });
+    const acc = byTerm.get(term)!;
+    acc.days = toNumber(acc.days) + 1;
+    acc.visits = toNumber(acc.visits) + toNumber(row.visits);
+    acc.payCount = toNumber(acc.payCount) + toNumber(row.pay_count);
+    acc.salesTotal = toNumber(acc.salesTotal) + toNumber(row.sales_total);
+  });
+  const searchTerms = [...byTerm.values()].map(item => {
+    item.conversion = toNumber(item.visits) ? (toNumber(item.payCount) / toNumber(item.visits)) * 100 : 0;
+    return item;
+  }).sort((a, b) => toNumber(b.visits) - toNumber(a.visits));
+
   const custRows = await supabaseSelectAll(`/rest/v1/${NAVER_CUSTOMER_TABLE}?select=*&order=period_to.desc,period_from.desc`);
   const seen = new Set<string>();
   const customerPeriods: { from: string; to: string }[] = [];
@@ -1067,22 +1178,54 @@ async function naverStatSummary(body: JsonMap) {
     const exact = customerPeriods.find(p => p.from === dateFrom && p.to === dateTo);
     customerPeriod = exact ? `${exact.from}|${exact.to}` : (customerPeriods.length ? `${customerPeriods[0].from}|${customerPeriods[0].to}` : "");
   }
-  const segmentOrder: Record<string, number> = { "전체합산": 0, "신규": 1, "재구매": 2 };
-  const customer = customerPeriod
-    ? custRows
-      .filter(row => `${normalizeDate(row.period_from)}|${normalizeDate(row.period_to)}` === customerPeriod)
-      .map(row => ({
-        segment: String(row.segment || ""),
-        visitors: toNumber(row.visitor_count),
-        payers: toNumber(row.payer_count),
-        conversion: toNumber(row.conversion),
-        salesTotal: toNumber(row.sales_total),
-        avgPayment: toNumber(row.avg_payment),
-      }))
-      .sort((a, b) => (segmentOrder[a.segment] ?? 9) - (segmentOrder[b.segment] ?? 9))
+  const customerRowsForPeriod = customerPeriod
+    ? custRows.filter(row => `${normalizeDate(row.period_from)}|${normalizeDate(row.period_to)}` === customerPeriod)
     : [];
+  const mapCustomerRow = (row: JsonMap) => ({
+    segment: String(row.segment || ""),
+    visitors: toNumber(row.visitor_count),
+    payers: toNumber(row.payer_count),
+    conversion: toNumber(row.conversion),
+    salesTotal: toNumber(row.sales_total),
+    avgPayment: toNumber(row.avg_payment),
+  });
+  const segmentOrder: Record<string, number> = { "전체합산": 0, "신규": 1, "재구매": 2 };
+  const customer = customerRowsForPeriod
+    .filter(row => String(row.dimension || "ltv") === "ltv")
+    .map(mapCustomerRow)
+    .sort((a, b) => (segmentOrder[a.segment] ?? 9) - (segmentOrder[b.segment] ?? 9));
+  // 성별+연령대 축("남성 20대" 등) — 전체합산 → 남성(어림→고령) → 여성(어림→고령) → 알수없음 순.
+  const genderAgeOrder: Record<string, number> = {
+    "전체합산": 0,
+    "남성 10대 이하": 1, "남성 20대": 2, "남성 30대": 3, "남성 40대": 4, "남성 50대": 5, "남성 60대 이상": 6,
+    "여성 10대 이하": 7, "여성 20대": 8, "여성 30대": 9, "여성 40대": 10, "여성 50대": 11, "여성 60대 이상": 12,
+    "알수없음": 13,
+  };
+  const customerGenderAge = customerRowsForPeriod
+    .filter(row => String(row.dimension || "ltv") === "gender_age")
+    .map(mapCustomerRow)
+    .sort((a, b) => (genderAgeOrder[a.segment] ?? 99) - (genderAgeOrder[b.segment] ?? 99));
 
-  return { dateFrom, dateTo, daily, products, visitPaths, customerPeriods, customerPeriod, customer };
+  // 고객현황 리포트(관심고객수/알림고객수) — 신규/재구매·성/연령별과 별도 테이블이라 같은
+  // customerPeriod로 한 번 더 조회한다. 그 달 데이터가 없으면 null.
+  let customerInterest: JsonMap | null = null;
+  if (customerPeriod) {
+    const [cFrom, cTo] = customerPeriod.split("|");
+    const interestRows = await supabaseSelectAll(
+      `/rest/v1/${NAVER_CUSTOMER_INTEREST_TABLE}?select=*&period_from=eq.${cFrom}&period_to=eq.${cTo}`,
+    );
+    if (interestRows.length) {
+      const row = interestRows[0];
+      customerInterest = {
+        interestNew: toNumber(row.interest_new),
+        interestTotal: toNumber(row.interest_total),
+        notifyNew: toNumber(row.notify_new),
+        notifyTotal: toNumber(row.notify_total),
+      };
+    }
+  }
+
+  return { dateFrom, dateTo, daily, products, visitPaths, searchTerms, customerPeriods, customerPeriod, customer, customerGenderAge, customerInterest };
 }
 
 // 조회 액션: 네이버 API를 전혀 호출하지 않고 캐시 테이블만 읽는다. 수집은 collect 액션으로 분리.
@@ -1146,9 +1289,12 @@ Deno.serve(async (req) => {
     if (action === "coupangProductMapAll") return json(await coupangProductMapAll());
     if (action === "naverProductUpload") return json(await naverProductUpload(body));
     if (action === "naverVisitUpload") return json(await naverVisitUpload(body));
+    if (action === "naverSearchUpload") return json(await naverSearchUpload(body));
     if (action === "naverCustomerUpload") return json(await naverCustomerUpload(body));
+    if (action === "naverCustomerInterestUpload") return json(await naverCustomerInterestUpload(body));
     if (action === "naverStatSummary") return json(await naverStatSummary(body));
     if (action === "naverStatMonths") return json(await naverStatMonths(body));
+    if (action === "naverDailyOnly") return json(await naverDailyOnly(body));
     if (action === "daily") return json(await dailySummary(body));
     if (action === "purchaseDebug") {
       const statDt = String(body.statDt || ymd(new Date(Date.now() + 9 * 3600 * 1000 - 86400000).toISOString().slice(0, 10))).replace(/\D/g, "").slice(0, 8);

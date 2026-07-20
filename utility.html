@@ -67,27 +67,24 @@
       padding-right: 0 !important;
     }
 
-    .utility-head {
-      display: flex;
-      align-items: baseline;
-      gap: 10px;
-      margin-bottom: 18px;
+    /* 랭킹추적·키워드분석·매출분석과 동일한 시작 헤드(.mode-title-tabs) 스타일.
+       유틸리티는 하위 탭이 없는 단일 페이지라 키워드분석과 같은 방식(탭 1개, 항상 active)으로 쓴다. */
+    .main-content > header { display: flex; align-items: flex-end; gap: 0; margin-bottom: 30px; }
+    .mode-title-tabs { display: inline-flex; align-items: center; gap: 28px; }
+    .mode-title-tab {
+      position: relative; height: 34px; padding: 0 0 8px; border: 0; background: transparent;
+      color: #07111f; font-family: inherit; font-size: 21px; font-weight: 900; cursor: default;
     }
-
-    .utility-head h1 {
-      font-size: 20px;
-      font-weight: 800;
-      letter-spacing: -0.02em;
-      margin: 0;
+    .mode-title-text { display: inline-flex; align-items: center; gap: 12px; }
+    .mode-label { position: relative; display: inline-flex; align-items: center; }
+    .mode-title-tab.active .mode-label::after {
+      content: ""; position: absolute; left: 0; right: 0; bottom: -10px; height: 3px;
+      background: var(--accent); border-radius: 999px;
     }
-
-    .utility-tag {
-      font-size: 12px;
-      font-weight: 700;
-      color: var(--dark);
-      background: var(--dark-tint);
-      padding: 2px 8px;
-      border-radius: 20px;
+    .mode-help {
+      width: 18px; height: 18px; border: 1px solid #cfd5df; border-radius: 50%;
+      background: #f4f6f9; color: #8a93a5; font-size: 12px; font-weight: 900;
+      display: inline-flex; align-items: center; justify-content: center; line-height: 1;
     }
 
     .utility-grid {
@@ -108,13 +105,12 @@
       background: var(--card);
       text-decoration: none;
       color: inherit;
-      transition: border-color .14s, box-shadow .14s, transform .14s;
+      transition: border-color .14s, box-shadow .14s;
     }
 
     .utility-card:hover {
       border-color: rgba(232, 93, 47, .42);
       box-shadow: 0 10px 24px rgba(26, 31, 46, .08);
-      transform: translateY(-2px);
     }
 
     .utility-card small {
@@ -156,7 +152,7 @@
         padding-left: 0;
         padding-right: 0;
       }
-      .utility-head { padding-top: 0; }
+      .main-content > header { padding-top: 0; }
       .utility-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
       .utility-card { min-height: 118px; padding: 14px; }
       .utility-card strong { font-size: 14px; }
@@ -186,10 +182,16 @@
   </header>
 
   <main class="main-content">
-    <section class="utility-head">
-      <h1>유틸리티</h1>
-      <span class="utility-tag">계산기 도구</span>
-    </section>
+    <header>
+      <div class="mode-title-tabs">
+        <button type="button" class="mode-title-tab active">
+          <span class="mode-title-text">
+            <span class="mode-label">유틸리티</span>
+            <span class="mode-help" title="단열/보온, 목공/보드, 마감/인테리어 등 실무에 필요한 계산기 도구를 모아뒀습니다.">?</span>
+          </span>
+        </button>
+      </div>
+    </header>
 
     <section class="utility-grid" aria-label="계산기 목록">
       <a class="utility-card" href="calc/insulation-board.html"><small>단열/보온</small><strong>판상형 단열재 수량 계산기</strong><span class="utility-arrow">→</span></a>

@@ -53,7 +53,7 @@
   }
   .category-tab {
     height: 42px;
-    border: 1px solid var(--line);
+    border: 1.5px solid var(--line);
     border-radius: var(--radius);
     background: #fff;
     color: var(--sub);
@@ -61,10 +61,16 @@
     font-size: 13px;
     font-weight: 800;
     cursor: pointer;
-    transition: all .12s;
+    box-shadow: 0 2px 6px rgba(5, 7, 11, .04);
+    transition: all .15s;
   }
-  .category-tab:hover { border-color: #d7dde7; color: var(--ink); background: #fafbfc; }
-  .category-tab.active { background: var(--ink); border-color: var(--ink); color: #fff; }
+  /* 호버는 사이트 전반에서 쓰는 따뜻한 오렌지 틴트와 같은 톤 (sales-analysis.html .sec-nav-btn과 통일) */
+  .category-tab:hover { border-color: #f0b79d; color: var(--ink); background: #fffaf7; }
+  /* 활성 탭은 검정 대신 브랜드 액센트(오렌지)로 채우고, 그 색으로 은은한 글로우 그림자를 준다 */
+  .category-tab.active {
+    background: var(--accent); border-color: var(--accent); color: #fff;
+    box-shadow: 0 10px 24px rgba(232, 93, 47, .28);
+  }
   .category-tab-count { margin-left: 4px; font-size: 11px; font-weight: 700; opacity: .72; }
   /* 카테고리 안에서 재질별로 한 번 더 나누는 하위탭 — 메인 탭보다 한 톤 가벼운 알약형으로 */
   .subcategory-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 18px; }
@@ -157,37 +163,52 @@
   .dash-legend-item { display: inline-flex; align-items: center; gap: 5px; }
   .dash-legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
   .dash-legend-item b { color: var(--ink); font-weight: 800; }
-  .dash-movers { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
-  /* 제목 열을 고정 폭 그리드로 분리 — 칩이 줄바꿈돼도 항상 첫 칩 아래로 정렬된다 */
-  .dash-mover-row { display: grid; grid-template-columns: 68px 1fr; align-items: start; gap: 8px; }
-  .dash-mover-title { font-size: 11px; font-weight: 800; color: #8a93a5; padding-top: 6px; white-space: nowrap; }
-  .dash-mover-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-  /* 상품 칩은 균일한 폭의 카드 그리드 — 행이 넘어가도 열이 맞는다 */
-  .dash-mover-chips.products { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); }
-  .dash-mover-chip {
-    display: inline-flex; align-items: center; gap: 6px; min-width: 0;
-    padding: 3px 10px; border: 1px solid var(--line); border-radius: 20px;
-    background: #fafbfc; font-size: 12px; font-weight: 700; color: var(--ink);
-    text-decoration: none; transition: border-color .12s, background .12s;
-  }
-  .dash-mover-chip:hover { border-color: #f0b79d; background: #fffaf7; }
-  .dash-mover-chips.products .dash-mover-chip { border-radius: var(--radius); padding: 5px 10px; }
-  /* 이탈 칩은 담을 정보(순위+날짜+안내문구)가 길어서 한 줄에 다 못 넣는다 — 위/아래 두 줄로 나눈다 */
-  .dash-mover-chip.dropout { flex-direction: column; align-items: stretch; gap: 4px; }
-  .dropout-chip-top { display: flex; align-items: center; gap: 6px; min-width: 0; }
-  .dropout-chip-bottom { display: flex; align-items: center; gap: 6px; padding-left: 24px; }
-  .dash-mover-delta { font-family: var(--font-mono); font-size: 11px; font-weight: 700; }
-  .dash-mover-delta.up { color: #16a34a; }
-  .dash-mover-delta.down { color: var(--danger); }
-  .dash-mover-rank { font-size: 11px; color: var(--sub); font-family: var(--font-mono); white-space: nowrap; }
   .chip-thumb { width: 18px; height: 18px; border-radius: 3px; object-fit: cover; flex-shrink: 0; }
-  /* 상품명이 남는 공간을 차지하고, 키워드·순위는 오른쪽 끝에 고정 */
-  .chip-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
-  .chip-keyword { font-size: 11px; color: var(--sub); white-space: nowrap; }
   @media (max-width: 900px) {
     .rank-dash-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .dash-tile:nth-child(4) { border-left: none; padding-left: 2px; }
   }
+
+  /* ── 순위 변동/이탈 카드 — sales-analysis.html 매출분석 요약분석의 카드 스타일을 옮겨와,
+     타일+분포 박스(.rank-dash) 안에서 상승/하락/급상승/급하락/이탈 상품을 구분선으로 나눈
+     구역별로 보여준다. 상승탑·하락탑처럼 나란히 두는 항목은 작은 카드(.summary-top3-card)로. */
+  .summary-divider { height: 1px; background: var(--line); }
+  .summary-top3-row-wrap { display: flex; gap: 14px; flex-wrap: wrap; }
+  .summary-top3-card { flex: 1 1 260px; min-width: 240px; border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; }
+  .summary-top3-title { font-size: 12px; font-weight: 800; color: var(--sub); margin-bottom: 12px; }
+  .summary-top3-card .empty { margin-top: 0; }
+  .summary-top3-rank {
+    flex: 0 0 auto; width: 20px; height: 20px; border-radius: 50%; background: var(--dark-tint);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-family: var(--font-mono); font-size: 11px; font-weight: 800; color: var(--sub);
+  }
+  .summary-top3-name {
+    flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-size: 13px; font-weight: 700; color: inherit; text-decoration: none;
+  }
+  a.summary-top3-name:hover { color: var(--accent); text-decoration: underline; }
+  .summary-mover-row { padding: 9px 0; border-bottom: 1px solid #f4f5f7; }
+  .summary-mover-row:last-child { border-bottom: none; }
+  .summary-mover-row-main { display: flex; align-items: center; gap: 8px; }
+  .summary-mover-row-detail { margin-top: 4px; padding-left: 28px; font-size: 11.5px; color: var(--sub); font-family: var(--font-mono); }
+  .summary-mover-delta { flex: 0 0 auto; margin-left: auto; font-family: var(--font-mono); font-size: 12px; font-weight: 800; white-space: nowrap; }
+  .summary-mover-delta.up { color: #16a34a; }
+  .summary-mover-delta.down { color: var(--danger); }
+  /* 이탈 상품 한 행에 여러 개 빠진 키워드가 달릴 수 있어, 상세 줄을 칩 여러 개가 줄바꿈되는
+     형태로 바꾼다(다른 무버 행의 한 줄짜리 상세와 다름). */
+  .summary-mover-row-detail.dropout-keywords { display: flex; flex-wrap: wrap; gap: 6px; font-family: inherit; }
+  .dropout-keyword-chip {
+    display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 20px;
+    background: #fdecec; color: var(--danger); font-size: 11px; font-weight: 700; white-space: nowrap;
+  }
+  .dropout-keyword-rank { font-family: var(--font-mono); font-weight: 700; color: var(--sub); }
+  /* 3위까지만 보이던 걸 눌러서 더 펼치는 버튼 — sales-analysis.html 요약분석의 "순위 더보기 +"와 동일 */
+  .summary-top3-more {
+    display: flex; align-items: center; justify-content: center; gap: 4px; width: 100%;
+    margin-top: 10px; padding: 10px 0 0; border: 0; border-top: 1px solid #f4f5f7; background: transparent;
+    color: var(--sub); font-family: inherit; font-size: 12px; font-weight: 800; cursor: pointer;
+  }
+  .summary-top3-more:hover { color: var(--accent); }
 
   .product-table {
     display: flex;
@@ -1031,6 +1052,8 @@ function loadCustomStores() {
 let selectedStore = BUILTIN_STORES[0];
 let activeCategory = TRACKER_CATEGORIES[0];
 let cachedProducts = [];
+let cachedSectionByName = new Map(); // renderProducts()가 만든 카테고리별 section — 요약 대시보드만
+// 부분 갱신할 때(updateCategoryDashboard) buildCategorySections를 다시 돌리지 않고 재사용한다.
 let cachedDropped = [];
 let memoTargetCode = "";
 const expandedCategories = new Set();
@@ -1762,8 +1785,8 @@ function buildDashStats(section) {
     down: list.filter(({ k }) => k.delta != null && k.delta < 0).length,
     volumeTotal: uniqueKeywords.reduce((sum, k) => sum + (k.search_volume_total != null ? Number(k.search_volume_total) : 0), 0),
     hasVolume: uniqueKeywords.some(k => k.search_volume_total != null),
-    upMovers: allKeywords.filter(k => moveScore(k) > 0).sort((a, b) => moveScore(b) - moveScore(a)).slice(0, 3),
-    downMovers: allKeywords.filter(k => moveScore(k) < 0).sort((a, b) => moveScore(a) - moveScore(b)).slice(0, 3),
+    upMovers: allKeywords.filter(k => moveScore(k) > 0).sort((a, b) => moveScore(b) - moveScore(a)).slice(0, MOVER_EXPANDED_LIMIT),
+    downMovers: allKeywords.filter(k => moveScore(k) < 0).sort((a, b) => moveScore(a) - moveScore(b)).slice(0, MOVER_EXPANDED_LIMIT),
   };
   return stats;
 }
@@ -1802,49 +1825,100 @@ function buildNotableProducts(section) {
     return { product, best, worst };
   });
   return {
-    rising: moves.filter(m => m.best).sort((a, b) => b.best.score - a.best.score).slice(0, 3),
-    falling: moves.filter(m => m.worst).sort((a, b) => a.worst.score - b.worst.score).slice(0, 3),
+    rising: moves.filter(m => m.best).sort((a, b) => b.best.score - a.best.score).slice(0, MOVER_EXPANDED_LIMIT),
+    falling: moves.filter(m => m.worst).sort((a, b) => a.worst.score - b.worst.score).slice(0, MOVER_EXPANDED_LIMIT),
   };
 }
 
-function dashProductChip(product, k) {
-  const up = k.delta > 0;
+// 매출분석 요약분석의 "순위 더보기"와 같은 방식 — 기본 3개만 보여주고, 눌러야 더 펼쳐진다.
+const moverExpandedCards = new Set();
+const MOVER_EXPANDED_LIMIT = 10;
+function moverMoreBtnHtml(key, totalCount, threshold = 3) {
+  if (totalCount <= threshold) return "";
+  const expanded = moverExpandedCards.has(key);
+  return `<button type="button" class="summary-top3-more" data-action="toggle-mover-expand" data-mover-key="${esc(key)}">${expanded ? "간략히 보기" : "순위 더보기"} <span>${expanded ? "−" : "+"}</span></button>`;
+}
+
+// 매출분석 요약분석의 "전기간·전년 비교" 미니 카드(순위 배지 + 이름 + 증감 → 그 아래 상세 한 줄)와
+// 똑같은 행 디자인. 칩(pill) 대신 리스트형 줄로 바꿔서 이름·키워드·순위 변동을 한눈에 읽기 쉽게 한다.
+function summaryMoverDeltaHtml(delta) {
+  const up = delta > 0;
+  return `<span class="summary-mover-delta ${up ? "up" : "down"}">${up ? "▲" : "▼"}${Math.abs(delta)}</span>`;
+}
+
+function moverKeywordRowHtml(k, rank) {
   const prevRank = k.rank + k.delta;
-  const thumb = product.image ? `<img class="chip-thumb" src="${esc(product.image)}" loading="lazy" alt="">` : "";
+  return `<div class="summary-mover-row">
+    <div class="summary-mover-row-main">
+      <span class="summary-top3-rank">${rank}</span>
+      <a class="summary-top3-name" href="${esc(keywordUrl(k.keyword))}" title="${esc(k.keyword)}">${esc(k.keyword)}</a>
+      ${summaryMoverDeltaHtml(k.delta)}
+    </div>
+    <div class="summary-mover-row-detail">${prevRank}위 → ${k.rank}위</div>
+  </div>`;
+}
+
+function moverProductRowHtml(product, k, rank) {
+  const prevRank = k.rank + k.delta;
   const url = productUrl(product);
-  const inner = `${thumb}<span class="chip-name" title="${esc(product.name)}">${esc(product.name)}</span>
-    <span class="chip-keyword">${esc(k.keyword)}</span>
-    <span class="dash-mover-delta ${up ? "up" : "down"}">${up ? "▲" : "▼"}</span>
-    <span class="dash-mover-rank">${prevRank}위 → ${k.rank}위</span>`;
-  return url
-    ? `<a class="dash-mover-chip" href="${esc(url)}" target="_blank" rel="noopener">${inner}</a>`
-    : `<span class="dash-mover-chip">${inner}</span>`;
+  const thumb = product.image ? `<img class="chip-thumb" src="${esc(product.image)}" loading="lazy" alt="">` : "";
+  const nameHtml = url
+    ? `<a class="summary-top3-name" href="${esc(url)}" target="_blank" rel="noopener" title="${esc(product.name)}">${esc(product.name)}</a>`
+    : `<span class="summary-top3-name" title="${esc(product.name)}">${esc(product.name)}</span>`;
+  return `<div class="summary-mover-row">
+    <div class="summary-mover-row-main">
+      <span class="summary-top3-rank">${rank}</span>
+      ${thumb}
+      ${nameHtml}
+      ${summaryMoverDeltaHtml(k.delta)}
+    </div>
+    <div class="summary-mover-row-detail">${esc(k.keyword)} · ${prevRank}위 → ${k.rank}위</div>
+  </div>`;
 }
 
-function dashMoverChip(k) {
-  const cls = k.delta > 0 ? "up" : "down";
-  const arrow = k.delta > 0 ? "▲" : "▼";
-  return `<a class="dash-mover-chip" href="${esc(keywordUrl(k.keyword))}">
-    ${esc(k.keyword)}
-    <span class="dash-mover-delta ${cls}">${arrow}${Math.abs(k.delta)}</span>
-    <span class="dash-mover-rank">${k.rank}위</span>
-  </a>`;
+// 이탈은 (상품, 키워드) 조합 단위라 키워드별로 나열하면 같은 상품이 여러 번 겹쳐 나온다 —
+// 상품 코드로 묶어서 "이 상품에서 어떤 키워드들이 빠졌는지"를 한 행에 모아 보여준다.
+function groupDroppedByProduct(dropped) {
+  const byCode = new Map();
+  dropped.forEach(entry => {
+    if (!byCode.has(entry.code)) {
+      byCode.set(entry.code, { code: entry.code, name: entry.name, image: entry.image, link: entry.link, keywords: [] });
+    }
+    byCode.get(entry.code).keywords.push(entry);
+  });
+  return [...byCode.values()]
+    .map(product => {
+      product.keywords.sort((a, b) => rankSortValue(a.prevRank) - rankSortValue(b.prevRank));
+      return product;
+    })
+    .sort((a, b) => rankSortValue(a.keywords[0].prevRank) - rankSortValue(b.keywords[0].prevRank));
 }
 
-function dashDropoutChip(entry) {
-  const thumb = entry.image ? `<img class="chip-thumb" src="${esc(entry.image)}" loading="lazy" alt="">` : "";
-  const dateLabel = esc(entry.prevDate.slice(5).replace("-", "/"));
-  const inner = `<span class="dropout-chip-top">
-      ${thumb}<span class="chip-name" title="${esc(entry.name)}">${esc(entry.name)}</span>
-      <span class="chip-keyword">${esc(entry.keyword)}</span>
-    </span>
-    <span class="dropout-chip-bottom">
-      <span class="dash-mover-delta down">이탈</span>
-      <span class="dash-mover-rank">최근 ${entry.prevRank}위 · ${dateLabel} 이후 미확인</span>
-    </span>`;
-  return entry.link
-    ? `<a class="dash-mover-chip dropout" href="${esc(entry.link)}" target="_blank" rel="noopener">${inner}</a>`
-    : `<span class="dash-mover-chip dropout">${inner}</span>`;
+function dropoutRowHtml(product, rank) {
+  const thumb = product.image ? `<img class="chip-thumb" src="${esc(product.image)}" loading="lazy" alt="">` : "";
+  const nameHtml = product.link
+    ? `<a class="summary-top3-name" href="${esc(product.link)}" target="_blank" rel="noopener" title="${esc(product.name)}">${esc(product.name)}</a>`
+    : `<span class="summary-top3-name" title="${esc(product.name)}">${esc(product.name)}</span>`;
+  const keywordChips = product.keywords.map(k => {
+    const dateLabel = esc(k.prevDate.slice(5).replace("-", "/"));
+    return `<span class="dropout-keyword-chip">${esc(k.keyword)} <span class="dropout-keyword-rank">최근 ${k.prevRank}위 · ${dateLabel} 이후</span></span>`;
+  }).join("");
+  return `<div class="summary-mover-row">
+    <div class="summary-mover-row-main">
+      <span class="summary-top3-rank">${rank}</span>
+      ${thumb}
+      ${nameHtml}
+      <span class="summary-mover-delta down">이탈 ${product.keywords.length}건</span>
+    </div>
+    <div class="summary-mover-row-detail dropout-keywords">${keywordChips}</div>
+  </div>`;
+}
+
+// 순위 변동 카드(상승/하락/급상승/급하락) 안에 들어가는 sales-analysis.html
+// .summary-top3-card와 같은 틀의 작은 하위 카드 — 행이 없으면 빈 상태 문구를 보여준다.
+function dashMoverSubCard(title, rowsHtml) {
+  const body = rowsHtml || `<div class="empty">데이터가 없습니다.</div>`;
+  return `<div class="summary-top3-card"><div class="summary-top3-title">${esc(title)}</div>${body}</div>`;
 }
 
 function renderCategoryDashboard(section) {
@@ -1870,17 +1944,33 @@ function renderCategoryDashboard(section) {
     </div>` : "";
 
   const notable = buildNotableProducts(section);
-  const dropped = cachedDropped
-    .filter(entry => resolveDropoutCategory(entry) === section.name)
-    .sort((a, b) => rankSortValue(a.prevRank) - rankSortValue(b.prevRank));
-  const moversHtml = (s.upMovers.length || s.downMovers.length || notable.rising.length || notable.falling.length || dropped.length) ? `
-    <div class="dash-movers">
-      ${s.upMovers.length ? `<div class="dash-mover-row"><span class="dash-mover-title">상승 TOP</span><div class="dash-mover-chips">${s.upMovers.map(dashMoverChip).join("")}</div></div>` : ""}
-      ${s.downMovers.length ? `<div class="dash-mover-row"><span class="dash-mover-title">하락 TOP</span><div class="dash-mover-chips">${s.downMovers.map(dashMoverChip).join("")}</div></div>` : ""}
-      ${notable.rising.length ? `<div class="dash-mover-row"><span class="dash-mover-title">급상승 상품</span><div class="dash-mover-chips products">${notable.rising.map(m => dashProductChip(m.product, m.best.k)).join("")}</div></div>` : ""}
-      ${notable.falling.length ? `<div class="dash-mover-row"><span class="dash-mover-title">급하락 상품</span><div class="dash-mover-chips products">${notable.falling.map(m => dashProductChip(m.product, m.worst.k)).join("")}</div></div>` : ""}
-      ${dropped.length ? `<div class="dash-mover-row"><span class="dash-mover-title">이탈 상품</span><div class="dash-mover-chips products">${dropped.map(dashDropoutChip).join("")}</div></div>` : ""}
-    </div>` : "";
+  const droppedProducts = groupDroppedByProduct(
+    cachedDropped.filter(entry => resolveDropoutCategory(entry) === section.name)
+  );
+
+  // 매출분석 "전기간·전년 비교"(4개 무버 카드가 한 줄에 나란히, summary-mover-grid)와 같은 배치 —
+  // 상승/하락/급상승/급하락 4개를 한 줄로 늘어놓고, 화면이 좁아지면 자동으로 2×2로 접힌다.
+  // 기본 3개만 보이고, 매출분석 요약분석의 "순위 더보기"처럼 눌러야 최대 MOVER_EXPANDED_LIMIT개까지 펼쳐진다.
+  const upKey = `mover-up-${section.name}`;
+  const downKey = `mover-down-${section.name}`;
+  const riseKey = `mover-rise-${section.name}`;
+  const fallKey = `mover-fall-${section.name}`;
+  const dropKey = `mover-drop-${section.name}`;
+  const sliceFor = (key, list) => list.slice(0, moverExpandedCards.has(key) ? MOVER_EXPANDED_LIMIT : 3);
+
+  const moverCards = [
+    s.upMovers.length ? dashMoverSubCard("키워드 순위 상승 TOP", sliceFor(upKey, s.upMovers).map((k, i) => moverKeywordRowHtml(k, i + 1)).join("") + moverMoreBtnHtml(upKey, s.upMovers.length)) : "",
+    s.downMovers.length ? dashMoverSubCard("키워드 순위 하락 TOP", sliceFor(downKey, s.downMovers).map((k, i) => moverKeywordRowHtml(k, i + 1)).join("") + moverMoreBtnHtml(downKey, s.downMovers.length)) : "",
+    notable.rising.length ? dashMoverSubCard("급상승 상품", sliceFor(riseKey, notable.rising).map((m, i) => moverProductRowHtml(m.product, m.best.k, i + 1)).join("") + moverMoreBtnHtml(riseKey, notable.rising.length)) : "",
+    notable.falling.length ? dashMoverSubCard("급하락 상품", sliceFor(fallKey, notable.falling).map((m, i) => moverProductRowHtml(m.product, m.worst.k, i + 1)).join("") + moverMoreBtnHtml(fallKey, notable.falling.length)) : "",
+  ].join("");
+  const moversHtml = moverCards ? `
+    <div class="summary-divider" style="margin:18px 0;"></div>
+    <div class="summary-top3-row-wrap summary-mover-grid">${moverCards}</div>` : "";
+
+  const dropoutHtml = droppedProducts.length ? `
+    <div class="summary-divider" style="margin:18px 0;"></div>
+    ${dashMoverSubCard("이탈 상품", sliceFor(dropKey, droppedProducts).map((p, i) => dropoutRowHtml(p, i + 1)).join("") + moverMoreBtnHtml(dropKey, droppedProducts.length))}` : "";
 
   return `<div class="rank-dash">
     <div class="rank-dash-tiles">
@@ -1893,7 +1983,18 @@ function renderCategoryDashboard(section) {
     </div>
     ${barHtml}
     ${moversHtml}
+    ${dropoutHtml}
   </div>`;
+}
+
+// "순위 더보기" 클릭처럼 펼침 상태만 바뀔 땐 renderProducts(전체 카테고리 탭·상품 표까지 통째로
+// 재계산+재렌더링)를 다시 부르면 체감 속도가 크게 떨어진다. buildCategorySections를 다시 돌리지
+// 않고 캐시된 section으로 이 카테고리의 대시보드 박스만 다시 그린다.
+function updateCategoryDashboard(categoryName) {
+  const wrap = document.querySelector(`[data-dash-for="${CSS.escape(categoryName)}"]`);
+  if (!wrap) { renderProducts(cachedProducts); return; }
+  const section = cachedSectionByName.get(categoryName) || { name: categoryName, products: [], keywordCount: 0 };
+  wrap.innerHTML = section.products.length ? renderCategoryDashboard(section) : "";
 }
 
 function renderSubgroupTabs(section) {
@@ -1938,6 +2039,7 @@ function renderProducts(products) {
 
   const sections = buildCategorySections(products);
   const sectionByName = new Map(sections.map(section => [section.name, section]));
+  cachedSectionByName = sectionByName;
   const trackerCategories = getTrackerCategories();
   if (!trackerCategories.includes(activeCategory)) {
     activeCategory = trackerCategories[0];
@@ -1957,7 +2059,7 @@ function renderProducts(products) {
     const isAllExpanded = expandedCategories.has(section.name);
     return `
       <section class="category-section category-panel${category === activeCategory ? " active" : ""}" data-category-panel="${esc(category)}" aria-hidden="${category === activeCategory ? "false" : "true"}"${category === activeCategory ? "" : " inert"}>
-        ${section.products.length ? renderCategoryDashboard(section) : ""}
+        <div class="category-dash-wrap" data-dash-for="${esc(category)}">${section.products.length ? renderCategoryDashboard(section) : ""}</div>
         ${section.products.length ? renderSubgroupTabs(section) : ""}
         ${section.products.length
           ? (() => {
@@ -2018,6 +2120,15 @@ document.getElementById("productGroups").addEventListener("click", (e) => {
       expandedCategories.add(activeCategory);
     }
     renderProducts(cachedProducts);
+    return;
+  }
+
+  const toggleMover = e.target.closest('[data-action="toggle-mover-expand"]');
+  if (toggleMover) {
+    const key = toggleMover.dataset.moverKey;
+    if (moverExpandedCards.has(key)) moverExpandedCards.delete(key);
+    else moverExpandedCards.add(key);
+    updateCategoryDashboard(activeCategory);
     return;
   }
 
