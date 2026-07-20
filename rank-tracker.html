@@ -1247,6 +1247,7 @@ function formatProductPrice(price) {
 }
 
 function rankBadgeHtml(rank) {
+  if (rank === undefined) return `<span class="rank-badge">미수집</span>`;
   if (rank == null) return `<span class="rank-badge none">이탈</span>`;
   const cls = rank <= 40 ? "p1" : rank <= 120 ? "p23" : "";
   const page = rankPage(rank);
@@ -1420,7 +1421,7 @@ function canonicalProductCode(row, masterMaps) {
   return findProductMaster(row, masterMaps)?.code || row.product_code;
 }
 
-function buildProducts(rows, masterMaps) {
+function buildProducts(rows, masterMaps, collectedKeywords) {
   const latestDate = rows[0]?.collected_date || rows[0]?.checked_at?.slice(0, 10) || "";
   const latestRows = rows.filter(r => rankDate(r) === latestDate && r.rank != null && r.product_code);
   const previousByProductKeyword = new Map();
@@ -1508,6 +1509,8 @@ function buildProducts(rows, masterMaps) {
   // 이탈한 키워드도 그래프가 사라지지 않게 남긴다 — 상품 카드가 있으면(위에서 만들어졌든,
   // 방금 완전 이탈 껍데기로 만들어졌든) 이탈한 키워드 줄도 지우지 않고 rank만 null로 남겨서
   // "이탈" 배지 + 과거 그래프를 그대로 보여준다.
+  // 단, 오늘 그 키워드 자체가 수집 시도조차 안 됐다면(cron 시간 예산 초과로 스킵) 진짜 이탈인지
+  // 알 수 없으므로 "이탈"이 아니라 "미수집"(rank: undefined)으로 남긴다.
   const latestKeys = new Set(latestRows.map(row => canonicalProductCode(row, masterMaps) + "|" + row.keyword));
   previousByProductKeyword.forEach((prevRow, key) => {
     if (latestKeys.has(key)) return;
@@ -1518,11 +1521,13 @@ function buildProducts(rows, masterMaps) {
     const history = [...historyMap.entries()]
       .map(([date, rank]) => ({ date, rank }))
       .sort((a, b) => a.date.localeCompare(b.date));
+    const wasCollectedToday = !collectedKeywords || collectedKeywords.has(prevRow.keyword);
     product.keywords.push({
       ...prevRow,
-      rank: null,
+      rank: wasCollectedToday ? null : undefined,
       delta: null,
-      isDropped: true,
+      isDropped: wasCollectedToday,
+      notCollectedToday: !wasCollectedToday,
       lastRank: prevRow.rank,
       lastSeenDate: rankDate(prevRow),
       latestDate,
@@ -1545,7 +1550,7 @@ function buildProducts(rows, masterMaps) {
    행이 조용히 없어질 뿐이라 buildProducts()가 만드는 최신 스냅샷에는 흔적이 안 남는다).
    그래서 여기서는 rows 전체를 훑어 "최신 수집일 이전엔 순위가 있었는데 최신 수집일엔
    없는" 조합을 따로 찾아낸다. */
-function buildDroppedKeywords(rows, masterMaps) {
+function buildDroppedKeywords(rows, masterMaps, collectedKeywords) {
   const latestDate = rows[0]?.collected_date || rows[0]?.checked_at?.slice(0, 10) || "";
   const latestKeys = new Set();
   rows.forEach(row => {
@@ -1559,6 +1564,9 @@ function buildDroppedKeywords(rows, masterMaps) {
     if (!row.product_code || row.rank == null) return;
     const date = rankDate(row);
     if (date === latestDate) return;
+    // 오늘 이 키워드 자체가 수집 시도조차 안 됐으면(cron 시간 예산 초과) 진짜 이탈인지 알 수
+    // 없으므로 "이탈 상품" 목록에서 제외한다 — 잘못된 이탈 오탐의 근본 원인.
+    if (collectedKeywords && !collectedKeywords.has(row.keyword)) return;
     const master = findProductMaster(row, masterMaps);
     const code = master?.code || row.product_code;
     const key = code + "|" + row.keyword;
@@ -1718,7 +1726,7 @@ function renderProductCard(product, categoryName) {
         <div class="product-sub"><span class="product-code-inline">${esc(product.code)}</span>${priceHtml}</div>
       </div>
       <span class="main-keyword-cell"><span>${esc(mainKeyword?.keyword || "-")}</span></span>
-      ${rankBadgeHtml(mainKeyword?.rank ?? null)}
+      ${rankBadgeHtml(mainKeyword ? mainKeyword.rank : null)}
       ${deltaHtml(mainKeyword?.delta ?? null)}
       <span class="product-count">보조 ${subCount}개</span>
       <span class="product-actions">
@@ -2272,10 +2280,14 @@ async function loadAndRender() {
       return;
     }
     const masterMaps = buildMasterMaps(masters);
-    const products = buildProducts(rows, masterMaps);
-    cachedProducts = products;
-    cachedDropped = buildDroppedKeywords(rows, masterMaps);
+    // 오늘 실제로 검색을 시도한 키워드 집합 — cron 수집이 시간 예산(100초) 안에 다 못 돌면
+    // 뒤쪽 키워드는 아예 검색되지 않는데, 이 경우와 "검색했지만 순위 밖으로 밀린" 경우를
+    // 구분하지 않으면 미수집 키워드까지 전부 "이탈"로 잘못 표시된다. 키워드가 오늘 한 번이라도
+    // 행으로 남았으면(찾았든 못 찾았든) 시도한 것으로 본다.
     const collectedKeywords = new Set(rows.filter(r => rankDate(r) === rankDate(rows[0])).map(r => r.keyword));
+    const products = buildProducts(rows, masterMaps, collectedKeywords);
+    cachedProducts = products;
+    cachedDropped = buildDroppedKeywords(rows, masterMaps, collectedKeywords);
     const categoryCount = buildCategorySections(products).length;
     summary.innerHTML = `상품 ${products.length}개 · 카테고리 ${categoryCount}개 · 키워드 ${collectedKeywords.size}개 수집됨 · 최근 수집: ${timeAgo(rows[0].checked_at)}`;
     renderProducts(products);
