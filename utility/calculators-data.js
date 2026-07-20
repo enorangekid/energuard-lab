@@ -73,3 +73,35 @@ function getRecentCalcs() {
   try { return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]'); }
   catch(e) { return []; }
 }
+
+function initCustomSelect(wrapId, btnId, listId, hiddenId, onSelect) {
+  const wrap   = document.getElementById(wrapId);
+  const btn    = document.getElementById(btnId);
+  const list   = document.getElementById(listId);
+  const hidden = document.getElementById(hiddenId);
+  if (!wrap || !btn || !list || !hidden) return;
+
+  btn.addEventListener('click', e => {
+    if (btn.disabled) return;
+    e.stopPropagation();
+    wrap.classList.toggle('open');
+    document.querySelectorAll('.custom-select-wrap').forEach(w => {
+      if (w !== wrap) w.classList.remove('open');
+    });
+  });
+
+  list.querySelectorAll('.custom-select-item:not(.soon)').forEach(item => {
+    item.addEventListener('click', e => {
+      e.stopPropagation();
+      list.querySelectorAll('.custom-select-item').forEach(i => i.classList.remove('active'));
+      item.classList.add('active');
+      const label = btn.querySelector('span');
+      if (label) label.textContent = item.textContent.trim();
+      hidden.value = item.dataset.value;
+      wrap.classList.remove('open');
+      if (onSelect) onSelect(item.dataset.value);
+    });
+  });
+
+  document.addEventListener('click', () => wrap.classList.remove('open'));
+}
