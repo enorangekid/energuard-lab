@@ -80,7 +80,7 @@ const KankanHistory = {
 
   // 히스토리 패널 렌더링 (우측 패널이 있는 모든 페이지에서 사용)
   renderPanel() {
-    const list = document.getElementById('historyList');
+    const list = document.getElementById('calcHistoryList');
     if (!list) return;
     const entries = this.load();
     if (!entries.length) {
@@ -138,7 +138,7 @@ const KankanHistory = {
 
   // 전체 삭제 버튼 (한 번만 추가)
   renderClearBtn() {
-    const panel = document.getElementById('historyPanel');
+    const panel = document.getElementById('calcHistoryPanel');
     if (!panel || panel.querySelector('.history-clear-btn')) return;
     const header = panel.querySelector('.history-header');
     if (!header) return;

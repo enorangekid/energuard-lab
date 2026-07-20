@@ -326,7 +326,7 @@ function renderCalcNavBar() {
 
   // 히스토리 버튼 이벤트 연결
   const overlay      = document.getElementById('mobileOverlay');
-  const historyPanel = document.getElementById('historyPanel');
+  const historyPanel = document.getElementById('calcHistoryPanel');
   const btnCatHistory = nav.querySelector('#btnCatHistory');
   if (btnCatHistory && historyPanel && overlay) {
     function closeAll() {
@@ -506,7 +506,7 @@ function showToast(msg) {
 function initMobileDrawers() {
   const overlay      = document.getElementById('mobileOverlay');
   const sidebar      = document.getElementById('sidebar');
-  const historyPanel = document.getElementById('historyPanel');
+  const historyPanel = document.getElementById('calcHistoryPanel');
   if (!overlay) return;
 
   function closeAll() {
