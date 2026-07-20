@@ -8,7 +8,7 @@
   const scriptCache = new Map(); // path → script text
 
   // Scripts already loaded in the shell — skip per-page re-execution
-  const SHELL_SCRIPTS = new Set(['sidebar.js', 'history.js', 'app.js', 'router.js']);
+  const SHELL_SCRIPTS = new Set(['calculators-data.js', 'history.js', 'app.js', 'router.js']);
 
   let navigating = false;
 

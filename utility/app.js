@@ -2,8 +2,8 @@
    칸칸 — app.js
    ───────────────────────────────────────── */
 
-// ── CALCULATORS — NAV_ITEMS에서 자동 생성 (sidebar.js가 먼저 로드되어야 함) ──
-// NAV_ITEMS만 수정하면 사이드바 + 그리드 + 검색 모두 자동 반영
+// ── CALCULATORS — NAV_ITEMS에서 자동 생성 (calculators-data.js가 먼저 로드되어야 함) ──
+// NAV_ITEMS만 수정하면 그리드 + 검색이 자동 반영
 function urlToId(url) {
   if (!url) return null;
   return url.replace('calc/', '').replace('.html', '');
