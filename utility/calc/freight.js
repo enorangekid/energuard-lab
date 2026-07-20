@@ -505,33 +505,7 @@ function toggleRateTable() {
   if (open && !document.getElementById('rateTableRows').innerHTML) renderRateTable();
 }
 
-// ── 히스토리 ──
-function addHistory(vehicleName, totalBundles, detailText, volume, thickness) {
-  const list = document.getElementById('calcHistoryList');
-  if (!list) return;
-  const empty = list.querySelector('.history-empty');
-  if (empty) empty.remove();
-  list.querySelectorAll('.history-item').forEach(el => el.classList.remove('active'));
-
-  const now     = new Date();
-  const dateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} `
-    + `${now.getHours() >= 12 ? 'PM' : 'AM'} `
-    + `${String(now.getHours()%12||12).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-
-  const item = document.createElement('div');
-  item.className = 'history-item active';
-  item.innerHTML = `
-    <div class="history-date">${dateStr}</div>
-    <div class="history-calc-name">단열재 적재·운임 계산기</div>
-    <div class="history-result-label">${vehicleName} · ${totalBundles}단</div>
-    <div class="history-detail">
-      <div class="detail-row"><span class="detail-key">두께:</span><span class="detail-val">${thickness}mm</span></div>
-      <div class="detail-row"><span class="detail-key">적재:</span><span class="detail-val">${detailText}</span></div>
-      <div class="detail-row"><span class="detail-key">부피:</span><span class="detail-val">${volume}m³</span></div>
-    </div>
-  `;
-  list.insertBefore(item, list.firstChild);
-}
+function addHistory() {}
 
 // ── 전체 초기화 ──
 function resetAll() {
