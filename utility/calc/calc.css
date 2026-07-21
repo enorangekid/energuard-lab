@@ -824,10 +824,10 @@ select.field-input {
 .seo-section {
   background: transparent;
   border: none;
-  padding: 28px 0;
+  padding: 24px 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
 }
 
 .seo-wrap .seo-section + .seo-section {
@@ -843,6 +843,7 @@ select.field-input {
 }
 
 .seo-title {
+  margin: 0;
   font-size: 17px;
   font-weight: 700;
   color: var(--color-text);
@@ -851,6 +852,7 @@ select.field-input {
 }
 
 .seo-body {
+  margin: 0;
   font-size: 15px;
   color: var(--color-text-muted);
   line-height: 1.8;
@@ -865,6 +867,7 @@ select.field-input {
   flex-direction: column;
   gap: 14px;
   padding: 0;
+  margin: 0;
 }
 
 .seo-list--ol li {
@@ -905,6 +908,7 @@ select.field-input {
 
 /* ─── 공식 박스 ─── */
 .seo-formula {
+  margin: 0;
   background: #fde8de;
   border: none;
   border-left: 3px solid var(--color-accent);
@@ -947,7 +951,7 @@ select.field-input {
   font-size: 14px;
   color: var(--color-text-muted);
   line-height: 1.6;
-  margin-top: -4px;
+  margin: 0;
 }
 
 .seo-formula-example strong {
@@ -956,6 +960,7 @@ select.field-input {
 
 /* ─── 규격 테이블 ─── */
 .seo-table-wrap {
+  margin: 0;
   overflow-x: auto;
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
@@ -1034,7 +1039,7 @@ select.field-input {
 .seo-faq {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 14px;
 }
 
 .seo-faq-q {
@@ -1053,6 +1058,7 @@ select.field-input {
 }
 
 .seo-faq-a {
+  margin: 0;
   font-size: 14px;
   color: var(--color-text-muted);
   line-height: 1.7;
