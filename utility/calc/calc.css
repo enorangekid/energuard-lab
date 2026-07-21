@@ -1582,7 +1582,14 @@ select.field-input {
 }
 
 .main-content:has(.calc-wrapper) .calc-title-label::after {
-  content: none;
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -13px;
+  height: 3px;
+  border-radius: 999px;
+  background: #ef5a2f;
 }
 
 .main-content:has(.calc-wrapper) .calc-title-help {
