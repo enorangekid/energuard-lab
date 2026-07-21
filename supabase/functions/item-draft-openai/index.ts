@@ -54,6 +54,18 @@ function inferCategory(keyword: string, category = "") {
   return "기타";
 }
 
+function inferProductGroup(keyword: string, category = "") {
+  const text = `${keyword} ${category}`;
+  if (/제습|습기|장마|곰팡이|결로/i.test(text)) return "습기/결로 관리";
+  if (/냉방비|전기요금|에어컨|실외기|폭염|열대야/i.test(text)) return "냉방비/실외기 관리";
+  if (/차량용햇빛|자동차햇빛|차박|햇빛가리개|썬쉐이드|차량커튼/i.test(text)) return "차량 햇빛 차단";
+  if (/창문|햇빛|열차단|단열필름/i.test(text)) return "창문 열차단";
+  if (/아이소핑크|XPS|압출/i.test(text)) return "아이소핑크";
+  if (/열반사|은박|온도리/i.test(text)) return "열반사단열재";
+  if (/단열벽지|벽지/i.test(text)) return "단열벽지";
+  return inferCategory(keyword, category);
+}
+
 function normalizeIdea(row: IdeaPayload): Required<IdeaPayload> {
   const keyword = cleanText(row.keyword);
   const category = inferCategory(keyword, cleanText(row.category || row.productGroup));
@@ -62,7 +74,7 @@ function normalizeIdea(row: IdeaPayload): Required<IdeaPayload> {
     keyword,
     source: cleanText(row.source) || "manual",
     category,
-    productGroup: cleanText(row.productGroup) || category,
+    productGroup: cleanText(row.productGroup) || inferProductGroup(keyword, category),
     searchVolume: safeNumber(row.searchVolume),
     competitionScore: safeNumber(row.competitionScore),
     seasonScore: safeNumber(row.seasonScore),
@@ -89,8 +101,12 @@ function categoryAllowed(category: string, categories: string[]) {
   return !categories.length || categories.includes(category);
 }
 
-function isInsulationKeyword(keyword: string) {
-  return /단열|아이소핑크|스티로폼|비드법|폼보드|열반사|은박|온도리|보온|결로|창문열차단|창문햇빛|열차단|냉기|우레탄|PF보드|페놀폼|미네랄울|글라스울|실외기커버|에어컨커버|XPS|EPS/i.test(keyword);
+function isContentKeyword(keyword: string) {
+  return /단열|아이소핑크|스티로폼|비드법|폼보드|열반사|은박|온도리|보온|결로|창문|햇빛|열차단|냉기|우레탄|PF보드|페놀폼|미네랄울|글라스울|실외기|에어컨|냉방비|전기요금|폭염|열대야|장마|제습|습기|곰팡이|차량용햇빛|자동차햇빛|차박|썬쉐이드|햇빛가리개|차량커튼|커버|XPS|EPS/i.test(keyword);
+}
+
+function isNewsNoise(keyword: string) {
+  return /의원|선거|재검표|파업|노조|법원|회생|콘서트|홍보대사|역전승|외교관|이더|비니시우스|수력원자력|시위|MC몽|성애|경매|중구|연애|화재$|수소 자동차|자동차$/i.test(keyword);
 }
 
 function seasonScoreFor(keyword: string) {
@@ -104,7 +120,7 @@ function seasonScoreFor(keyword: string) {
 
 function keywordIdeaFromVolume(row: any): Required<IdeaPayload> | null {
   const keyword = cleanText(row.keyword);
-  if (!keyword || !isInsulationKeyword(keyword)) return null;
+  if (!keyword || !isContentKeyword(keyword) || isNewsNoise(keyword)) return null;
   const category = inferCategory(keyword);
   const total = safeNumber(row.total);
   const competition = Math.max(20, Math.min(85, Math.round(70 - Math.log10(Math.max(total, 10)) * 8)));
@@ -115,7 +131,7 @@ function keywordIdeaFromVolume(row: any): Required<IdeaPayload> | null {
     keyword,
     source: season >= 85 ? "season" : "interest",
     category,
-    productGroup: category,
+    productGroup: inferProductGroup(keyword, category),
     searchVolume: total,
     competitionScore: competition,
     seasonScore: season,
@@ -125,7 +141,7 @@ function keywordIdeaFromVolume(row: any): Required<IdeaPayload> | null {
 
 function keywordIdeaFromRankHistory(row: any): Required<IdeaPayload> | null {
   const keyword = cleanText(row.keyword);
-  if (!keyword || !isInsulationKeyword(keyword)) return null;
+  if (!keyword || !isContentKeyword(keyword) || isNewsNoise(keyword)) return null;
   const category = inferCategory(keyword, cleanText(row.main_keyword || ""));
   const total = safeNumber(row.search_volume_total);
   if (!total) return null;
@@ -137,7 +153,7 @@ function keywordIdeaFromRankHistory(row: any): Required<IdeaPayload> | null {
     keyword,
     source: season >= 85 ? "season" : "interest",
     category,
-    productGroup: category,
+    productGroup: inferProductGroup(keyword, category),
     searchVolume: total,
     competitionScore: competition,
     seasonScore: season,
@@ -160,6 +176,46 @@ async function fetchRankHistoryIdeas(categories: string[], limit: number) {
       return true;
     })
     .sort((a, b) => b.aiScore - a.aiScore || b.searchVolume - a.searchVolume)
+    .slice(0, limit);
+}
+
+function keywordIdeaFromTrend(row: any): Required<IdeaPayload> | null {
+  const keyword = cleanText(row.keyword);
+  if (!keyword || !isContentKeyword(keyword) || isNewsNoise(keyword)) return null;
+  const category = inferCategory(keyword);
+  const rank = safeNumber(row.rank) || 99;
+  const season = seasonScoreFor(keyword);
+  const trendScore = Math.max(45, 105 - rank * 4);
+  const productGroup = inferProductGroup(keyword, category);
+  return normalizeIdea({
+    id: `trend-${keyword}`,
+    keyword,
+    source: "trend",
+    category,
+    productGroup,
+    searchVolume: 0,
+    competitionScore: Math.max(25, Math.min(78, 45 + rank)),
+    seasonScore: season,
+    aiScore: Math.min(100, Math.round(trendScore * 0.58 + season * 0.42)),
+  });
+}
+
+async function fetchTrendIdeas(categories: string[], limit: number) {
+  const rows = await supabaseRequest(
+    "/rest/v1/realtime_trend_snapshot?select=keyword,list_type,rank,sources,captured_at&order=captured_at.desc,rank.asc&limit=300",
+  );
+  const seen = new Set<string>();
+  return (Array.isArray(rows) ? rows : [])
+    .map(keywordIdeaFromTrend)
+    .filter((idea): idea is Required<IdeaPayload> => {
+      if (!idea) return false;
+      if (!categoryAllowed(idea.category, categories)) return false;
+      const key = idea.keyword.replace(/\s+/g, "");
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .sort((a, b) => b.aiScore - a.aiScore)
     .slice(0, limit);
 }
 
@@ -190,7 +246,7 @@ async function fetchTrendBoostMap() {
     const boost = new Map<string, number>();
     (Array.isArray(rows) ? rows : []).forEach((row) => {
       const keyword = cleanText(row.keyword);
-      if (!isInsulationKeyword(keyword)) return;
+      if (!isContentKeyword(keyword) || isNewsNoise(keyword)) return;
       boost.set(keyword.replace(/\s+/g, ""), Math.max(0, 35 - safeNumber(row.rank)));
     });
     return boost;
@@ -221,45 +277,22 @@ async function fetchIdeas(categories: string[], limit: number, supplied: IdeaPay
   if (supplied.length) {
     const rows = supplied
       .map(normalizeIdea)
-      .filter((idea) => idea.searchVolume > 0 && isInsulationKeyword(idea.keyword) && categoryAllowed(idea.category, categories));
+      .filter((idea) => isContentKeyword(idea.keyword) && !isNewsNoise(idea.keyword) && categoryAllowed(idea.category, categories));
     if (rows.length) return rows.slice(0, limit);
   }
 
-  try {
-    const categoryFilter = categories.length
-      ? `&category=in.(${categories.map(encodeURIComponent).join(",")})`
-      : "";
-    const rows = await supabaseRequest(
-      `/rest/v1/content_ideas?select=*&status=neq.used${categoryFilter}&order=ai_score.desc.nullslast,updated_at.desc&limit=${limit}`,
-    );
-    if (Array.isArray(rows) && rows.length) {
-      const saved = rows.map((row) => normalizeIdea({
-        id: row.id,
-        keyword: row.keyword,
-        source: row.source,
-        category: row.category,
-        productGroup: row.product_group,
-        searchVolume: row.search_volume,
-        competitionScore: row.competition_score,
-        seasonScore: row.season_score,
-        aiScore: row.ai_score,
-      }))
-        .filter((idea) => idea.searchVolume > 0 && isInsulationKeyword(idea.keyword) && categoryAllowed(idea.category, categories))
-        .slice(0, limit);
-      if (saved.length) return saved;
-    }
-  } catch (_) {
-    // 저장 후보가 없어도 검색량 테이블에서 다시 후보를 구성합니다.
-  }
+  const trendIdeas = await fetchTrendIdeas(categories, limit);
 
-  const rankHistoryIdeas = await fetchRankHistoryIdeas(categories, limit);
-  const volumeIdeas = rankHistoryIdeas.length ? rankHistoryIdeas : await fetchVolumeIdeas(categories, limit);
+  if (trendIdeas.length >= limit) return trendIdeas;
+
+  const volumeIdeas = await fetchVolumeIdeas(categories, limit);
+  const rankHistoryIdeas = volumeIdeas;
   const trendBoost = await fetchTrendBoostMap();
-  const boosted = volumeIdeas.map((idea) => {
+  const boosted = rankHistoryIdeas.map((idea) => {
     const boost = trendBoost.get(idea.keyword.replace(/\s+/g, "")) || 0;
     return { ...idea, source: boost ? "trend" : idea.source, aiScore: Math.min(100, idea.aiScore + boost) };
   });
-  return boosted.length ? boosted : fallbackIdeas(categories, limit);
+  return [...trendIdeas, ...boosted].slice(0, limit);
 }
 
 function buildPrompt(idea: Required<IdeaPayload>) {
@@ -267,13 +300,13 @@ function buildPrompt(idea: Required<IdeaPayload>) {
     `키워드: ${idea.keyword}`,
     `상품군: ${idea.productGroup}`,
     `카테고리: ${idea.category}`,
-    `검색량: ${idea.searchVolume}`,
+    `검색량: ${idea.searchVolume || "실시간 화제성 기반"}`,
     `경쟁도: ${idea.competitionScore}`,
     `시즌성: ${idea.seasonScore}`,
     "",
     "에너가드랩 내부 직원이 검토할 블로그 초안을 작성해 주세요.",
     "고객에게 바로 발행하는 글이 아니라 초안입니다.",
-    "단열재 구매/시공 의도를 분석하고, 자연스럽게 관련 상품군을 연결해 주세요.",
+    "키워드가 단열재와 직접 관련이 없어도, 여름/겨울 생활 이슈에서 단열·열차단·습기관리·냉방비 절감 같은 주제로 자연스럽게 연결해 주세요.",
     "과장된 효능, 허위 순위, 확정적 의학/건축 성능 표현은 피하세요.",
     "",
     "반드시 JSON만 반환하세요.",

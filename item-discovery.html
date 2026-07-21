@@ -503,7 +503,7 @@ async function runWorkflow() {
       body: JSON.stringify({
         action: "generateDrafts",
         categories: activeCategory === "전체" ? CATEGORIES.filter(x => x !== "전체") : [activeCategory],
-        ideas: currentRows,
+        ideas: url ? currentRows : [],
         limit: 5,
         requestedAt: new Date().toISOString()
       })
