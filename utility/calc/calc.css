@@ -41,7 +41,7 @@ body.utility-page .main-content:has(.calc-wrapper) {
   width: 100%;
   max-width: 1180px;
   margin: 0 auto;
-  padding: 64px 0 80px;
+  padding: 58px 0 80px;
   background: transparent;
   overflow-x: visible;
 }
