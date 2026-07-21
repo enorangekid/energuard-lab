@@ -55,7 +55,6 @@
       clone.querySelectorAll('script').forEach(s => s.remove());
       // 계산기 조각에 남아 있는 구형 푸터는 셸의 공통 푸터와 중복되므로 주입하지 않는다.
       clone.querySelectorAll('.site-footer').forEach(footer => footer.remove());
-      mainEl.className = clone.className || 'main-content';
       mainEl.innerHTML = clone.innerHTML;
 
       // Fix relative hrefs in injected content
