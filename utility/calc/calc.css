@@ -1959,8 +1959,13 @@ select.field-input {
 }
 
 .main-content:has(.calc-wrapper) .seo-wrap .seo-section:first-child {
+  border-bottom: 1px solid #dfe5ee;
   padding: 20px 20px 18px;
   gap: 6px;
+}
+
+.main-content:has(.calc-wrapper) .seo-wrap .seo-section:first-child + .seo-section::before {
+  content: none;
 }
 
 .main-content:has(.calc-wrapper) .seo-wrap .seo-section:last-child {
@@ -2532,8 +2537,13 @@ select.field-input {
 }
 
 .calc-tool-insulation-board .seo-wrap .seo-section:first-child {
+  border-bottom: 1px solid #dfe5ee;
   padding: 20px 20px 18px;
   gap: 6px;
+}
+
+.calc-tool-insulation-board .seo-wrap .seo-section:first-child + .seo-section::before {
+  content: none;
 }
 
 .calc-tool-insulation-board .seo-wrap .seo-section:last-child {
