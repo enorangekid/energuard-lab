@@ -346,6 +346,38 @@ function saveDiagramImage() {
 }
 
 // ── 시공 방식 드롭다운 활성/비활성 ──
+function initCustomSelect(wrapId, btnId, listId, hiddenId, onSelect) {
+  const wrap = document.getElementById(wrapId);
+  const btn = document.getElementById(btnId);
+  const list = document.getElementById(listId);
+  const hidden = document.getElementById(hiddenId);
+  if (!wrap || !btn || !list || !hidden) return;
+
+  btn.addEventListener('click', e => {
+    if (btn.disabled) return;
+    e.stopPropagation();
+    wrap.classList.toggle('open');
+    document.querySelectorAll('.custom-select-wrap').forEach(item => {
+      if (item !== wrap) item.classList.remove('open');
+    });
+  });
+
+  list.querySelectorAll('.custom-select-item:not(.soon)').forEach(item => {
+    item.addEventListener('click', e => {
+      e.stopPropagation();
+      list.querySelectorAll('.custom-select-item').forEach(option => option.classList.remove('active'));
+      item.classList.add('active');
+      const label = btn.querySelector('span');
+      if (label) label.textContent = item.textContent.trim();
+      hidden.value = item.dataset.value;
+      wrap.classList.remove('open');
+      if (onSelect) onSelect(item.dataset.value);
+    });
+  });
+
+  document.addEventListener('click', () => wrap.classList.remove('open'));
+}
+
 function updateMethodDropdown(mode) {
   const btn  = document.getElementById('methodBtn');
   const wrap = document.getElementById('methodWrap');
@@ -385,15 +417,6 @@ function onShapeSelect(value) {
   });
 
   updateMethodDropdown(value);
-
-  const titles = {
-    square: '캠핑단열재 수량 계산기 — 사각',
-    hex:    '캠핑단열재 수량 계산기 — 육각',
-    oct:    '캠핑단열재 수량 계산기 — 팔각',
-    circle: '캠핑단열재 수량 계산기 — 원형',
-  };
-  document.getElementById('pageTitle').textContent = titles[value];
-  document.getElementById('bcCurrent').textContent = titles[value];
 
   currentDiagramData = null;
   resetView();
