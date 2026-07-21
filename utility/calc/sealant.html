@@ -1,4 +1,37 @@
-﻿<script>if(!window.KankanRouter){document.documentElement.style.visibility='hidden';const file=location.pathname.split('/').pop();const target='calc/'+file+location.search+location.hash;location.replace('../../utility.html?openCalc='+encodeURIComponent(target));}</script>
+﻿<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>실리콘/줄눈 소요량 계산기 · ENERGUARD LAB</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="calc.css?v=20260721-standard" />
+  <link rel="stylesheet" href="../../common.css?v=20260715-stickyfooter" />
+</head>
+<body class="utility-page">
+  <header class="topbar" data-topbar>
+    <div class="topbar-inner">
+      <a href="../../index.html" class="topbar-logo"><span>ENERGUARD</span><span>LAB</span></a>
+      <nav class="topbar-nav">
+        <a href="../../rank-tracker.html">랭킹추적</a>
+        <a href="../../naver-rank.html">키워드분석</a>
+        <a href="../../sales-analysis.html">매출분석</a>
+        <a href="../../item-discovery.html">아이템발굴</a>
+        <a href="../../utility.html" class="active">유틸리티</a>
+      </nav>
+      <div class="topbar-actions" aria-hidden="true">
+        <button type="button" class="topbar-icon-btn" tabindex="-1" aria-label="검색">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        </button>
+        <button type="button" class="topbar-icon-btn" tabindex="-1" aria-label="계산 내역">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><polyline points="12 7 12 12 15 15"></polyline></svg>
+        </button>
+      </div>
+    </div>
+  </header>
 <main class="main-content">
 
       <!-- 페이지 헤더 -->
@@ -293,16 +326,22 @@
         </div><!-- /seo-wrap -->
 
       </div><!-- /calc-wrapper -->
-
-      <!-- 푸터 -->
-      <footer class="site-footer">
-        <div class="footer-links">
-          <a href="#">개인정보처리방침</a>
-          <a href="#">이용약관</a>
-          <a href="#">문의하기</a>
-        </div>
-        <p class="footer-copy">© 에너가드컴퍼니</p>
-      </footer>
-
-      <script src="sealant.js"></script>
 </main>
+
+  <footer id="__commonFooter" class="site-footer common-site-footer">
+    <div class="site-footer-inner">
+      <p class="footer-copy">Copyright 2026. Energuard Company. All Rights Reserved.</p>
+      <div class="footer-links">
+        <a href="#">맨 위로</a>
+        <a href="#">사용 가이드 ↗</a>
+        <a href="#">이용약관 ↗</a>
+        <a href="#">개인정보처리방침 ↗</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="../../common.js?v=20260714-loading4"></script>
+  <script src="../history.js"></script>
+  <script src="sealant.js"></script>
+</body>
+</html>
