@@ -630,7 +630,9 @@ select.field-input {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0;
+  margin: 0;
+  padding: 0;
 }
 
 .tip-list li {
@@ -1869,7 +1871,9 @@ select.field-input {
 }
 
 .main-content:has(.calc-wrapper) .tip-list {
-  gap: 7px;
+  gap: 0;
+  margin: 0;
+  padding: 0;
 }
 
 .main-content:has(.calc-wrapper) .tip-list li {
@@ -2410,7 +2414,9 @@ select.field-input {
 }
 
 .calc-tool-insulation-board .tip-list {
-  gap: 7px;
+  gap: 0;
+  margin: 0;
+  padding: 0;
 }
 
 .calc-tool-insulation-board .tip-list li {
