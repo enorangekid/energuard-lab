@@ -615,8 +615,8 @@ select.field-input {
   border: none;
   border-top: 1px solid var(--color-border);
   border-radius: 0;
-  padding: 16px 0 0;
-  margin: 16px 0 0;
+  padding: 14px 0 0;
+  margin: 14px 0 0;
 }
 
 .tip-title {
@@ -669,7 +669,7 @@ select.field-input {
   font-size: 17px;
   font-weight: 700;
   color: var(--color-text);
-  margin-bottom: 14px;
+  margin: 0 0 14px;
 }
 
 .related-tags {
@@ -1875,8 +1875,8 @@ select.field-input {
 
 .main-content:has(.calc-wrapper) .tip-related-wrap .related-section {
   border-top-color: #dfe5ee;
-  padding-top: 16px;
-  margin-top: 16px;
+  padding-top: 14px;
+  margin-top: 14px;
 }
 
 .main-content:has(.calc-wrapper) .tip-title,
