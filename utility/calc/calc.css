@@ -636,6 +636,10 @@ select.field-input {
 }
 
 .tip-list li {
+  display: grid;
+  grid-template-columns: 6px minmax(0, 1fr);
+  column-gap: 8px;
+  align-items: start;
   font-size: 14px;
   color: var(--color-text-muted);
   line-height: 1.5;
@@ -644,7 +648,12 @@ select.field-input {
 }
 
 .tip-list li::before {
-  content: none;
+  content: "";
+  width: 4px;
+  height: 4px;
+  margin-top: .72em;
+  border-radius: 1px;
+  background: #cfd5df;
 }
 
 /* ─── 관련 계산기 ─── */
@@ -1877,13 +1886,20 @@ select.field-input {
 }
 
 .main-content:has(.calc-wrapper) .tip-list li {
+  grid-template-columns: 6px minmax(0, 1fr);
+  column-gap: 8px;
   padding-left: 0;
   font-size: 13px;
   color: #5a6378;
 }
 
 .main-content:has(.calc-wrapper) .tip-list li::before {
-  content: none;
+  content: "";
+  width: 4px;
+  height: 4px;
+  margin-top: .72em;
+  border-radius: 1px;
+  background: #cfd5df;
 }
 
 .main-content:has(.calc-wrapper) .related-tag {
@@ -2420,13 +2436,20 @@ select.field-input {
 }
 
 .calc-tool-insulation-board .tip-list li {
+  grid-template-columns: 6px minmax(0, 1fr);
+  column-gap: 8px;
   padding-left: 0;
   font-size: 13px;
   color: #5a6378;
 }
 
 .calc-tool-insulation-board .tip-list li::before {
-  content: none;
+  content: "";
+  width: 4px;
+  height: 4px;
+  margin-top: .72em;
+  border-radius: 1px;
+  background: #cfd5df;
 }
 
 .calc-tool-insulation-board .related-tag {
