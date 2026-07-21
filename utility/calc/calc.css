@@ -1967,6 +1967,11 @@ select.field-input {
 }
 
 .main-content:has(.calc-wrapper) .seo-title {
+  display: flex;
+  align-items: center;
+  min-height: 20px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #dfe5ee;
   font-size: 15px;
   font-weight: 800;
   line-height: 1.55;
@@ -2521,6 +2526,11 @@ select.field-input {
 }
 
 .calc-tool-insulation-board .seo-title {
+  display: flex;
+  align-items: center;
+  min-height: 20px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #dfe5ee;
   font-size: 15px;
   font-weight: 800;
   line-height: 1.55;
