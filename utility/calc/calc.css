@@ -1011,7 +1011,7 @@ select.field-input {
 .seo-checklist {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
 }
 
 .seo-check-title {
@@ -1023,6 +1023,7 @@ select.field-input {
 }
 
 .seo-check-body {
+  margin: 0;
   font-size: 14px;
   color: var(--color-text-muted);
   line-height: 1.55;
