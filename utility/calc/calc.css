@@ -1751,7 +1751,7 @@ select.field-input {
 }
 
 .calc-tool-insulation-board .result-main-card {
-  padding: 28px;
+  padding: 20px;
   background: #07111f;
 }
 
@@ -1773,7 +1773,7 @@ select.field-input {
 }
 
 .calc-tool-insulation-board .result-detail-card {
-  padding: 26px 28px;
+  padding: 20px;
   border-left-color: #dfe5ee;
 }
 
@@ -1815,7 +1815,7 @@ select.field-input {
 .calc-tool-insulation-board .result-note {
   border-color: #dfe5ee;
   border-radius: 0 0 6px 6px;
-  padding: 14px 18px;
+  padding: 20px;
   background: #fbfcfd;
   color: #5a6378;
   font-size: 13px;
