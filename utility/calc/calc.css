@@ -1539,7 +1539,10 @@ select.field-input {
 }
 
 .calc-tool-insulation-board .calc-main-wrap,
-.calc-tool-insulation-board .calc-right-col,
+.calc-tool-insulation-board .calc-right-col {
+  gap: 24px;
+}
+
 .calc-tool-insulation-board .tip-related-wrap {
   gap: 16px;
 }
