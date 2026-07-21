@@ -1,5 +1,6 @@
 ﻿<script>if(!window.KankanRouter){document.documentElement.style.visibility='hidden';const file=location.pathname.split('/').pop();const target='calc/'+file+location.search+location.hash;location.replace('../../utility.html?openCalc='+encodeURIComponent(target));}</script>
 <main class="main-content">
+  <div class="calc-tool-page calc-tool-insulation-board calc-tool-camp-insulation">
   <style>
     /* ── 캠핑 계산기 전용 ── */
 
@@ -22,9 +23,6 @@
       color: var(--color-text-light);
       pointer-events: none;
     }
-
-    /* 결과 메인 카드 */
-    #resMainCard { background: #1a1a1a; }
 
     .btn-save-img {
       display: flex;
@@ -52,16 +50,10 @@
   </style>
 
       <div class="page-header">
-        <nav class="breadcrumb" aria-label="breadcrumb">
-          <a href="../index.html">홈</a>
-          <span class="bc-sep">›</span>
-          <span>단열재/목공/보드</span>
-          <span class="bc-sep">›</span>
-          <span>단열재 수량 계산기</span>
-          <span class="bc-sep">›</span>
-          <span class="bc-current" id="bcCurrent">캠핑 단열재 소요량 계산기</span>
-        </nav>
-        <h1 class="page-title" id="pageTitle">캠핑 단열재 소요량 계산기</h1>
+        <h1 class="page-title" id="pageTitle">
+          <span class="calc-title-label">캠핑 단열재 소요량 계산기</span>
+          <span class="calc-title-help" title="텐트 형태와 크기를 기준으로 필요한 캠핑 단열재 길이를 계산합니다.">?</span>
+        </h1>
       </div>
 
       <div class="calc-wrapper">
@@ -366,6 +358,7 @@
         </div>
 
       </div><!-- /calc-wrapper -->
+  </div><!-- /calc-tool-camp-insulation -->
 
       <footer class="site-footer">
         <div class="footer-links">
