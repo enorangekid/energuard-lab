@@ -1921,6 +1921,8 @@ select.field-input {
 
 .calc-tool-insulation-board .seo-body,
 .calc-tool-insulation-board .seo-list li span,
+.calc-tool-insulation-board .seo-formula-body,
+.calc-tool-insulation-board .seo-formula-example,
 .calc-tool-insulation-board .seo-check-body,
 .calc-tool-insulation-board .seo-faq-a {
   font-size: 13px;
@@ -1928,7 +1930,12 @@ select.field-input {
   color: #5a6378;
 }
 
+.calc-tool-insulation-board .seo-formula-body {
+  color: #1a1f2e;
+}
+
 .calc-tool-insulation-board .seo-list li strong,
+.calc-tool-insulation-board .seo-formula-example strong,
 .calc-tool-insulation-board .seo-check-title,
 .calc-tool-insulation-board .seo-faq-q {
   font-size: 13px;
