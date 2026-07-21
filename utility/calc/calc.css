@@ -3,7 +3,39 @@
    ───────────────────────────────────────── */
 
 /* 계산기 페이지 전용 */
-body { background: var(--color-bg); }
+:root {
+  --color-bg: #f8f9fb;
+  --color-hover-bg: #e8f0fb;
+  --color-surface: #ffffff;
+  --color-text: #1a1f2e;
+  --color-text-muted: #5a6378;
+  --color-text-light: #9aa0b2;
+  --color-border: #e8ecf2;
+  --color-category: #5a6378;
+  --color-accent: #e85d2f;
+  --color-link: #1a1f2e;
+  --color-link-hover: #000;
+  --bg: #f8f9fb;
+  --ink: #1a1f2e;
+  --sub: #5a6378;
+  --line: #e8ecf2;
+  --dark: #05070b;
+  --accent: #e85d2f;
+  --accent-dark: #d04420;
+  --font-main: 'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --radius: 4px;
+  --transition: 0.18s ease;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-main);
+  font-size: 15px;
+  line-height: 1.55;
+}
 
 body.utility-page .main-content:has(.calc-wrapper) {
   width: 100%;
