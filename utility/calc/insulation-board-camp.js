@@ -331,7 +331,8 @@ function addHistory(name, result, detail) {
 }
 
 // ── 도면 저장 ──
-document.getElementById('btnSaveImg').addEventListener('click', () => {
+function saveDiagramImage() {
+  if (!canvas) return;
   const tmp = document.createElement('canvas');
   tmp.width = canvas.width; tmp.height = canvas.height;
   const tc = tmp.getContext('2d');
@@ -342,7 +343,7 @@ document.getElementById('btnSaveImg').addEventListener('click', () => {
   link.download = `칸칸_캠핑단열재_${new Date().toISOString().slice(0, 10)}.png`;
   link.href = tmp.toDataURL('image/png');
   link.click();
-});
+}
 
 // ── 시공 방식 드롭다운 활성/비활성 ──
 function updateMethodDropdown(mode) {
@@ -473,6 +474,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('btnCalc').addEventListener('click', calculate);
   document.getElementById('btnReset').addEventListener('click', resetAll);
+  document.getElementById('btnSaveImg')?.addEventListener('click', saveDiagramImage);
   document.getElementById('calcForm').addEventListener('keydown', e => {
     if (e.key === 'Enter') calculate();
   });
