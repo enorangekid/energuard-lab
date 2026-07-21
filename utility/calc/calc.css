@@ -1864,14 +1864,23 @@ select.field-input {
 
 .calc-tool-insulation-board .seo-wrap {
   padding: 0;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid #dfe5ee;
+  border-radius: 6px;
+  box-shadow: 0 12px 30px rgba(26, 31, 46, 0.08);
 }
 
 .calc-tool-insulation-board .seo-section {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   padding: 22px;
+  box-shadow: none;
 }
 
 .calc-tool-insulation-board .seo-wrap .seo-section + .seo-section {
-  margin-top: 12px;
+  margin-top: 0;
   border-top: 1px solid #dfe5ee;
 }
 
