@@ -1550,7 +1550,7 @@ select.field-input {
   background: #fff;
   border: 1px solid #dfe5ee;
   border-radius: 6px;
-  box-shadow: none;
+  box-shadow: 0 12px 30px rgba(26, 31, 46, 0.08);
 }
 
 .calc-tool-insulation-board .calc-card-main {
@@ -1698,7 +1698,7 @@ select.field-input {
 }
 
 .calc-tool-insulation-board .btn-row {
-  justify-content: flex-end;
+  justify-content: center;
   gap: 8px;
   padding-top: 2px;
 }
@@ -1740,6 +1740,11 @@ select.field-input {
   grid-template-columns: 0.86fr 1.14fr;
   border-color: #dfe5ee;
   border-radius: 6px 6px 0 0;
+}
+
+.calc-tool-insulation-board .result-panel {
+  border-radius: 6px;
+  box-shadow: 0 12px 30px rgba(26, 31, 46, 0.08);
 }
 
 .calc-tool-insulation-board .result-main-card {
