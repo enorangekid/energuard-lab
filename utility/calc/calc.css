@@ -1542,6 +1542,7 @@ select.field-input {
 /* Shared Energuard calculator surface */
 .main-content:has(.calc-wrapper) .page-header {
   padding: 0 0 12px !important;
+  margin-bottom: 18px;
   gap: 0;
 }
 
@@ -1610,7 +1611,7 @@ select.field-input {
 }
 
 .main-content:has(.calc-wrapper) .calc-wrapper {
-  padding: 18px 0 0;
+  padding: 0 0 0;
   gap: 16px;
 }
 
@@ -1951,6 +1952,7 @@ select.field-input {
 @media (max-width: 720px) {
   .main-content:has(.calc-wrapper) .page-header {
     padding: 0 0 12px !important;
+    margin-bottom: 18px;
   }
 
   .main-content:has(.calc-wrapper) .page-title {
@@ -1958,7 +1960,7 @@ select.field-input {
   }
 
   .main-content:has(.calc-wrapper) .calc-wrapper {
-    padding: 14px 0 56px;
+    padding: 0 0 56px;
   }
 
   .main-content:has(.calc-wrapper) .calc-card-main {
@@ -2086,7 +2088,7 @@ select.field-input {
 }
 
 .calc-tool-insulation-board .calc-wrapper {
-  padding: 18px 0 0;
+  padding: 0 0 0;
   gap: 16px;
 }
 
@@ -2498,7 +2500,7 @@ select.field-input {
 
 @media (max-width: 720px) {
   .calc-tool-insulation-board .calc-wrapper {
-    padding: 14px 0 56px;
+    padding: 0 0 56px;
   }
 
   .calc-tool-insulation-board .calc-card-main {
