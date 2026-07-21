@@ -1530,9 +1530,10 @@ select.field-input {
   display: inline-flex;
   align-items: center;
   gap: 12px;
+  height: 34px;
   margin: 0;
-  padding: 0 0 10px;
-  font-size: 24px;
+  padding: 0 0 8px;
+  font-size: 21px;
   line-height: 1;
   font-weight: 900;
   letter-spacing: 0;
@@ -1550,7 +1551,7 @@ select.field-input {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: -13px;
+  bottom: -10px;
   height: 3px;
   border-radius: 999px;
   background: #ef5a2f;
