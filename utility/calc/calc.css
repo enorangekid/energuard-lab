@@ -28,6 +28,12 @@
   --transition: 0.18s ease;
 }
 
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 body {
   margin: 0;
   background: var(--color-bg);
