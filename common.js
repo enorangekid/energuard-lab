@@ -26,11 +26,13 @@ function initTopbar() {
 
   // <base href="utility/"> 처럼 base가 걸린 페이지는 상위 경로 접두어 필요.
   // 예외 상황에서는 페이지에서 window.TOPBAR_PREFIX 로 직접 지정 가능.
+  const path = location.pathname.toLowerCase().replace(/\\/g, "/");
   const prefix = typeof window.TOPBAR_PREFIX === "string"
     ? window.TOPBAR_PREFIX
-    : (document.querySelector("base") ? "../" : "");
+    : (path.includes("/utility/calc/") ? "../../" : (document.querySelector("base") ? "../" : ""));
 
   const current = (location.pathname.split("/").pop() || "index.html").toLowerCase();
+  const activePage = path.includes("/utility/") ? "utility.html" : current;
 
   // ★ 깜빡임 방지의 핵심: 페이지에 정적 상단바 마크업이 이미 있으면 절대 다시 그리지 않는다.
   //   innerHTML로 재구축하면 첫 페인트(빈 바) → JS 후(내용 등장)의 두 단계가 생겨
@@ -38,14 +40,14 @@ function initTopbar() {
   if (bar.querySelector(".topbar-inner")) {
     bar.querySelectorAll(".topbar-nav a").forEach((a) => {
       const href = (a.getAttribute("href") || "").split("/").pop().toLowerCase();
-      a.classList.toggle("active", href === current);
+      a.classList.toggle("active", href === activePage);
     });
     return;
   }
 
   const navHtml = TOPBAR_MENU.map((item) => {
     if (!item.href) return `<a href="#" class="nav-dummy">${item.label}</a>`;
-    const active = current === item.href.toLowerCase() ? ' class="active"' : "";
+    const active = activePage === item.href.toLowerCase() ? ' class="active"' : "";
     return `<a href="${prefix}${item.href}"${active}>${item.label}</a>`;
   }).join("\n      ");
 
