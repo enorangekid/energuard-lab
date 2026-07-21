@@ -1535,12 +1535,12 @@ select.field-input {
 
 .calc-tool-insulation-board .calc-wrapper {
   padding: 18px 0 72px;
-  gap: 24px;
+  gap: 16px;
 }
 
 .calc-tool-insulation-board .calc-main-wrap,
 .calc-tool-insulation-board .calc-right-col {
-  gap: 24px;
+  gap: 16px;
 }
 
 .calc-tool-insulation-board .tip-related-wrap {
