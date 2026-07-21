@@ -637,15 +637,12 @@ select.field-input {
   font-size: 14px;
   color: var(--color-text-muted);
   line-height: 1.5;
-  padding-left: 12px;
+  padding-left: 0;
   position: relative;
 }
 
 .tip-list li::before {
-  content: '·';
-  position: absolute;
-  left: 2px;
-  color: var(--color-text-light);
+  content: none;
 }
 
 /* ─── 관련 계산기 ─── */
@@ -1876,18 +1873,13 @@ select.field-input {
 }
 
 .main-content:has(.calc-wrapper) .tip-list li {
-  padding-left: 12px;
+  padding-left: 0;
   font-size: 13px;
   color: #5a6378;
 }
 
 .main-content:has(.calc-wrapper) .tip-list li::before {
-  content: "";
-  top: .72em;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: #e85d2f;
+  content: none;
 }
 
 .main-content:has(.calc-wrapper) .related-tag {
@@ -2422,18 +2414,13 @@ select.field-input {
 }
 
 .calc-tool-insulation-board .tip-list li {
-  padding-left: 12px;
+  padding-left: 0;
   font-size: 13px;
   color: #5a6378;
 }
 
 .calc-tool-insulation-board .tip-list li::before {
-  content: "";
-  top: .72em;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: #e85d2f;
+  content: none;
 }
 
 .calc-tool-insulation-board .related-tag {
