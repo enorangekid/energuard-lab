@@ -824,7 +824,7 @@ select.field-input {
 .seo-section {
   background: transparent;
   border: none;
-  padding: 24px 0;
+  padding: 28px 0;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -1939,7 +1939,7 @@ select.field-input {
   border: 0;
   border-radius: 0;
   background: transparent;
-  padding: 24px 20px;
+  padding: 28px 20px;
   box-shadow: none;
 }
 
@@ -1959,11 +1959,11 @@ select.field-input {
 }
 
 .main-content:has(.calc-wrapper) .seo-wrap .seo-section:first-child {
-  padding-top: 24px;
+  padding-top: 28px;
 }
 
 .main-content:has(.calc-wrapper) .seo-wrap .seo-section:last-child {
-  padding-bottom: 24px;
+  padding-bottom: 28px;
 }
 
 .main-content:has(.calc-wrapper) .seo-title {
@@ -2493,7 +2493,7 @@ select.field-input {
   border: 0;
   border-radius: 0;
   background: transparent;
-  padding: 24px 20px;
+  padding: 28px 20px;
   box-shadow: none;
 }
 
@@ -2513,11 +2513,11 @@ select.field-input {
 }
 
 .calc-tool-insulation-board .seo-wrap .seo-section:first-child {
-  padding-top: 24px;
+  padding-top: 28px;
 }
 
 .calc-tool-insulation-board .seo-wrap .seo-section:last-child {
-  padding-bottom: 24px;
+  padding-bottom: 28px;
 }
 
 .calc-tool-insulation-board .seo-title {
