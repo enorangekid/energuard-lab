@@ -46,6 +46,13 @@ body > .wrap {
 /* common.js가 메뉴를 채우기 전(빈 셸 상태)에도 높이를 확보해 레이아웃 점프를 방지 */
 header.topbar[data-topbar]:empty { min-height: 73px; }
 
+header.topbar,
+header.topbar *,
+header.topbar *::before,
+header.topbar *::after {
+  box-sizing: border-box;
+}
+
 header.topbar {
   display: block;
   position: sticky;
