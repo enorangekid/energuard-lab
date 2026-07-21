@@ -41,7 +41,7 @@ body.utility-page .main-content:has(.calc-wrapper) {
   width: 100%;
   max-width: 1180px;
   margin: 0 auto;
-  padding: 58px 0 80px;
+  padding: 64px 0 80px;
   background: transparent;
   overflow-x: visible;
 }
@@ -1542,7 +1542,7 @@ select.field-input {
 /* Shared Energuard calculator surface */
 .main-content:has(.calc-wrapper) .page-header {
   padding: 0 0 12px !important;
-  margin-bottom: 8px;
+  margin-bottom: 18px;
   gap: 0;
 }
 
@@ -1952,7 +1952,7 @@ select.field-input {
 @media (max-width: 720px) {
   .main-content:has(.calc-wrapper) .page-header {
     padding: 0 0 12px !important;
-    margin-bottom: 8px;
+    margin-bottom: 18px;
   }
 
   .main-content:has(.calc-wrapper) .page-title {
