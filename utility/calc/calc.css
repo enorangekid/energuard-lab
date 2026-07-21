@@ -1534,7 +1534,7 @@ select.field-input {
 }
 
 .calc-tool-insulation-board .calc-wrapper {
-  padding: 18px 0 72px;
+  padding: 18px 0 0;
   gap: 16px;
 }
 
