@@ -1504,8 +1504,8 @@ select.field-input {
 }
 
 .calc-tool-insulation-board .page-header {
-  padding: 0 0 8px !important;
-  gap: 10px;
+  padding: 0 0 12px !important;
+  gap: 0;
 }
 
 .calc-tool-insulation-board .breadcrumb {
@@ -1526,11 +1526,50 @@ select.field-input {
 }
 
 .calc-tool-insulation-board .page-title {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  padding: 0 0 10px;
   font-size: 24px;
-  line-height: 1.25;
+  line-height: 1;
   font-weight: 900;
   letter-spacing: 0;
   color: #07111f;
+}
+
+.calc-tool-insulation-board .calc-title-label {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.calc-tool-insulation-board .calc-title-label::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -13px;
+  height: 3px;
+  border-radius: 999px;
+  background: #ef5a2f;
+}
+
+.calc-tool-insulation-board .calc-title-help {
+  width: 18px;
+  height: 18px;
+  border: 1px solid #cfd5df;
+  border-radius: 50%;
+  background: #f4f6f9;
+  color: #8a93a5;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transform: translateY(-1px);
 }
 
 .calc-tool-insulation-board .calc-wrapper {
