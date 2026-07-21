@@ -5,6 +5,15 @@
 /* 계산기 페이지 전용 */
 body { background: var(--color-bg); }
 
+body.utility-page .main-content:has(.calc-wrapper) {
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 64px 0 80px;
+  background: transparent;
+  overflow-x: visible;
+}
+
 /* ─── 페이지 헤더 (계산기 전용) ─── */
 .main-content:has(.calc-wrapper) .page-header {
   display: flex;

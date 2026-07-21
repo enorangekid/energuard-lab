@@ -18,6 +18,7 @@
   // ── Hover preload ────────────────────────────────────────────────────────────
   document.addEventListener('mouseover', e => {
     const a = e.target.closest('a[href]');
+    if (shouldBypassRouter(a)) return;
     if (a && isInternal(a) && !pageCache.has(a.href)) fetchPage(a.href);
   }, { passive: true });
 
@@ -25,6 +26,7 @@
   document.addEventListener('click', e => {
     if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
     const a = e.target.closest('a[href]');
+    if (shouldBypassRouter(a)) return;
     if (!a || !isInternal(a)) return;
     e.preventDefault();
     navigate(a.href);
@@ -223,5 +225,9 @@ ${text}
       if (u.pathname.endsWith('/index.html')) u.pathname = u.pathname.slice(0, -10) || '/';
       return u.href;
     } catch { return url; }
+  }
+
+  function shouldBypassRouter(a) {
+    return !a || a.hasAttribute('data-no-router');
   }
 })();
