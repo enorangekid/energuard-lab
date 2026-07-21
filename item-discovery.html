@@ -188,21 +188,77 @@
   #itemPage[data-view="trend"] > .workflow-card { display: none; }
   #itemPage[data-view="discover"] > .trend-view { display: none; }
   .trend-view { display: flex; flex-direction: column; gap: 22px; }
-  .trend-summary { display: grid; grid-template-columns: repeat(4, 1fr); padding: 18px 20px; }
-  .trend-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 10px; }
-  .trend-row {
-    display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 12px;
-    min-height: 78px; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius);
-    background: #fff; cursor: pointer; transition: .15s;
+  .trend-card-actions { display: flex; align-items: center; gap: 10px; }
+  .trend-tabs { display: flex; gap: 8px; padding: 12px 16px 0; }
+  .trend-tab {
+    height: 32px; padding: 0 14px; border: 1px solid var(--line); border-radius: var(--radius);
+    background: #fff; color: var(--sub); font-family: inherit; font-size: 12.5px; font-weight: 900; cursor: pointer;
   }
-  .trend-row:hover { background: #fafbfc; border-color: #c8cdd4; }
-  .trend-rank {
-    width: 34px; height: 34px; border-radius: 10px; background: var(--accent-tint);
-    color: var(--accent); display: inline-flex; align-items: center; justify-content: center;
-    font-family: var(--font-mono); font-size: 13px; font-weight: 900;
+  .trend-tab:hover { border-color: #c8cdd4; background: #fafbfc; color: var(--ink); }
+  .trend-tab.active { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .slot-chips { display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 16px 4px; }
+  .slot-chip {
+    height: 26px; padding: 0 10px; border: 1px solid var(--line); border-radius: 20px;
+    background: #fff; color: var(--sub); font-family: inherit; font-size: 11.5px; font-weight: 800; cursor: pointer;
   }
-  .trend-keyword { display: block; color: var(--ink); font-size: 14px; font-weight: 900; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .trend-meta { margin-top: 3px; color: var(--sub); font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .slot-chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .trend-list { padding: 8px 0 6px; }
+  .trend-row { display: flex; align-items: center; gap: 10px; padding: 9px 16px; border-bottom: 1px solid #f4f6f9; }
+  .trend-row:last-child { border-bottom: 0; }
+  .trend-row:hover { background: #fafbfd; }
+  .tr-rank { width: 26px; text-align: center; font-family: var(--font-mono); font-size: 13px; font-weight: 800; color: var(--sub); flex-shrink: 0; }
+  .trend-row:nth-child(-n+3) .tr-rank { color: var(--accent); }
+  .tr-delta { width: 38px; text-align: center; font-family: var(--font-mono); font-size: 11.5px; font-weight: 700; flex-shrink: 0; }
+  .tr-delta.up { color: var(--good); }
+  .tr-delta.down { color: var(--bad); }
+  .tr-delta.same { color: #c3cad6; }
+  .tr-delta.new { color: var(--accent); }
+  .tr-kw { font-size: 14px; font-weight: 700; cursor: pointer; }
+  .tr-kw:hover { color: var(--accent-dark); text-decoration: underline; }
+  .tr-src { font-size: 10.5px; color: var(--sub); background: #eef0f3; padding: 1px 7px; border-radius: 10px; flex-shrink: 0; }
+  .tr-links { margin-left: auto; display: flex; gap: 4px; flex-shrink: 0; }
+  .tr-links a {
+    font-size: 10.5px; font-weight: 800; color: var(--sub); text-decoration: none;
+    padding: 3px 8px; border: 1px solid var(--line); border-radius: 12px;
+  }
+  .tr-links a:hover { color: var(--accent-dark); border-color: #c8cdd4; background: #fafbfc; }
+  .state { padding: 44px 20px; text-align: center; color: var(--sub); font-size: 13px; font-weight: 700; }
+  .note { padding: 8px 16px; font-size: 11px; color: var(--sub); background: #fafbfc; border-top: 1px solid var(--line); }
+  .cat-selects { display: flex; align-items: center; gap: 8px; padding: 12px 16px; flex-wrap: wrap; border-bottom: 1px solid var(--line); }
+  .cat-select {
+    height: 32px; padding: 0 10px; border: 1px solid var(--line); border-radius: var(--radius);
+    background: #fff; color: var(--ink); font-family: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer;
+    min-width: 128px;
+  }
+  .cat-select:disabled { color: #c3cad6; background: #fafbfc; cursor: default; }
+  .cat-sep { color: var(--sub); font-size: 12px; }
+  .cat-count { margin-left: auto; color: var(--sub); font-size: 11.5px; }
+  .cat-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .cat-table th {
+    text-align: left; padding: 9px 14px; font-size: 11px; font-weight: 900; color: var(--sub);
+    background: #fafbfc; border-bottom: 1px solid var(--line); white-space: nowrap;
+  }
+  .cat-table th.num, .cat-table td.num { text-align: right; }
+  .cat-table td { padding: 9px 14px; border-bottom: 1px solid #f4f6f9; vertical-align: middle; }
+  .cat-table tr:last-child td { border-bottom: 0; }
+  .cat-table tr:hover td { background: #fafbfd; }
+  .cat-rank { font-family: var(--font-mono); font-weight: 800; color: var(--sub); }
+  .cat-kw { font-weight: 700; cursor: pointer; }
+  .cat-kw:hover { color: var(--accent-dark); text-decoration: underline; }
+  .cat-num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  .cat-num.dim { color: #c3cad6; }
+  .comp-score { display: inline-flex; align-items: center; gap: 7px; }
+  .comp-score .comp-gauge {
+    width: 48px; height: 6px; border-radius: 3px;
+    background: #eef0f3; overflow: hidden; display: inline-block;
+  }
+  .comp-score .comp-gauge span { display: block; height: 100%; border-radius: 3px; }
+  .comp-score b { min-width: 24px; text-align: right; font-family: var(--font-mono); font-size: 12px; font-weight: 800; }
+  .comp-score.c0 b { color: #16a34a; } .comp-score.c0 .comp-gauge span { background: #16a34a; }
+  .comp-score.c1 b { color: #65a30d; } .comp-score.c1 .comp-gauge span { background: #84cc16; }
+  .comp-score.c2 b { color: #b45309; } .comp-score.c2 .comp-gauge span { background: #eab308; }
+  .comp-score.c3 b { color: #ea580c; } .comp-score.c3 .comp-gauge span { background: #f97316; }
+  .comp-score.c4 b { color: var(--bad); } .comp-score.c4 .comp-gauge span { background: var(--bad); }
 
   .empty {
     padding: 48px 20px; text-align: center; color: var(--sub); font-size: 13px; font-weight: 700;
@@ -239,24 +295,50 @@
   </header>
 
   <section class="trend-view">
-    <section class="dash-card" aria-label="실시간 트렌드 요약">
-      <div class="trend-summary">
-        <div class="dash-tile"><div class="dash-label">트렌드 후보</div><div class="dash-value" id="trendTotal">0<small>개</small></div></div>
-        <div class="dash-tile"><div class="dash-label">실시간 소스</div><div class="dash-value" id="trendRealtime">0<small>개</small></div></div>
-        <div class="dash-tile"><div class="dash-label">구글 트렌드</div><div class="dash-value" id="trendGoogle">0<small>개</small></div></div>
-        <div class="dash-tile"><div class="dash-label">초안 대기</div><div class="dash-value" id="trendCandidate">0<small>개</small></div></div>
+    <section class="card">
+      <div class="card-head">
+        <div class="card-title-wrap">
+          <span class="card-title">실시간 급상승 키워드</span>
+          <span class="card-subtitle">실시간 검색 순위, 트렌드 순위, 뉴스 이슈를 한 화면에서 확인합니다.</span>
+        </div>
+        <div class="trend-card-actions">
+          <span class="page-meta" id="trendMeta"></span>
+          <button class="action-btn" id="trendRefreshBtn" type="button">새로고침</button>
+        </div>
       </div>
+      <div class="trend-tabs" id="trendTabs">
+        <button type="button" class="trend-tab active" data-list="realtime">실시간 통합</button>
+        <button type="button" class="trend-tab" data-list="google">구글 급상승</button>
+        <button type="button" class="trend-tab" data-list="niche">단열 뉴스</button>
+        <button type="button" class="trend-tab" data-list="spike">단열 급상승</button>
+      </div>
+      <div class="slot-chips" id="slotChips"></div>
+      <div class="trend-list" id="realtimeTrendList">
+        <div class="state">불러오는 중...</div>
+      </div>
+      <div class="note">시그널·네이트 실시간 이슈와 구글 트렌드를 합산한 순위입니다. 키워드를 클릭하면 네이버 검색이 열립니다.</div>
     </section>
 
     <section class="card">
       <div class="card-head">
         <div class="card-title-wrap">
-          <span class="card-title">실시간 트렌드 키워드</span>
-          <span class="card-subtitle">쇼핑 트렌드 업데이트 때 저장된 블로그 후보를 확인하고 초안 생성 대상으로 고릅니다.</span>
+          <span class="card-title">카테고리별 키워드 순위</span>
+          <span class="card-subtitle">쇼핑인사이트 기준 카테고리 인기 키워드와 경쟁도를 확인합니다.</span>
         </div>
-        <span class="pill gray" id="trendCount">0개</span>
+        <span class="page-meta" id="catMeta"></span>
       </div>
-      <div class="trend-list" id="trendList"></div>
+      <div class="cat-selects">
+        <select class="cat-select" id="catSelect1"><option>1차 카테고리 불러오는 중...</option></select>
+        <span class="cat-sep">›</span>
+        <select class="cat-select" id="catSelect2" disabled><option>2차 카테고리</option></select>
+        <span class="cat-sep">›</span>
+        <select class="cat-select" id="catSelect3" disabled><option>3차 카테고리</option></select>
+        <span class="cat-count" id="catCount"></span>
+      </div>
+      <div id="catList">
+        <div class="state">불러오는 중...</div>
+      </div>
+      <div class="note">데이터랩 쇼핑인사이트 인기검색어 기준 상위 키워드입니다. 키워드를 클릭하면 네이버쇼핑 검색이 열립니다.</div>
     </section>
   </section>
 
@@ -359,6 +441,7 @@
 const SUPABASE_URL = "https://eukwfypbfqojbaihfqye.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_MiBvlf3d6ulcVBsi7Odcgw_PTXSmXKj";
 const OPENAI_DRAFT_URL = `${SUPABASE_URL}/functions/v1/item-draft-openai`;
+const TREND_FN_URL = `${SUPABASE_URL}/functions/v1/shopping-trend`;
 const WEBHOOK_KEY = "energItemDiscoveryWebhook:v1";
 const LOCAL_IDEAS_KEY = "energContentIdeas:v1";
 const CATEGORIES = ["전체", "아이소핑크", "열반사단열재", "단열벽지", "기타"];
@@ -369,6 +452,15 @@ let ideas = [];
 let selectedId = "";
 let activeCategory = "전체";
 let activeView = "trend";
+let trendData = null;
+let nicheData = null;
+let spikeData = null;
+let activeTrendList = "realtime";
+let activeSlot = "";
+let trendLoading = false;
+let nicheLoading = false;
+let spikeLoading = false;
+let catLoading = false;
 
 const sampleIdeas = [];
 
@@ -577,40 +669,235 @@ function renderDraft() {
       </div>
     </div>`;
 }
-function trendIdeas() {
-  return ideas
-    .filter(item => ["trend", "google"].includes(item.source))
-    .sort((a, b) => {
-      const dateDiff = new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0);
-      if (dateDiff) return dateDiff;
-      return (b.aiScore || 0) - (a.aiScore || 0);
-    });
+async function callTrendFn(payload) {
+  const res = await fetch(TREND_FN_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: "Bearer " + SUPABASE_ANON_KEY,
+    },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.error) throw new Error(data.error || data.detail || "호출 실패");
+  return data;
 }
-function renderTrendView() {
-  const rows = trendIdeas();
-  const realtime = rows.filter(item => item.source === "trend").length;
-  const google = rows.filter(item => item.source === "google").length;
-  const candidate = rows.filter(item => item.status === "candidate").length;
-  document.getElementById("trendTotal").innerHTML = `${num(rows.length)}<small>개</small>`;
-  document.getElementById("trendRealtime").innerHTML = `${num(realtime)}<small>개</small>`;
-  document.getElementById("trendGoogle").innerHTML = `${num(google)}<small>개</small>`;
-  document.getElementById("trendCandidate").innerHTML = `${num(candidate)}<small>개</small>`;
-  document.getElementById("trendCount").textContent = `${num(rows.length)}개`;
-  document.getElementById("trendList").innerHTML = rows.length ? rows.map((item, index) => `
-    <button type="button" class="trend-row" data-id="${esc(item.id)}">
-      <span class="trend-rank">${index + 1}</span>
-      <span>
-        <span class="trend-keyword">${esc(item.keyword)}</span>
-        <span class="trend-meta">${esc(SOURCE_LABELS[item.source] || item.source)} · ${esc(item.productGroup || item.category || "분류 대기")} · ${formatDateTime(item.updatedAt)}</span>
+function slotLabel(slot) {
+  const m = String(slot).match(/(\d{4})-(\d{2})-(\d{2}) (\d{2})/);
+  if (!m) return slot;
+  const today = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+  const date = `${m[1]}-${m[2]}-${m[3]}`;
+  const hour = Number(m[4]) + "시";
+  return date === today ? hour : `${Number(m[2])}/${Number(m[3])} ${hour}`;
+}
+function deltaHtml(item) {
+  if (item.spike != null) {
+    const cls = item.spike >= 2 ? "new" : item.spike >= 1.3 ? "up" : "same";
+    return `<span class="tr-delta ${cls}">×${item.spike}</span>`;
+  }
+  if (item.change === "new") return `<span class="tr-delta new">NEW</span>`;
+  if (item.change === "up") return `<span class="tr-delta up">▲${item.delta}</span>`;
+  if (item.change === "down") return `<span class="tr-delta down">▼${Math.abs(item.delta)}</span>`;
+  return `<span class="tr-delta same">-</span>`;
+}
+function renderTrendRows(items) {
+  if (!items.length) return `<div class="state">표시할 키워드가 없습니다.</div>`;
+  return items.map(item => {
+    const q = encodeURIComponent(item.query || item.keyword);
+    const mainUrl = item.link || `https://search.naver.com/search.naver?query=${encodeURIComponent(item.keyword)}`;
+    return `<div class="trend-row">
+      <span class="tr-rank">${item.rank}</span>
+      ${deltaHtml(item)}
+      <span class="tr-kw" onclick="window.open('${esc(mainUrl)}', '_blank')">${esc(item.keyword)}</span>
+      ${item.sources && item.sources.length ? `<span class="tr-src">${esc(item.sources.join("·"))}</span>` : ""}
+      <span class="tr-links">
+        <a href="https://search.naver.com/search.naver?ssc=tab.blog.all&query=${q}" target="_blank" rel="noopener">블로그</a>
+        <a href="https://www.youtube.com/results?search_query=${q}" target="_blank" rel="noopener">유튜브</a>
+        <a href="https://www.google.com/search?q=${q}" target="_blank" rel="noopener">구글</a>
       </span>
-      <span class="pill ${item.status === "drafted" ? "green" : item.status === "review" ? "orange" : "gray"}">${esc(STATUS_LABELS[item.status] || item.status)}</span>
-    </button>
-  `).join("") : `<div class="empty">아직 저장된 실시간 트렌드 후보가 없습니다.</div>`;
+    </div>`;
+  }).join("");
+}
+function renderRealtimeTrend() {
+  const listEl = document.getElementById("realtimeTrendList");
+  const chipsEl = document.getElementById("slotChips");
+  if (!listEl || !chipsEl) return;
+  document.querySelectorAll(".trend-tab").forEach(tab => tab.classList.toggle("active", tab.dataset.list === activeTrendList));
+
+  if (activeTrendList === "spike") {
+    chipsEl.innerHTML = "";
+    if (spikeLoading) {
+      listEl.innerHTML = `<div class="state">불러오는 중...</div>`;
+      return;
+    }
+    if (!spikeData) {
+      listEl.innerHTML = `<div class="state">데이터를 불러오지 못했습니다. 새로고침을 눌러 주세요.</div>`;
+      return;
+    }
+    listEl.innerHTML = renderTrendRows(spikeData.niche || []);
+    document.getElementById("trendMeta").textContent = `${spikeData.date}${spikeData.failNote ? " · " + spikeData.failNote : ""}`;
+    return;
+  }
+
+  if (activeTrendList === "niche") {
+    chipsEl.innerHTML = "";
+    if (nicheLoading) {
+      listEl.innerHTML = `<div class="state">불러오는 중...</div>`;
+      return;
+    }
+    if (!nicheData) {
+      listEl.innerHTML = `<div class="state">데이터를 불러오지 못했습니다. 새로고침을 눌러 주세요.</div>`;
+      return;
+    }
+    const nicheItems = nicheData.niche || [];
+    listEl.innerHTML = nicheItems.length ? renderTrendRows(nicheItems) : `<div class="state">최근 7일 사이 단열 관련 뉴스 이슈가 없습니다.</div>`;
+    document.getElementById("trendMeta").textContent = `${nicheData.date} · 이슈 클릭 시 기사가 열립니다`;
+    return;
+  }
+
+  if (trendLoading) {
+    listEl.innerHTML = `<div class="state">불러오는 중...</div>`;
+    return;
+  }
+  if (!trendData) {
+    listEl.innerHTML = `<div class="state">데이터를 불러오지 못했습니다. 새로고침을 눌러 주세요.</div>`;
+    return;
+  }
+  const slots = trendData.slots || [];
+  chipsEl.innerHTML = `<button type="button" class="slot-chip${activeSlot === "" ? " active" : ""}" data-slot="">실시간</button>`
+    + slots.filter(slot => slot !== trendData.slot || activeSlot !== "").slice(0, 10).map(slot =>
+      `<button type="button" class="slot-chip${activeSlot === slot ? " active" : ""}" data-slot="${esc(slot)}">${esc(slotLabel(slot))}</button>`
+    ).join("");
+  const items = trendData[activeTrendList] || [];
+  listEl.innerHTML = renderTrendRows(items);
+  if (activeSlot) {
+    document.getElementById("trendMeta").textContent = slotLabel(activeSlot) + " 시점 순위";
+  } else if (trendData.capturedAt) {
+    const t = new Date(trendData.capturedAt);
+    document.getElementById("trendMeta").textContent = `${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")} 기준${trendData.sourceNote ? ` · ${trendData.sourceNote}` : ""}`;
+  }
+}
+async function loadRealtimeTrend(slot = "") {
+  if (trendLoading) return;
+  trendLoading = true;
+  activeSlot = slot;
+  renderRealtimeTrend();
+  try {
+    trendData = slot ? await callTrendFn({ action: "realtimeAt", slot }) : await callTrendFn({ action: "realtime" });
+  } catch (e) {
+    trendData = null;
+    document.getElementById("trendMeta").textContent = "불러오기 실패: " + String(e.message || e);
+  }
+  trendLoading = false;
+  renderRealtimeTrend();
+}
+async function loadNicheTrend() {
+  if (nicheLoading) return;
+  nicheLoading = true;
+  renderRealtimeTrend();
+  try {
+    nicheData = await callTrendFn({ action: "nicheTrend" });
+  } catch (e) {
+    nicheData = null;
+    document.getElementById("trendMeta").textContent = "불러오기 실패: " + String(e.message || e);
+  }
+  nicheLoading = false;
+  renderRealtimeTrend();
+}
+async function loadSpikeTrend() {
+  if (spikeLoading) return;
+  spikeLoading = true;
+  renderRealtimeTrend();
+  try {
+    spikeData = await callTrendFn({ action: "nicheSpike" });
+  } catch (e) {
+    spikeData = null;
+    document.getElementById("trendMeta").textContent = "불러오기 실패: " + String(e.message || e);
+  }
+  spikeLoading = false;
+  renderRealtimeTrend();
+}
+function compBadge(score, ratio) {
+  if (score == null) return `<span class="comp-score c0"><span class="comp-gauge"><span style="width:0%"></span></span><b>-</b></span>`;
+  const level = score < 20 ? "c0" : score < 40 ? "c1" : score < 60 ? "c2" : score < 80 ? "c3" : "c4";
+  const title = ratio != null ? `상품수 ÷ 검색량 ≈ ${ratio}` : "";
+  return `<span class="comp-score ${level}" title="${esc(title)}"><span class="comp-gauge"><span style="width:${score}%"></span></span><b>${score}</b></span>`;
+}
+function fillCatSelect(selectEl, items, placeholder) {
+  selectEl.innerHTML = `<option value="">${esc(placeholder)}</option>` + items.map(item => `<option value="${esc(item.cid)}">${esc(item.name)}</option>`).join("");
+  selectEl.disabled = !items.length;
+}
+async function loadCategoryRoots() {
+  const sel1 = document.getElementById("catSelect1");
+  try {
+    const data = await callTrendFn({ action: "categoryTree", cid: "0" });
+    fillCatSelect(sel1, data.children || [], "1차 카테고리 선택");
+    const defaultIdx = (data.children || []).findIndex(c => c.name === "가구/인테리어");
+    sel1.selectedIndex = defaultIdx >= 0 ? defaultIdx + 1 : 1;
+    if (sel1.value) await onCatSelectChange(1);
+  } catch (e) {
+    sel1.innerHTML = `<option value="">불러오기 실패</option>`;
+    document.getElementById("catList").innerHTML = `<div class="state">카테고리 목록을 불러오지 못했습니다: ${esc(String(e.message || e))}</div>`;
+  }
+}
+async function onCatSelectChange(level) {
+  const sel1 = document.getElementById("catSelect1");
+  const sel2 = document.getElementById("catSelect2");
+  const sel3 = document.getElementById("catSelect3");
+  if (level === 1) {
+    fillCatSelect(sel2, [], "2차 카테고리");
+    fillCatSelect(sel3, [], "3차 카테고리");
+    if (!sel1.value) return;
+    const data = await callTrendFn({ action: "categoryTree", cid: sel1.value });
+    fillCatSelect(sel2, data.children || [], data.children?.length ? "2차 카테고리 선택" : "하위 카테고리 없음");
+  }
+  if (level === 1 || level === 2) {
+    fillCatSelect(sel3, [], "3차 카테고리");
+    if (level === 2 && sel2.value) {
+      const data = await callTrendFn({ action: "categoryTree", cid: sel2.value });
+      fillCatSelect(sel3, data.children || [], data.children?.length ? "3차 카테고리 선택" : "하위 카테고리 없음");
+    }
+  }
+  const deepest = sel3.value || sel2.value || sel1.value;
+  if (deepest) loadCategoryKeywords(deepest);
+}
+async function loadCategoryKeywords(cid) {
+  if (catLoading) return;
+  catLoading = true;
+  const listEl = document.getElementById("catList");
+  listEl.innerHTML = `<div class="state">불러오는 중...</div>`;
+  document.getElementById("catCount").textContent = "";
+  try {
+    const data = await callTrendFn({ action: "categoryKeywords", cid, count: 20 });
+    const items = data.items || [];
+    listEl.innerHTML = items.length ? `
+      <div style="overflow-x:auto;">
+      <table class="cat-table">
+        <thead><tr><th style="width:40px">#</th><th>키워드</th><th class="num" style="width:110px">월간 검색량</th><th class="num" style="width:100px">상품수</th><th class="num" style="width:130px">경쟁지수</th></tr></thead>
+        <tbody>
+          ${items.map(item => `
+            <tr>
+              <td class="cat-rank">${item.rank}</td>
+              <td><span class="cat-kw" onclick="window.open('https://search.shopping.naver.com/search/all?query=${encodeURIComponent(item.keyword)}', '_blank')">${esc(item.keyword)}</span></td>
+              <td class="num cat-num${item.volume == null ? " dim" : ""}">${item.volume == null ? "-" : item.volume.toLocaleString()}</td>
+              <td class="num cat-num${item.products == null ? " dim" : ""}">${item.products == null ? "-" : item.products.toLocaleString()}</td>
+              <td class="num">${compBadge(item.compScore, item.compRatio)}</td>
+            </tr>`).join("")}
+        </tbody>
+      </table>
+      </div>` : `<div class="state">이 카테고리에서 인기 키워드를 찾지 못했습니다.</div>`;
+    document.getElementById("catMeta").textContent = data.date ? `${data.date} 기준` : "";
+    document.getElementById("catCount").textContent = `${items.length}개 키워드`;
+  } catch (e) {
+    listEl.innerHTML = `<div class="state">불러오기 실패: ${esc(String(e.message || e))}</div>`;
+  }
+  catLoading = false;
 }
 function renderAll() {
   renderModeTabs();
   document.getElementById("itemPage").dataset.view = activeView;
-  renderTrendView();
+  renderRealtimeTrend();
   renderCategories();
   renderIdeas();
   renderDraft();
@@ -718,12 +1005,37 @@ document.querySelector(".page-title-row").addEventListener("click", e => {
   if (!btn) return;
   setActiveView(btn.dataset.view);
 });
-document.getElementById("trendList").addEventListener("click", e => {
-  const row = e.target.closest(".trend-row");
-  if (!row) return;
-  selectedId = row.dataset.id;
-  setActiveView("discover");
-  renderAll();
+document.getElementById("trendTabs").addEventListener("click", e => {
+  const tab = e.target.closest(".trend-tab");
+  if (!tab) return;
+  activeTrendList = tab.dataset.list;
+  if (activeTrendList === "niche" && !nicheData && !nicheLoading) {
+    loadNicheTrend();
+    return;
+  }
+  if (activeTrendList === "spike" && !spikeData && !spikeLoading) {
+    loadSpikeTrend();
+    return;
+  }
+  renderRealtimeTrend();
+});
+document.getElementById("slotChips").addEventListener("click", e => {
+  const chip = e.target.closest(".slot-chip");
+  if (!chip) return;
+  loadRealtimeTrend(chip.dataset.slot || "");
+});
+document.getElementById("trendRefreshBtn").addEventListener("click", () => {
+  if (activeTrendList === "niche") loadNicheTrend();
+  else if (activeTrendList === "spike") loadSpikeTrend();
+  else loadRealtimeTrend("");
+});
+document.getElementById("catSelect1").addEventListener("change", () => onCatSelectChange(1));
+document.getElementById("catSelect2").addEventListener("change", () => onCatSelectChange(2));
+document.getElementById("catSelect3").addEventListener("change", () => {
+  const deepest = document.getElementById("catSelect3").value
+    || document.getElementById("catSelect2").value
+    || document.getElementById("catSelect1").value;
+  if (deepest) loadCategoryKeywords(deepest);
 });
 document.getElementById("ideaList").addEventListener("click", e => {
   const row = e.target.closest(".idea-row");
@@ -739,6 +1051,8 @@ document.getElementById("reloadBtn").addEventListener("click", loadIdeas);
 
 document.getElementById("webhookInput").value = localStorage.getItem(WEBHOOK_KEY) || "";
 loadIdeas();
+loadRealtimeTrend("");
+loadCategoryRoots();
 </script>
 </body>
 </html>
