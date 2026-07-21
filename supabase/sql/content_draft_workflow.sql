@@ -47,6 +47,13 @@ on public.content_ideas for select
 to anon
 using (true);
 
+drop policy if exists "content ideas anon update" on public.content_ideas;
+create policy "content ideas anon update"
+on public.content_ideas for update
+to anon
+using (true)
+with check (true);
+
 drop policy if exists "content drafts anon read" on public.content_drafts;
 create policy "content drafts anon read"
 on public.content_drafts for select

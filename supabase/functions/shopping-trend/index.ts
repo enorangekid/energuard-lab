@@ -95,6 +95,7 @@ async function fetchRank(cid: string, start: string, end: string, unit: string, 
 /* ───────── 실시간 급상승 키워드 (시그널 + 네이트 + 구글 트렌드) ───────── */
 
 const SNAPSHOT_TABLE = "realtime_trend_snapshot";
+const CONTENT_IDEA_TABLE = "content_ideas";
 
 function getSupabaseCredentials() {
   const url = Deno.env.get("SUPABASE_URL") || "";
@@ -216,6 +217,79 @@ async function saveSnapshot(slot: string, listType: string, items: { rank: numbe
   });
 }
 
+function cleanIdeaKeyword(value: string) {
+  return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function ideaKey(value: string) {
+  return cleanIdeaKeyword(value).replace(/\s+/g, "");
+}
+
+function isBlogCandidate(keyword: string) {
+  return /단열|아이소핑크|스티로폼|비드법|폼보드|열반사|은박|온도리|보온|결로|창문|햇빛|열차단|냉기|우레탄|PF보드|페놀폼|미네랄울|글라스울|실외기|에어컨|냉방비|전기요금|폭염|열대야|장마|제습|습기|곰팡이|차량용햇빛|자동차햇빛|차박|썬쉐이드|햇빛가리개|차량커튼|커버|XPS|EPS/i.test(keyword);
+}
+
+function isBlogNoise(keyword: string) {
+  return /의원|선거|재검표|파업|노조|법원|회생|콘서트|홍보대사|역전승|외교관|이더|비니시우스|수력원자력|시위|MC몽|성애|경매|중구|연애|화재$|수소 자동차|자동차$/i.test(keyword);
+}
+
+function ideaCategory(keyword: string) {
+  if (/아이소핑크|XPS|압출/i.test(keyword)) return "아이소핑크";
+  if (/열반사|은박|온도리|단열필름/i.test(keyword)) return "열반사단열재";
+  if (/단열벽지|벽지|결로|곰팡이|습기|제습|장마/i.test(keyword)) return "단열벽지";
+  return "기타";
+}
+
+function ideaProductGroup(keyword: string, category = "") {
+  const text = `${keyword} ${category}`;
+  if (/제습|습기|장마|곰팡이|결로/i.test(text)) return "습기/결로 관리";
+  if (/냉방비|전기요금|에어컨|실외기|폭염|열대야/i.test(text)) return "냉방비/실외기 관리";
+  if (/차량용햇빛|자동차햇빛|차박|햇빛가리개|썬쉐이드|차량커튼/i.test(text)) return "차량 햇빛 차단";
+  if (/창문|햇빛|열차단|단열필름/i.test(text)) return "창문 열차단";
+  return category || "기타";
+}
+
+function ideaSeasonScore(keyword: string) {
+  const month = new Date(Date.now() + 9 * 3600 * 1000).getUTCMonth() + 1;
+  const summer = /열차단|햇빛|창문|실외기|에어컨|냉방비|폭염|열대야|장마|제습|습기|차량용햇빛|자동차햇빛|썬쉐이드|열반사|단열필름|은박|온도리/i.test(keyword);
+  const winter = /결로|냉기|난방|보온|곰팡이|단열벽지|바닥/i.test(keyword);
+  if ([6, 7, 8, 9].includes(month)) return summer ? 94 : winter ? 42 : 68;
+  if ([11, 12, 1, 2].includes(month)) return winter ? 94 : summer ? 45 : 68;
+  return 72;
+}
+
+async function saveContentIdeas(slot: string, listType: string, items: { rank: number; keyword: string; sources?: string[] }[]) {
+  const rows = items
+    .map(item => ({ ...item, keyword: cleanIdeaKeyword(item.keyword) }))
+    .filter(item => item.keyword && isBlogCandidate(item.keyword) && !isBlogNoise(item.keyword))
+    .slice(0, 12)
+    .map(item => {
+      const category = ideaCategory(item.keyword);
+      const seasonScore = ideaSeasonScore(item.keyword);
+      const trendScore = Math.max(45, 105 - Number(item.rank || 99) * 4);
+      return {
+        id: `trend-${slot.replace(/[^0-9]/g, "")}-${listType}-${ideaKey(item.keyword)}`,
+        keyword: item.keyword,
+        source: "trend",
+        category,
+        product_group: ideaProductGroup(item.keyword, category),
+        search_volume: 0,
+        competition_score: Math.max(25, Math.min(78, 45 + Number(item.rank || 0))),
+        season_score: seasonScore,
+        ai_score: Math.min(100, Math.round(trendScore * 0.58 + seasonScore * 0.42)),
+        status: "candidate",
+        updated_at: new Date().toISOString(),
+      };
+    });
+  if (!rows.length) return 0;
+  await supabaseRequest(`/rest/v1/${CONTENT_IDEA_TABLE}?on_conflict=id`, {
+    method: "POST",
+    headers: { "Prefer": "resolution=merge-duplicates,return=minimal" },
+    body: JSON.stringify(rows),
+  });
+  return rows.length;
+}
+
 function withDelta(
   items: { rank: number; keyword: string; sources?: string[] }[],
   prev: Array<{ rank: number; keyword: string }>,
@@ -253,6 +327,8 @@ async function handleRealtime() {
   try {
     await saveSnapshot(slot, "realtime", merged);
     if (googleList.length) await saveSnapshot(slot, "google", googleList);
+    await saveContentIdeas(slot, "realtime", merged);
+    if (googleList.length) await saveContentIdeas(slot, "google", googleList);
     slots = await readSlots();
     const prevSlot = slots.find(s => s < slot);
     if (prevSlot) {

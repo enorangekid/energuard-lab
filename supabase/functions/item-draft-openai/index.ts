@@ -277,7 +277,7 @@ async function fetchIdeas(categories: string[], limit: number, supplied: IdeaPay
   if (supplied.length) {
     const rows = supplied
       .map(normalizeIdea)
-      .filter((idea) => isContentKeyword(idea.keyword) && !isNewsNoise(idea.keyword) && categoryAllowed(idea.category, categories));
+      .filter((idea) => isContentKeyword(idea.keyword) && !isNewsNoise(idea.keyword));
     if (rows.length) return rows.slice(0, limit);
   }
 

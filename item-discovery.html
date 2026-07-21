@@ -489,9 +489,10 @@ function renderAll() {
 async function runWorkflow() {
   const url = document.getElementById("webhookInput").value.trim();
   const endpoint = url || OPENAI_DRAFT_URL;
-  const currentRows = filteredIdeas()
+  const selected = selectedIdea();
+  const currentRows = (selected ? [selected] : filteredIdeas())
     .filter(item => !String(item.id).startsWith("sample-") && item.updatedAt !== "샘플")
-    .slice(0, 5);
+    .slice(0, 1);
   if (window.showLoading) showLoading(url ? "n8n 초안 생성 워크플로우 실행 중..." : "AI 초안을 생성하는 중...");
   try {
     const res = await fetch(endpoint, {
@@ -503,8 +504,8 @@ async function runWorkflow() {
       body: JSON.stringify({
         action: "generateDrafts",
         categories: activeCategory === "전체" ? CATEGORIES.filter(x => x !== "전체") : [activeCategory],
-        ideas: url ? currentRows : [],
-        limit: 5,
+        ideas: currentRows,
+        limit: 1,
         requestedAt: new Date().toISOString()
       })
     });
@@ -558,8 +559,23 @@ function setIdeaStatus(status) {
   if (!item) return;
   item.status = status;
   localStorage.setItem(LOCAL_IDEAS_KEY, JSON.stringify(ideas));
+  saveIdeaStatus(item, status);
   renderAll();
   showToast(`${STATUS_LABELS[status]} 상태로 변경했습니다.`);
+}
+async function saveIdeaStatus(item, status) {
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/content_ideas?id=eq.${encodeURIComponent(item.id)}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: "Bearer " + SUPABASE_ANON_KEY,
+        Prefer: "return=minimal"
+      },
+      body: JSON.stringify({ status, updated_at: new Date().toISOString() })
+    });
+  } catch (_) {}
 }
 
 document.getElementById("categoryTabs").addEventListener("click", e => {
