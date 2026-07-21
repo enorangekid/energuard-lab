@@ -665,28 +665,48 @@ select.field-input {
 }
 
 .related-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
 }
 
 .related-tag {
-  display: inline-block;
-  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 56px;
+  padding: 14px 16px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 800;
   color: var(--color-text);
   background: var(--color-surface);
-  transition: all var(--transition);
-  white-space: nowrap;
+  text-decoration: none;
+  transition: border-color var(--transition), background var(--transition);
+}
+
+.related-tag::after {
+  content: "→";
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #05070b;
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 500;
 }
 
 .related-tag:hover {
-  background: #05070b;
-  border-color: #05070b;
-  color: #fff;
+  background: #fffaf7;
+  border-color: #f0b79d;
+  color: var(--color-text);
 }
 
 /* ─── 히스토리 빈 상태 ─── */
@@ -1871,17 +1891,18 @@ select.field-input {
 }
 
 .main-content:has(.calc-wrapper) .related-tag {
+  min-height: 56px;
   border-color: #dfe5ee;
   border-radius: 6px;
-  padding: 7px 12px;
-  font-size: 12px;
+  padding: 14px 16px;
+  font-size: 14px;
   font-weight: 800;
-  color: #5a6378;
+  color: #07111f;
 }
 
 .main-content:has(.calc-wrapper) .related-tag:hover {
-  border-color: #c8cdd4;
-  background: #f5f6f8;
+  border-color: #f0b79d;
+  background: #fffaf7;
   color: #07111f;
 }
 
@@ -2416,17 +2437,18 @@ select.field-input {
 }
 
 .calc-tool-insulation-board .related-tag {
+  min-height: 56px;
   border-color: #dfe5ee;
   border-radius: 6px;
-  padding: 7px 12px;
-  font-size: 12px;
+  padding: 14px 16px;
+  font-size: 14px;
   font-weight: 800;
-  color: #5a6378;
+  color: #07111f;
 }
 
 .calc-tool-insulation-board .related-tag:hover {
-  border-color: #c8cdd4;
-  background: #f5f6f8;
+  border-color: #f0b79d;
+  background: #fffaf7;
   color: #07111f;
 }
 
