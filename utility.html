@@ -69,7 +69,15 @@
 
     /* 랭킹추적·키워드분석·매출분석과 동일한 시작 헤드(.mode-title-tabs) 스타일.
        유틸리티는 하위 탭이 없는 단일 페이지라 키워드분석과 같은 방식(탭 1개, 항상 active)으로 쓴다. */
-    .main-content > header { display: flex; align-items: flex-end; gap: 0; margin-bottom: 30px; }
+    .main-content > header {
+      display: flex;
+      align-items: flex-end;
+      gap: 0;
+      width: 100%;
+      margin-bottom: 18px;
+      padding: 0 0 12px;
+      box-sizing: border-box;
+    }
     .mode-title-tabs { display: inline-flex; align-items: center; gap: 28px; }
     .mode-title-tab {
       position: relative; height: 34px; padding: 0 0 8px; border: 0; background: transparent;
@@ -85,6 +93,53 @@
       width: 18px; height: 18px; border: 1px solid #cfd5df; border-radius: 50%;
       background: #f4f6f9; color: #8a93a5; font-size: 12px; font-weight: 900;
       display: inline-flex; align-items: center; justify-content: center; line-height: 1;
+    }
+
+    .main-content > header .page-title {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      min-height: 34px;
+      margin: 0;
+      padding: 0 0 8px;
+      font-size: 21px;
+      line-height: 1;
+      font-weight: 900;
+      letter-spacing: 0;
+      color: #07111f;
+    }
+
+    .main-content > header .calc-title-label {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+    }
+
+    .main-content > header .calc-title-label::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: -13px;
+      height: 3px;
+      border-radius: 999px;
+      background: var(--accent);
+    }
+
+    .main-content > header .calc-title-help {
+      width: 18px;
+      height: 18px;
+      border: 1px solid #cfd5df;
+      border-radius: 50%;
+      background: #f4f6f9;
+      color: #8a93a5;
+      font-size: 12px;
+      font-weight: 900;
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .utility-grid {
@@ -179,14 +234,10 @@
 
   <main class="main-content">
     <header>
-      <div class="mode-title-tabs">
-        <button type="button" class="mode-title-tab active">
-          <span class="mode-title-text">
-            <span class="mode-label">유틸리티</span>
-            <span class="mode-help" title="단열/보온, 목공/보드, 마감/인테리어 등 실무에 필요한 계산기 도구를 모아뒀습니다.">?</span>
-          </span>
-        </button>
-      </div>
+      <h1 class="page-title">
+        <span class="calc-title-label">유틸리티</span>
+        <span class="calc-title-help" title="단열/보온, 목공/보드, 마감/인테리어 등 실무에 필요한 계산기 도구를 모아뒀습니다.">?</span>
+      </h1>
     </header>
 
     <section class="utility-grid" aria-label="계산기 목록">
