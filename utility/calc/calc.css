@@ -1025,7 +1025,7 @@ select.field-input {
 .seo-check-body {
   font-size: 14px;
   color: var(--color-text-muted);
-  line-height: 1.7;
+  line-height: 1.55;
   word-break: keep-all;
 }
 
@@ -1978,6 +1978,10 @@ select.field-input {
   color: #5a6378;
 }
 
+.main-content:has(.calc-wrapper) .seo-check-body {
+  line-height: 1.55;
+}
+
 .main-content:has(.calc-wrapper) .seo-list li strong,
 .main-content:has(.calc-wrapper) .seo-formula-example strong,
 .main-content:has(.calc-wrapper) .seo-check-title,
@@ -2526,6 +2530,10 @@ select.field-input {
   font-size: 13px;
   line-height: 1.7;
   color: #5a6378;
+}
+
+.calc-tool-insulation-board .seo-check-body {
+  line-height: 1.55;
 }
 
 .calc-tool-insulation-board .seo-formula-body {
