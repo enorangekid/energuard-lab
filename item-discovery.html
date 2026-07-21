@@ -301,38 +301,7 @@ let ideas = [];
 let selectedId = "";
 let activeCategory = "전체";
 
-const sampleIdeas = [
-  {
-    id: "sample-condensation", keyword: "겨울 결로 방지", source: "season", category: "단열벽지",
-    productGroup: "단열벽지", searchVolume: 18300, competitionScore: 42, seasonScore: 93, aiScore: 88,
-    status: "drafted", updatedAt: "샘플",
-    title: "겨울 결로 방지, 단열벽지로 해결할 수 있을까?",
-    outline: ["결로가 생기는 원인", "단열벽지가 도움 되는 경우", "시공 전 확인할 부분", "상품 선택 기준"],
-    body: "겨울철 결로는 실내외 온도차와 벽면 냉기가 만나면서 생깁니다. 단열벽지는 벽면의 차가운 표면 온도를 완화해 결로와 곰팡이 위험을 줄이는 데 도움을 줄 수 있습니다. 다만 누수나 환기 문제가 원인인 경우에는 단열재만으로 해결되지 않으므로 원인 확인이 먼저 필요합니다.",
-    faq: ["단열벽지만 붙이면 곰팡이가 없어지나요?", "결로가 심한 벽에는 어떤 시공 순서가 좋나요?"],
-    thumbnail: "결로 줄이는 벽면 단열 체크"
-  },
-  {
-    id: "sample-window-heat", keyword: "창문 햇빛 차단", source: "trend", category: "열반사단열재",
-    productGroup: "열반사단열재", searchVolume: 9600, competitionScore: 36, seasonScore: 86, aiScore: 82,
-    status: "candidate", updatedAt: "샘플",
-    title: "창문 햇빛 차단, 열반사단열재가 효과적인 이유",
-    outline: ["햇빛 차단과 복사열", "열반사단열재 구조", "창문 시공 시 주의점"],
-    body: "여름철 창문으로 들어오는 열은 실내 온도를 빠르게 올립니다. 열반사단열재는 복사열을 반사하는 구조라 창문 주변 열 유입을 줄이는 보조 자재로 활용할 수 있습니다.",
-    faq: ["유리에 바로 붙여도 되나요?", "암막 효과도 있나요?"],
-    thumbnail: "창문 열기 줄이는 방법"
-  },
-  {
-    id: "sample-floor-cold", keyword: "바닥 냉기 차단", source: "interest", category: "기타",
-    productGroup: "바닥단열재", searchVolume: 12100, competitionScore: 51, seasonScore: 90, aiScore: 78,
-    status: "review", updatedAt: "샘플",
-    title: "바닥 냉기 차단, 어떤 단열재를 써야 할까?",
-    outline: ["바닥 냉기가 심한 공간", "시공 전 체크", "난방필름 단열재와 일반 단열재 차이"],
-    body: "바닥 냉기는 체감 온도를 크게 떨어뜨립니다. 사용 공간과 마감재에 따라 바닥단열재, 난방필름 전용 단열재, 열반사 보조재를 구분해 선택해야 합니다.",
-    faq: ["난방필름 아래 은박 단열재를 써도 되나요?", "셀프 시공이 가능한가요?"],
-    thumbnail: "바닥 냉기 차단 자재 선택"
-  }
-];
+const sampleIdeas = [];
 
 function esc(value) {
   return String(value ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -385,7 +354,9 @@ async function fetchSupabaseIdeas() {
 function loadLocalIdeas() {
   try {
     const saved = JSON.parse(localStorage.getItem(LOCAL_IDEAS_KEY) || "[]");
-    return Array.isArray(saved) && saved.length ? saved.map(normalizeIdea) : sampleIdeas;
+    return Array.isArray(saved) && saved.length
+      ? saved.map(normalizeIdea).filter(item => !String(item.id).startsWith("sample-") && item.updatedAt !== "샘플")
+      : sampleIdeas;
   } catch {
     return sampleIdeas;
   }
@@ -518,7 +489,9 @@ function renderAll() {
 async function runWorkflow() {
   const url = document.getElementById("webhookInput").value.trim();
   const endpoint = url || OPENAI_DRAFT_URL;
-  const currentRows = filteredIdeas().slice(0, 5);
+  const currentRows = filteredIdeas()
+    .filter(item => !String(item.id).startsWith("sample-") && item.updatedAt !== "샘플")
+    .slice(0, 5);
   if (window.showLoading) showLoading(url ? "n8n 초안 생성 워크플로우 실행 중..." : "AI 초안을 생성하는 중...");
   try {
     const res = await fetch(endpoint, {

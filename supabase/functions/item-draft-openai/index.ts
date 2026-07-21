@@ -51,7 +51,7 @@ function inferCategory(keyword: string, category = "") {
   if (/아이소핑크|XPS|압출/.test(text)) return "아이소핑크";
   if (/열반사|은박|온도리/.test(text)) return "열반사단열재";
   if (/단열벽지|벽지|결로|곰팡이/.test(text)) return "단열벽지";
-  return category || "기타";
+  return "기타";
 }
 
 function normalizeIdea(row: IdeaPayload): Required<IdeaPayload> {
@@ -71,15 +71,132 @@ function normalizeIdea(row: IdeaPayload): Required<IdeaPayload> {
 }
 
 function fallbackIdeas(categories: string[], limit: number) {
-  const base: IdeaPayload[] = [
-    { keyword: "아이소핑크 시공 방법", source: "interest", category: "아이소핑크", searchVolume: 4200, competitionScore: 38, seasonScore: 72, aiScore: 86 },
-    { keyword: "열반사단열재 효과", source: "interest", category: "열반사단열재", searchVolume: 3700, competitionScore: 41, seasonScore: 84, aiScore: 84 },
-    { keyword: "겨울 결로 방지", source: "season", category: "단열벽지", searchVolume: 18300, competitionScore: 42, seasonScore: 93, aiScore: 88 },
-    { keyword: "창문 햇빛 차단", source: "trend", category: "열반사단열재", searchVolume: 9600, competitionScore: 36, seasonScore: 86, aiScore: 82 },
-    { keyword: "스티로폼 단열 차이", source: "interest", category: "기타", searchVolume: 2900, competitionScore: 44, seasonScore: 61, aiScore: 74 },
-  ];
-  const allow = new Set(categories.length ? categories : ["아이소핑크", "열반사단열재", "단열벽지", "기타"]);
-  return base.filter(x => allow.has(String(x.category))).slice(0, limit).map(normalizeIdea);
+  return [];
+}
+
+function currentKstMonth() {
+  const kst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  return `${kst.getUTCFullYear()}-${String(kst.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function prevKstMonth() {
+  const kst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  kst.setUTCMonth(kst.getUTCMonth() - 1);
+  return `${kst.getUTCFullYear()}-${String(kst.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function categoryAllowed(category: string, categories: string[]) {
+  return !categories.length || categories.includes(category);
+}
+
+function isInsulationKeyword(keyword: string) {
+  return /단열|아이소핑크|스티로폼|비드법|폼보드|열반사|은박|온도리|보온|결로|창문열차단|창문햇빛|열차단|냉기|우레탄|PF보드|페놀폼|미네랄울|글라스울|실외기커버|에어컨커버|XPS|EPS/i.test(keyword);
+}
+
+function seasonScoreFor(keyword: string) {
+  const month = new Date(Date.now() + 9 * 60 * 60 * 1000).getUTCMonth() + 1;
+  const summer = /열차단|햇빛|창문|실외기|에어컨|열반사|단열필름|은박|온도리/i.test(keyword);
+  const winter = /결로|냉기|난방|보온|곰팡이|단열벽지|바닥/i.test(keyword);
+  if ([6, 7, 8, 9].includes(month)) return summer ? 92 : winter ? 35 : 68;
+  if ([11, 12, 1, 2].includes(month)) return winter ? 92 : summer ? 40 : 68;
+  return 72;
+}
+
+function keywordIdeaFromVolume(row: any): Required<IdeaPayload> | null {
+  const keyword = cleanText(row.keyword);
+  if (!keyword || !isInsulationKeyword(keyword)) return null;
+  const category = inferCategory(keyword);
+  const total = safeNumber(row.total);
+  const competition = Math.max(20, Math.min(85, Math.round(70 - Math.log10(Math.max(total, 10)) * 8)));
+  const season = seasonScoreFor(keyword);
+  const volumeScore = Math.min(100, Math.round(Math.log10(Math.max(total, 10)) * 22));
+  return normalizeIdea({
+    id: `volume-${keyword}`,
+    keyword,
+    source: season >= 85 ? "season" : "interest",
+    category,
+    productGroup: category,
+    searchVolume: total,
+    competitionScore: competition,
+    seasonScore: season,
+    aiScore: Math.round(volumeScore * 0.48 + season * 0.34 + (100 - competition) * 0.18),
+  });
+}
+
+function keywordIdeaFromRankHistory(row: any): Required<IdeaPayload> | null {
+  const keyword = cleanText(row.keyword);
+  if (!keyword || !isInsulationKeyword(keyword)) return null;
+  const category = inferCategory(keyword, cleanText(row.main_keyword || ""));
+  const total = safeNumber(row.search_volume_total);
+  if (!total) return null;
+  const competition = Math.max(18, Math.min(88, Math.round(72 - Math.log10(Math.max(total, 10)) * 8)));
+  const season = seasonScoreFor(keyword);
+  const volumeScore = Math.min(100, Math.round(Math.log10(Math.max(total, 10)) * 23));
+  return normalizeIdea({
+    id: `rank-volume-${keyword}`,
+    keyword,
+    source: season >= 85 ? "season" : "interest",
+    category,
+    productGroup: category,
+    searchVolume: total,
+    competitionScore: competition,
+    seasonScore: season,
+    aiScore: Math.round(volumeScore * 0.5 + season * 0.34 + (100 - competition) * 0.16),
+  });
+}
+
+async function fetchRankHistoryIdeas(categories: string[], limit: number) {
+  const rows = await supabaseRequest(
+    "/rest/v1/keyword_rank_history?select=keyword,main_keyword,search_volume_total,collected_date&search_volume_total=gt.0&order=collected_date.desc,search_volume_total.desc&limit=1500",
+  );
+  const seen = new Set<string>();
+  return (Array.isArray(rows) ? rows : [])
+    .map(keywordIdeaFromRankHistory)
+    .filter((idea): idea is Required<IdeaPayload> => {
+      if (!idea) return false;
+      if (!categoryAllowed(idea.category, categories)) return false;
+      if (seen.has(idea.keyword)) return false;
+      seen.add(idea.keyword);
+      return true;
+    })
+    .sort((a, b) => b.aiScore - a.aiScore || b.searchVolume - a.searchVolume)
+    .slice(0, limit);
+}
+
+async function fetchVolumeIdeas(categories: string[], limit: number) {
+  const months = [currentKstMonth(), prevKstMonth()];
+  const rows = await supabaseRequest(
+    `/rest/v1/keyword_search_volume_monthly?select=keyword,snapshot_month,total&snapshot_month=in.(${months.join(",")})&total=gt.0&order=total.desc&limit=300`,
+  );
+  const seen = new Set<string>();
+  return (Array.isArray(rows) ? rows : [])
+    .map(keywordIdeaFromVolume)
+    .filter((idea): idea is Required<IdeaPayload> => {
+      if (!idea) return false;
+      if (!categoryAllowed(idea.category, categories)) return false;
+      if (seen.has(idea.keyword)) return false;
+      seen.add(idea.keyword);
+      return true;
+    })
+    .sort((a, b) => b.aiScore - a.aiScore || b.searchVolume - a.searchVolume)
+    .slice(0, limit);
+}
+
+async function fetchTrendBoostMap() {
+  try {
+    const rows = await supabaseRequest(
+      "/rest/v1/realtime_trend_snapshot?select=keyword,rank,captured_at&order=captured_at.desc,rank.asc&limit=80",
+    );
+    const boost = new Map<string, number>();
+    (Array.isArray(rows) ? rows : []).forEach((row) => {
+      const keyword = cleanText(row.keyword);
+      if (!isInsulationKeyword(keyword)) return;
+      boost.set(keyword.replace(/\s+/g, ""), Math.max(0, 35 - safeNumber(row.rank)));
+    });
+    return boost;
+  } catch (_) {
+    return new Map<string, number>();
+  }
 }
 
 async function supabaseRequest(path: string, init: RequestInit = {}) {
@@ -101,7 +218,12 @@ async function supabaseRequest(path: string, init: RequestInit = {}) {
 }
 
 async function fetchIdeas(categories: string[], limit: number, supplied: IdeaPayload[]) {
-  if (supplied.length) return supplied.map(normalizeIdea).slice(0, limit);
+  if (supplied.length) {
+    const rows = supplied
+      .map(normalizeIdea)
+      .filter((idea) => idea.searchVolume > 0 && isInsulationKeyword(idea.keyword) && categoryAllowed(idea.category, categories));
+    if (rows.length) return rows.slice(0, limit);
+  }
 
   try {
     const categoryFilter = categories.length
@@ -111,7 +233,7 @@ async function fetchIdeas(categories: string[], limit: number, supplied: IdeaPay
       `/rest/v1/content_ideas?select=*&status=neq.used${categoryFilter}&order=ai_score.desc.nullslast,updated_at.desc&limit=${limit}`,
     );
     if (Array.isArray(rows) && rows.length) {
-      return rows.map((row) => normalizeIdea({
+      const saved = rows.map((row) => normalizeIdea({
         id: row.id,
         keyword: row.keyword,
         source: row.source,
@@ -121,13 +243,23 @@ async function fetchIdeas(categories: string[], limit: number, supplied: IdeaPay
         competitionScore: row.competition_score,
         seasonScore: row.season_score,
         aiScore: row.ai_score,
-      }));
+      }))
+        .filter((idea) => idea.searchVolume > 0 && isInsulationKeyword(idea.keyword) && categoryAllowed(idea.category, categories))
+        .slice(0, limit);
+      if (saved.length) return saved;
     }
   } catch (_) {
-    // 테이블이 없거나 아직 수집 데이터가 없으면 샘플 후보로 먼저 화면을 살립니다.
+    // 저장 후보가 없어도 검색량 테이블에서 다시 후보를 구성합니다.
   }
 
-  return fallbackIdeas(categories, limit);
+  const rankHistoryIdeas = await fetchRankHistoryIdeas(categories, limit);
+  const volumeIdeas = rankHistoryIdeas.length ? rankHistoryIdeas : await fetchVolumeIdeas(categories, limit);
+  const trendBoost = await fetchTrendBoostMap();
+  const boosted = volumeIdeas.map((idea) => {
+    const boost = trendBoost.get(idea.keyword.replace(/\s+/g, "")) || 0;
+    return { ...idea, source: boost ? "trend" : idea.source, aiScore: Math.min(100, idea.aiScore + boost) };
+  });
+  return boosted.length ? boosted : fallbackIdeas(categories, limit);
 }
 
 function buildPrompt(idea: Required<IdeaPayload>) {
