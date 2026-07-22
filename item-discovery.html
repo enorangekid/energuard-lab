@@ -176,17 +176,11 @@
   .action-btn.primary { background: var(--dark); border-color: var(--dark); color: #fff; }
   .action-btn.primary:hover { background: #151923; border-color: #151923; }
 
-  .workflow-card { margin-top: 22px; }
-  .flow-steps { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; padding: 16px 20px 20px; }
-  .flow-step { min-height: 86px; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; }
-  .flow-step b { display: block; margin-bottom: 6px; font-size: 12px; font-weight: 900; color: var(--ink); }
-  .flow-step span { display: block; color: var(--sub); font-size: 11.5px; font-weight: 600; line-height: 1.45; }
 
   #itemPage[data-view="trend"] > .control-row,
   #itemPage[data-view="trend"] > .category-tabs,
   #itemPage[data-view="trend"] > .dash-card,
   #itemPage[data-view="trend"] > .content-grid,
-  #itemPage[data-view="trend"] > .workflow-card { display: none; }
   #itemPage[data-view="discover"] > .trend-view { display: none; }
   .trend-view { display: flex; flex-direction: column; gap: 24px; }
   .trend-filterbar {
@@ -352,7 +346,7 @@
     .wrap { padding: 36px 16px 64px; }
     .page-head, .control-row { flex-direction: column; align-items: flex-start; }
     .control-right, .input-control { width: 100%; }
-    .category-tabs, .dash-tiles, .content-grid, .flow-steps { grid-template-columns: 1fr; }
+    .category-tabs, .dash-tiles, .content-grid { grid-template-columns: 1fr; }
     .dash-tile { border-right: 0; border-bottom: 1px solid var(--line); padding: 12px 0; }
     .dash-tile:last-child { border-bottom: 0; }
     .idea-row { grid-template-columns: 36px minmax(0, 1fr); }
@@ -367,7 +361,7 @@
   <header class="page-head">
     <div class="page-title-row">
       <h1 class="page-title">아이템 발굴</h1>
-      <span class="page-help" title="n8n이 수집한 키워드 후보와 AI 블로그 초안을 검토하는 화면입니다.">?</span>
+      <span class="page-help" title="저장한 키워드 후보와 AI 블로그 초안을 검토하는 화면입니다.">?</span>
     </div>
     <div class="page-meta" id="pageMeta">초안 자동 생성 준비됨</div>
   </header>
@@ -442,10 +436,6 @@
       </select>
     </div>
     <div class="control-right">
-      <input class="input-control" id="webhookInput" type="url" placeholder="n8n Webhook URL (선택)">
-      <button class="icon-btn" id="saveWebhookBtn" type="button" data-tip="웹훅 저장" aria-label="웹훅 저장">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"></path><path d="M17 21v-8H7v8"></path><path d="M7 3v5h8"></path></svg>
-      </button>
       <button class="icon-btn accent" id="runWorkflowBtn" type="button" data-tip="AI 초안 생성" aria-label="AI 초안 생성">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.2-8.56"></path><path d="M21 3v6h-6"></path></svg>
       </button>
@@ -478,7 +468,7 @@
       <div class="card-head">
         <div class="card-title-wrap">
           <span class="card-title">키워드 후보</span>
-          <span class="card-subtitle">n8n이 수집·분류한 단열 콘텐츠 후보입니다.</span>
+          <span class="card-subtitle">트렌드와 검색에서 저장한 콘텐츠 후보입니다.</span>
         </div>
         <span class="pill gray" id="ideaCount">0개</span>
       </div>
@@ -499,22 +489,6 @@
     </article>
   </section>
 
-  <section class="card workflow-card">
-    <div class="card-head">
-      <div class="card-title-wrap">
-        <span class="card-title">n8n 워크플로우 설계</span>
-        <span class="card-subtitle">발행은 제외하고 초안 생성까지만 자동화합니다.</span>
-      </div>
-    </div>
-    <div class="flow-steps">
-      <div class="flow-step"><b>1. 키워드 수집</b><span>실시간·관심·계절 키워드를 모읍니다.</span></div>
-      <div class="flow-step"><b>2. 중복 정리</b><span>비슷한 검색어를 묶고 불필요한 키워드를 제외합니다.</span></div>
-      <div class="flow-step"><b>3. 상품군 매칭</b><span>단열벽지, 열반사, 아이소핑크 등으로 분류합니다.</span></div>
-      <div class="flow-step"><b>4. 점수화</b><span>검색량, 경쟁도, 계절성, 상품 연결성을 계산합니다.</span></div>
-      <div class="flow-step"><b>5. AI 초안</b><span>제목, 목차, 본문, FAQ, 썸네일 문구를 생성합니다.</span></div>
-      <div class="flow-step"><b>6. 검토 저장</b><span>Supabase에 저장하고 에너가드랩에서 검토합니다.</span></div>
-    </div>
-  </section>
 </main>
 
 <div class="toast" id="toast"></div>
@@ -524,7 +498,6 @@ const SUPABASE_URL = "https://eukwfypbfqojbaihfqye.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_MiBvlf3d6ulcVBsi7Odcgw_PTXSmXKj";
 const OPENAI_DRAFT_URL = `${SUPABASE_URL}/functions/v1/item-draft-openai`;
 const TREND_FN_URL = `${SUPABASE_URL}/functions/v1/shopping-trend`;
-const WEBHOOK_KEY = "energItemDiscoveryWebhook:v1";
 const LOCAL_IDEAS_KEY = "energContentIdeas:v1";
 const CATEGORIES = ["전체", "실시간 트렌드", "트렌드 저장", "검색 저장", "직접 추가"];
 const STATUS_LABELS = { candidate: "후보", drafted: "초안 생성", review: "검토 중", used: "사용", hold: "보류" };
@@ -777,7 +750,7 @@ function renderDraft() {
       </div>
       <div class="draft-section">
         <h3>본문 초안</h3>
-        <p>${esc(item.body || "아직 생성된 본문 초안이 없습니다. n8n 초안 생성 실행 후 이 영역에 본문이 표시됩니다.")}</p>
+        <p>${esc(item.body || "아직 생성된 본문 초안이 없습니다. AI 초안 생성 후 이 영역에 본문이 표시됩니다.")}</p>
       </div>
       <div class="draft-section">
         <h3>FAQ</h3>
@@ -1097,19 +1070,19 @@ function renderAll() {
   renderDraft();
 }
 async function runWorkflow() {
-  const url = document.getElementById("webhookInput").value.trim();
-  const endpoint = url || OPENAI_DRAFT_URL;
+  const endpoint = OPENAI_DRAFT_URL;
   const selected = selectedIdea();
   const currentRows = (selected ? [selected] : filteredIdeas())
     .filter(item => !String(item.id).startsWith("sample-") && item.updatedAt !== "샘플")
     .slice(0, 1);
-  if (window.showLoading) showLoading(url ? "n8n 초안 생성 워크플로우 실행 중..." : "AI 초안을 생성하는 중...");
+  if (window.showLoading) showLoading("AI 초안을 생성하는 중...");
   try {
     const res = await fetch(endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(url ? {} : { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY })
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: "Bearer " + SUPABASE_ANON_KEY
       },
       body: JSON.stringify({
         action: "generateDrafts",
@@ -1120,7 +1093,7 @@ async function runWorkflow() {
       })
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok || data.ok === false) throw new Error(data.error || `${url ? "Webhook" : "AI"} ${res.status}`);
+    if (!res.ok || data.ok === false) throw new Error(data.error || `AI ${res.status}`);
     if (Array.isArray(data.items) && data.items.length) {
       const merged = new Map(ideas.map(item => [String(item.id), item]));
       data.items.map(normalizeIdea).forEach(item => merged.set(String(item.id), item));
@@ -1128,18 +1101,14 @@ async function runWorkflow() {
       selectedId = String(data.items[0].id || selectedId);
       localStorage.setItem(LOCAL_IDEAS_KEY, JSON.stringify(ideas));
       renderAll();
-      document.getElementById("pageMeta").textContent = `${url ? "n8n" : "OpenAI"} 초안 ${data.items.length}개 생성`;
+      document.getElementById("pageMeta").textContent = `OpenAI 초안 ${data.items.length}개 생성`;
     }
-    showToast(url ? "n8n 실행 요청을 보냈습니다." : "AI 초안을 생성했습니다.");
+    showToast("AI 초안을 생성했습니다.");
   } catch (error) {
     showToast("초안 생성 실패: " + String(error.message || error));
   } finally {
     if (window.hideLoading) hideLoading();
   }
-}
-function saveWebhook() {
-  localStorage.setItem(WEBHOOK_KEY, document.getElementById("webhookInput").value.trim());
-  showToast("n8n Webhook URL을 저장했습니다.");
 }
 function copyDraft() {
   const item = selectedIdea();
@@ -1271,7 +1240,6 @@ document.getElementById("ideaList").addEventListener("click", e => {
 });
 document.getElementById("sourceSelect").addEventListener("change", renderAll);
 document.getElementById("statusSelect").addEventListener("change", renderAll);
-document.getElementById("saveWebhookBtn").addEventListener("click", saveWebhook);
 document.getElementById("runWorkflowBtn").addEventListener("click", runWorkflow);
 document.getElementById("reloadBtn").addEventListener("click", loadIdeas);
 document.addEventListener("click", e => {
@@ -1279,7 +1247,6 @@ document.addEventListener("click", e => {
   if (select && !select.contains(e.target)) select.classList.remove("open");
 });
 
-document.getElementById("webhookInput").value = localStorage.getItem(WEBHOOK_KEY) || "";
 loadIdeas();
 loadRealtimeTrend("");
 loadCategoryRoots();
