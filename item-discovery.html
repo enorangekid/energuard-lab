@@ -123,6 +123,12 @@
   .idea-main { min-width: 0; }
   .idea-keyword { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: 13.5px; font-weight: 900; color: var(--ink); }
   .idea-keyword span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .idea-new-badge {
+    display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto;
+    height: 18px; padding: 0 6px; border-radius: 999px;
+    background: var(--accent); color: #fff; font-size: 9px; font-weight: 900;
+    font-family: var(--font-mono); line-height: 1;
+  }
   .idea-desc { margin-top: 4px; color: var(--sub); font-size: 11.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .idea-side { min-width: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
   .idea-meta-line { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 5px; margin-top: 0; }
@@ -445,11 +451,13 @@ const SUPABASE_ANON_KEY = "sb_publishable_MiBvlf3d6ulcVBsi7Odcgw_PTXSmXKj";
 const OPENAI_DRAFT_URL = `${SUPABASE_URL}/functions/v1/item-draft-openai`;
 const TREND_FN_URL = `${SUPABASE_URL}/functions/v1/shopping-trend`;
 const LOCAL_IDEAS_KEY = "energContentIdeas:v1";
+const SEEN_IDEAS_KEY = "energContentIdeasSeen:v1";
 const CATEGORIES = ["전체", "실시간 트렌드", "검색", "직접"];
 const STATUS_LABELS = { candidate: "후보", drafted: "초안 생성", review: "검토 중", used: "사용", hold: "보류" };
 const SOURCE_LABELS = { interest: "관심", trend: "실시간", trend_manual: "실시간 저장", keyword_search: "검색 저장", google: "구글", season: "계절", manual: "직접", direct: "직접" };
 
 let ideas = [];
+let seenIdeaIds = new Set();
 let selectedId = "";
 let activeCategory = "전체";
 let activeView = "trend";
@@ -615,6 +623,35 @@ function loadLocalIdeas() {
     return sampleIdeas;
   }
 }
+function loadSeenIdeaIds() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SEEN_IDEAS_KEY) || "[]");
+    return new Set(Array.isArray(saved) ? saved.map(String) : []);
+  } catch {
+    return new Set();
+  }
+}
+function saveSeenIdeaIds() {
+  localStorage.setItem(SEEN_IDEAS_KEY, JSON.stringify([...seenIdeaIds]));
+}
+function syncSeenIdeaBaseline() {
+  if (localStorage.getItem(SEEN_IDEAS_KEY) == null) {
+    seenIdeaIds = new Set(ideas.map(item => String(item.id)));
+    saveSeenIdeaIds();
+    return;
+  }
+  seenIdeaIds = loadSeenIdeaIds();
+}
+function isNewIdea(item) {
+  return !!item && !seenIdeaIds.has(String(item.id));
+}
+function markIdeaSeen(id) {
+  const key = String(id || "");
+  if (!key || seenIdeaIds.has(key)) return false;
+  seenIdeaIds.add(key);
+  saveSeenIdeaIds();
+  return true;
+}
 async function loadIdeas() {
   if (window.showLoading) showLoading("아이템 발굴 데이터를 불러오는 중...");
   try {
@@ -628,6 +665,7 @@ async function loadIdeas() {
   } finally {
     if (window.hideLoading) hideLoading();
   }
+  syncSeenIdeaBaseline();
   if (!selectedId && ideas[0]) selectedId = ideas[0].id;
   renderAll();
 }
@@ -653,11 +691,12 @@ function renderIdeas() {
   document.getElementById("ideaList").innerHTML = rows.length ? rows.map(item => {
     const draftReady = hasDraftContent(item);
     const blogTip = draftReady ? "블로그 초안 보기" : "블로그 초안 생성";
+    const newBadge = isNewIdea(item) ? `<span class="idea-new-badge">NEW</span>` : "";
     return `
     <div class="idea-row${item.id === selectedId ? " active" : ""}" data-id="${esc(item.id)}" role="button" tabindex="0">
       <span class="idea-score">${Math.round(item.aiScore || 0)}</span>
       <span class="idea-main">
-        <span class="idea-keyword"><span>${esc(item.keyword)}</span><span class="pill orange">${esc(item.productGroup)}</span></span>
+        <span class="idea-keyword"><span>${esc(item.keyword)}</span>${newBadge}<span class="pill orange">${esc(item.productGroup)}</span></span>
         <span class="idea-desc">${esc(ideaSelectionReason(item))}</span>
       </span>
       <span class="idea-side">
@@ -944,6 +983,10 @@ async function addTrendIdea(button) {
     const merged = new Map(ideas.map(row => [String(row.id), row]));
     merged.set(String(item.id), item);
     ideas = Array.from(merged.values());
+    if (!data.alreadyExists) {
+      seenIdeaIds.delete(String(item.id));
+      saveSeenIdeaIds();
+    }
     localStorage.setItem(LOCAL_IDEAS_KEY, JSON.stringify(ideas));
     renderRealtimeTrend();
     renderCategories();
@@ -1259,6 +1302,7 @@ document.getElementById("ideaList").addEventListener("click", e => {
     e.stopPropagation();
     const id = blogButton.dataset.generateBlog || "";
     const item = ideas.find(candidate => String(candidate.id) === String(id));
+    markIdeaSeen(id);
     if (hasDraftContent(item)) {
       selectedId = id;
       renderAll();
@@ -1271,6 +1315,7 @@ document.getElementById("ideaList").addEventListener("click", e => {
   const youtubeButton = e.target.closest("[data-generate-youtube]");
   if (youtubeButton) {
     e.stopPropagation();
+    markIdeaSeen(youtubeButton.dataset.generateYoutube || "");
     generateYoutubeScript(youtubeButton.dataset.generateYoutube || "");
     return;
   }
@@ -1283,6 +1328,7 @@ document.getElementById("ideaList").addEventListener("click", e => {
   const row = e.target.closest(".idea-row");
   if (!row) return;
   selectedId = row.dataset.id;
+  markIdeaSeen(selectedId);
   renderAll();
 });
 document.getElementById("ideaList").addEventListener("keydown", e => {
@@ -1291,6 +1337,7 @@ document.getElementById("ideaList").addEventListener("keydown", e => {
   if (!row || e.target.closest("[data-delete-idea],[data-generate-blog],[data-generate-youtube]")) return;
   e.preventDefault();
   selectedId = row.dataset.id;
+  markIdeaSeen(selectedId);
   renderAll();
 });
 document.getElementById("runWorkflowBtn").addEventListener("click", () => runWorkflow());
