@@ -806,7 +806,7 @@ function deltaHtml(item) {
   if (item.change === "new") return `<span class="tr-delta new">NEW</span>`;
   if (item.change === "up") return `<span class="tr-delta up">▲${item.delta}</span>`;
   if (item.change === "down") return `<span class="tr-delta down">▼${Math.abs(item.delta)}</span>`;
-  return `<span class="tr-delta same">-</span>`;
+  return `<span class="tr-delta same">유지</span>`;
 }
 function renderTrendRows(items) {
   if (!items.length) return `<div class="state">표시할 키워드가 없습니다.</div>`;

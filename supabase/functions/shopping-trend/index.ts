@@ -583,11 +583,19 @@ async function handleNicheTrend() {
 
   // 최근 7일 기사만, 최신순
   const weekAgo = Date.now() - 7 * 86400000;
-  const domainPattern = /단열|결로|곰팡이|누수|냉방|난방|폭염|열대야|장마|제습|습기|에어컨|실외기|창문|햇빛|열차단|외풍|보일러|리모델링|우레탄|아이소핑크|스티로폼|준불연|PF보드|단열필름/i;
-  const noisePattern = /선거|증시|코인|야구|축구|연예|콘서트|게임|드라마|영화|부고|인사 이동/i;
+  const domainPattern = /단열|결로|곰팡이|누수|방수|냉방|난방|폭염|열대야|장마|제습|습기|에어컨|실외기|창문|창호|샷시|햇빛|열차단|외풍|보일러|리모델링|집수리|에너지효율|에너지 효율|녹색건축|제로에너지|패시브|우레탄|아이소핑크|스티로폼|준불연|PF보드|단열필름/i;
+  const noisePattern = /선거|증시|코인|야구|축구|연예|콘서트|게임|드라마|영화|부고|인사 이동|보험 손해율|치과용|진료|건강보험/i;
+  const physicalLeakPattern = /주택|건물|건축|아파트|상가|옥상|지붕|벽|천장|배관|수도|누수탐지|방수|시설|공사|하자|침수/i;
+  const physicalCondensationPattern = /창문|유리|벽|천장|주택|건물|건축|아파트|습기|곰팡이|단열|창호|겨울|하자|시공|방지|제습/i;
+  const isRelevantTitle = (title: string) => {
+    if (!title || noisePattern.test(title) || !domainPattern.test(title)) return false;
+    if (/누수/.test(title) && !physicalLeakPattern.test(title)) return false;
+    if (/결로/.test(title) && !physicalCondensationPattern.test(title)) return false;
+    return true;
+  };
   const seen = new Set<string>();
   const recent = articles
-    .filter(a => a.pubDate >= weekAgo && domainPattern.test(`${a.title} ${a.description}`) && !noisePattern.test(a.title))
+    .filter(a => a.pubDate >= weekAgo && isRelevantTitle(a.title))
     .filter(a => {
       const key = (a.link || a.title).replace(/[?#].*$/, "").replace(/[^0-9a-z가-힣]/gi, "").toLowerCase();
       if (!key || seen.has(key)) return false;
@@ -622,7 +630,7 @@ async function handleNicheTrend() {
       clusters.push({
         title: article.title, link: article.link, pubDate: article.pubDate,
         count: 1, seeds: new Set([article.seed]), sources: new Set(article.source ? [article.source] : []), tokens,
-        relevanceHits: [...titleTokens(`${article.title} ${article.description}`)].filter(token => domainPattern.test(token)).length,
+        relevanceHits: [...titleTokens(article.title)].filter(token => domainPattern.test(token)).length,
       });
     }
   });
