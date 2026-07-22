@@ -695,10 +695,11 @@ function slotLabel(slot) {
   return date === today ? hour : `${Number(m[2])}/${Number(m[3])} ${hour}`;
 }
 function fixedSlotChips(slots) {
+  const today = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
   const slotMap = new Map();
   (slots || []).forEach(slot => {
     const m = String(slot).match(/(\d{4}-\d{2}-\d{2}) (\d{2}):00/);
-    if (m && !slotMap.has(m[2])) slotMap.set(m[2], slot);
+    if (m && m[1] === today && !slotMap.has(m[2])) slotMap.set(m[2], slot);
   });
   const hours = ["00", "03", "06", "09", "12", "15", "18", "21"];
   return `<button type="button" class="slot-chip${activeSlot === "" ? " active" : ""}" data-slot="">실시간</button>`
