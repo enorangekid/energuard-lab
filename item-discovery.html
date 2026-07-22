@@ -164,6 +164,13 @@
   .draft-body h4 { margin: 8px 0 0; color: var(--ink); font-size: 14px; font-weight: 900; line-height: 1.55; }
   .draft-body strong { color: var(--ink); font-weight: 900; }
   .draft-section ol, .draft-section ul { margin: 0; padding-left: 18px; }
+  .draft-type-switch { display: inline-flex; align-items: center; gap: 6px; padding: 4px; border: 1px solid var(--line); border-radius: var(--radius); background: #f7f8fa; }
+  .draft-type-btn {
+    height: 28px; padding: 0 10px; border: 0; border-radius: 4px; background: transparent;
+    color: var(--sub); font-family: inherit; font-size: 11.5px; font-weight: 900; cursor: pointer;
+  }
+  .draft-type-btn:hover { background: #eef0f3; color: var(--ink); }
+  .draft-type-btn.active { background: var(--dark); color: #fff; }
   .draft-actions { display: flex; gap: 8px; padding-top: 4px; }
   .action-btn {
     height: 36px; padding: 0 13px; border: 1px solid var(--line); border-radius: var(--radius);
@@ -830,32 +837,12 @@ function renderDraft() {
   document.getElementById("confirmDraftBtn").hidden = false;
   const outline = item.outline?.length ? item.outline : ["검색 의도 정리", "상품군 연결", "시공 팁", "FAQ"];
   const faq = item.faq?.length ? item.faq : ["이 키워드로 어떤 상품을 연결하면 좋을까요?", "셀프 시공 시 주의할 점은 무엇인가요?"];
-  const youtubeSection = hasYoutubeScript(item) ? `
-      <div class="draft-section">
-        <h3>유튜브 대본 초안</h3>
-        <div class="draft-kicker">
-          <span class="pill orange">유튜브</span>
-          <span class="pill gray">롱폼 대본</span>
-        </div>
-        <h2 class="draft-title">${esc(item.youtubeTitle || `${item.keyword} 유튜브 대본`)}</h2>
-        ${item.youtubeOutline?.length ? `<ol>${item.youtubeOutline.map(line => `<li>${esc(line)}</li>`).join("")}</ol>` : ""}
-        ${formatDraftBodyHtml(item.youtubeBody || "")}
+  const draftSwitch = hasDraftContent(item) && hasYoutubeScript(item) ? `
+      <div class="draft-type-switch" role="tablist" aria-label="초안 종류 선택">
+        <button type="button" class="draft-type-btn${!showYoutubeDraft ? " active" : ""}" data-draft-type="blog">블로그</button>
+        <button type="button" class="draft-type-btn${showYoutubeDraft ? " active" : ""}" data-draft-type="youtube">유튜브</button>
       </div>` : "";
-  panel.innerHTML = `
-    <div class="draft-panel">
-      <div>
-        <div class="draft-kicker">
-          <span class="pill orange">${esc(item.keyword)}</span>
-          <span class="pill gray">${esc(item.productGroup)}</span>
-          <span class="pill gray">추천 ${Math.round(item.aiScore || 0)}</span>
-        </div>
-        <h2 class="draft-title">${esc(item.title)}</h2>
-      </div>
-      <div class="draft-meta">
-        <span class="pill gray">검색량 ${ideaSearchVolumeText(item)}</span>
-        <span class="pill gray">경쟁 ${Math.round(item.competitionScore || 0)}</span>
-        <span class="pill gray">시즌 ${Math.round(item.seasonScore || 0)}</span>
-      </div>
+  const blogContent = `
       <div class="draft-section">
         <h3>목차</h3>
         <ol>${outline.map(line => `<li>${esc(line)}</li>`).join("")}</ol>
@@ -871,11 +858,42 @@ function renderDraft() {
       <div class="draft-section">
         <h3>썸네일 문구</h3>
         <p>${esc(item.thumbnail || `${item.keyword} 핵심 체크`)}</p>
+      </div>`;
+  const youtubeContent = `
+      <div class="draft-section">
+        <h3>구성</h3>
+        ${item.youtubeOutline?.length ? `<ol>${item.youtubeOutline.map(line => `<li>${esc(line)}</li>`).join("")}</ol>` : ""}
       </div>
-      ${youtubeSection}
+      <div class="draft-section">
+        <h3>대본 초안</h3>
+        ${formatDraftBodyHtml(item.youtubeBody || "")}
+      </div>
+      ${item.youtubeNotes ? `
+      <div class="draft-section">
+        <h3>검토 메모</h3>
+        <p>${esc(item.youtubeNotes)}</p>
+      </div>` : ""}`;
+  panel.innerHTML = `
+    <div class="draft-panel">
+      <div>
+        <div class="draft-kicker">
+          <span class="pill orange">${esc(item.keyword)}</span>
+          <span class="pill gray">${esc(item.productGroup)}</span>
+          <span class="pill gray">추천 ${Math.round(item.aiScore || 0)}</span>
+        </div>
+        <h2 class="draft-title">${esc(showYoutubeDraft ? (item.youtubeTitle || `${item.keyword} 유튜브 대본`) : item.title)}</h2>
+      </div>
+      <div class="draft-meta">
+        <span class="pill gray">검색량 ${ideaSearchVolumeText(item)}</span>
+        <span class="pill gray">경쟁 ${Math.round(item.competitionScore || 0)}</span>
+        <span class="pill gray">시즌 ${Math.round(item.seasonScore || 0)}</span>
+      </div>
+      ${draftSwitch}
+      ${showYoutubeDraft ? youtubeContent : blogContent}
       <div class="draft-actions">
-        <button type="button" class="action-btn primary" onclick="copyDraft()">초안 복사</button>
-        ${hasYoutubeScript(item) ? `<button type="button" class="action-btn" onclick="copyYoutubeScript()">유튜브 대본 복사</button>` : ""}
+        ${showYoutubeDraft
+          ? `<button type="button" class="action-btn primary" onclick="copyYoutubeScript()">유튜브 대본 복사</button>`
+          : `<button type="button" class="action-btn primary" onclick="copyDraft()">블로그 초안 복사</button>`}
       </div>
     </div>`;
 }
@@ -1556,6 +1574,12 @@ document.getElementById("ideaList").addEventListener("keydown", e => {
   selectedId = row.dataset.id;
   markIdeaSeen(selectedId);
   renderAll();
+});
+document.getElementById("draftPanel").addEventListener("click", e => {
+  const button = e.target.closest("[data-draft-type]");
+  if (!button) return;
+  activeDraftType = button.dataset.draftType === "youtube" ? "youtube" : "blog";
+  renderDraft();
 });
 document.getElementById("runWorkflowBtn").addEventListener("click", () => runWorkflow());
 document.getElementById("confirmDraftBtn").addEventListener("click", () => {
