@@ -218,14 +218,19 @@
   #itemPage[data-trend-section="realtime"] .category-trend-card { display: none; }
   #itemPage[data-trend-section="category"] .realtime-trend-card { display: none; }
   .trend-card-actions { display: flex; align-items: center; gap: 10px; }
-  .trend-tabs { display: flex; gap: 8px; padding: 12px 16px 0; }
+  .trend-tabs,
+  .cat-selects {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    margin: 10px 10px 0; padding: 10px;
+    border: 1px solid var(--line); border-radius: var(--radius); background: #fafbfc;
+  }
   .trend-tab {
     height: 32px; padding: 0 14px; border: 1px solid var(--line); border-radius: var(--radius);
     background: #fff; color: var(--sub); font-family: inherit; font-size: 12.5px; font-weight: 900; cursor: pointer;
   }
   .trend-tab:hover { border-color: #c8cdd4; background: #fafbfc; color: var(--ink); }
   .trend-tab.active { background: var(--ink); border-color: var(--ink); color: #fff; }
-  .slot-chips { display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 16px 4px; }
+  .slot-chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 10px 0; padding: 0; }
   .slot-chip {
     height: 26px; padding: 0 10px; border: 1px solid var(--line); border-radius: 20px;
     background: #fff; color: var(--sub); font-family: inherit; font-size: 11.5px; font-weight: 800; cursor: pointer;
@@ -234,21 +239,39 @@
   .slot-chip:disabled {
     color: #c3cad6; background: #f6f8fb; border-color: #edf1f6; cursor: default;
   }
-  .trend-list { padding: 8px 0 6px; }
-  .trend-row { display: flex; align-items: center; gap: 10px; padding: 9px 16px; border-bottom: 1px solid var(--line); }
+  .trend-list,
+  .trend-table-wrap {
+    margin: 10px; border: 1px solid var(--line); border-radius: var(--radius);
+    overflow: hidden; background: #fff;
+  }
+  .trend-list { overflow-x: auto; }
+  .trend-list-head,
+  .trend-row {
+    display: grid; grid-template-columns: 44px 54px minmax(0, 1fr) 86px 154px;
+    align-items: center; gap: 10px; min-width: 720px;
+  }
+  .trend-list-head {
+    min-height: 36px; padding: 0 14px; background: #fafbfc;
+    border-bottom: 1px solid var(--line); color: #8a93a5; font-size: 11.5px; font-weight: 900;
+  }
+  .trend-list-head span:nth-child(1),
+  .trend-list-head span:nth-child(2),
+  .trend-list-head span:nth-child(4),
+  .trend-list-head span:nth-child(5) { text-align: center; }
+  .trend-row { min-height: 44px; padding: 9px 14px; border-bottom: 1px solid var(--line); }
   .trend-row:last-child { border-bottom: 0; }
   .trend-row:hover { background: #fafbfd; }
-  .tr-rank { width: 26px; text-align: center; font-family: var(--font-mono); font-size: 13px; font-weight: 800; color: var(--sub); flex-shrink: 0; }
-  .trend-row:nth-child(-n+3) .tr-rank { color: var(--accent); }
-  .tr-delta { width: 38px; text-align: center; font-family: var(--font-mono); font-size: 11.5px; font-weight: 700; flex-shrink: 0; }
+  .tr-rank { text-align: center; font-family: var(--font-mono); font-size: 13px; font-weight: 800; color: var(--sub); }
+  .trend-row:nth-child(n+2):nth-child(-n+4) .tr-rank { color: var(--accent); }
+  .tr-delta { text-align: center; font-family: var(--font-mono); font-size: 11.5px; font-weight: 700; }
   .tr-delta.up { color: var(--good); }
   .tr-delta.down { color: var(--bad); }
   .tr-delta.same { color: #c3cad6; }
   .tr-delta.new { color: var(--accent); }
-  .tr-kw { font-size: 14px; font-weight: 700; cursor: pointer; }
+  .tr-kw { min-width: 0; font-size: 13.5px; font-weight: 800; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tr-kw:hover { color: var(--accent-dark); text-decoration: underline; }
-  .tr-src { font-size: 10.5px; color: var(--sub); background: #eef0f3; padding: 1px 7px; border-radius: 10px; flex-shrink: 0; }
-  .tr-links { margin-left: auto; display: flex; gap: 4px; flex-shrink: 0; }
+  .tr-src { justify-self: center; max-width: 84px; font-size: 10.5px; color: var(--sub); background: #eef0f3; padding: 1px 7px; border-radius: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tr-links { justify-self: end; display: flex; gap: 4px; }
   .tr-links a {
     font-size: 10.5px; font-weight: 800; color: var(--sub); text-decoration: none;
     padding: 3px 8px; border: 1px solid var(--line); border-radius: 12px;
@@ -256,7 +279,6 @@
   .tr-links a:hover { color: var(--accent-dark); border-color: #c8cdd4; background: #fafbfc; }
   .state { padding: 44px 20px; text-align: center; color: var(--sub); font-size: 13px; font-weight: 700; }
   .note { padding: 8px 16px; font-size: 11px; color: var(--sub); background: #fafbfc; border-top: 1px solid var(--line); }
-  .cat-selects { display: flex; align-items: center; gap: 8px; padding: 12px 16px; flex-wrap: wrap; border-bottom: 1px solid var(--line); }
   .cat-select {
     height: 32px; padding: 0 10px; border: 1px solid var(--line); border-radius: var(--radius);
     background: #fff; color: var(--ink); font-family: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer;
@@ -265,13 +287,13 @@
   .cat-select:disabled { color: #c3cad6; background: #fafbfc; cursor: default; }
   .cat-sep { color: var(--sub); font-size: 12px; }
   .cat-count { margin-left: auto; color: var(--sub); font-size: 11.5px; }
-  .cat-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .cat-table { width: 100%; min-width: 680px; border-collapse: collapse; font-size: 13px; }
   .cat-table th {
-    text-align: left; padding: 9px 14px; font-size: 11px; font-weight: 900; color: var(--sub);
+    text-align: left; height: 36px; padding: 0 14px; font-size: 11.5px; font-weight: 900; color: #8a93a5;
     background: #fafbfc; border-bottom: 1px solid var(--line); white-space: nowrap;
   }
   .cat-table th.num, .cat-table td.num { text-align: right; }
-  .cat-table td { padding: 9px 14px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  .cat-table td { height: 44px; padding: 9px 14px; border-bottom: 1px solid var(--line); vertical-align: middle; }
   .cat-table tr:last-child td { border-bottom: 0; }
   .cat-table tr:hover td { background: #fafbfd; }
   .cat-rank { font-family: var(--font-mono); font-weight: 800; color: var(--sub); }
@@ -783,7 +805,7 @@ function deltaHtml(item) {
 }
 function renderTrendRows(items) {
   if (!items.length) return `<div class="state">표시할 키워드가 없습니다.</div>`;
-  return items.map(item => {
+  const rows = items.map(item => {
     const q = encodeURIComponent(item.query || item.keyword);
     const mainUrl = item.link || `https://search.naver.com/search.naver?query=${encodeURIComponent(item.keyword)}`;
     return `<div class="trend-row">
@@ -798,6 +820,7 @@ function renderTrendRows(items) {
       </span>
     </div>`;
   }).join("");
+  return `<div class="trend-list-head"><span>순위</span><span>변동</span><span>키워드</span><span>출처</span><span>바로가기</span></div>${rows}`;
 }
 function renderRealtimeTrend() {
   const listEl = document.getElementById("realtimeTrendList");
@@ -949,7 +972,7 @@ async function loadCategoryKeywords(cid) {
     const data = await callTrendFn({ action: "categoryKeywords", cid, count: 20 });
     const items = data.items || [];
     listEl.innerHTML = items.length ? `
-      <div style="overflow-x:auto;">
+      <div class="trend-table-wrap" style="overflow-x:auto;">
       <table class="cat-table">
         <thead><tr><th style="width:40px">#</th><th>키워드</th><th class="num" style="width:110px">월간 검색량</th><th class="num" style="width:100px">상품수</th><th class="num" style="width:130px">경쟁지수</th></tr></thead>
         <tbody>
