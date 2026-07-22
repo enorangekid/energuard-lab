@@ -435,7 +435,6 @@
         </div>
         <div class="control-right">
           <span class="pill green" id="draftStatus">초안 생성</span>
-          <span class="pill gray" id="draftConfirmStatus">초안 확정</span>
           <button class="icon-btn success" id="runWorkflowBtn" type="button" data-tip="초안 생성" aria-label="초안 생성">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.2-8.56"></path><path d="M21 3v6h-6"></path></svg>
           </button>
@@ -460,7 +459,7 @@ const TREND_FN_URL = `${SUPABASE_URL}/functions/v1/shopping-trend`;
 const LOCAL_IDEAS_KEY = "energContentIdeas:v1";
 const SEEN_IDEAS_KEY = "energContentIdeasSeen:v1";
 const CATEGORIES = ["전체", "실시간 트렌드", "검색", "직접"];
-const STATUS_LABELS = { candidate: "후보", drafted: "초안 생성", review: "검토 중", used: "사용", hold: "보류" };
+const STATUS_LABELS = { candidate: "후보", drafted: "초안 생성", review: "검토 중", used: "초안 확정", hold: "보류" };
 const SOURCE_LABELS = { interest: "관심", trend: "실시간", trend_manual: "실시간 저장", keyword_search: "검색 저장", google: "구글", season: "계절", manual: "직접", direct: "직접" };
 
 let ideas = [];
@@ -698,6 +697,8 @@ function renderIdeas() {
   document.getElementById("ideaList").innerHTML = rows.length ? rows.map(item => {
     const draftReady = hasDraftContent(item);
     const newBadge = isNewIdea(item) ? `<span class="idea-new-badge">NEW</span>` : "";
+    const statusClass = draftStatusClass(item);
+    const statusLabel = draftStatusLabel(item);
     const draftAction = draftReady ? `
         <button type="button" class="ui-circle-btn is-active" data-confirm-blog="${esc(item.id)}" aria-label="초안 확정" data-tip="초안 확정">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>
@@ -715,7 +716,7 @@ function renderIdeas() {
       <span class="idea-side">
         <span class="idea-meta-line">
           <span class="pill gray">${esc(ideaSourceGroup(item))}</span>
-          <span class="pill ${item.status === "drafted" ? "green" : item.status === "review" ? "orange" : "gray"}">${esc(STATUS_LABELS[item.status] || item.status)}</span>
+          <span class="pill ${statusClass}">${esc(statusLabel)}</span>
           <span class="pill gray">${esc(formatIdeaDate(item.updatedAt))}</span>
         </span>
         <span class="idea-metrics">
@@ -742,6 +743,14 @@ function selectedIdea() {
 }
 function hasDraftContent(item) {
   return !!item && (item.body || item.thumbnail || item.aiNotes || (Array.isArray(item.outline) && item.outline.length) || (Array.isArray(item.faq) && item.faq.length));
+}
+function draftStatusLabel(item) {
+  if (!hasDraftContent(item)) return "후보";
+  return item?.status === "used" ? "초안 확정" : "초안 생성";
+}
+function draftStatusClass(item) {
+  if (!hasDraftContent(item)) return "gray";
+  return item?.status === "used" ? "orange" : "green";
 }
 function renderInlineMarkdown(text) {
   return esc(text).replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
@@ -772,15 +781,15 @@ function renderDraft() {
   if (!item || !hasDraftContent(item)) {
     card?.classList.add("is-hidden");
     panel.innerHTML = "";
-    document.getElementById("draftStatus").textContent = "초안 생성";
-    document.getElementById("draftConfirmStatus").className = "pill gray";
+    document.getElementById("draftStatus").textContent = "후보";
+    document.getElementById("draftStatus").className = "pill gray";
     document.getElementById("runWorkflowBtn").hidden = false;
     document.getElementById("confirmDraftBtn").hidden = true;
     return;
   }
   card?.classList.remove("is-hidden");
-  document.getElementById("draftStatus").textContent = "초안 생성";
-  document.getElementById("draftConfirmStatus").className = item.status === "used" ? "pill orange" : "pill gray";
+  document.getElementById("draftStatus").textContent = draftStatusLabel(item);
+  document.getElementById("draftStatus").className = `pill ${draftStatusClass(item)}`;
   document.getElementById("runWorkflowBtn").hidden = true;
   document.getElementById("confirmDraftBtn").hidden = false;
   const outline = item.outline?.length ? item.outline : ["검색 의도 정리", "상품군 연결", "시공 팁", "FAQ"];
