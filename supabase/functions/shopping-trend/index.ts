@@ -191,6 +191,25 @@ function kstSlot() {
   return kst.toISOString().slice(0, 13).replace("T", " ") + ":00"; // "2026-07-09 10:00"
 }
 
+function kstDateKey(slot: string) {
+  return String(slot || kstSlot()).slice(0, 10).replace(/[^0-9]/g, "");
+}
+
+function retentionCutoffSlot() {
+  const kst = new Date(Date.now() + 9 * 3600 * 1000);
+  kst.setUTCHours(0, 0, 0, 0);
+  kst.setUTCDate(kst.getUTCDate() - 1);
+  return kst.toISOString().slice(0, 13).replace("T", " ") + ":00";
+}
+
+async function cleanupRealtimeSnapshots() {
+  const cutoff = retentionCutoffSlot();
+  await supabaseRequest(
+    `/rest/v1/${SNAPSHOT_TABLE}?slot=lt.${encodeURIComponent(cutoff)}`,
+    { method: "DELETE" },
+  );
+}
+
 async function readSlots() {
   const rows: Array<{ slot: string }> = await supabaseRequest(
     `/rest/v1/${SNAPSHOT_TABLE}?select=slot&list_type=eq.realtime&rank=eq.1&order=slot.desc&limit=12`,
@@ -268,7 +287,7 @@ async function saveContentIdeas(slot: string, listType: string, items: { rank: n
       const seasonScore = ideaSeasonScore(item.keyword);
       const trendScore = Math.max(45, 105 - Number(item.rank || 99) * 4);
       return {
-        id: `trend-${slot.replace(/[^0-9]/g, "")}-${listType}-${ideaKey(item.keyword)}`,
+        id: `trend-${kstDateKey(slot)}-${listType}-${ideaKey(item.keyword)}`,
         keyword: item.keyword,
         source: "trend",
         category,
@@ -327,6 +346,7 @@ async function handleRealtime() {
   try {
     await saveSnapshot(slot, "realtime", merged);
     if (googleList.length) await saveSnapshot(slot, "google", googleList);
+    await cleanupRealtimeSnapshots();
     await saveContentIdeas(slot, "realtime", merged);
     if (googleList.length) await saveContentIdeas(slot, "google", googleList);
     slots = await readSlots();
