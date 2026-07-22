@@ -1665,7 +1665,7 @@ select.field-input {
 .main-content:has(.calc-wrapper) .calc-card-main,
 .main-content:has(.calc-wrapper) .tip-box {
   background: #fff;
-  border: 1px solid #dfe5ee;
+  border: 1px solid var(--color-border);
   border-radius: 6px;
   box-shadow: 0 12px 30px rgba(26, 31, 46, 0.08);
 }
@@ -1701,7 +1701,7 @@ select.field-input {
 
 .main-content:has(.calc-wrapper) .field-input-wrap {
   min-height: 44px;
-  border-color: #dfe5ee;
+  border-color: var(--color-border);
   border-radius: 6px;
   background: #fff;
 }
@@ -1725,7 +1725,7 @@ select.field-input {
 
 .main-content:has(.calc-wrapper) .unit-select-wrap,
 .main-content:has(.calc-wrapper) .unit-fixed {
-  border-left-color: #dfe5ee;
+  border-left-color: var(--color-border);
   background: #f5f6f8;
 }
 
@@ -1772,7 +1772,7 @@ select.field-input {
 }
 
 .main-content:has(.calc-wrapper) .btn-reset {
-  border-color: #dfe5ee;
+  border-color: var(--color-border);
   background: #fff;
   color: #5a6378;
 }
@@ -1790,7 +1790,7 @@ select.field-input {
 
 .main-content:has(.calc-wrapper) .result-main-row {
   grid-template-columns: 0.86fr 1.14fr;
-  border-color: #dfe5ee;
+  border-color: var(--color-border);
   border-radius: 6px 6px 0 0;
 }
 
@@ -1818,7 +1818,7 @@ select.field-input {
 
 .main-content:has(.calc-wrapper) .result-detail-card {
   padding: 20px;
-  border-left-color: #dfe5ee;
+  border-left-color: var(--color-border);
 }
 
 .main-content:has(.calc-wrapper) .result-detail-icon {
@@ -1835,7 +1835,7 @@ select.field-input {
   min-height: 72px;
   justify-content: center;
   padding: 0 18px;
-  border-left: 1px solid #dfe5ee;
+  border-left: 1px solid var(--color-border);
 }
 
 .main-content:has(.calc-wrapper) .result-metric:first-child {
@@ -1857,7 +1857,7 @@ select.field-input {
 }
 
 .main-content:has(.calc-wrapper) .result-note {
-  border-color: #dfe5ee;
+  border-color: var(--color-border);
   border-radius: 0 0 6px 6px;
   padding: 20px;
   background: #fbfcfd;
@@ -1874,7 +1874,7 @@ select.field-input {
 }
 
 .main-content:has(.calc-wrapper) .tip-related-wrap .related-section {
-  border-top-color: #dfe5ee;
+  border-top-color: var(--color-border);
   padding-top: 24px;
   margin-top: 24px;
 }
@@ -1911,7 +1911,7 @@ select.field-input {
 
 .main-content:has(.calc-wrapper) .related-tag {
   min-height: 56px;
-  border-color: #dfe5ee;
+  border-color: var(--color-border);
   border-radius: 6px;
   padding: 14px 16px;
   font-size: 14px;
@@ -1929,7 +1929,7 @@ select.field-input {
   padding: 0;
   overflow: hidden;
   background: #fff;
-  border: 1px solid #dfe5ee;
+  border: 1px solid var(--color-border);
   border-radius: 6px;
   box-shadow: 0 12px 30px rgba(26, 31, 46, 0.08);
 }
@@ -1955,11 +1955,11 @@ select.field-input {
   right: 20px;
   top: 0;
   height: 1px;
-  background: #dfe5ee;
+  background: var(--color-border);
 }
 
 .main-content:has(.calc-wrapper) .seo-wrap .seo-section:first-child {
-  border-bottom: 1px solid #dfe5ee;
+  border-bottom: 1px solid var(--color-border);
   padding: 20px 20px 18px;
   gap: 6px;
 }
@@ -2040,7 +2040,7 @@ select.field-input {
   .main-content:has(.calc-wrapper) .calc-card-main {
     padding: 18px !important;
     background: #fff;
-    border: 1px solid #dfe5ee;
+    border: 1px solid var(--color-border);
     border-radius: 6px;
   }
 
@@ -2069,7 +2069,7 @@ select.field-input {
 
   .main-content:has(.calc-wrapper) .result-detail-card {
     border-left: 0;
-    border-top: 1px solid #dfe5ee;
+    border-top: 1px solid var(--color-border);
   }
 
   .main-content:has(.calc-wrapper) .result-metric,
@@ -2077,7 +2077,7 @@ select.field-input {
     min-height: 58px;
     padding: 12px 0;
     border-left: 0;
-    border-top: 1px solid #dfe5ee;
+    border-top: 1px solid var(--color-border);
   }
 
   .main-content:has(.calc-wrapper) .result-metric:first-child {
@@ -2179,7 +2179,7 @@ select.field-input {
 .calc-tool-insulation-board .tip-box,
 .calc-tool-insulation-board .seo-section {
   background: #fff;
-  border: 1px solid #dfe5ee;
+  border: 1px solid var(--color-border);
   border-radius: 6px;
   box-shadow: 0 12px 30px rgba(26, 31, 46, 0.08);
 }
@@ -2215,7 +2215,7 @@ select.field-input {
 
 .calc-tool-insulation-board .field-input-wrap {
   min-height: 44px;
-  border-color: #dfe5ee;
+  border-color: var(--color-border);
   border-radius: 6px;
   background: #fff;
 }
@@ -2239,7 +2239,7 @@ select.field-input {
 
 .calc-tool-insulation-board .unit-select-wrap,
 .calc-tool-insulation-board .unit-fixed {
-  border-left-color: #dfe5ee;
+  border-left-color: var(--color-border);
   background: #f5f6f8;
 }
 
@@ -2261,7 +2261,7 @@ select.field-input {
 .calc-tool-insulation-board .deduction-row {
   min-height: 44px;
   padding: 13px 14px;
-  border: 1px solid #dfe5ee;
+  border: 1px solid var(--color-border);
   border-radius: 6px;
   background: #f8f9fb;
 }
@@ -2294,7 +2294,7 @@ select.field-input {
 
 .calc-tool-insulation-board .deduct-card {
   padding: 16px;
-  border-color: #dfe5ee;
+  border-color: var(--color-border);
   border-radius: 6px;
   background: #fbfcfd;
 }
@@ -2356,7 +2356,7 @@ select.field-input {
 }
 
 .calc-tool-insulation-board .btn-reset {
-  border-color: #dfe5ee;
+  border-color: var(--color-border);
   background: #fff;
   color: #5a6378;
 }
@@ -2369,7 +2369,7 @@ select.field-input {
 
 .calc-tool-insulation-board .result-main-row {
   grid-template-columns: 0.86fr 1.14fr;
-  border-color: #dfe5ee;
+  border-color: var(--color-border);
   border-radius: 6px 6px 0 0;
 }
 
@@ -2402,7 +2402,7 @@ select.field-input {
 
 .calc-tool-insulation-board .result-detail-card {
   padding: 20px;
-  border-left-color: #dfe5ee;
+  border-left-color: var(--color-border);
 }
 
 .calc-tool-insulation-board .result-detail-icon {
@@ -2419,7 +2419,7 @@ select.field-input {
   min-height: 72px;
   justify-content: center;
   padding: 0 18px;
-  border-left: 1px solid #dfe5ee;
+  border-left: 1px solid var(--color-border);
 }
 
 .calc-tool-insulation-board .result-metric:first-child {
@@ -2441,7 +2441,7 @@ select.field-input {
 }
 
 .calc-tool-insulation-board .result-note {
-  border-color: #dfe5ee;
+  border-color: var(--color-border);
   border-radius: 0 0 6px 6px;
   padding: 20px;
   background: #fbfcfd;
@@ -2489,7 +2489,7 @@ select.field-input {
 
 .calc-tool-insulation-board .related-tag {
   min-height: 56px;
-  border-color: #dfe5ee;
+  border-color: var(--color-border);
   border-radius: 6px;
   padding: 14px 16px;
   font-size: 14px;
@@ -2507,7 +2507,7 @@ select.field-input {
   padding: 0;
   overflow: hidden;
   background: #fff;
-  border: 1px solid #dfe5ee;
+  border: 1px solid var(--color-border);
   border-radius: 6px;
   box-shadow: 0 12px 30px rgba(26, 31, 46, 0.08);
 }
@@ -2533,11 +2533,11 @@ select.field-input {
   right: 20px;
   top: 0;
   height: 1px;
-  background: #dfe5ee;
+  background: var(--color-border);
 }
 
 .calc-tool-insulation-board .seo-wrap .seo-section:first-child {
-  border-bottom: 1px solid #dfe5ee;
+  border-bottom: 1px solid var(--color-border);
   padding: 20px 20px 18px;
   gap: 6px;
 }
@@ -2643,7 +2643,7 @@ select.field-input {
 
   .calc-tool-insulation-board .result-detail-card {
     border-left: 0;
-    border-top: 1px solid #dfe5ee;
+    border-top: 1px solid var(--color-border);
   }
 
   .calc-tool-insulation-board .result-metric,
@@ -2651,7 +2651,7 @@ select.field-input {
     min-height: 58px;
     padding: 12px 0;
     border-left: 0;
-    border-top: 1px solid #dfe5ee;
+    border-top: 1px solid var(--color-border);
   }
 
   .calc-tool-insulation-board .result-metric:first-child {
