@@ -646,6 +646,37 @@ async function deleteContentIdea(idRaw: unknown) {
   return { ok: true, id };
 }
 
+async function deleteContentDraftsOnly(idsRaw: unknown) {
+  const ids = (Array.isArray(idsRaw) ? idsRaw : [idsRaw])
+    .map(id => String(id || "").trim())
+    .filter(Boolean);
+  if (!ids.length) throw new Error("삭제할 초안의 발굴 키워드 ID가 필요합니다.");
+  const idsFilter = encodeURIComponent(`(${ids.map(id => `"${id.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`).join(",")})`);
+  const deleted = await supabaseRequest(`/rest/v1/${CONTENT_DRAFT_TABLE}?idea_id=in.${idsFilter}`, {
+    method: "DELETE",
+    headers: { "Prefer": "return=representation" },
+  }).catch(() => []);
+  await supabaseRequest(`/rest/v1/${CONTENT_IDEA_TABLE}?id=in.${idsFilter}`, {
+    method: "PATCH",
+    headers: { "Prefer": "return=minimal" },
+    body: JSON.stringify({ status: "candidate", updated_at: new Date().toISOString() }),
+  }).catch(() => null);
+  return { ok: true, ids, deleted: Array.isArray(deleted) ? deleted.length : 0 };
+}
+
+async function deleteContentDraftsByRowId(idsRaw: unknown) {
+  const ids = (Array.isArray(idsRaw) ? idsRaw : [idsRaw])
+    .map(id => Number(id))
+    .filter(id => Number.isFinite(id) && id > 0);
+  if (!ids.length) throw new Error("삭제할 초안 행 ID가 필요합니다.");
+  const idsFilter = encodeURIComponent(`(${ids.join(",")})`);
+  const deleted = await supabaseRequest(`/rest/v1/${CONTENT_DRAFT_TABLE}?id=in.${idsFilter}`, {
+    method: "DELETE",
+    headers: { "Prefer": "return=representation" },
+  }).catch(() => []);
+  return { ok: true, ids, deleted: Array.isArray(deleted) ? deleted.length : 0 };
+}
+
 function parseStoredSources(value: string) {
   const text = String(value || "").trim();
   if (!text) return [];
@@ -1293,6 +1324,8 @@ Deno.serve(async (req) => {
     if (body.action === "deleteRealtimeTrend") return json(await deleteTrendArchive(body.id));
     if (body.action === "addContentIdea") return json(await addContentIdea(body));
     if (body.action === "deleteContentIdea") return json(await deleteContentIdea(body.id));
+    if (body.action === "deleteContentDraftsOnly") return json(await deleteContentDraftsOnly(body.ids || body.id));
+    if (body.action === "deleteContentDraftsByRowId") return json(await deleteContentDraftsByRowId(body.ids || body.id));
     if (body.action === "collectNicheDaily") return json(await collectNicheDaily());
     if (body.action === "nicheTrend") return json(await handleNicheTrend());
     if (body.action === "nicheSpike") return json(await handleNicheSpike());
