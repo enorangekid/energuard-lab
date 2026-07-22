@@ -96,6 +96,7 @@ async function fetchRank(cid: string, start: string, end: string, unit: string, 
 
 const SNAPSHOT_TABLE = "realtime_trend_snapshot";
 const CONTENT_IDEA_TABLE = "content_ideas";
+const NICHE_DAILY_TABLE = "niche_trend_daily_snapshot";
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") || "";
 const OPENAI_MODEL = Deno.env.get("OPENAI_MODEL") || "gpt-4o-mini";
 
@@ -120,6 +121,34 @@ async function supabaseRequest(path: string, init: RequestInit = {}) {
   const text = await res.text();
   if (!res.ok) throw new Error(`snapshot ${res.status}: ${text.slice(0, 200)}`);
   return text ? JSON.parse(text) : null;
+}
+
+function kstToday() {
+  return new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+}
+
+async function saveNicheDailySnapshot(listType: "news" | "spike", payload: Record<string, unknown>) {
+  await supabaseRequest(`/rest/v1/${NICHE_DAILY_TABLE}?on_conflict=snapshot_date,list_type`, {
+    method: "POST",
+    headers: { "Prefer": "resolution=merge-duplicates,return=minimal" },
+    body: JSON.stringify([{
+      snapshot_date: kstToday(), list_type: listType, payload,
+      captured_at: new Date().toISOString(),
+    }]),
+  });
+}
+
+async function readLatestNicheSnapshot(listType: "news" | "spike") {
+  const rows = await supabaseRequest(
+    `/rest/v1/${NICHE_DAILY_TABLE}?select=payload,captured_at,snapshot_date&list_type=eq.${listType}&order=snapshot_date.desc&limit=1`,
+  );
+  const row = Array.isArray(rows) ? rows[0] : null;
+  return row ? { ...row.payload, storedAt: row.captured_at, snapshotDate: row.snapshot_date } : null;
+}
+
+async function cleanupNicheDailySnapshots() {
+  const cutoff = new Date(Date.now() + 9 * 3600 * 1000 - 14 * 86400000).toISOString().slice(0, 10);
+  await supabaseRequest(`/rest/v1/${NICHE_DAILY_TABLE}?snapshot_date=lt.${cutoff}`, { method: "DELETE" });
 }
 
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
@@ -691,7 +720,7 @@ async function fetchNicheNews(seed: string, sort: "date" | "sim") {
   }));
 }
 
-async function handleNicheTrend() {
+async function collectNicheTrendData() {
   const seeds = nicheSeeds();
   const requests = seeds.flatMap(seed => [fetchNicheNews(seed, "date"), fetchNicheNews(seed, "sim")]);
   const results = await Promise.allSettled(requests);
@@ -831,7 +860,7 @@ async function fetchDatalabTrend(keywords: string[], startDate: string, endDate:
   return (data.results || []) as Array<{ title: string; data: Array<{ period: string; ratio: number }> }>;
 }
 
-async function handleNicheSpike() {
+async function collectNicheSpikeData() {
   const kst = new Date(Date.now() + 9 * 3600 * 1000);
   const end = new Date(Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate()) - 86400000); // 어제
   const start = new Date(end.getTime() - 29 * 86400000);
@@ -920,6 +949,37 @@ async function handleNicheSpike() {
       change: item.spike >= 1.5 ? "up" : "same",
       delta: null,
     })),
+  };
+}
+
+async function collectNicheDaily() {
+  const [newsResult, spikeResult] = await Promise.allSettled([
+    collectNicheTrendData(), collectNicheSpikeData(),
+  ]);
+  const saved: string[] = [];
+  const errors: string[] = [];
+  if (newsResult.status === "fulfilled") {
+    await saveNicheDailySnapshot("news", newsResult.value);
+    saved.push("news");
+  } else errors.push(`news: ${String(newsResult.reason?.message || newsResult.reason)}`);
+  if (spikeResult.status === "fulfilled") {
+    await saveNicheDailySnapshot("spike", spikeResult.value);
+    saved.push("spike");
+  } else errors.push(`spike: ${String(spikeResult.reason?.message || spikeResult.reason)}`);
+  if (!saved.length) throw new Error(errors.join(" / "));
+  await cleanupNicheDailySnapshots().catch(() => null);
+  return { ok: true, snapshotDate: kstToday(), saved, errors, capturedAt: new Date().toISOString() };
+}
+
+async function handleNicheTrend() {
+  return await readLatestNicheSnapshot("news") || {
+    date: "저장된 단열 뉴스 없음", niche: [], storedAt: null, snapshotDate: null,
+  };
+}
+
+async function handleNicheSpike() {
+  return await readLatestNicheSnapshot("spike") || {
+    date: "저장된 단열 급상승 자료 없음", niche: [], failNote: "", storedAt: null, snapshotDate: null,
   };
 }
 
@@ -1094,6 +1154,7 @@ Deno.serve(async (req) => {
     if (body.action === "realtime") return json(await handleRealtime());
     if (body.action === "collectRealtime") return json(await collectRealtime());
     if (body.action === "realtimeAt") return json(await handleRealtimeAt(body.slot));
+    if (body.action === "collectNicheDaily") return json(await collectNicheDaily());
     if (body.action === "nicheTrend") return json(await handleNicheTrend());
     if (body.action === "nicheSpike") return json(await handleNicheSpike());
     if (body.action === "categoryTree") return json(await handleCategoryTree(body.cid));
