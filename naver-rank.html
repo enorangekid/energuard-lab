@@ -433,7 +433,7 @@
   .rel-list { display: flex; flex-direction: column; }
   /* 검색량 추이의 막대 행과 같은 min-height로 맞춰서, 둘 다 기본 10개일 때 "+더보기"가
      같은 줄에서 끝나게 한다. */
-  .rel-row { padding: 10px 2px; border-bottom: 1px solid #f4f5f7; min-height: 72px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; }
+  .rel-row { padding: 9px 2px; border-bottom: 1px solid #f4f5f7; min-height: 72px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; }
   .rel-row:last-child { border-bottom: none; }
   .rel-row.rel-extra { display: none; }
   .rel-list.rel-expanded .rel-row.rel-extra { display: block; }
@@ -458,7 +458,7 @@
     transition: all .12s;
   }
   .rel-more-btn:hover { color: var(--accent-dark); }
-  .rel-kw { font-weight: 700; color: var(--ink); cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .rel-kw { font-size: 13px; font-weight: 700; color: var(--ink); cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
   .rel-kw:hover { color: var(--accent); text-decoration: underline; }
   .rel-kw:hover { color: var(--accent); text-decoration: underline; }
   .comp-badge { font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 10px; }
@@ -1180,7 +1180,7 @@ function render(d) {
           ${nicheSet.has(k.keyword) ? '<span class="niche-badge">기회</span>' : ''}
           <span class="rel-row-volume" title="PC ${(k.pc || 0).toLocaleString()} · 모바일 ${(k.mobile || 0).toLocaleString()}">${(k.total || 0).toLocaleString()}</span>
           <button type="button" class="rel-save-btn" data-keyword="${esc(k.keyword)}" onclick="saveKeywordSearchIdea(this)" aria-label="발굴 키워드로 저장">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M8.5 14.5A6 6 0 1 1 15.5 14.5C14.5 15.3 14 16.2 14 18h-4c0-1.8-.5-2.7-1.5-3.5Z"/></svg>
             <span class="track-tip">검색 저장</span>
           </button>
         </div>
