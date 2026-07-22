@@ -189,6 +189,34 @@
   #itemPage[data-view="trend"] > .workflow-card { display: none; }
   #itemPage[data-view="discover"] > .trend-view { display: none; }
   .trend-view { display: flex; flex-direction: column; gap: 22px; }
+  .trend-filterbar {
+    display: flex; align-items: center; gap: 16px; padding-bottom: 22px;
+    border-bottom: 1px solid var(--line);
+  }
+  .trend-section-select { position: relative; display: block; flex: 0 0 auto; }
+  .trend-section-btn {
+    height: 42px; min-width: 230px; padding: 0 14px 0 18px; border: 1px solid #dfe4ec;
+    border-radius: var(--radius); background: #fff; color: var(--sub); font-family: inherit;
+    font-size: 14px; font-weight: 800; cursor: pointer; display: inline-flex;
+    align-items: center; justify-content: space-between; gap: 18px;
+  }
+  .trend-section-btn:hover, .trend-section-select.open .trend-section-btn { border-color: #c8cdd4; background: #fafbfc; }
+  .trend-section-caret { display: inline-flex; align-items: center; justify-content: center; color: #8a93a5; line-height: 1; }
+  .trend-section-caret svg { width: 14px; height: 14px; }
+  .trend-section-menu {
+    position: absolute; z-index: 50; top: calc(100% + 6px); left: 0; min-width: 100%;
+    padding: 6px; border: 1px solid var(--line); border-radius: var(--radius);
+    background: #fff; box-shadow: 0 16px 34px rgba(5, 7, 11, 0.12); display: none;
+  }
+  .trend-section-select.open .trend-section-menu { display: flex; flex-direction: column; gap: 4px; }
+  .trend-section-option {
+    height: 34px; padding: 0 12px; border: 0; border-radius: 4px; background: transparent;
+    color: var(--sub); font-family: inherit; font-size: 12.5px; font-weight: 800; text-align: left; cursor: pointer;
+  }
+  .trend-section-option:hover { background: #f4f6f9; color: var(--ink); }
+  .trend-section-option.active { background: var(--ink); color: #fff; }
+  #itemPage[data-trend-section="realtime"] .category-trend-card { display: none; }
+  #itemPage[data-trend-section="category"] .realtime-trend-card { display: none; }
   .trend-card-actions { display: flex; align-items: center; gap: 10px; }
   .trend-tabs { display: flex; gap: 8px; padding: 12px 16px 0; }
   .trend-tab {
@@ -289,7 +317,7 @@
 <body>
 <header class="topbar" data-topbar></header>
 
-<main class="wrap" id="itemPage" data-view="trend">
+<main class="wrap" id="itemPage" data-view="trend" data-trend-section="realtime">
   <header class="page-head">
     <div class="page-title-row">
       <h1 class="page-title">아이템 발굴</h1>
@@ -299,7 +327,11 @@
   </header>
 
   <section class="trend-view">
-    <section class="card">
+    <div class="trend-filterbar">
+      <div class="trend-section-select" id="trendSectionSelect"></div>
+    </div>
+
+    <section class="card realtime-trend-card">
       <div class="card-head">
         <div class="card-title-wrap">
           <span class="card-title">실시간 급상승 키워드</span>
@@ -323,7 +355,7 @@
       <div class="note">시그널·네이트 실시간 이슈와 구글 트렌드를 합산한 순위입니다. 키워드를 클릭하면 네이버 검색이 열립니다.</div>
     </section>
 
-    <section class="card">
+    <section class="card category-trend-card">
       <div class="card-head">
         <div class="card-title-wrap">
           <span class="card-title">카테고리별 키워드 순위</span>
@@ -460,6 +492,7 @@ let trendData = null;
 let nicheData = null;
 let spikeData = null;
 let activeTrendList = "realtime";
+let activeTrendSection = "realtime";
 let activeSlot = "";
 let trendLoading = false;
 let nicheLoading = false;
@@ -514,6 +547,28 @@ function setActiveView(view) {
   document.getElementById("pageMeta").textContent = view === "trend"
     ? "쇼핑 트렌드 저장 후보 기준"
     : "초안 후보 검토 화면";
+}
+function renderTrendSectionSelect() {
+  const el = document.getElementById("trendSectionSelect");
+  if (!el) return;
+  const items = [
+    { key: "realtime", label: "실시간 트렌드" },
+    { key: "category", label: "카테고리별 키워드 순위" },
+  ];
+  const active = items.find(item => item.key === activeTrendSection) || items[0];
+  el.innerHTML = `
+    <button type="button" class="trend-section-btn" data-action="toggle-trend-section" aria-label="실시간 트렌드 화면 선택">
+      <span>${esc(active.label)}</span>
+      <span class="trend-section-caret" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+      </span>
+    </button>
+    <div class="trend-section-menu">
+      ${items.map(item => `<button type="button" class="trend-section-option${item.key === activeTrendSection ? " active" : ""}" data-trend-section="${item.key}">${esc(item.label)}</button>`).join("")}
+    </div>`;
+  document.getElementById("itemPage").dataset.trendSection = activeTrendSection;
 }
 function normalizeIdea(row) {
   const draft = row.draft || row.content_drafts || {};
@@ -919,6 +974,7 @@ async function loadCategoryKeywords(cid) {
 function renderAll() {
   renderModeTabs();
   document.getElementById("itemPage").dataset.view = activeView;
+  renderTrendSectionSelect();
   renderRealtimeTrend();
   renderCategories();
   renderIdeas();
@@ -1027,6 +1083,20 @@ document.querySelector(".page-title-row").addEventListener("click", e => {
   if (!btn) return;
   setActiveView(btn.dataset.view);
 });
+document.getElementById("trendSectionSelect").addEventListener("click", e => {
+  const select = e.currentTarget;
+  const toggle = e.target.closest("[data-action='toggle-trend-section']");
+  const option = e.target.closest("[data-trend-section]");
+  if (toggle) {
+    select.classList.toggle("open");
+    return;
+  }
+  if (option) {
+    activeTrendSection = option.dataset.trendSection;
+    select.classList.remove("open");
+    renderTrendSectionSelect();
+  }
+});
 document.getElementById("trendTabs").addEventListener("click", e => {
   const tab = e.target.closest(".trend-tab");
   if (!tab) return;
@@ -1070,6 +1140,10 @@ document.getElementById("statusSelect").addEventListener("change", renderAll);
 document.getElementById("saveWebhookBtn").addEventListener("click", saveWebhook);
 document.getElementById("runWorkflowBtn").addEventListener("click", runWorkflow);
 document.getElementById("reloadBtn").addEventListener("click", loadIdeas);
+document.addEventListener("click", e => {
+  const select = document.getElementById("trendSectionSelect");
+  if (select && !select.contains(e.target)) select.classList.remove("open");
+});
 
 document.getElementById("webhookInput").value = localStorage.getItem(WEBHOOK_KEY) || "";
 loadIdeas();
