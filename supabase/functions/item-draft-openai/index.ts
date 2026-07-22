@@ -53,9 +53,9 @@ function cleanBodyText(value: unknown) {
     .replace(/\n[ \t]+/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+  text = text.replace(/\s*(\*\*[^*]{2,90}\*\*)\s*/g, "\n\n$1\n\n").replace(/\n{3,}/g, "\n\n").trim();
   if (!/\n\s*\n/.test(text)) {
     text = text
-      .replace(/\s*(\*\*[^*]{2,90}\*\*)\s*/g, "\n\n$1\n\n")
       .replace(/(습니다\.|합니다\.|됩니다\.|있습니다\.|많습니다\.|좋습니다\.|중요합니다\.|주세요\.|볼 수 있습니다\.)\s+/g, "$1\n\n")
       .replace(/([가-힣]{2,}\.)\s+(?=[가-힣"“‘'\[])/g, "$1\n\n")
       .replace(/\n{3,}/g, "\n\n")

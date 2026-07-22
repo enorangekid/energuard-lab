@@ -742,12 +742,13 @@ function renderInlineMarkdown(text) {
 function formatDraftBodyHtml(body) {
   let text = String(body || "아직 생성된 본문 초안이 없습니다. AI 초안 생성 후 이 영역에 본문이 표시됩니다.").trim();
   text = text.replace(/\r\n?/g, "\n");
+  text = text.replace(/\s*(\*\*[^*]{2,90}\*\*)\s*/g, "\n\n$1\n\n");
   if (!/\n\s*\n/.test(text)) {
     text = text
-      .replace(/\s*(\*\*[^*]{2,90}\*\*)\s*/g, "\n\n$1\n\n")
       .replace(/(습니다\.|합니다\.|됩니다\.|있습니다\.|많습니다\.|좋습니다\.|중요합니다\.|주세요\.|볼 수 있습니다\.)\s+/g, "$1\n\n")
       .replace(/([가-힣]{2,}\.)\s+(?=[가-힣"“‘'\[])/g, "$1\n\n");
   }
+  text = text.replace(/\n{3,}/g, "\n\n").trim();
   const blocks = text
     .split(/\n{2,}/)
     .map(line => line.trim())
