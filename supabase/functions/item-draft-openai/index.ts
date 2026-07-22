@@ -620,23 +620,29 @@ async function saveYoutubeScript(idea: Required<IdeaPayload>, script: YoutubeScr
       youtube: script,
     });
 
-    await supabaseRequest("/rest/v1/content_drafts?on_conflict=idea_id", {
-      method: "POST",
-      headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
-      body: JSON.stringify([{
-        idea_id: idea.id,
-        keyword: idea.keyword,
-        title: existing?.title || "",
-        outline: existing?.outline || [],
-        body: existing?.body || "",
-        faq: existing?.faq || [],
-        thumbnail: existing?.thumbnail || "",
-        ai_notes: aiNotes,
-        status: existing?.status || "drafted",
-        generated_at: existing?.generated_at || new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }]),
-    });
+    if (existing) {
+      await supabaseRequest(`/rest/v1/content_drafts?idea_id=eq.${encodeURIComponent(idea.id)}`, {
+        method: "PATCH",
+        headers: { Prefer: "return=minimal" },
+        body: JSON.stringify({
+          ai_notes: aiNotes,
+          updated_at: new Date().toISOString(),
+        }),
+      });
+    } else {
+      await supabaseRequest("/rest/v1/content_drafts?on_conflict=idea_id", {
+        method: "POST",
+        headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+        body: JSON.stringify([{
+          idea_id: idea.id,
+          keyword: idea.keyword,
+          ai_notes: aiNotes,
+          status: "drafted",
+          generated_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }]),
+      });
+    }
   } catch (_) {
     // 저장 테이블이 아직 없어도 프론트 응답은 살려서 확인할 수 있게 둡니다.
   }
