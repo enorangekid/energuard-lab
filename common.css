@@ -730,3 +730,71 @@ header.topbar .topbar-icon-btn svg {
 .history-detail .detail-val { color: var(--ink, #1a1f2e); font-weight: 600; }
 header.topbar .topbar-icon-btn.history-on { color: var(--accent, #e85d2f); border-color: var(--accent, #e85d2f); }
 
+/* Shared circular action buttons */
+.ui-circle-btn {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--line, #dfe5ee);
+  border-radius: 50%;
+  background: #fff;
+  color: #9aa3b3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: border-color .14s ease, color .14s ease, background .14s ease, box-shadow .14s ease;
+  font-family: inherit;
+}
+.ui-circle-btn:hover {
+  border-color: #d7dde7;
+  color: var(--ink, #0f172a);
+  background: #fafbfc;
+}
+.ui-circle-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(232, 93, 47, .16);
+}
+.ui-circle-btn.is-active {
+  border-color: #f0b79d;
+  color: var(--accent, #e85d2f);
+  background: var(--accent-tint, #fff1ea);
+}
+.ui-circle-btn.is-active:hover {
+  border-color: #d7dde7;
+  color: var(--ink, #0f172a);
+  background: #fafbfc;
+}
+.ui-circle-btn svg {
+  width: 16px;
+  height: 16px;
+  pointer-events: none;
+}
+.ui-circle-btn[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translate(-50%, 4px);
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: #0b0f16;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: 1200;
+  transition: opacity .14s ease, transform .14s ease, visibility .14s ease;
+}
+.ui-circle-btn[data-tip]:hover::after,
+.ui-circle-btn[data-tip]:focus-visible::after {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0);
+}
+

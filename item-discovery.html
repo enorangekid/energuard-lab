@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="common.css?v=20260721-align2">
+<link rel="stylesheet" href="common.css?v=20260722-actionbtn1">
 <style>
   :root {
     --bg: #f8f9fb; --card: #fff; --ink: #07111f; --sub: #5a6378;
@@ -133,15 +133,6 @@
   }
   .idea-metric b { margin-left: 4px; color: var(--ink); font-family: var(--font-mono); font-size: 11.5px; font-weight: 900; }
   .idea-actions { display: inline-flex; align-items: center; justify-content: flex-end; gap: 6px; }
-  .idea-action-btn {
-    width: 28px; height: 28px; justify-self: center; padding: 0;
-    border: 1px solid var(--line); border-radius: 50%; background: #fff; color: #9aa3b3;
-    display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all .14s;
-  }
-  .idea-action-btn:hover { border-color: #d7dde7; color: var(--ink); background: #fafbfc; }
-  .idea-action-btn.blog { border-color: #ffd8c8; color: var(--accent); background: var(--accent-tint); }
-  .idea-action-btn.blog:hover { border-color: #d7dde7; color: var(--ink); background: #fafbfc; }
-  .idea-action-btn svg { width: 14px; height: 14px; }
   .pill {
     display: inline-flex; align-items: center; justify-content: center; min-width: 54px;
     padding: 4px 8px; border-radius: 999px; background: #f3f5f8; color: #344054; font-size: 11px; font-weight: 900;
@@ -644,7 +635,10 @@ function renderIdeas() {
   const rows = filteredIdeas();
   if (!rows.some(x => x.id === selectedId) && rows[0]) selectedId = rows[0].id;
   document.getElementById("ideaCount").textContent = `${rows.length}개`;
-  document.getElementById("ideaList").innerHTML = rows.length ? rows.map(item => `
+  document.getElementById("ideaList").innerHTML = rows.length ? rows.map(item => {
+    const draftReady = hasDraftContent(item);
+    const blogTip = draftReady ? "블로그 초안 보기" : "블로그 초안 생성";
+    return `
     <div class="idea-row${item.id === selectedId ? " active" : ""}" data-id="${esc(item.id)}" role="button" tabindex="0">
       <span class="idea-score">${Math.round(item.aiScore || 0)}</span>
       <span class="idea-main">
@@ -665,18 +659,18 @@ function renderIdeas() {
         </span>
       </span>
       <span class="idea-actions">
-        <button type="button" class="idea-action-btn blog" data-generate-blog="${esc(item.id)}" aria-label="블로그 초안 생성" title="블로그 초안 생성">
+        <button type="button" class="ui-circle-btn${draftReady ? " is-active" : ""}" data-generate-blog="${esc(item.id)}" aria-label="${blogTip}" data-tip="${blogTip}">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4 10 14"/><path d="M12 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6"/></svg>
         </button>
-        <button type="button" class="idea-action-btn" data-generate-youtube="${esc(item.id)}" aria-label="유튜브 대본 생성" title="유튜브 대본 생성">
+        <button type="button" class="ui-circle-btn" data-generate-youtube="${esc(item.id)}" aria-label="유튜브 대본 생성" data-tip="유튜브 대본 생성">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M22 8.5a3 3 0 0 0-2.1-2.1C18 6 12 6 12 6s-6 0-7.9.4A3 3 0 0 0 2 8.5 31 31 0 0 0 2 15.5a3 3 0 0 0 2.1 2.1C6 18 12 18 12 18s6 0 7.9-.4a3 3 0 0 0 2.1-2.1 31 31 0 0 0 0-7Z"/><path d="m10 9 5 3-5 3Z"/></svg>
         </button>
-        <button type="button" class="idea-action-btn" data-delete-idea="${esc(item.id)}" aria-label="발굴 키워드 삭제" title="삭제">
+        <button type="button" class="ui-circle-btn" data-delete-idea="${esc(item.id)}" aria-label="발굴 키워드 삭제" data-tip="삭제">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 15h10l1-15"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
         </button>
       </span>
     </div>
-  `).join("") : `<div class="empty">조건에 맞는 후보가 없습니다.</div>`;
+  `}).join("") : `<div class="empty">조건에 맞는 후보가 없습니다.</div>`;
 }
 function selectedIdea() {
   return ideas.find(item => item.id === selectedId) || filteredIdeas()[0] || ideas[0] || null;
@@ -1232,7 +1226,15 @@ document.getElementById("ideaList").addEventListener("click", e => {
   const blogButton = e.target.closest("[data-generate-blog]");
   if (blogButton) {
     e.stopPropagation();
-    runWorkflow(blogButton.dataset.generateBlog || "");
+    const id = blogButton.dataset.generateBlog || "";
+    const item = ideas.find(candidate => String(candidate.id) === String(id));
+    if (hasDraftContent(item)) {
+      selectedId = id;
+      renderAll();
+      showToast("생성된 블로그 초안을 표시했습니다.");
+    } else {
+      runWorkflow(id);
+    }
     return;
   }
   const youtubeButton = e.target.closest("[data-generate-youtube]");
