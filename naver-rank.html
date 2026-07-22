@@ -51,10 +51,9 @@
     margin-top: 24px;
   }
   .keyword-result-chip {
-    position: relative;
     width: 100%;
     min-height: 64px;
-    padding: 11px 56px 11px 18px;
+    padding: 11px 18px;
     border: 1px solid var(--dark);
     border-radius: var(--radius);
     background: var(--dark);
@@ -82,16 +81,6 @@
     line-height: 1.2;
   }
   .keyword-result-sep { opacity: .72; }
-  .keyword-save-btn {
-    position: absolute; right: 18px; top: 50%; transform: translateY(-50%);
-    width: 30px; height: 30px; border: 1px solid rgba(255,255,255,.32); border-radius: 50%;
-    background: rgba(255,255,255,.08); color: #fff; display: inline-flex; align-items: center; justify-content: center;
-    cursor: pointer; transition: all .14s;
-  }
-  .keyword-save-btn:hover { border-color: rgba(255,255,255,.55); background: rgba(255,255,255,.16); }
-  .keyword-save-btn.added { border-color: #f0b79d; background: var(--accent-tint); color: var(--accent-dark); }
-  .keyword-save-btn svg { width: 15px; height: 15px; }
-  .keyword-save-btn .track-tip { bottom: calc(100% + 9px); }
 
   .keyword-filterbar {
     display: flex; align-items: center; gap: 12px; padding-bottom: 22px;
@@ -398,11 +387,10 @@
      (상품별 매출의 막대그래프·도넛그래프 박스와 같은 방식) */
   .vol-rel-row { display: flex; gap: 16px; align-items: stretch; flex-wrap: wrap; }
   .vol-rel-chart, .vol-rel-table { min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: var(--radius); }
-  .vol-rel-chart { flex: 8 1 460px; }
-  .vol-rel-table { flex: 2 1 320px; }
-  /* 검색량 추이 쪽 폭을 넓힌 만큼, 짝을 이루는 연관 키워드 박스만 더 좁게(스토어 순위의
-     내 스토어/TOP10 50:50 배치에는 영향 없도록 별도 클래스로 범위를 좁힌다) */
-  .vol-rel-table-narrow { flex: 2 1 260px; }
+  .vol-rel-chart { flex: 1 1 0; }
+  .vol-rel-table { flex: 1 1 0; }
+  /* 검색량 추이와 연관 키워드를 같은 폭으로 맞춘다. */
+  .vol-rel-table-narrow { flex: 1 1 0; }
 
   /* 검색량 추이 — 날짜를 위→아래로 나열하고, 각 줄에 검색량 비례 가로 막대를 붙인다.
      최신 달이 맨 위. */
@@ -451,6 +439,16 @@
   .rel-list.rel-expanded .rel-row.rel-extra { display: block; }
   .rel-row-top { display: flex; align-items: center; gap: 8px; }
   .rel-row-volume { margin-left: auto; font-family: var(--font-mono); font-weight: 800; color: var(--ink); font-size: 13px; white-space: nowrap; }
+  .rel-save-btn {
+    position: relative; width: 30px; height: 30px; flex-shrink: 0;
+    border: 1px solid var(--line); border-radius: 50%; background: #fff; color: #9aa3b3;
+    display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all .14s;
+  }
+  .rel-save-btn:hover { border-color: #d7dde7; color: var(--ink); background: #fafbfc; }
+  .rel-save-btn.added { border-color: #f0b79d; background: var(--accent-tint); color: var(--accent-dark); }
+  .rel-save-btn svg { width: 15px; height: 15px; }
+  .rel-save-btn .track-tip { bottom: calc(100% + 8px); }
+  .rel-save-btn:hover .track-tip { opacity: 1; visibility: visible; transform: translateX(-50%) translateY(0); }
   .rel-row-sub { display: flex; align-items: center; gap: 10px; margin-top: 6px; font-size: 11.5px; color: var(--sub); flex-wrap: wrap; }
   .rel-more-btn {
     display: block; width: 100%; padding: 11px 0 0;
@@ -1076,10 +1074,6 @@ function render(d) {
   resultBanner.innerHTML = `<div class="keyword-result-chip">
     <span class="keyword-result-name">${esc(searchedKeyword)}</span>
     ${topCategory ? `<span class="keyword-result-meta">주요 카테고리 <span class="keyword-result-sep">&gt;</span> ${esc(topCategory)}</span>` : ""}
-    <button type="button" class="keyword-save-btn" data-keyword="${esc(searchedKeyword)}" onclick="saveKeywordSearchIdea(this)" aria-label="발굴 키워드로 저장">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-      <span class="track-tip">검색 저장</span>
-    </button>
   </div>`;
   resultBanner.style.display = "block";
   const insMeta = document.getElementById("insMeta");
@@ -1164,13 +1158,31 @@ function render(d) {
 
   /* 연관 키워드 — 좁은 박스에 맞춰 표 대신 압축 리스트로 그린다 (이름+검색량 한 줄,
      상품수·경쟁지수·광고경쟁은 보조 줄). */
-  if (rel.length) {
-    document.getElementById("relBody").innerHTML = rel.map((k, i) => `
+  const relRows = [
+    {
+      keyword: searchedKeyword,
+      pc: d.ad?.pc ?? 0,
+      mobile: d.ad?.mobile ?? 0,
+      total: d.ad?.monthlyTotal ?? 0,
+      products: d.stats?.totalProducts ?? null,
+      compRatio: d.ad?.compRatio ?? null,
+      compIdx: d.ad?.compIdx ?? null,
+      current: true
+    },
+    ...rel.filter(k => String(k.keyword || "").replace(/\s+/g, "").toLowerCase() !== String(searchedKeyword || "").replace(/\s+/g, "").toLowerCase())
+  ];
+  if (relRows.length) {
+    document.getElementById("relBody").innerHTML = relRows.map((k, i) => `
       <div class="rel-row${i >= LIST_DEFAULT_SHOW ? ' rel-extra' : ""}">
         <div class="rel-row-top">
           <span class="rel-kw" onclick="runSearch('${esc(k.keyword)}')" title="${esc(k.keyword)}">${esc(k.keyword)}</span>
+          ${k.current ? '<span class="niche-badge">현재</span>' : ''}
           ${nicheSet.has(k.keyword) ? '<span class="niche-badge">기회</span>' : ''}
-          <span class="rel-row-volume" title="PC ${k.pc.toLocaleString()} · 모바일 ${k.mobile.toLocaleString()}">${k.total.toLocaleString()}</span>
+          <span class="rel-row-volume" title="PC ${(k.pc || 0).toLocaleString()} · 모바일 ${(k.mobile || 0).toLocaleString()}">${(k.total || 0).toLocaleString()}</span>
+          <button type="button" class="rel-save-btn" data-keyword="${esc(k.keyword)}" onclick="saveKeywordSearchIdea(this)" aria-label="발굴 키워드로 저장">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+            <span class="track-tip">검색 저장</span>
+          </button>
         </div>
         <div class="rel-row-sub">
           <span>상품수 ${k.products != null ? k.products.toLocaleString() : "-"}개</span>
@@ -1181,7 +1193,7 @@ function render(d) {
     // LIST_DEFAULT_SHOW개까지 먼저 보여주고 나머지는 더보기로 (카테고리 무관 확장분 포함)
     document.getElementById("relBody").classList.remove("rel-expanded");
     const moreBtn = document.getElementById("relMoreBtn");
-    if (rel.length > LIST_DEFAULT_SHOW) {
+    if (relRows.length > LIST_DEFAULT_SHOW) {
       moreBtn.style.display = "block";
       moreBtn.textContent = "+ 더보기";
     } else {
