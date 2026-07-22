@@ -535,6 +535,43 @@ async function saveContentIdeas(slot: string, items: SemanticIdea[]) {
   return writableRows.length;
 }
 
+async function addContentIdea(body: Record<string, unknown>) {
+  const keyword = cleanIdeaKeyword(String(body.keyword || ""));
+  if (!keyword) throw new Error("추가할 키워드가 필요합니다.");
+  const id = `manual-trend-${ideaKey(keyword)}`;
+  const existing = await supabaseRequest(
+    `/rest/v1/${CONTENT_IDEA_TABLE}?select=*&id=eq.${encodeURIComponent(id)}&limit=1`,
+  ).catch(() => []);
+  if (Array.isArray(existing) && existing[0]) return { ok: true, alreadyExists: true, item: existing[0] };
+
+  const rank = Math.max(1, Number(body.rank || 99));
+  const category = ideaCategory(keyword);
+  const seasonScore = ideaSeasonScore(keyword);
+  const trendScore = clampScore(Math.max(45, 105 - rank * 4));
+  const row = {
+    id,
+    keyword,
+    source: "trend",
+    category,
+    product_group: ideaProductGroup(keyword, category),
+    search_volume: 0,
+    competition_score: Math.max(25, Math.min(78, 45 + rank)),
+    season_score: seasonScore,
+    trend_score: trendScore,
+    ai_score: clampScore(trendScore * 0.62 + seasonScore * 0.38),
+    content_angle: `${keyword} 이슈를 생활 속 단열·열차단·습기 관리 관점에서 검토`,
+    selection_reason: "트렌드 분석에서 직접 선택한 영감 키워드입니다.",
+    status: "candidate",
+    updated_at: new Date().toISOString(),
+  };
+  const saved = await supabaseRequest(`/rest/v1/${CONTENT_IDEA_TABLE}`, {
+    method: "POST",
+    headers: { "Prefer": "return=representation" },
+    body: JSON.stringify([row]),
+  });
+  return { ok: true, alreadyExists: false, item: Array.isArray(saved) ? saved[0] : row };
+}
+
 function parseStoredSources(value: string) {
   const text = String(value || "").trim();
   if (!text) return [];
@@ -1154,6 +1191,7 @@ Deno.serve(async (req) => {
     if (body.action === "realtime") return json(await handleRealtime());
     if (body.action === "collectRealtime") return json(await collectRealtime());
     if (body.action === "realtimeAt") return json(await handleRealtimeAt(body.slot));
+    if (body.action === "addContentIdea") return json(await addContentIdea(body));
     if (body.action === "collectNicheDaily") return json(await collectNicheDaily());
     if (body.action === "nicheTrend") return json(await handleNicheTrend());
     if (body.action === "nicheSpike") return json(await handleNicheSpike());

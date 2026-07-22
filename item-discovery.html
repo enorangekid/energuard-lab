@@ -247,8 +247,8 @@
   .trend-list { overflow-x: auto; }
   .trend-list-head,
   .trend-row {
-    display: grid; grid-template-columns: 44px 54px minmax(220px, 1fr) minmax(210px, .75fr) 154px;
-    align-items: center; gap: 10px; min-width: 920px;
+    display: grid; grid-template-columns: 44px 54px minmax(220px, 1fr) minmax(210px, .75fr) 154px 44px;
+    align-items: center; gap: 10px; min-width: 974px;
   }
   .trend-list-head {
     min-height: 36px; padding: 0 14px; background: #fafbfc;
@@ -257,7 +257,8 @@
   .trend-list-head span:nth-child(1),
   .trend-list-head span:nth-child(2),
   .trend-list-head span:nth-child(4),
-  .trend-list-head span:nth-child(5) { text-align: center; }
+  .trend-list-head span:nth-child(5),
+  .trend-list-head span:nth-child(6) { text-align: center; }
   .trend-row { min-height: 44px; padding: 9px 14px; border-bottom: 1px solid var(--line); }
   .trend-row:last-child { border-bottom: 0; }
   .trend-row:hover { background: #fafbfd; }
@@ -281,6 +282,23 @@
     font-size: 10.5px; font-weight: 800; color: var(--sub); text-decoration: none;
     padding: 3px 8px; border: 1px solid var(--line); border-radius: 12px;
   }
+  .trend-idea-btn {
+    position: relative; width: 30px; height: 30px; justify-self: center; padding: 0;
+    border: 1px solid var(--line); border-radius: 50%; background: #fff; color: #9aa3b3;
+    display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all .14s;
+  }
+  .trend-idea-btn:hover { border-color: #d7dde7; color: var(--ink); background: #fafbfc; }
+  .trend-idea-btn svg { width: 15px; height: 15px; }
+  .trend-idea-btn.added { border-color: #f0b79d; background: var(--accent-tint); color: var(--accent-dark); }
+  .trend-idea-btn.added:hover { border-color: #d7dde7; background: #fafbfc; color: var(--ink); }
+  .trend-idea-tip {
+    position: absolute; left: 50%; bottom: 38px; z-index: 25; transform: translate(-50%, 4px);
+    padding: 8px 10px; border-radius: 6px; background: #161a22; color: #fff;
+    font-size: 12px; font-weight: 800; line-height: 1.2; white-space: nowrap;
+    opacity: 0; visibility: hidden; pointer-events: none; transition: all .12s;
+    box-shadow: 0 14px 34px rgba(5, 7, 11, 0.22);
+  }
+  .trend-idea-btn:hover .trend-idea-tip { opacity: 1; visibility: visible; transform: translate(-50%, 0); }
   .tr-links a:hover { color: var(--accent-dark); border-color: #c8cdd4; background: #fafbfc; }
   .state { padding: 44px 20px; text-align: center; color: var(--sub); font-size: 13px; font-weight: 700; }
   .note { padding: 8px 16px; font-size: 11px; color: var(--sub); background: #fafbfc; border-top: 1px solid var(--line); }
@@ -623,6 +641,9 @@ function normalizeIdea(row) {
     aiNotes: row.ai_notes || row.aiNotes || draft.ai_notes || ""
   };
 }
+function ideaKeywordKey(keyword) {
+  return String(keyword || "").replace(/\s+/g, "").toLowerCase();
+}
 async function fetchSupabaseIdeas() {
   const headers = { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY };
   const ideasUrl = `${SUPABASE_URL}/rest/v1/content_ideas?select=*&order=updated_at.desc&limit=80`;
@@ -816,6 +837,7 @@ function renderTrendRows(items) {
   const rows = items.map(item => {
     const q = encodeURIComponent(item.query || item.keyword);
     const mainUrl = item.link || `https://search.naver.com/search.naver?query=${encodeURIComponent(item.keyword)}`;
+    const added = ideas.some(idea => ideaKeywordKey(idea.keyword) === ideaKeywordKey(item.keyword));
     return `<div class="trend-row">
       <span class="tr-rank">${item.rank}</span>
       ${deltaHtml(item)}
@@ -826,9 +848,13 @@ function renderTrendRows(items) {
         <a href="https://www.youtube.com/results?search_query=${q}" target="_blank" rel="noopener">유튜브</a>
         <a href="https://www.google.com/search?q=${q}" target="_blank" rel="noopener">구글</a>
       </span>
+      <button type="button" class="trend-idea-btn${added ? " added" : ""}" data-add-idea="${esc(item.keyword)}" data-rank="${Number(item.rank || 0)}" aria-label="${added ? "발굴 키워드 추가됨" : "발굴 키워드로 추가"}"${added ? " disabled" : ""}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M8.5 14.5A6 6 0 1 1 15.5 14.5C14.5 15.3 14 16.2 14 18h-4c0-1.8-.5-2.7-1.5-3.5Z"/><path d="M12 2V0"/></svg>
+        <span class="trend-idea-tip">${added ? "추가됨" : "발굴 키워드 추가"}</span>
+      </button>
     </div>`;
   }).join("");
-  return `<div class="trend-list-head"><span>순위</span><span>변동</span><span>키워드</span><span>근거</span><span>바로가기</span></div>${rows}`;
+  return `<div class="trend-list-head"><span>순위</span><span>변동</span><span>키워드</span><span>근거</span><span>바로가기</span><span>발굴</span></div>${rows}`;
 }
 function renderRealtimeTrend() {
   const listEl = document.getElementById("realtimeTrendList");
@@ -925,6 +951,33 @@ async function loadSpikeTrend() {
   }
   spikeLoading = false;
   renderRealtimeTrend();
+}
+async function addTrendIdea(button) {
+  if (!button || button.disabled) return;
+  const keyword = button.dataset.addIdea || "";
+  if (!keyword) return;
+  button.disabled = true;
+  try {
+    const data = await callTrendFn({
+      action: "addContentIdea",
+      keyword,
+      rank: Number(button.dataset.rank || 0),
+      listType: activeTrendList
+    });
+    if (!data?.item) throw new Error("저장 결과가 없습니다.");
+    const item = normalizeIdea(data.item);
+    const merged = new Map(ideas.map(row => [String(row.id), row]));
+    merged.set(String(item.id), item);
+    ideas = Array.from(merged.values());
+    localStorage.setItem(LOCAL_IDEAS_KEY, JSON.stringify(ideas));
+    renderRealtimeTrend();
+    renderCategories();
+    renderIdeas();
+    showToast(data.alreadyExists ? "이미 추가된 발굴 키워드입니다." : `“${keyword}”을 발굴 키워드로 추가했습니다.`);
+  } catch (error) {
+    button.disabled = false;
+    showToast("발굴 키워드 추가 실패: " + String(error.message || error));
+  }
 }
 function compBadge(score, ratio) {
   if (score == null) return `<span class="comp-score c0"><span class="comp-gauge"><span style="width:0%"></span></span><b>-</b></span>`;
@@ -1146,6 +1199,10 @@ document.getElementById("slotChips").addEventListener("click", e => {
   const chip = e.target.closest(".slot-chip");
   if (!chip) return;
   loadRealtimeTrend(chip.dataset.slot || "");
+});
+document.getElementById("realtimeTrendList").addEventListener("click", e => {
+  const button = e.target.closest("[data-add-idea]");
+  if (button) addTrendIdea(button);
 });
 document.getElementById("trendRefreshBtn").addEventListener("click", () => {
   if (activeTrendList === "niche") loadNicheTrend();
