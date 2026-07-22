@@ -798,7 +798,7 @@
 const SUPABASE_URL = "https://eukwfypbfqojbaihfqye.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_MiBvlf3d6ulcVBsi7Odcgw_PTXSmXKj";
 const FN_URL = SUPABASE_URL + "/functions/v1/naver-rank";
-const TREND_FN_URL = SUPABASE_URL + "/functions/v1/shopping-trend";
+const KEYWORD_IDEA_FN_URL = SUPABASE_URL + "/functions/v1/shopping-trend";
 
 const MY_STORES = ["한국단열", "에너가드"];
 const STORE_BATCH_KEYWORDS = {
@@ -935,7 +935,7 @@ async function saveKeywordSearchIdea(button) {
   if (!keyword || button.disabled || button.classList.contains("added")) return;
   button.disabled = true;
   try {
-    const res = await fetch(TREND_FN_URL, {
+    const res = await fetch(KEYWORD_IDEA_FN_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
