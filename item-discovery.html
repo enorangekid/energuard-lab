@@ -431,8 +431,8 @@
     <article class="card" id="draftCard">
       <div class="card-head">
         <div class="card-title-wrap">
-          <span class="card-title">AI 블로그 초안</span>
-          <span class="card-subtitle">선택한 후보의 제목·목차·본문 초안을 검토합니다.</span>
+          <span class="card-title" id="draftCardTitle">AI 블로그 초안</span>
+          <span class="card-subtitle" id="draftCardSubtitle">선택한 후보의 제목·목차·본문 초안을 검토합니다.</span>
         </div>
         <div class="control-right">
           <span class="pill green" id="draftStatus">초안 생성</span>
@@ -466,6 +466,7 @@ const SOURCE_LABELS = { interest: "관심", trend: "실시간", trend_manual: "�
 let ideas = [];
 let seenIdeaIds = new Set();
 let selectedId = "";
+let activeDraftType = "blog";
 let activeCategory = "전체";
 let activeView = "trend";
 let trendData = null;
@@ -719,6 +720,8 @@ function renderIdeas() {
     const statusClass = draftStatusClass(item);
     const statusLabel = draftStatusLabel(item);
     const blogTip = draftReady ? "블로그 초안 보기" : "블로그 초안 생성";
+    const youtubeReady = hasYoutubeScript(item);
+    const youtubeTip = youtubeReady ? "유튜브 대본 보기" : "유튜브 대본 생성";
     return `
     <div class="idea-row${item.id === selectedId ? " active" : ""}" data-id="${esc(item.id)}" role="button" tabindex="0">
       <span class="idea-score">${Math.round(item.aiScore || 0)}</span>
@@ -743,7 +746,7 @@ function renderIdeas() {
         <button type="button" class="ui-circle-btn${draftReady ? " is-active" : ""}" data-generate-blog="${esc(item.id)}" aria-label="${blogTip}" data-tip="${blogTip}">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4 10 14"/><path d="M12 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6"/></svg>
         </button>
-        <button type="button" class="ui-circle-btn" data-generate-youtube="${esc(item.id)}" aria-label="유튜브 대본 생성" data-tip="유튜브 대본 생성">
+        <button type="button" class="ui-circle-btn${youtubeReady ? " is-active" : ""}" data-generate-youtube="${esc(item.id)}" aria-label="${youtubeTip}" data-tip="${youtubeTip}">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M22 8.5a3 3 0 0 0-2.1-2.1C18 6 12 6 12 6s-6 0-7.9.4A3 3 0 0 0 2 8.5 31 31 0 0 0 2 15.5a3 3 0 0 0 2.1 2.1C6 18 12 18 12 18s6 0 7.9-.4a3 3 0 0 0 2.1-2.1 31 31 0 0 0 0-7Z"/><path d="m10 9 5 3-5 3Z"/></svg>
         </button>
         <button type="button" class="ui-circle-btn" data-delete-idea="${esc(item.id)}" aria-label="발굴 키워드 삭제" data-tip="삭제">
@@ -796,6 +799,11 @@ function renderDraft() {
   const item = selectedIdea();
   const card = document.getElementById("draftCard");
   const panel = document.getElementById("draftPanel");
+  const showYoutubeDraft = hasYoutubeScript(item) && (activeDraftType === "youtube" || !hasDraftContent(item));
+  document.getElementById("draftCardTitle").textContent = showYoutubeDraft ? "AI 유튜브 초안" : "AI 블로그 초안";
+  document.getElementById("draftCardSubtitle").textContent = showYoutubeDraft
+    ? "선택한 후보의 영상 제목·구성·대본 초안을 검토합니다."
+    : "선택한 후보의 제목·목차·본문 초안을 검토합니다.";
   if (!item || (!hasDraftContent(item) && !hasYoutubeScript(item))) {
     card?.classList.add("is-hidden");
     panel.innerHTML = "";
@@ -806,10 +814,10 @@ function renderDraft() {
     return;
   }
   card?.classList.remove("is-hidden");
-  document.getElementById("draftStatus").textContent = draftStatusLabel(item);
-  document.getElementById("draftStatus").className = `pill ${draftStatusClass(item)}`;
+  document.getElementById("draftStatus").textContent = showYoutubeDraft ? "초안 생성" : draftStatusLabel(item);
+  document.getElementById("draftStatus").className = showYoutubeDraft ? "pill green" : `pill ${draftStatusClass(item)}`;
   document.getElementById("runWorkflowBtn").hidden = true;
-  document.getElementById("confirmDraftBtn").hidden = false;
+  document.getElementById("confirmDraftBtn").hidden = showYoutubeDraft;
   const outline = item.outline?.length ? item.outline : ["검색 의도 정리", "상품군 연결", "시공 팁", "FAQ"];
   const faq = item.faq?.length ? item.faq : ["이 키워드로 어떤 상품을 연결하면 좋을까요?", "셀프 시공 시 주의할 점은 무엇인가요?"];
   const youtubeSection = hasYoutubeScript(item) ? `
@@ -1206,6 +1214,7 @@ function renderAll() {
 async function runWorkflow(targetId = "") {
   const endpoint = OPENAI_DRAFT_URL;
   if (targetId) selectedId = String(targetId);
+  activeDraftType = "blog";
   const selected = selectedIdea();
   const currentRows = (selected ? [selected] : filteredIdeas())
     .filter(item => !String(item.id).startsWith("sample-") && item.updatedAt !== "샘플")
@@ -1255,6 +1264,7 @@ async function runWorkflow(targetId = "") {
 }
 async function generateYoutubeScript(id) {
   selectedId = String(id || selectedId || "");
+  activeDraftType = "youtube";
   const selected = selectedIdea();
   if (!selected) {
     showToast("대본을 생성할 발굴 키워드가 없습니다.");
@@ -1452,6 +1462,7 @@ document.getElementById("ideaList").addEventListener("click", e => {
     const id = blogButton.dataset.generateBlog || "";
     const item = ideas.find(candidate => String(candidate.id) === String(id));
     markIdeaSeen(id);
+    activeDraftType = "blog";
     if (hasDraftContent(item)) {
       selectedId = id;
       renderAll();
@@ -1464,8 +1475,17 @@ document.getElementById("ideaList").addEventListener("click", e => {
   const youtubeButton = e.target.closest("[data-generate-youtube]");
   if (youtubeButton) {
     e.stopPropagation();
-    markIdeaSeen(youtubeButton.dataset.generateYoutube || "");
-    generateYoutubeScript(youtubeButton.dataset.generateYoutube || "");
+    const id = youtubeButton.dataset.generateYoutube || "";
+    const item = ideas.find(candidate => String(candidate.id) === String(id));
+    markIdeaSeen(id);
+    activeDraftType = "youtube";
+    if (hasYoutubeScript(item)) {
+      selectedId = id;
+      renderAll();
+      showToast("생성된 유튜브 대본을 표시했습니다.");
+    } else {
+      generateYoutubeScript(id);
+    }
     return;
   }
   const deleteButton = e.target.closest("[data-delete-idea]");
