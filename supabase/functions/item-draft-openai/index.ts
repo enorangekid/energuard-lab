@@ -30,6 +30,13 @@ type DraftResult = {
   aiNotes?: string;
 };
 
+type YoutubeScriptResult = {
+  youtubeTitle: string;
+  youtubeOutline: string[];
+  youtubeBody: string;
+  youtubeNotes?: string;
+};
+
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -381,6 +388,73 @@ function normalizeDraft(raw: any, idea: Required<IdeaPayload>): DraftResult {
   };
 }
 
+function buildYoutubePrompt(idea: Required<IdeaPayload>) {
+  return [
+    `키워드: ${idea.keyword}`,
+    `상품군: ${idea.productGroup}`,
+    `카테고리: ${idea.category}`,
+    `검색량: ${idea.searchVolume || "실시간 화제성 기반"}`,
+    `경쟁도: ${idea.competitionScore}`,
+    `시즌성: ${idea.seasonScore}`,
+    "",
+    "에너가드컴퍼니 유튜브 롱폼 영상용 대본 초안을 작성해 주세요.",
+    "바로 녹음하거나 촬영 전 검토할 수 있는 대본이며, 아래 공식과 예시 스타일을 따릅니다.",
+    "",
+    "[제목 공식]",
+    "- 제목은 '강한 문제 제기 | 보조 설명' 구조로 작성합니다.",
+    "- 예: '단열은 겨울만의 이야기가 아닙니다 | 여름철 폭염을 버티는 집의 조건'",
+    "- 예: '리모델링 단열재의 배신 | 우리 가족을 지키는 준불연단열재의 모든 것'",
+    "- 예: 'PF보드, 아무거나 쓰지 마세요 | 고성능 단열재 실패 없이 고르는 완벽 가이드'",
+    "",
+    "[전체 구조]",
+    "- 반드시 [오프닝]으로 시작합니다.",
+    "- 이어서 4~6개의 주제 섹션을 만듭니다.",
+    "- 마지막은 반드시 [아웃트로]로 끝냅니다.",
+    "- 섹션 제목은 이모지 없이 대괄호 형식으로 씁니다. 예: [여름철 실내가 더워지는 진짜 이유]",
+    "",
+    "[오프닝 공식]",
+    "- 뉴스, 계절 이슈, 비용 부담, 안전 문제, 사용자의 불안에서 시작합니다.",
+    "- 처음부터 제품을 팔지 말고 '왜 이 주제가 중요한지'를 충분히 설명합니다.",
+    "- 독자가 실제로 할 법한 질문을 자연스럽게 넣습니다.",
+    "- 훅은 강하게 잡되 공포 마케팅처럼 과장하지 않습니다.",
+    "",
+    "[본문 공식]",
+    "- 블로그보다 길고 설명이 누적되는 말투로 작성합니다.",
+    "- 말로 읽었을 때 자연스럽도록 문장을 길게 쓸 수 있지만 문단은 짧게 나눕니다.",
+    "- 문제 원인, 현장 구조, 선택 기준, 제품군 연결 순서로 전개합니다.",
+    "- 전문 용어는 사용하되 바로 쉽게 풀어 설명합니다.",
+    "- 제품명은 중반 이후부터 자연스럽게 연결합니다.",
+    "- 에너가드컴퍼니 언급은 후반부 또는 아웃트로에만 자연스럽게 넣습니다.",
+    "",
+    "[아웃트로 공식]",
+    "- 오늘 내용을 정리하겠습니다. 또는 질문형 문장으로 시작할 수 있습니다.",
+    "- 핵심 내용을 3~5문단으로 다시 정리합니다.",
+    "- 에너가드컴퍼니가 공급하는 자재와 상담 가능성을 자연스럽게 언급합니다.",
+    "- 마지막 문장은 반드시 아래 흐름을 포함합니다.",
+    "- '이상 친환경 단열재 제조 전문기업 에너가드컴퍼니였습니다.'",
+    "- '시청해주셔서 감사합니다. 도움이 되셨다면 좋아요와 구독 부탁드립니다.'",
+    "",
+    "[분량]",
+    "- 롱폼 기준으로 작성합니다.",
+    "- 블로그 초안보다 길게, 최소 7개 이상의 문단 묶음으로 작성합니다.",
+    "- 결과 본문은 5~8분 분량을 목표로 합니다.",
+    "",
+    "반드시 JSON만 반환하세요.",
+    '형식: {"youtubeTitle":"영상 제목","youtubeOutline":["[오프닝]","[섹션1]","[아웃트로]"],"youtubeBody":"전체 유튜브 대본","youtubeNotes":"검토 메모"}',
+  ].join("\n");
+}
+
+function normalizeYoutubeScript(raw: any, idea: Required<IdeaPayload>): YoutubeScriptResult {
+  const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+  const outline = Array.isArray(parsed.youtubeOutline) ? parsed.youtubeOutline.map(cleanText).filter(Boolean) : [];
+  return {
+    youtubeTitle: cleanText(parsed.youtubeTitle || parsed.title) || `${idea.keyword} 유튜브 대본`,
+    youtubeOutline: outline.length ? outline.slice(0, 8) : ["[오프닝]", "[핵심 문제]", "[선택 기준]", "[아웃트로]"],
+    youtubeBody: cleanBodyText(parsed.youtubeBody || parsed.body) || `${idea.keyword} 관련 유튜브 대본을 검토해 주세요.`,
+    youtubeNotes: cleanText(parsed.youtubeNotes || parsed.aiNotes || parsed.ai_notes),
+  };
+}
+
 async function generateDraft(idea: Required<IdeaPayload>): Promise<DraftResult> {
   if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY Supabase Secret이 필요합니다.");
 
@@ -411,6 +485,38 @@ async function generateDraft(idea: Required<IdeaPayload>): Promise<DraftResult> 
   }
 
   return normalizeDraft(data?.choices?.[0]?.message?.content || "{}", idea);
+}
+
+async function generateYoutubeDraft(idea: Required<IdeaPayload>): Promise<YoutubeScriptResult> {
+  if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY Supabase Secret이 필요합니다.");
+
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${OPENAI_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: OPENAI_MODEL,
+      temperature: 0.42,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content:
+            "너는 에너가드컴퍼니 유튜브 채널의 대본 작가다. 뉴스성 훅, 현실 문제, 건축·단열 설명, 제품군 연결, 브랜드 아웃트로를 갖춘 한국어 롱폼 대본을 만든다. 결과는 유효한 JSON만 반환한다.",
+        },
+        { role: "user", content: buildYoutubePrompt(idea) },
+      ],
+    }),
+  });
+
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    throw new Error(`OpenAI ${res.status}: ${JSON.stringify(data).slice(0, 500)}`);
+  }
+
+  return normalizeYoutubeScript(data?.choices?.[0]?.message?.content || "{}", idea);
 }
 
 async function saveDraft(idea: Required<IdeaPayload>, draft: DraftResult) {
@@ -453,12 +559,90 @@ async function saveDraft(idea: Required<IdeaPayload>, draft: DraftResult) {
   }
 }
 
+function parseAiNotes(value: unknown) {
+  const text = String(value || "").trim();
+  if (!text) return { note: "", youtube: null as YoutubeScriptResult | null };
+  try {
+    const parsed = JSON.parse(text);
+    return {
+      note: cleanText(parsed.note || parsed.aiNotes || parsed.text || ""),
+      youtube: parsed.youtube ? normalizeYoutubeScript(parsed.youtube, {
+        id: "",
+        keyword: "",
+        source: "manual",
+        category: "기타",
+        productGroup: "기타",
+        searchVolume: 0,
+        competitionScore: 0,
+        seasonScore: 0,
+        aiScore: 0,
+      }) : null,
+    };
+  } catch (_) {
+    return { note: text, youtube: null as YoutubeScriptResult | null };
+  }
+}
+
+async function fetchExistingDraft(ideaId: string) {
+  const rows = await supabaseRequest(`/rest/v1/content_drafts?idea_id=eq.${encodeURIComponent(ideaId)}&select=*&limit=1`);
+  return Array.isArray(rows) && rows.length ? rows[0] : null;
+}
+
+async function saveYoutubeScript(idea: Required<IdeaPayload>, script: YoutubeScriptResult) {
+  try {
+    await supabaseRequest("/rest/v1/content_ideas?on_conflict=id", {
+      method: "POST",
+      headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+      body: JSON.stringify([{
+        id: idea.id,
+        keyword: idea.keyword,
+        source: idea.source,
+        category: idea.category,
+        product_group: idea.productGroup,
+        search_volume: idea.searchVolume,
+        competition_score: idea.competitionScore,
+        season_score: idea.seasonScore,
+        ai_score: idea.aiScore,
+        updated_at: new Date().toISOString(),
+      }]),
+    });
+
+    const existing = await fetchExistingDraft(idea.id);
+    const existingNotes = parseAiNotes(existing?.ai_notes);
+    const aiNotes = JSON.stringify({
+      note: existingNotes.note,
+      youtube: script,
+    });
+
+    await supabaseRequest("/rest/v1/content_drafts?on_conflict=idea_id", {
+      method: "POST",
+      headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+      body: JSON.stringify([{
+        idea_id: idea.id,
+        keyword: idea.keyword,
+        title: existing?.title || "",
+        outline: existing?.outline || [],
+        body: existing?.body || "",
+        faq: existing?.faq || [],
+        thumbnail: existing?.thumbnail || "",
+        ai_notes: aiNotes,
+        status: existing?.status || "drafted",
+        generated_at: existing?.generated_at || new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }]),
+    });
+  } catch (_) {
+    // 저장 테이블이 아직 없어도 프론트 응답은 살려서 확인할 수 있게 둡니다.
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
 
   try {
     const body = await req.json().catch(() => ({}));
+    const action = cleanText(body.action || "generateDrafts");
     const categories = Array.isArray(body.categories) ? body.categories.map(cleanText).filter(Boolean) : [];
     const limit = Math.min(Math.max(Number(body.limit || 3), 1), 8);
     const requestedIdeas = Array.isArray(body.ideas) ? body.ideas : [];
@@ -466,9 +650,15 @@ Deno.serve(async (req) => {
 
     const items = [];
     for (const idea of ideas) {
-      const draft = await generateDraft(idea);
-      await saveDraft(idea, draft);
-      items.push({ ...idea, status: "drafted", updatedAt: new Date().toISOString(), ...draft });
+      if (action === "generateYoutube") {
+        const youtube = await generateYoutubeDraft(idea);
+        await saveYoutubeScript(idea, youtube);
+        items.push({ ...idea, updatedAt: new Date().toISOString(), ...youtube });
+      } else {
+        const draft = await generateDraft(idea);
+        await saveDraft(idea, draft);
+        items.push({ ...idea, status: "drafted", updatedAt: new Date().toISOString(), ...draft });
+      }
     }
 
     return json({
