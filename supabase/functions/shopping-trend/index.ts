@@ -578,25 +578,49 @@ async function addContentIdea(body: Record<string, unknown>) {
   const existing = await supabaseRequest(
     `/rest/v1/${CONTENT_IDEA_TABLE}?select=*&id=eq.${encodeURIComponent(id)}&limit=1`,
   ).catch(() => []);
-  if (Array.isArray(existing) && existing[0]) return { ok: true, alreadyExists: true, item: existing[0] };
+  const searchVolume = Math.max(0, Number(body.searchVolume || body.search_volume || 0));
+  const products = Math.max(0, Number(body.products || 0));
+  const requestedCompetition = Number(body.competitionScore || body.competition_score || 0);
+  if (Array.isArray(existing) && existing[0]) {
+    const patch: Record<string, unknown> = {
+      source: fromSearch ? "keyword_search" : "trend_manual",
+      selection_reason: fromSearch
+        ? "키워드 분석에서 저장한 발굴 키워드입니다."
+        : "트렌드 분석에서 직접 선택한 영감 키워드입니다.",
+      updated_at: new Date().toISOString(),
+    };
+    if (searchVolume > 0) patch.search_volume = searchVolume;
+    if (requestedCompetition > 0) patch.competition_score = clampScore(requestedCompetition);
+    const updated = await supabaseRequest(`/rest/v1/${CONTENT_IDEA_TABLE}?id=eq.${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      headers: { "Prefer": "return=representation" },
+      body: JSON.stringify(patch),
+    }).catch(() => existing);
+    return { ok: true, alreadyExists: true, item: Array.isArray(updated) ? updated[0] : { ...existing[0], ...patch } };
+  }
 
   const rank = Math.max(1, Number(body.rank || 99));
   const category = ideaCategory(keyword);
   const seasonScore = ideaSeasonScore(keyword);
   const trendScore = clampScore(Math.max(45, 105 - rank * 4));
+  const competitionScore = requestedCompetition > 0
+    ? clampScore(requestedCompetition)
+    : Math.max(25, Math.min(78, 45 + rank));
   const row = {
     id,
     keyword,
     source: fromSearch ? "keyword_search" : "trend_manual",
     category,
     product_group: ideaProductGroup(keyword, category),
-    search_volume: 0,
-    competition_score: Math.max(25, Math.min(78, 45 + rank)),
+    search_volume: searchVolume,
+    competition_score: competitionScore,
     season_score: seasonScore,
     trend_score: trendScore,
-    ai_score: clampScore(trendScore * 0.62 + seasonScore * 0.38),
+    ai_score: clampScore(trendScore * 0.5 + seasonScore * 0.3 + Math.min(20, searchVolume / 1000) - Math.min(10, products / 100000)),
     content_angle: `${keyword} 이슈를 생활 속 단열·열차단·습기 관리 관점에서 검토`,
-    selection_reason: "트렌드 분석에서 직접 선택한 영감 키워드입니다.",
+    selection_reason: fromSearch
+      ? "키워드 분석에서 저장한 발굴 키워드입니다."
+      : "트렌드 분석에서 직접 선택한 영감 키워드입니다.",
     status: "candidate",
     updated_at: new Date().toISOString(),
   };

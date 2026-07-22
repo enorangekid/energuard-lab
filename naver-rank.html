@@ -933,6 +933,9 @@ async function saveKeywordSearchIdea(button) {
   if (!keyword || button.disabled || button.classList.contains("added")) return;
   button.disabled = true;
   try {
+    const searchVolume = Number(button.dataset.volume || 0);
+    const products = Number(button.dataset.products || 0);
+    const competitionScore = Number(button.dataset.competition || 0);
     const res = await fetch(KEYWORD_IDEA_FN_URL, {
       method: "POST",
       headers: {
@@ -940,7 +943,14 @@ async function saveKeywordSearchIdea(button) {
         "Authorization": "Bearer " + SUPABASE_ANON_KEY,
         "apikey": SUPABASE_ANON_KEY,
       },
-      body: JSON.stringify({ action: "addContentIdea", keyword, listType: "keywordSearch" }),
+      body: JSON.stringify({
+        action: "addContentIdea",
+        keyword,
+        listType: "keywordSearch",
+        searchVolume,
+        products,
+        competitionScore,
+      }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || data.ok === false) throw new Error(data.error || `HTTP ${res.status}`);
@@ -1179,7 +1189,7 @@ function render(d) {
           ${k.current ? '<span class="niche-badge">현재</span>' : ''}
           ${nicheSet.has(k.keyword) ? '<span class="niche-badge">기회</span>' : ''}
           <span class="rel-row-volume" title="PC ${(k.pc || 0).toLocaleString()} · 모바일 ${(k.mobile || 0).toLocaleString()}">${(k.total || 0).toLocaleString()}</span>
-          <button type="button" class="rel-save-btn" data-keyword="${esc(k.keyword)}" onclick="saveKeywordSearchIdea(this)" aria-label="발굴 키워드로 저장">
+          <button type="button" class="rel-save-btn" data-keyword="${esc(k.keyword)}" data-volume="${Number(k.total || 0)}" data-products="${Number(k.products || 0)}" data-competition="${Number(k.compIdx || 0)}" onclick="saveKeywordSearchIdea(this)" aria-label="발굴 키워드로 저장">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M8.5 14.5A6 6 0 1 1 15.5 14.5C14.5 15.3 14 16.2 14 18h-4c0-1.8-.5-2.7-1.5-3.5Z"/></svg>
             <span class="track-tip">검색 저장</span>
           </button>

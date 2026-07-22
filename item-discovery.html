@@ -579,6 +579,21 @@ function ideaSourceGroup(item) {
   if (source === "manual" || source === "direct") return "직접";
   return "직접";
 }
+function ideaSelectionReason(item) {
+  const id = String(item.id || "");
+  const source = String(item.source || "");
+  if (id.startsWith("manual-search-") || source === "keyword_search") {
+    return "키워드 분석에서 저장한 발굴 키워드입니다.";
+  }
+  if (id.startsWith("manual-trend-") || source === "trend_manual") {
+    return "트렌드 분석에서 직접 선택한 영감 키워드입니다.";
+  }
+  return item.selectionReason || `${SOURCE_LABELS[item.source] || item.source} 흐름에서 저장된 후보입니다.`;
+}
+function ideaSearchVolumeText(item) {
+  const value = Number(item?.searchVolume || 0);
+  return value > 0 ? num(value) : "-";
+}
 async function fetchSupabaseIdeas() {
   const headers = { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY };
   const ideasUrl = `${SUPABASE_URL}/rest/v1/content_ideas?select=*&order=updated_at.desc&limit=80`;
@@ -643,7 +658,7 @@ function renderIdeas() {
       <span class="idea-score">${Math.round(item.aiScore || 0)}</span>
       <span class="idea-main">
         <span class="idea-keyword"><span>${esc(item.keyword)}</span><span class="pill orange">${esc(item.productGroup)}</span></span>
-        <span class="idea-desc">${esc(item.selectionReason || `${SOURCE_LABELS[item.source] || item.source} 흐름에서 저장된 후보입니다.`)}</span>
+        <span class="idea-desc">${esc(ideaSelectionReason(item))}</span>
       </span>
       <span class="idea-side">
         <span class="idea-meta-line">
@@ -652,7 +667,7 @@ function renderIdeas() {
           <span class="pill gray">${esc(formatIdeaDate(item.updatedAt))}</span>
         </span>
         <span class="idea-metrics">
-          <span class="idea-metric">검색량<b>${num(item.searchVolume)}</b></span>
+          <span class="idea-metric">검색량<b>${ideaSearchVolumeText(item)}</b></span>
           <span class="idea-metric">화제성<b>${Math.round(item.trendScore || 0)}</b></span>
           <span class="idea-metric">시즌성<b>${Math.round(item.seasonScore || 0)}</b></span>
           <span class="idea-metric">경쟁도<b>${Math.round(item.competitionScore || 0)}</b></span>
@@ -703,7 +718,7 @@ function renderDraft() {
         <h2 class="draft-title">${esc(item.title)}</h2>
       </div>
       <div class="draft-meta">
-        <span class="pill gray">검색량 ${num(item.searchVolume)}</span>
+        <span class="pill gray">검색량 ${ideaSearchVolumeText(item)}</span>
         <span class="pill gray">경쟁 ${Math.round(item.competitionScore || 0)}</span>
         <span class="pill gray">시즌 ${Math.round(item.seasonScore || 0)}</span>
       </div>
