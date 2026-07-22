@@ -247,8 +247,8 @@
   .trend-list { overflow-x: auto; }
   .trend-list-head,
   .trend-row {
-    display: grid; grid-template-columns: 44px 54px minmax(0, 1fr) 86px 154px;
-    align-items: center; gap: 10px; min-width: 720px;
+    display: grid; grid-template-columns: 44px 54px minmax(220px, 1fr) minmax(210px, .75fr) 154px;
+    align-items: center; gap: 10px; min-width: 920px;
   }
   .trend-list-head {
     min-height: 36px; padding: 0 14px; background: #fafbfc;
@@ -270,7 +270,12 @@
   .tr-delta.new { color: var(--accent); }
   .tr-kw { min-width: 0; font-size: 13.5px; font-weight: 800; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tr-kw:hover { color: var(--accent-dark); text-decoration: underline; }
-  .tr-src { justify-self: center; max-width: 84px; font-size: 10.5px; color: var(--sub); background: #eef0f3; padding: 1px 7px; border-radius: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tr-src { justify-self: stretch; display: flex; align-items: center; justify-content: center; gap: 4px; flex-wrap: wrap; min-width: 0; }
+  .tr-src span {
+    max-width: 100%; padding: 2px 7px; border-radius: 10px; background: #eef0f3;
+    color: var(--sub); font-size: 10.5px; line-height: 1.35; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis;
+  }
   .tr-links { justify-self: end; display: flex; gap: 4px; }
   .tr-links a {
     font-size: 10.5px; font-weight: 800; color: var(--sub); text-decoration: none;
@@ -374,7 +379,7 @@
       <div class="trend-list" id="realtimeTrendList">
         <div class="state">불러오는 중...</div>
       </div>
-      <div class="note">시그널·네이트 실시간 이슈와 구글 트렌드를 합산한 순위입니다. 키워드를 클릭하면 네이버 검색이 열립니다.</div>
+      <div class="note">시그널·네이트·구글의 순위, 중복 노출, 검색량을 종합한 결과입니다. 현재 자료는 자동 수집된 저장 데이터 기준입니다.</div>
     </section>
 
     <section class="card category-trend-card">
@@ -812,7 +817,7 @@ function renderTrendRows(items) {
       <span class="tr-rank">${item.rank}</span>
       ${deltaHtml(item)}
       <span class="tr-kw" onclick="window.open('${esc(mainUrl)}', '_blank')">${esc(item.keyword)}</span>
-      ${item.sources && item.sources.length ? `<span class="tr-src">${esc(item.sources.join("·"))}</span>` : ""}
+      <span class="tr-src" title="${esc((item.sources || []).join(" · "))}">${(item.sources || []).slice(0, 5).map(source => `<span>${esc(source)}</span>`).join("")}</span>
       <span class="tr-links">
         <a href="https://search.naver.com/search.naver?ssc=tab.blog.all&query=${q}" target="_blank" rel="noopener">블로그</a>
         <a href="https://www.youtube.com/results?search_query=${q}" target="_blank" rel="noopener">유튜브</a>
@@ -820,7 +825,7 @@ function renderTrendRows(items) {
       </span>
     </div>`;
   }).join("");
-  return `<div class="trend-list-head"><span>순위</span><span>변동</span><span>키워드</span><span>출처</span><span>바로가기</span></div>${rows}`;
+  return `<div class="trend-list-head"><span>순위</span><span>변동</span><span>키워드</span><span>근거</span><span>바로가기</span></div>${rows}`;
 }
 function renderRealtimeTrend() {
   const listEl = document.getElementById("realtimeTrendList");

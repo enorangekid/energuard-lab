@@ -123,7 +123,9 @@ async function supabaseRequest(path: string, init: RequestInit = {}) {
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
 
 async function fetchSignal(): Promise<{ rank: number; keyword: string }[]> {
-  const res = await fetch("https://api.signal.bz/news/realtime", { headers: { "User-Agent": UA } });
+  const res = await fetch("https://api.signal.bz/news/realtime", {
+    headers: { "User-Agent": UA }, signal: AbortSignal.timeout(8_000),
+  });
   if (!res.ok) throw new Error(`signal ${res.status}`);
   const data = await res.json();
   return (data.top10 || []).map((item: { rank: number; keyword: string }) => ({
@@ -132,7 +134,9 @@ async function fetchSignal(): Promise<{ rank: number; keyword: string }[]> {
 }
 
 async function fetchNate(): Promise<{ rank: number; keyword: string }[]> {
-  const res = await fetch("https://www.nate.com/js/data/jsonLiveKeywordDataV1.js", { headers: { "User-Agent": UA } });
+  const res = await fetch("https://www.nate.com/js/data/jsonLiveKeywordDataV1.js", {
+    headers: { "User-Agent": UA }, signal: AbortSignal.timeout(8_000),
+  });
   if (!res.ok) throw new Error(`nate ${res.status}`);
   const buffer = await res.arrayBuffer();
   const text = new TextDecoder("euc-kr").decode(buffer);
@@ -143,52 +147,115 @@ async function fetchNate(): Promise<{ rank: number; keyword: string }[]> {
   })).filter((item: { keyword: string }) => item.keyword);
 }
 
-async function fetchGoogleTrends(): Promise<{ rank: number; keyword: string }[]> {
+type GoogleTrendItem = {
+  rank: number;
+  keyword: string;
+  trafficLabel: string;
+  trafficValue: number;
+  publishedAt: number;
+  newsCount: number;
+  newsTitle: string;
+  newsSource: string;
+  newsUrl: string;
+};
+
+function decodeXml(value: string) {
+  return String(value || "")
+    .replace(/^<!\[CDATA\[|\]\]>$/g, "")
+    .replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .replace(/&lt;/g, "<").replace(/&gt;/g, ">").trim();
+}
+
+function xmlValue(block: string, tag: string) {
+  const safeTag = tag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = block.match(new RegExp(`<${safeTag}[^>]*>([\\s\\S]*?)<\\/${safeTag}>`, "i"));
+  return decodeXml(match?.[1] || "");
+}
+
+function trafficNumber(label: string) {
+  const text = String(label || "").replace(/,/g, "").toUpperCase();
+  const value = Number(text.match(/[\d.]+/)?.[0] || 0);
+  if (/M|백만/.test(text)) return Math.round(value * 1_000_000);
+  if (/K|천/.test(text)) return Math.round(value * 1_000);
+  if (/만/.test(text)) return Math.round(value * 10_000);
+  return Math.round(value);
+}
+
+function relativeAge(timestamp: number) {
+  if (!timestamp) return "";
+  const hours = Math.max(0, Math.floor((Date.now() - timestamp) / 3_600_000));
+  if (hours < 1) return "1시간 이내";
+  if (hours < 24) return `${hours}시간 전`;
+  return `${Math.floor(hours / 24)}일 전`;
+}
+
+async function fetchGoogleTrends(): Promise<GoogleTrendItem[]> {
   const urls = [
     "https://trends.google.co.kr/trending/rss?geo=KR",
     "https://trends.google.com/trends/trendingsearches/daily/rss?geo=KR",
   ];
   for (const url of urls) {
     try {
-      const res = await fetch(url, { headers: { "User-Agent": UA } });
+      const res = await fetch(url, { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(8_000) });
       if (!res.ok) continue;
       const xml = await res.text();
-      const items: { rank: number; keyword: string }[] = [];
-      const matches = xml.matchAll(/<item>[\s\S]*?<title>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?<\/title>/g);
-      let rank = 1;
-      for (const m of matches) {
-        const keyword = String(m[1] || "").trim();
-        if (keyword) items.push({ rank: rank++, keyword });
-        if (rank > 20) break;
-      }
+       const items: GoogleTrendItem[] = [];
+       const matches = xml.matchAll(/<item>([\s\S]*?)<\/item>/gi);
+       let rank = 1;
+       for (const m of matches) {
+         const block = String(m[1] || "");
+         const keyword = xmlValue(block, "title");
+         const trafficLabel = xmlValue(block, "ht:approx_traffic");
+         const publishedAt = new Date(xmlValue(block, "pubDate")).getTime() || 0;
+         const newsBlocks = [...block.matchAll(/<ht:news_item>([\s\S]*?)<\/ht:news_item>/gi)];
+         const firstNews = String(newsBlocks[0]?.[1] || "");
+         if (keyword) items.push({
+           rank: rank++, keyword, trafficLabel, trafficValue: trafficNumber(trafficLabel), publishedAt,
+           newsCount: newsBlocks.length,
+           newsTitle: xmlValue(firstNews, "ht:news_item_title"),
+           newsSource: xmlValue(firstNews, "ht:news_item_source"),
+           newsUrl: xmlValue(firstNews, "ht:news_item_url"),
+         });
+         if (rank > 20) break;
+       }
       if (items.length) return items;
     } catch (_) { /* 다음 URL 시도 */ }
   }
   throw new Error("google trends 조회 실패");
 }
 
-// 시그널+네이트 통합 순위: 각 소스에서 (11-순위)점을 부여해 합산, 동점은 최고 순위 우선
-function mergeRealtime(lists: { name: string; items: { rank: number; keyword: string }[] }[]) {
-  const map = new Map<string, { keyword: string; score: number; best: number; sources: string[] }>();
+// 여러 소스의 순위·중복 노출·구글 검색량을 함께 반영한 실시간 종합 순위
+function mergeRealtime(lists: { name: string; items: Array<{ rank: number; keyword: string; trafficValue?: number }> }[]) {
+  const map = new Map<string, { keyword: string; score: number; best: number; sources: string[]; trafficValue: number }>();
   lists.forEach(({ name, items }) => {
     items.forEach(item => {
-      const key = item.keyword.replace(/\s+/g, "");
-      if (!map.has(key)) map.set(key, { keyword: item.keyword, score: 0, best: 99, sources: [] });
+      const key = item.keyword.replace(/[^0-9a-z가-힣]/gi, "").toLowerCase();
+      if (!key) return;
+      if (!map.has(key)) map.set(key, { keyword: item.keyword, score: 0, best: 99, sources: [], trafficValue: 0 });
       const acc = map.get(key)!;
-      acc.score += Math.max(11 - item.rank, 1);
+      const sourceWeight = name === "구글" ? 1.12 : name === "시그널" ? 1.05 : 1;
+      acc.score += Math.max(21 - item.rank, 1) * sourceWeight;
       acc.best = Math.min(acc.best, item.rank);
+      acc.trafficValue = Math.max(acc.trafficValue, Number(item.trafficValue || 0));
       if (!acc.sources.includes(name)) acc.sources.push(name);
     });
   });
   return [...map.values()]
-    .sort((a, b) => b.score - a.score || a.best - b.best)
+    .map(item => ({
+      ...item,
+      score: item.score + Math.max(0, item.sources.length - 1) * 18
+        + Math.min(16, Math.log10(Math.max(item.trafficValue, 1)) * 3),
+    }))
+    .sort((a, b) => b.score - a.score || b.sources.length - a.sources.length || a.best - b.best)
     .slice(0, 20)
     .map((item, i) => ({ rank: i + 1, keyword: item.keyword, sources: item.sources }));
 }
 
 function kstSlot() {
   const kst = new Date(Date.now() + 9 * 3600 * 1000);
-  return kst.toISOString().slice(0, 13).replace("T", " ") + ":00"; // "2026-07-09 10:00"
+  const hour = Math.floor(kst.getUTCHours() / 3) * 3;
+  const date = kst.toISOString().slice(0, 10);
+  return `${date} ${String(hour).padStart(2, "0")}:00`;
 }
 
 function kstDateKey(slot: string) {
@@ -212,16 +279,19 @@ async function cleanupRealtimeSnapshots() {
 
 async function readSlots() {
   const rows: Array<{ slot: string }> = await supabaseRequest(
-    `/rest/v1/${SNAPSHOT_TABLE}?select=slot&list_type=eq.realtime&rank=eq.1&order=slot.desc&limit=12`,
+    `/rest/v1/${SNAPSHOT_TABLE}?select=slot&list_type=eq.realtime&rank=eq.1&order=slot.desc&limit=100`,
   ) || [];
-  return rows.map(row => row.slot);
+  return [...new Set(rows.map(row => row.slot))].filter(slot => {
+    const hour = Number(String(slot).match(/ (\d{2}):00$/)?.[1]);
+    return Number.isFinite(hour) && hour % 3 === 0;
+  });
 }
 
 async function readSnapshot(slot: string, listType: string) {
   const rows = await supabaseRequest(
-    `/rest/v1/${SNAPSHOT_TABLE}?slot=eq.${encodeURIComponent(slot)}&list_type=eq.${listType}&select=rank,keyword,sources&order=rank.asc&limit=100`,
+    `/rest/v1/${SNAPSHOT_TABLE}?slot=eq.${encodeURIComponent(slot)}&list_type=eq.${listType}&select=rank,keyword,sources,captured_at&order=rank.asc&limit=100`,
   ) || [];
-  return rows as Array<{ rank: number; keyword: string; sources: string }>;
+  return rows as Array<{ rank: number; keyword: string; sources: string; captured_at?: string }>;
 }
 
 async function saveSnapshot(slot: string, listType: string, items: { rank: number; keyword: string; sources?: string[] }[]) {
@@ -231,7 +301,7 @@ async function saveSnapshot(slot: string, listType: string, items: { rank: numbe
     headers: { "Prefer": "return=minimal" },
     body: JSON.stringify(items.map(item => ({
       slot, list_type: listType, rank: item.rank, keyword: item.keyword,
-      sources: (item.sources || []).join(","),
+      sources: JSON.stringify(item.sources || []),
     }))),
   });
 }
@@ -296,17 +366,54 @@ async function saveContentIdeas(slot: string, listType: string, items: { rank: n
         competition_score: Math.max(25, Math.min(78, 45 + Number(item.rank || 0))),
         season_score: seasonScore,
         ai_score: Math.min(100, Math.round(trendScore * 0.58 + seasonScore * 0.42)),
-        status: "candidate",
         updated_at: new Date().toISOString(),
       };
     });
   if (!rows.length) return 0;
+  const idsFilter = encodeURIComponent(`(${rows.map(row => `"${row.id.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`).join(",")})`);
+  const existing: Array<{ id: string; status: string }> = await supabaseRequest(
+    `/rest/v1/${CONTENT_IDEA_TABLE}?select=id,status&id=in.${idsFilter}`,
+  ).catch(() => []) || [];
+  const existingStatus = new Map(existing.map(row => [row.id, row.status]));
+  const writableRows = rows
+    .filter(row => !existingStatus.has(row.id) || existingStatus.get(row.id) === "candidate")
+    .map(row => ({ ...row, status: existingStatus.get(row.id) || "candidate" }));
+  if (!writableRows.length) return 0;
   await supabaseRequest(`/rest/v1/${CONTENT_IDEA_TABLE}?on_conflict=id`, {
     method: "POST",
     headers: { "Prefer": "resolution=merge-duplicates,return=minimal" },
-    body: JSON.stringify(rows),
+    body: JSON.stringify(writableRows),
   });
-  return rows.length;
+  return writableRows.length;
+}
+
+function parseStoredSources(value: string) {
+  const text = String(value || "").trim();
+  if (!text) return [];
+  if (text.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) return parsed.map(String).filter(Boolean);
+    } catch (_) { /* 기존 문자열 형식으로 처리 */ }
+  }
+  return text.split(",").map(item => item.trim()).filter(Boolean);
+}
+
+function fillFromPrevious(
+  items: Array<{ rank: number; keyword: string; sources: string[] }>,
+  previous: Array<{ rank: number; keyword: string; sources: string }>,
+  limit = 20,
+) {
+  const result = [...items];
+  const used = new Set(result.map(item => item.keyword.replace(/[^0-9a-z가-힣]/gi, "").toLowerCase()));
+  for (const row of previous) {
+    if (result.length >= limit) break;
+    const key = row.keyword.replace(/[^0-9a-z가-힣]/gi, "").toLowerCase();
+    if (!key || used.has(key)) continue;
+    used.add(key);
+    result.push({ rank: result.length + 1, keyword: row.keyword, sources: [...parseStoredSources(row.sources), "직전 자료"] });
+  }
+  return result.map((item, index) => ({ ...item, rank: index + 1 }));
 }
 
 function withDelta(
@@ -324,7 +431,7 @@ function withDelta(
   });
 }
 
-async function handleRealtime() {
+async function collectRealtime() {
   const results = await Promise.allSettled([fetchSignal(), fetchNate(), fetchGoogleTrends()]);
   const signal = results[0].status === "fulfilled" ? results[0].value : [];
   const nate = results[1].status === "fulfilled" ? results[1].value : [];
@@ -332,14 +439,30 @@ async function handleRealtime() {
   const failed = ["시그널", "네이트", "구글"].filter((_, i) => results[i].status === "rejected");
   if (!signal.length && !nate.length) throw new Error("실시간 소스 모두 실패: " + failed.join(", "));
 
-  const merged = mergeRealtime([
+  const slot = kstSlot();
+  const slotsBefore = await readSlots().catch(() => [] as string[]);
+  const previousSlot = slotsBefore.find(item => item < slot) || "";
+  const previousRealtime = previousSlot ? await readSnapshot(previousSlot, "realtime").catch(() => []) : [];
+
+  const mergedBase = mergeRealtime([
     { name: "시그널", items: signal },
     { name: "네이트", items: nate },
+    { name: "구글", items: google },
   ]);
-  const googleList = google.map(item => ({ rank: item.rank, keyword: item.keyword, sources: ["구글"] }));
+  const merged = fillFromPrevious(mergedBase, previousRealtime);
+  const googleList = google.map(item => ({
+    rank: item.rank,
+    keyword: item.keyword,
+    sources: [
+      "구글",
+      item.trafficLabel ? `검색 ${item.trafficLabel}` : "",
+      relativeAge(item.publishedAt),
+      item.newsCount ? `관련 뉴스 ${item.newsCount}건` : "",
+      item.newsSource ? `대표 ${item.newsSource}` : "",
+    ].filter(Boolean),
+  }));
 
   // 스냅샷 저장 + 직전 슬롯과 비교해 변동 계산
-  const slot = kstSlot();
   let realtimeOut = merged.map(item => ({ ...item, change: "same", delta: null as number | null }));
   let googleOut = googleList.map(item => ({ ...item, change: "same", delta: null as number | null }));
   let slots: string[] = [];
@@ -367,6 +490,13 @@ async function handleRealtime() {
   };
 }
 
+async function handleRealtime() {
+  const slots = await readSlots();
+  const slot = slots[0] || "";
+  if (!slot) return { slot: "", slots: [], capturedAt: null, realtime: [], google: [], sourceNote: "저장된 실시간 자료 없음" };
+  return await handleRealtimeAt(slot);
+}
+
 async function handleRealtimeAt(slotRaw: string) {
   const slot = String(slotRaw || "");
   if (!slot) throw new Error("slot이 필요합니다.");
@@ -375,11 +505,11 @@ async function handleRealtimeAt(slotRaw: string) {
   const realtimeRows = await readSnapshot(slot, "realtime");
   const googleRows = await readSnapshot(slot, "google");
   const mapRows = (rows: Array<{ rank: number; keyword: string; sources: string }>) =>
-    rows.map(row => ({ rank: row.rank, keyword: row.keyword, sources: row.sources ? row.sources.split(",") : [] }));
+    rows.map(row => ({ rank: row.rank, keyword: row.keyword, sources: parseStoredSources(row.sources) }));
   return {
     slot,
     slots,
-    capturedAt: null,
+    capturedAt: realtimeRows[0]?.captured_at || googleRows[0]?.captured_at || null,
     realtime: withDelta(mapRows(realtimeRows), prevSlot ? await readSnapshot(prevSlot, "realtime") : []),
     google: withDelta(mapRows(googleRows), prevSlot ? await readSnapshot(prevSlot, "google") : []),
     sourceNote: "",
@@ -390,10 +520,20 @@ async function handleRealtimeAt(slotRaw: string) {
    단열 시드어로 최근 뉴스를 수집해, 같은 이슈를 다룬 기사끼리 묶고
    기사 수 × 최신성으로 순위를 매긴다. 공식 API라 안정적. */
 
-const NICHE_SEEDS = [
-  "단열재", "단열 시공", "아이소핑크", "스티로폼 화재", "우레탄폼", "샌드위치패널",
-  "준불연", "결로", "벽 곰팡이", "누수", "난방비", "리모델링 단열",
+const NICHE_BASE_SEEDS = [
+  "단열재", "단열 시공", "아이소핑크", "우레탄폼", "열반사단열재",
+  "준불연 단열재", "결로", "벽 곰팡이", "누수", "리모델링 단열",
 ];
+const NICHE_SUMMER_SEEDS = ["폭염 냉방비", "에어컨 실외기", "제습기 장마", "창문 열차단", "차량 햇빛 차단", "단열필름"];
+const NICHE_WINTER_SEEDS = ["난방비 절약", "창문 외풍", "결로 방지", "보일러", "단열벽지", "바닥 단열"];
+
+function nicheSeeds() {
+  const month = new Date(Date.now() + 9 * 3600 * 1000).getUTCMonth() + 1;
+  const seasonal = [5, 6, 7, 8, 9].includes(month) ? NICHE_SUMMER_SEEDS
+    : [11, 12, 1, 2].includes(month) ? NICHE_WINTER_SEEDS
+    : ["결로 방지", "냉난방비", "창문 단열", "셀프 인테리어", "단열필름", "제습기"];
+  return [...new Set([...NICHE_BASE_SEEDS, ...seasonal])];
+}
 
 function stripTags(s: string) {
   return String(s || "").replace(/<[^>]*>/g, "").replace(/&quot;/g, '"').replace(/&amp;/g, "&")
@@ -406,27 +546,36 @@ function titleTokens(title: string) {
   );
 }
 
-async function fetchNicheNews(seed: string) {
+async function fetchNicheNews(seed: string, sort: "date" | "sim") {
   const clientId = Deno.env.get("NAVER_CLIENT_ID") || "";
   const clientSecret = Deno.env.get("NAVER_CLIENT_SECRET") || "";
   if (!clientId || !clientSecret) throw new Error("NAVER_CLIENT_ID / NAVER_CLIENT_SECRET 시크릿이 필요합니다.");
   const res = await fetch(
-    `https://openapi.naver.com/v1/search/news.json?query=${encodeURIComponent(seed)}&display=20&sort=date`,
-    { headers: { "X-Naver-Client-Id": clientId, "X-Naver-Client-Secret": clientSecret } },
+    `https://openapi.naver.com/v1/search/news.json?query=${encodeURIComponent(seed)}&display=20&sort=${sort}`,
+    {
+      headers: { "X-Naver-Client-Id": clientId, "X-Naver-Client-Secret": clientSecret },
+      signal: AbortSignal.timeout(10_000),
+    },
   );
   if (!res.ok) throw new Error(`뉴스 API ${res.status}`);
   const data = await res.json();
-  return (data.items || []).map((item: { title: string; link: string; originallink: string; pubDate: string }) => ({
+  return (data.items || []).map((item: { title: string; description: string; link: string; originallink: string; pubDate: string }) => ({
     title: stripTags(item.title),
+    description: stripTags(item.description),
     link: item.link || item.originallink || "",
+    source: (() => {
+      try { return new URL(item.originallink || item.link || "").hostname.replace(/^www\./, ""); } catch (_) { return ""; }
+    })(),
     pubDate: new Date(item.pubDate).getTime() || 0,
-    seed,
+    seed, sort,
   }));
 }
 
 async function handleNicheTrend() {
-  const results = await Promise.allSettled(NICHE_SEEDS.map(seed => fetchNicheNews(seed)));
-  const articles: Array<{ title: string; link: string; pubDate: number; seed: string }> = [];
+  const seeds = nicheSeeds();
+  const requests = seeds.flatMap(seed => [fetchNicheNews(seed, "date"), fetchNicheNews(seed, "sim")]);
+  const results = await Promise.allSettled(requests);
+  const articles: Array<{ title: string; description: string; link: string; source: string; pubDate: number; seed: string; sort: string }> = [];
   results.forEach(result => {
     if (result.status === "fulfilled") articles.push(...result.value);
   });
@@ -434,21 +583,37 @@ async function handleNicheTrend() {
 
   // 최근 7일 기사만, 최신순
   const weekAgo = Date.now() - 7 * 86400000;
-  const recent = articles.filter(a => a.pubDate >= weekAgo).sort((a, b) => b.pubDate - a.pubDate);
+  const domainPattern = /단열|결로|곰팡이|누수|냉방|난방|폭염|열대야|장마|제습|습기|에어컨|실외기|창문|햇빛|열차단|외풍|보일러|리모델링|우레탄|아이소핑크|스티로폼|준불연|PF보드|단열필름/i;
+  const noisePattern = /선거|증시|코인|야구|축구|연예|콘서트|게임|드라마|영화|부고|인사 이동/i;
+  const seen = new Set<string>();
+  const recent = articles
+    .filter(a => a.pubDate >= weekAgo && domainPattern.test(`${a.title} ${a.description}`) && !noisePattern.test(a.title))
+    .filter(a => {
+      const key = (a.link || a.title).replace(/[?#].*$/, "").replace(/[^0-9a-z가-힣]/gi, "").toLowerCase();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .sort((a, b) => b.pubDate - a.pubDate);
 
   // 제목 토큰이 3개 이상 겹치면 같은 이슈로 묶기 (탐욕적 클러스터링)
-  type Cluster = { title: string; link: string; pubDate: number; count: number; seeds: Set<string>; tokens: Set<string> };
+  type Cluster = {
+    title: string; link: string; pubDate: number; count: number; seeds: Set<string>;
+    sources: Set<string>; tokens: Set<string>; relevanceHits: number;
+  };
   const clusters: Cluster[] = [];
   recent.forEach(article => {
     const tokens = titleTokens(article.title);
     const found = clusters.find(cluster => {
       let overlap = 0;
       tokens.forEach(t => { if (cluster.tokens.has(t)) overlap++; });
-      return overlap >= 3;
+      const denominator = Math.max(1, Math.min(tokens.size, cluster.tokens.size));
+      return overlap >= 2 && overlap / denominator >= 0.5;
     });
     if (found) {
       found.count += 1;
       found.seeds.add(article.seed);
+      if (article.source) found.sources.add(article.source);
       tokens.forEach(t => found.tokens.add(t));
       if (article.pubDate > found.pubDate) {
         found.pubDate = article.pubDate;
@@ -456,17 +621,22 @@ async function handleNicheTrend() {
     } else {
       clusters.push({
         title: article.title, link: article.link, pubDate: article.pubDate,
-        count: 1, seeds: new Set([article.seed]), tokens,
+        count: 1, seeds: new Set([article.seed]), sources: new Set(article.source ? [article.source] : []), tokens,
+        relevanceHits: [...titleTokens(`${article.title} ${article.description}`)].filter(token => domainPattern.test(token)).length,
       });
     }
   });
 
-  // 점수 = 기사 수 ×2 + 최신성 가중(24h +6, 72h +3)
+  // 관련성·최신성·보도량·언론사 다양성을 합산한 이슈 점수
   const now = Date.now();
   const scored = clusters.map(cluster => {
     const ageHours = (now - cluster.pubDate) / 3600000;
-    const recencyBoost = ageHours <= 24 ? 6 : ageHours <= 72 ? 3 : 0;
-    return { ...cluster, score: cluster.count * 2 + recencyBoost };
+    const relevance = Math.min(35, 15 + cluster.relevanceHits * 5 + cluster.seeds.size * 3);
+    const recency = ageHours <= 6 ? 25 : ageHours <= 24 ? 20 : ageHours <= 72 ? 12 : 5;
+    const coverage = Math.min(20, cluster.count * 4);
+    const diversity = Math.min(15, cluster.sources.size * 4);
+    const score = relevance + recency + coverage + diversity + Math.min(5, cluster.seeds.size);
+    return { ...cluster, score };
   }).sort((a, b) => b.score - a.score || b.pubDate - a.pubDate);
 
   const fmtAge = (t: number) => {
@@ -483,7 +653,10 @@ async function handleNicheTrend() {
       keyword: cluster.title,
       link: cluster.link,
       query: [...cluster.seeds][0],
-      sources: [`기사 ${cluster.count}건 · ${fmtAge(cluster.pubDate)} · ${[...cluster.seeds].slice(0, 2).join("·")}`],
+      sources: [
+        `이슈 ${cluster.score}점`, `기사 ${cluster.count}건`, `언론사 ${cluster.sources.size}곳`,
+        fmtAge(cluster.pubDate), [...cluster.seeds].slice(0, 2).join("·"),
+      ],
       change: "same",
       delta: null,
     })),
@@ -502,6 +675,9 @@ const SPIKE_KEYWORDS = [
   "결로", "결로방지", "곰팡이제거", "방습제", "제습기", "벽지곰팡이",
   "방음재", "흡음재", "난방비절약", "보일러교체", "온수매트", "전기장판",
   "코킹", "옥상방수", "누수", "리모델링", "셀프인테리어", "단열도어",
+  "냉방비", "전기요금", "에어컨전기세", "에어컨실외기", "실외기커버", "실외기차광막",
+  "폭염", "열대야", "장마", "습도", "제습기전기세", "창문햇빛차단", "차량햇빛가리개",
+  "썬쉐이드", "차박단열", "은박단열재", "온도리", "미네랄울", "경질우레탄보드",
 ];
 
 async function fetchDatalabTrend(keywords: string[], startDate: string, endDate: string) {
@@ -510,6 +686,7 @@ async function fetchDatalabTrend(keywords: string[], startDate: string, endDate:
   if (!clientId || !clientSecret) throw new Error("NAVER_CLIENT_ID / NAVER_CLIENT_SECRET 시크릿이 필요합니다.");
   const res = await fetch("https://openapi.naver.com/v1/datalab/search", {
     method: "POST",
+    signal: AbortSignal.timeout(12_000),
     headers: {
       "Content-Type": "application/json",
       "X-Naver-Client-Id": clientId,
@@ -535,38 +712,69 @@ async function handleNicheSpike() {
   // 데이터랩은 요청당 키워드 그룹 5개 제한 → 5개씩 배치 병렬 호출
   const batches: string[][] = [];
   for (let i = 0; i < SPIKE_KEYWORDS.length; i += 5) batches.push(SPIKE_KEYWORDS.slice(i, i + 5));
-  const settled = await Promise.allSettled(batches.map(batch => fetchDatalabTrend(batch, startDate, endDate)));
   const series: Array<{ title: string; data: Array<{ period: string; ratio: number }> }> = [];
   let failCount = 0;
-  settled.forEach(result => {
-    if (result.status === "fulfilled") series.push(...result.value);
-    else failCount++;
-  });
+  // 네이버 API의 순간 호출 제한과 전체 대기 시간을 함께 제어한다.
+  for (let i = 0; i < batches.length; i += 4) {
+    const settled = await Promise.allSettled(
+      batches.slice(i, i + 4).map(batch => fetchDatalabTrend(batch, startDate, endDate)),
+    );
+    settled.forEach(result => {
+      if (result.status === "fulfilled") series.push(...result.value);
+      else failCount++;
+    });
+  }
   if (!series.length) {
     throw new Error("검색어트렌드 조회 실패 — 네이버 애플리케이션에 '데이터랩(검색어트렌드)' API가 등록되어 있는지 확인해 주세요.");
   }
 
-  const items = series.map(s => {
+  const average = (values: number[]) => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+  const robustAverage = (values: number[]) => {
+    const sorted = [...values].sort((a, b) => a - b);
+    const trimmed = sorted.length >= 10 ? sorted.slice(1, -1) : sorted;
+    return average(trimmed);
+  };
+
+  const candidates = series.map(s => {
     const byDate = new Map(s.data.map(d => [d.period, d.ratio]));
     // 최근 30일 날짜 배열 구성 (빠진 날 = 0)
     const ratios: number[] = [];
     for (let t = start.getTime(); t <= end.getTime(); t += 86400000) {
       ratios.push(byDate.get(fmtDate(new Date(t))) || 0);
     }
-    const recent = (ratios[ratios.length - 1] + ratios[ratios.length - 2]) / 2; // 최근 이틀 평균
-    const baselineArr = ratios.slice(0, ratios.length - 2- 5); // 최근 1주를 뺀 앞쪽 ~3주
-    const baseline = baselineArr.length ? baselineArr.reduce((a, b) => a + b, 0) / baselineArr.length : 0;
-    const spike = recent / Math.max(baseline, 1); // baseline 바닥값 1 (0 나눗셈·저볼륨 과대평가 방지)
+    const recent = average(ratios.slice(-2));
+    const baseline = robustAverage(ratios.slice(0, -7));
+    const currentWeek = average(ratios.slice(-7));
+    const previousWeek = average(ratios.slice(-14, -7));
+    const spike = recent / Math.max(baseline, 1);
+    const momentum = currentWeek / Math.max(previousWeek, 1);
+    const spikeScore = Math.min(100, Math.max(0, (spike - 0.8) * 48));
+    const momentumScore = Math.min(100, Math.max(0, (momentum - 0.8) * 55));
+    const levelScore = Math.min(100, Math.max(0, recent));
+    const signalScore = spikeScore * 0.5 + momentumScore * 0.28 + levelScore * 0.22;
     return {
       keyword: s.title,
       spike: Math.round(spike * 10) / 10,
+      momentum: Math.round(momentum * 10) / 10,
       recent: Math.round(recent),
       baseline: Math.round(baseline),
+      signalScore,
       week: ratios.slice(-7).map(r => Math.round(r)),
     };
   })
   .filter(item => item.recent > 0)
-  .sort((a, b) => b.spike - a.spike || b.recent - a.recent);
+  .sort((a, b) => b.signalScore - a.signalScore || b.spike - a.spike)
+  .slice(0, 30);
+
+  // 검색량 검증은 급상승 가능성이 높은 30개에만 수행해 응답 시간을 줄인다.
+  const volumeMap = await fetchSearchVolumeBatch(candidates.map(item => item.keyword));
+  const items = candidates.map(item => {
+    const volume = volumeMap.has(item.keyword) ? volumeMap.get(item.keyword)! : null;
+    const volumeConfidence = volume == null ? 0.55 : Math.min(1, Math.log10(Math.max(volume, 10)) / 4);
+    return { ...item, volume, score: Math.round(item.signalScore * (0.68 + volumeConfidence * 0.32)) };
+  })
+  .filter(item => item.volume == null || item.volume >= 10)
+  .sort((a, b) => b.score - a.score || b.spike - a.spike || b.recent - a.recent);
 
   return {
     date: `${endDate} 기준 · 직전 3주 평균 대비 최근 이틀`,
@@ -576,7 +784,10 @@ async function handleNicheSpike() {
       keyword: item.keyword,
       spike: item.spike,
       query: item.keyword,
-      sources: [`평소 ${item.baseline} → 최근 ${item.recent} · 7일 [${item.week.join(",")}]`],
+      sources: [
+        `급상승 ${item.score}점`, `평소 ${item.baseline} → 최근 ${item.recent}`,
+        `주간 ×${item.momentum}`, item.volume == null ? "검색량 확인 안 됨" : `월간 ${item.volume.toLocaleString()}회`,
+      ],
       change: item.spike >= 1.5 ? "up" : "same",
       delta: null,
     })),
@@ -648,7 +859,10 @@ async function fetchSearchVolumeBatch(keywords: string[]) {
     try {
       const res = await fetch(
         `https://api.searchad.naver.com${path}?hintKeywords=${encodeURIComponent(hint)}&showDetail=1`,
-        { headers: { "X-Timestamp": timestamp, "X-API-KEY": license, "X-Customer": customerId, "X-Signature": sig } },
+        {
+          headers: { "X-Timestamp": timestamp, "X-API-KEY": license, "X-Customer": customerId, "X-Signature": sig },
+          signal: AbortSignal.timeout(10_000),
+        },
       );
       if (!res.ok) continue;
       const data = await res.json();
@@ -749,6 +963,7 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json().catch(() => ({}));
     if (body.action === "realtime") return json(await handleRealtime());
+    if (body.action === "collectRealtime") return json(await collectRealtime());
     if (body.action === "realtimeAt") return json(await handleRealtimeAt(body.slot));
     if (body.action === "nicheTrend") return json(await handleNicheTrend());
     if (body.action === "nicheSpike") return json(await handleNicheSpike());

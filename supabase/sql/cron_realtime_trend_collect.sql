@@ -1,7 +1,7 @@
 -- 아이템발굴 실시간 트렌드 자동 수집
 -- 목적:
 --   1) realtime_trend_snapshot은 오늘+어제 데이터만 유지한다.
---   2) shopping-trend 함수의 realtime 액션을 3시간마다 호출한다.
+--   2) shopping-trend 함수의 collectRealtime 액션을 3시간마다 호출한다.
 --   3) 같은 시간대(slot)는 함수 내부 saveSnapshot에서 덮어쓴다.
 
 create extension if not exists pg_cron;
@@ -40,7 +40,7 @@ select cron.schedule(
       'Authorization', 'Bearer sb_publishable_MiBvlf3d6ulcVBsi7Odcgw_PTXSmXKj',
       'apikey', 'sb_publishable_MiBvlf3d6ulcVBsi7Odcgw_PTXSmXKj'
     ),
-    body := jsonb_build_object('action', 'realtime')
+    body := jsonb_build_object('action', 'collectRealtime')
   );
   $$
 );
