@@ -581,8 +581,8 @@ async function handleNicheTrend() {
   });
   if (!articles.length) throw new Error("뉴스 조회 실패 (NAVER_CLIENT_ID 시크릿 확인)");
 
-  // 최근 7일 기사만, 최신순
-  const weekAgo = Date.now() - 7 * 86400000;
+  // 최근 30일 기사만, 최신순
+  const monthAgo = Date.now() - 30 * 86400000;
   const domainPattern = /단열|결로|곰팡이|누수|방수|냉방|난방|폭염|열대야|장마|제습|습기|에어컨|실외기|창문|창호|샷시|햇빛|열차단|외풍|보일러|리모델링|집수리|에너지효율|에너지 효율|녹색건축|제로에너지|패시브|우레탄|아이소핑크|스티로폼|준불연|PF보드|단열필름/i;
   const noisePattern = /선거|증시|코인|야구|축구|연예|콘서트|게임|드라마|영화|부고|인사 이동|보험 손해율|치과용|진료|건강보험/i;
   const physicalLeakPattern = /주택|건물|건축|아파트|상가|옥상|지붕|벽|천장|배관|수도|누수탐지|방수|시설|공사|하자|침수/i;
@@ -595,7 +595,7 @@ async function handleNicheTrend() {
   };
   const seen = new Set<string>();
   const recent = articles
-    .filter(a => a.pubDate >= weekAgo && isRelevantTitle(a.title))
+    .filter(a => a.pubDate >= monthAgo && isRelevantTitle(a.title))
     .filter(a => {
       const key = (a.link || a.title).replace(/[?#].*$/, "").replace(/[^0-9a-z가-힣]/gi, "").toLowerCase();
       if (!key || seen.has(key)) return false;
@@ -640,7 +640,8 @@ async function handleNicheTrend() {
   const scored = clusters.map(cluster => {
     const ageHours = (now - cluster.pubDate) / 3600000;
     const relevance = Math.min(35, 15 + cluster.relevanceHits * 5 + cluster.seeds.size * 3);
-    const recency = ageHours <= 6 ? 25 : ageHours <= 24 ? 20 : ageHours <= 72 ? 12 : 5;
+    const recency = ageHours <= 6 ? 25 : ageHours <= 24 ? 20 : ageHours <= 72 ? 12
+      : ageHours <= 168 ? 7 : ageHours <= 336 ? 4 : 1;
     const coverage = Math.min(20, cluster.count * 4);
     const diversity = Math.min(15, cluster.sources.size * 4);
     const score = relevance + recency + coverage + diversity + Math.min(5, cluster.seeds.size);
@@ -655,7 +656,7 @@ async function handleNicheTrend() {
   };
 
   return {
-    date: "네이버 뉴스 · 최근 7일",
+    date: "네이버 뉴스 · 최근 30일",
     niche: scored.slice(0, 20).map((cluster, i) => ({
       rank: i + 1,
       keyword: cluster.title,
