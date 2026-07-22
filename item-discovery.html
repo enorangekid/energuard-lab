@@ -86,7 +86,7 @@
   }
   .icon-btn:hover::after { opacity: 1; }
 
-  .category-tabs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 18px; }
+  .category-tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 18px; }
   .category-tab {
     height: 42px; border: 1px solid var(--line); border-radius: var(--radius); background: #fff;
     color: #344054; font-family: inherit; font-size: 13px; font-weight: 900; cursor: pointer; transition: .15s;
@@ -110,8 +110,8 @@
 
   .idea-list { display: flex; flex-direction: column; gap: 8px; }
   .idea-row {
-    display: grid; grid-template-columns: 42px minmax(0, 1fr) 86px 82px; gap: 12px; align-items: center;
-    min-height: 76px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius);
+    display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 12px; align-items: center;
+    min-height: 92px; padding: 13px 14px; border: 1px solid var(--line); border-radius: var(--radius);
     background: #fff; cursor: pointer; transition: .15s;
   }
   .idea-row:hover { background: #fafbfc; }
@@ -124,6 +124,13 @@
   .idea-keyword { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 14px; font-weight: 900; color: var(--ink); }
   .idea-keyword span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .idea-desc { margin-top: 3px; color: var(--sub); font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .idea-meta-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+  .idea-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-top: 10px; }
+  .idea-metric {
+    min-width: 0; padding: 7px 8px; border: 1px solid var(--soft-line); border-radius: 7px;
+    background: #fafbfc; color: var(--sub); font-size: 10.5px; font-weight: 900;
+  }
+  .idea-metric b { display: block; margin-top: 2px; color: var(--ink); font-family: var(--font-mono); font-size: 13px; font-weight: 900; }
   .pill {
     display: inline-flex; align-items: center; justify-content: center; min-width: 54px;
     padding: 4px 8px; border-radius: 999px; background: #f3f5f8; color: #344054; font-size: 11px; font-weight: 900;
@@ -131,10 +138,6 @@
   .pill.orange { background: var(--accent-tint); color: var(--accent); }
   .pill.green { background: #eaf8ef; color: var(--good); }
   .pill.gray { background: #eef0f3; color: var(--sub); }
-  .metric-mini { text-align: center; }
-  .metric-mini b { display: block; font-family: var(--font-mono); font-size: 14px; font-weight: 900; }
-  .metric-mini span { display: block; color: var(--sub); font-size: 10.5px; font-weight: 800; }
-
   .draft-panel { display: flex; flex-direction: column; gap: 14px; padding: 16px 20px 20px; }
   .draft-empty { padding: 64px 20px; text-align: center; color: var(--sub); font-size: 13px; font-weight: 700; }
   .draft-kicker { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -155,7 +158,6 @@
   .action-btn.primary:hover { background: #151923; border-color: #151923; }
 
 
-  #itemPage[data-view="trend"] > .control-row,
   #itemPage[data-view="trend"] > .category-tabs,
   #itemPage[data-view="trend"] > .content-grid,
   #itemPage[data-view="discover"] > .trend-view { display: none; }
@@ -333,7 +335,7 @@
     .control-right, .input-control { width: 100%; }
     .category-tabs, .content-grid { grid-template-columns: 1fr; }
     .idea-row { grid-template-columns: 36px minmax(0, 1fr); }
-    .idea-row .metric-mini, .idea-row > .pill { justify-self: start; grid-column: 2; }
+    .idea-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
 </style>
 </head>
@@ -400,34 +402,6 @@
     </section>
   </section>
 
-  <section class="control-row">
-    <div class="control-left">
-      <select class="select-btn" id="sourceSelect" aria-label="소스 선택">
-        <option value="all">전체 후보</option>
-        <option value="trend">실시간 트렌드</option>
-        <option value="trend_manual">트렌드 저장</option>
-        <option value="keyword_search">검색 저장</option>
-        <option value="manual">직접 추가</option>
-      </select>
-      <select class="select-btn" id="statusSelect" aria-label="상태 선택">
-        <option value="all">전체 상태</option>
-        <option value="candidate">후보</option>
-        <option value="drafted">초안 생성</option>
-        <option value="review">검토 중</option>
-        <option value="used">사용</option>
-        <option value="hold">보류</option>
-      </select>
-    </div>
-    <div class="control-right">
-      <button class="icon-btn accent" id="runWorkflowBtn" type="button" data-tip="AI 초안 생성" aria-label="AI 초안 생성">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.2-8.56"></path><path d="M21 3v6h-6"></path></svg>
-      </button>
-      <button class="icon-btn dark" id="reloadBtn" type="button" data-tip="저장 초안 새로고침" aria-label="저장 초안 새로고침">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4h-4"></path><path d="M3 9V5h4"></path><path d="M21 19l-6.5-6.5"></path><path d="M3 5l6.5 6.5"></path></svg>
-      </button>
-    </div>
-  </section>
-
   <nav class="category-tabs" id="categoryTabs" aria-label="상품군 필터"></nav>
 
   <section class="content-grid">
@@ -450,7 +424,15 @@
           <span class="card-title">AI 블로그 초안</span>
           <span class="card-subtitle">선택한 후보의 제목·목차·본문 초안을 검토합니다.</span>
         </div>
-        <span class="pill orange" id="draftStatus">초안</span>
+        <div class="control-right">
+          <span class="pill orange" id="draftStatus">초안</span>
+          <button class="icon-btn accent" id="runWorkflowBtn" type="button" data-tip="AI 초안 생성" aria-label="AI 초안 생성">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.2-8.56"></path><path d="M21 3v6h-6"></path></svg>
+          </button>
+          <button class="icon-btn dark" id="reloadBtn" type="button" data-tip="저장 초안 새로고침" aria-label="저장 초안 새로고침">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4h-4"></path><path d="M3 9V5h4"></path><path d="M21 19l-6.5-6.5"></path><path d="M3 5l6.5 6.5"></path></svg>
+          </button>
+        </div>
       </div>
       <div id="draftPanel"></div>
     </article>
@@ -466,9 +448,9 @@ const SUPABASE_ANON_KEY = "sb_publishable_MiBvlf3d6ulcVBsi7Odcgw_PTXSmXKj";
 const OPENAI_DRAFT_URL = `${SUPABASE_URL}/functions/v1/item-draft-openai`;
 const TREND_FN_URL = `${SUPABASE_URL}/functions/v1/shopping-trend`;
 const LOCAL_IDEAS_KEY = "energContentIdeas:v1";
-const CATEGORIES = ["전체", "실시간 트렌드", "트렌드 저장", "검색 저장", "직접 추가"];
+const CATEGORIES = ["전체", "실시간 트렌드", "검색", "직접"];
 const STATUS_LABELS = { candidate: "후보", drafted: "초안 생성", review: "검토 중", used: "사용", hold: "보류" };
-const SOURCE_LABELS = { interest: "관심", trend: "실시간", trend_manual: "트렌드 저장", keyword_search: "검색 저장", google: "구글", season: "계절", manual: "직접 추가", direct: "직접 추가" };
+const SOURCE_LABELS = { interest: "관심", trend: "실시간", trend_manual: "실시간 저장", keyword_search: "검색 저장", google: "구글", season: "계절", manual: "직접", direct: "직접" };
 
 let ideas = [];
 let selectedId = "";
@@ -507,6 +489,12 @@ function formatDateTime(value) {
   if (Number.isNaN(d.getTime())) return "-";
   return `${d.getMonth() + 1}.${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
+function formatIdeaDate(value) {
+  if (!value) return "저장일 없음";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "저장일 없음";
+  return `${d.getMonth() + 1}.${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
 function renderModeTabs() {
   const row = document.querySelector(".page-title-row");
   if (!row) return;
@@ -531,7 +519,7 @@ function setActiveView(view) {
   document.getElementById("itemPage").dataset.view = view;
   renderModeTabs();
   document.getElementById("pageMeta").textContent = view === "trend"
-    ? "쇼핑 트렌드 저장 후보 기준"
+    ? "트렌드 저장 후보 기준"
     : "초안 후보 검토 화면";
 }
 function renderTrendSectionSelect() {
@@ -588,11 +576,11 @@ function ideaKeywordKey(keyword) {
 function ideaSourceGroup(item) {
   const id = String(item.id || "");
   const source = String(item.source || "");
-  if (id.startsWith("manual-search-") || source === "keyword_search") return "검색 저장";
-  if (id.startsWith("manual-trend-") || source === "trend_manual") return "트렌드 저장";
+  if (id.startsWith("manual-search-") || source === "keyword_search") return "검색";
+  if (id.startsWith("manual-trend-") || source === "trend_manual") return "실시간 트렌드";
   if (source === "trend" || source === "google" || source === "interest" || source === "season") return "실시간 트렌드";
-  if (source === "manual" || source === "direct") return "직접 추가";
-  return "직접 추가";
+  if (source === "manual" || source === "direct") return "직접";
+  return "직접";
 }
 async function fetchSupabaseIdeas() {
   const headers = { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY };
@@ -641,12 +629,8 @@ function renderCategories() {
   ).join("");
 }
 function filteredIdeas() {
-  const source = document.getElementById("sourceSelect").value;
-  const status = document.getElementById("statusSelect").value;
   return ideas.filter(item => {
     if (activeCategory !== "전체" && ideaSourceGroup(item) !== activeCategory) return false;
-    if (source !== "all" && item.source !== source) return false;
-    if (status !== "all" && item.status !== status) return false;
     return true;
   }).sort((a, b) => (b.aiScore || 0) - (a.aiScore || 0));
 }
@@ -659,10 +643,19 @@ function renderIdeas() {
       <span class="idea-score">${Math.round(item.aiScore || 0)}</span>
       <span class="idea-main">
         <span class="idea-keyword"><span>${esc(item.keyword)}</span><span class="pill orange">${esc(item.productGroup)}</span></span>
-        <span class="idea-desc">${esc(item.selectionReason || `${SOURCE_LABELS[item.source] || item.source} · 화제성 ${Math.round(item.trendScore || 0)}`)}</span>
+        <span class="idea-desc">${esc(item.selectionReason || `${SOURCE_LABELS[item.source] || item.source} 흐름에서 저장된 후보입니다.`)}</span>
+        <span class="idea-meta-line">
+          <span class="pill gray">${esc(ideaSourceGroup(item))}</span>
+          <span class="pill ${item.status === "drafted" ? "green" : item.status === "review" ? "orange" : "gray"}">${esc(STATUS_LABELS[item.status] || item.status)}</span>
+          <span class="pill gray">${esc(formatIdeaDate(item.updatedAt))}</span>
+        </span>
+        <span class="idea-metrics">
+          <span class="idea-metric">검색량<b>${num(item.searchVolume)}</b></span>
+          <span class="idea-metric">화제성<b>${Math.round(item.trendScore || 0)}</b></span>
+          <span class="idea-metric">시즌성<b>${Math.round(item.seasonScore || 0)}</b></span>
+          <span class="idea-metric">경쟁도<b>${Math.round(item.competitionScore || 0)}</b></span>
+        </span>
       </span>
-      <span class="metric-mini"><b>${Math.round(item.seasonScore || 0)}</b><span>시즌성</span></span>
-      <span class="pill ${item.status === "drafted" ? "green" : item.status === "review" ? "orange" : "gray"}">${esc(STATUS_LABELS[item.status] || item.status)}</span>
     </button>
   `).join("") : `<div class="empty">조건에 맞는 후보가 없습니다.</div>`;
 }
@@ -1217,8 +1210,6 @@ document.getElementById("ideaList").addEventListener("click", e => {
   selectedId = row.dataset.id;
   renderAll();
 });
-document.getElementById("sourceSelect").addEventListener("change", renderAll);
-document.getElementById("statusSelect").addEventListener("change", renderAll);
 document.getElementById("runWorkflowBtn").addEventListener("click", runWorkflow);
 document.getElementById("reloadBtn").addEventListener("click", loadIdeas);
 document.addEventListener("click", e => {
