@@ -37,26 +37,26 @@
   .page-meta { color: var(--sub); font-size: 12px; font-weight: 600; text-align: right; }
   .mode-title-tabs { display: inline-flex; align-items: center; gap: 28px; }
   .mode-title-tab {
-    position: relative; border: 0; background: transparent; padding: 0 0 14px;
-    color: #b2bac8; font-family: inherit; font-size: 28px; font-weight: 900;
-    letter-spacing: -0.03em; line-height: 1.1; cursor: pointer; transition: color .15s;
+    position: relative; height: 34px; padding: 0 0 8px; border: 0; background: transparent;
+    color: #aeb6c4; font-family: inherit; font-size: 21px; font-weight: 900;
+    cursor: pointer; transition: color .15s;
   }
   .mode-title-tab:not(.active):hover { color: #7f8795; }
   .mode-title-tab + .mode-title-tab::before {
-    content: ""; position: absolute; left: -15px; top: 4px; width: 1px; height: 22px;
-    background: #d9dee7;
-  }
-  .mode-title-tab::after {
-    content: ""; position: absolute; left: 0; bottom: 0; width: 100%; height: 3px;
-    border-radius: 999px; background: transparent;
+    content: ""; position: absolute; left: -15px; top: 4px; width: 1px; height: 18px;
+    background: #d8dde6;
   }
   .mode-title-tab.active { color: #07111f; }
-  .mode-title-tab.active::after { background: var(--accent); }
+  .mode-title-text { display: inline-flex; align-items: center; gap: 12px; }
+  .mode-label { position: relative; display: inline-flex; align-items: center; }
+  .mode-title-tab.active .mode-label::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: -13px; height: 3px;
+    background: var(--accent); border-radius: 999px;
+  }
   .mode-help {
-    display: inline-flex; align-items: center; justify-content: center;
-    width: 18px; height: 18px; margin-left: 8px; transform: translateY(-3px);
-    border: 1px solid #cfd6e2; border-radius: 50%;
-    background: #eef2f7; color: #8b95a7; font-size: 12px; font-weight: 900; cursor: help;
+    width: 18px; height: 18px; border: 1px solid #cfd5df; border-radius: 50%;
+    background: #f4f6f9; color: #8a93a5; font-size: 12px; font-weight: 900;
+    display: inline-flex; align-items: center; justify-content: center; line-height: 1;
   }
   .control-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 22px; }
   .control-left, .control-right { display: flex; align-items: center; gap: 8px; min-width: 0; }
@@ -493,10 +493,16 @@ function renderModeTabs() {
   row.innerHTML = `
     <div class="mode-title-tabs" id="modeTabs" aria-label="아이템 발굴 화면 선택">
       <button type="button" class="mode-title-tab${activeView === "trend" ? " active" : ""}" data-view="trend">
-        실시간 트렌드<span class="mode-help" title="쇼핑 트렌드 업데이트 때 저장된 블로그용 실시간 후보입니다.">?</span>
+        <span class="mode-title-text">
+          <span class="mode-label">실시간 트렌드</span>
+          <span class="mode-help" title="실시간 검색 순위, 트렌드 순위, 뉴스 이슈와 카테고리별 키워드 순위를 확인합니다.">?</span>
+        </span>
       </button>
       <button type="button" class="mode-title-tab${activeView === "discover" ? " active" : ""}" data-view="discover">
-        아이템 발굴<span class="mode-help" title="선택한 후보로 AI 블로그 초안을 생성하고 검토합니다.">?</span>
+        <span class="mode-title-text">
+          <span class="mode-label">아이템 발굴</span>
+          <span class="mode-help" title="선택한 후보로 AI 블로그 초안을 생성하고 검토합니다.">?</span>
+        </span>
       </button>
     </div>`;
 }
