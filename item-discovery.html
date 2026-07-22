@@ -292,13 +292,14 @@
   .trend-idea-btn.added { border-color: #f0b79d; background: var(--accent-tint); color: var(--accent-dark); }
   .trend-idea-btn.added:hover { border-color: #d7dde7; background: #fafbfc; color: var(--ink); }
   .trend-idea-tip {
-    position: absolute; left: 50%; bottom: 38px; z-index: 25; transform: translate(-50%, 4px);
+    display: none;
+  }
+  .floating-action-tip {
+    position: fixed; left: 0; top: 0; z-index: 9999; transform: translate(-50%, -100%);
     padding: 8px 10px; border-radius: 6px; background: #161a22; color: #fff;
     font-size: 12px; font-weight: 800; line-height: 1.2; white-space: nowrap;
-    opacity: 0; visibility: hidden; pointer-events: none; transition: all .12s;
-    box-shadow: 0 14px 34px rgba(5, 7, 11, 0.22);
+    pointer-events: none; box-shadow: 0 14px 34px rgba(5, 7, 11, 0.22);
   }
-  .trend-idea-btn:hover .trend-idea-tip { opacity: 1; visibility: visible; transform: translate(-50%, 0); }
   .tr-links a:hover { color: var(--accent-dark); border-color: #c8cdd4; background: #fafbfc; }
   .state { padding: 44px 20px; text-align: center; color: var(--sub); font-size: 13px; font-weight: 700; }
   .note { padding: 8px 16px; font-size: 11px; color: var(--sub); background: #fafbfc; border-top: 1px solid var(--line); }
@@ -848,7 +849,7 @@ function renderTrendRows(items) {
         <a href="https://www.youtube.com/results?search_query=${q}" target="_blank" rel="noopener">유튜브</a>
         <a href="https://www.google.com/search?q=${q}" target="_blank" rel="noopener">구글</a>
       </span>
-      <button type="button" class="trend-idea-btn${added ? " added" : ""}" data-add-idea="${esc(item.keyword)}" data-rank="${Number(item.rank || 0)}" aria-label="${added ? "발굴 키워드 추가됨" : "발굴 키워드로 추가"}"${added ? " disabled" : ""}>
+      <button type="button" class="trend-idea-btn${added ? " added" : ""}" data-add-idea="${esc(item.keyword)}" data-rank="${Number(item.rank || 0)}" aria-label="${added ? "발굴 키워드 추가됨" : "발굴 키워드로 추가"}" aria-disabled="${added ? "true" : "false"}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M8.5 14.5A6 6 0 1 1 15.5 14.5C14.5 15.3 14 16.2 14 18h-4c0-1.8-.5-2.7-1.5-3.5Z"/><path d="M12 2V0"/></svg>
         <span class="trend-idea-tip">${added ? "추가됨" : "발굴 키워드 추가"}</span>
       </button>
@@ -953,7 +954,7 @@ async function loadSpikeTrend() {
   renderRealtimeTrend();
 }
 async function addTrendIdea(button) {
-  if (!button || button.disabled) return;
+  if (!button || button.disabled || button.classList.contains("added")) return;
   const keyword = button.dataset.addIdea || "";
   if (!keyword) return;
   button.disabled = true;
@@ -978,6 +979,28 @@ async function addTrendIdea(button) {
     button.disabled = false;
     showToast("발굴 키워드 추가 실패: " + String(error.message || error));
   }
+}
+let floatingActionTip = null;
+function hideFloatingActionTip() {
+  if (floatingActionTip) {
+    floatingActionTip.remove();
+    floatingActionTip = null;
+  }
+}
+function showFloatingActionTip(button) {
+  if (!button) return;
+  hideFloatingActionTip();
+  const text = button.classList.contains("added") ? "추가됨" : "발굴 키워드 추가";
+  floatingActionTip = document.createElement("div");
+  floatingActionTip.className = "floating-action-tip";
+  floatingActionTip.textContent = text;
+  document.body.appendChild(floatingActionTip);
+  const rect = button.getBoundingClientRect();
+  const tipRect = floatingActionTip.getBoundingClientRect();
+  const left = Math.min(Math.max(rect.left + rect.width / 2, tipRect.width / 2 + 8), window.innerWidth - tipRect.width / 2 - 8);
+  const top = Math.max(rect.top - 8, tipRect.height + 8);
+  floatingActionTip.style.left = `${left}px`;
+  floatingActionTip.style.top = `${top}px`;
 }
 function compBadge(score, ratio) {
   if (score == null) return `<span class="comp-score c0"><span class="comp-gauge"><span style="width:0%"></span></span><b>-</b></span>`;
@@ -1203,6 +1226,20 @@ document.getElementById("slotChips").addEventListener("click", e => {
 document.getElementById("realtimeTrendList").addEventListener("click", e => {
   const button = e.target.closest("[data-add-idea]");
   if (button) addTrendIdea(button);
+});
+document.getElementById("realtimeTrendList").addEventListener("mouseover", e => {
+  const button = e.target.closest("[data-add-idea]");
+  if (button) showFloatingActionTip(button);
+});
+document.getElementById("realtimeTrendList").addEventListener("mouseout", e => {
+  if (e.target.closest("[data-add-idea]")) hideFloatingActionTip();
+});
+document.getElementById("realtimeTrendList").addEventListener("focusin", e => {
+  const button = e.target.closest("[data-add-idea]");
+  if (button) showFloatingActionTip(button);
+});
+document.getElementById("realtimeTrendList").addEventListener("focusout", e => {
+  if (e.target.closest("[data-add-idea]")) hideFloatingActionTip();
 });
 document.getElementById("trendRefreshBtn").addEventListener("click", () => {
   if (activeTrendList === "niche") loadNicheTrend();
