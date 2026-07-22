@@ -241,8 +241,8 @@
   .trend-list { overflow-x: auto; }
   .trend-list-head,
   .trend-row {
-    display: grid; grid-template-columns: 44px 54px minmax(220px, 1fr) minmax(210px, .75fr) 154px 44px;
-    align-items: center; gap: 10px; min-width: 974px;
+    display: grid; grid-template-columns: 44px 54px minmax(220px, 1fr) minmax(210px, .75fr) 154px 44px 44px;
+    align-items: center; gap: 10px; min-width: 1028px;
   }
   .trend-list-head {
     min-height: 36px; padding: 0 14px; background: #fafbfc;
@@ -252,7 +252,8 @@
   .trend-list-head span:nth-child(2),
   .trend-list-head span:nth-child(4),
   .trend-list-head span:nth-child(5),
-  .trend-list-head span:nth-child(6) { text-align: center; }
+  .trend-list-head span:nth-child(6),
+  .trend-list-head span:nth-child(7) { text-align: center; }
   .trend-row { min-height: 44px; padding: 9px 14px; border-bottom: 1px solid var(--line); }
   .trend-row:last-child { border-bottom: 0; }
   .trend-row:hover { background: #fafbfd; }
@@ -285,6 +286,13 @@
   .trend-idea-btn svg { width: 15px; height: 15px; }
   .trend-idea-btn.added { border-color: #f0b79d; background: var(--accent-tint); color: var(--accent-dark); }
   .trend-idea-btn.added:hover { border-color: #d7dde7; background: #fafbfc; color: var(--ink); }
+  .trend-delete-btn {
+    position: relative; width: 30px; height: 30px; justify-self: center; padding: 0;
+    border: 1px solid var(--line); border-radius: 50%; background: #fff; color: #9aa3b3;
+    display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all .14s;
+  }
+  .trend-delete-btn:hover { border-color: #d7dde7; color: var(--ink); background: #fafbfc; }
+  .trend-delete-btn svg { width: 15px; height: 15px; }
   .trend-idea-tip {
     display: none;
   }
@@ -821,11 +829,16 @@ function renderTrendRows(items) {
     const q = encodeURIComponent(item.query || item.keyword);
     const mainUrl = item.link || `https://search.naver.com/search.naver?query=${encodeURIComponent(item.keyword)}`;
     const added = ideas.some(idea => ideaKeywordKey(idea.keyword) === ideaKeywordKey(item.keyword));
+    const sources = [...(item.sources || []), item.slot ? slotLabel(item.slot) : ""].filter(Boolean);
+    const deleteButton = item.id ? `
+      <button type="button" class="trend-delete-btn" data-delete-trend="${esc(item.id)}" aria-label="트렌드 삭제" title="삭제">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 15h10l1-15"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+      </button>` : `<span></span>`;
     return `<div class="trend-row">
       <span class="tr-rank">${item.rank}</span>
       ${deltaHtml(item)}
       <span class="tr-kw" onclick="window.open('${esc(mainUrl)}', '_blank')">${esc(item.keyword)}</span>
-      <span class="tr-src" title="${esc((item.sources || []).join(" · "))}">${(item.sources || []).slice(0, 5).map(source => `<span>${esc(source)}</span>`).join("")}</span>
+      <span class="tr-src" title="${esc(sources.join(" · "))}">${sources.slice(0, 5).map(source => `<span>${esc(source)}</span>`).join("")}</span>
       <span class="tr-links">
         <a href="https://search.naver.com/search.naver?ssc=tab.blog.all&query=${q}" target="_blank" rel="noopener">블로그</a>
         <a href="https://www.youtube.com/results?search_query=${q}" target="_blank" rel="noopener">유튜브</a>
@@ -835,9 +848,10 @@ function renderTrendRows(items) {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M8.5 14.5A6 6 0 1 1 15.5 14.5C14.5 15.3 14 16.2 14 18h-4c0-1.8-.5-2.7-1.5-3.5Z"/><path d="M12 2V0"/></svg>
         <span class="trend-idea-tip">${added ? "추가됨" : "발굴 키워드 추가"}</span>
       </button>
+      ${deleteButton}
     </div>`;
   }).join("");
-  return `<div class="trend-list-head"><span>순위</span><span>변동</span><span>키워드</span><span>근거</span><span>바로가기</span><span>발굴</span></div>${rows}`;
+  return `<div class="trend-list-head"><span>순위</span><span>변동</span><span>키워드</span><span>근거</span><span>바로가기</span><span>발굴</span><span>삭제</span></div>${rows}`;
 }
 function renderRealtimeTrend() {
   const listEl = document.getElementById("realtimeTrendList");
@@ -960,6 +974,23 @@ async function addTrendIdea(button) {
   } catch (error) {
     button.disabled = false;
     showToast("발굴 키워드 추가 실패: " + String(error.message || error));
+  }
+}
+async function deleteRealtimeTrend(button) {
+  const id = String(button?.dataset?.deleteTrend || "");
+  if (!id || button.disabled) return;
+  button.disabled = true;
+  try {
+    const data = await callTrendFn({ action: "deleteRealtimeTrend", id });
+    if (data?.ok === false) throw new Error(data.error || "삭제 실패");
+    if (trendData && activeTrendList && Array.isArray(trendData[activeTrendList])) {
+      trendData[activeTrendList] = trendData[activeTrendList].filter(item => String(item.id || "") !== id);
+    }
+    renderRealtimeTrend();
+    showToast("트렌드 키워드를 삭제했습니다.");
+  } catch (error) {
+    button.disabled = false;
+    showToast("트렌드 삭제 실패: " + String(error.message || error));
   }
 }
 let floatingActionTip = null;
@@ -1202,6 +1233,11 @@ document.getElementById("slotChips").addEventListener("click", e => {
   loadRealtimeTrend(chip.dataset.slot || "");
 });
 document.getElementById("realtimeTrendList").addEventListener("click", e => {
+  const deleteButton = e.target.closest("[data-delete-trend]");
+  if (deleteButton) {
+    deleteRealtimeTrend(deleteButton);
+    return;
+  }
   const button = e.target.closest("[data-add-idea]");
   if (button) addTrendIdea(button);
 });

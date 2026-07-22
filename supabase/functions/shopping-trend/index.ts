@@ -95,6 +95,7 @@ async function fetchRank(cid: string, start: string, end: string, unit: string, 
 /* ───────── 실시간 급상승 키워드 (시그널 + 네이트 + 구글 트렌드) ───────── */
 
 const SNAPSHOT_TABLE = "realtime_trend_snapshot";
+const TREND_ARCHIVE_TABLE = "realtime_trend_archive";
 const CONTENT_IDEA_TABLE = "content_ideas";
 const NICHE_DAILY_TABLE = "niche_trend_daily_snapshot";
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") || "";
@@ -335,6 +336,38 @@ async function saveSnapshot(slot: string, listType: string, items: { rank: numbe
       sources: JSON.stringify(item.sources || []),
     }))),
   });
+}
+
+async function saveTrendArchive(slot: string, listType: string, items: { rank: number; keyword: string; sources?: string[] }[]) {
+  if (!items.length) return 0;
+  await supabaseRequest(`/rest/v1/${TREND_ARCHIVE_TABLE}?on_conflict=slot,list_type,keyword`, {
+    method: "POST",
+    headers: { "Prefer": "resolution=merge-duplicates,return=minimal" },
+    body: JSON.stringify(items.map(item => ({
+      slot, list_type: listType, rank: item.rank, keyword: item.keyword,
+      sources: JSON.stringify(item.sources || []),
+      updated_at: new Date().toISOString(),
+    }))),
+  });
+  return items.length;
+}
+
+async function readTrendArchive(listType: string) {
+  const rows = await supabaseRequest(
+    `/rest/v1/${TREND_ARCHIVE_TABLE}?select=id,slot,list_type,rank,keyword,sources,captured_at&list_type=eq.${encodeURIComponent(listType)}&deleted_at=is.null&order=slot.desc,rank.asc&limit=300`,
+  ) || [];
+  return rows as Array<{ id: string; slot: string; list_type: string; rank: number; keyword: string; sources: string; captured_at?: string }>;
+}
+
+async function deleteTrendArchive(idRaw: unknown) {
+  const id = String(idRaw || "").trim();
+  if (!/^[0-9a-f-]{36}$/i.test(id)) throw new Error("삭제할 트렌드 ID가 필요합니다.");
+  await supabaseRequest(`/rest/v1/${TREND_ARCHIVE_TABLE}?id=eq.${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "Prefer": "return=minimal" },
+    body: JSON.stringify({ deleted_at: new Date().toISOString(), updated_at: new Date().toISOString() }),
+  });
+  return { ok: true, id };
 }
 
 function cleanIdeaKeyword(value: string) {
@@ -655,7 +688,9 @@ async function collectRealtime() {
   let slots: string[] = [];
   try {
     await saveSnapshot(slot, "realtime", merged);
+    await saveTrendArchive(slot, "realtime", merged);
     if (googleList.length) await saveSnapshot(slot, "google", googleList);
+    if (googleList.length) await saveTrendArchive(slot, "google", googleList);
     await cleanupRealtimeSnapshots();
     const ideaPool = contentIdeaPool(merged, google);
     const semanticIdeas = await selectSemanticIdeas(ideaPool).catch(() => fallbackSemanticIdeas(ideaPool));
@@ -681,8 +716,30 @@ async function collectRealtime() {
 async function handleRealtime() {
   const slots = await readSlots();
   const slot = slots[0] || "";
-  if (!slot) return { slot: "", slots: [], capturedAt: null, realtime: [], google: [], sourceNote: "저장된 실시간 자료 없음" };
-  return await handleRealtimeAt(slot);
+  const mapArchiveRows = (rows: Array<{ id: string; slot: string; rank: number; keyword: string; sources: string; captured_at?: string }>) =>
+    rows.map((row, index) => ({
+      id: row.id,
+      rank: index + 1,
+      originalRank: row.rank,
+      keyword: row.keyword,
+      sources: parseStoredSources(row.sources),
+      slot: row.slot,
+      capturedAt: row.captured_at,
+      change: "same",
+      delta: null,
+    }));
+  const realtimeRows = await readTrendArchive("realtime").catch(() => []);
+  const googleRows = await readTrendArchive("google").catch(() => []);
+  if (!slot && !realtimeRows.length && !googleRows.length) return { slot: "", slots: [], capturedAt: null, realtime: [], google: [], sourceNote: "저장된 실시간 자료 없음" };
+  return {
+    slot,
+    slots,
+    capturedAt: realtimeRows[0]?.captured_at || googleRows[0]?.captured_at || null,
+    realtime: mapArchiveRows(realtimeRows),
+    google: mapArchiveRows(googleRows),
+    sourceNote: "누적 저장 데이터",
+    archive: true,
+  };
 }
 
 async function handleRealtimeAt(slotRaw: string) {
@@ -1193,6 +1250,7 @@ Deno.serve(async (req) => {
     if (body.action === "realtime") return json(await handleRealtime());
     if (body.action === "collectRealtime") return json(await collectRealtime());
     if (body.action === "realtimeAt") return json(await handleRealtimeAt(body.slot));
+    if (body.action === "deleteRealtimeTrend") return json(await deleteTrendArchive(body.id));
     if (body.action === "addContentIdea") return json(await addContentIdea(body));
     if (body.action === "collectNicheDaily") return json(await collectNicheDaily());
     if (body.action === "nicheTrend") return json(await handleNicheTrend());
