@@ -1076,6 +1076,7 @@ async function collectNicheSpikeData() {
       rank: i + 1,
       keyword: item.keyword,
       spike: item.spike,
+      volume: item.volume,
       query: item.keyword,
       sources: [
         `급상승 ${item.score}점`, `평소 ${item.baseline} → 최근 ${item.recent}`,

@@ -800,6 +800,9 @@ function renderTrendRows(items) {
     const mainUrl = item.link || `https://search.naver.com/search.naver?query=${encodeURIComponent(item.keyword)}`;
     const added = ideas.some(idea => ideaKeywordKey(idea.keyword) === ideaKeywordKey(item.keyword));
     const sources = [...(item.sources || []), item.slot ? slotLabel(item.slot) : ""].filter(Boolean);
+    const searchVolume = Number(item.volume ?? item.searchVolume ?? item.search_volume ?? 0);
+    const products = Number(item.products ?? item.productCount ?? 0);
+    const competitionScore = Number(item.competitionScore ?? item.competition_score ?? item.competition ?? 0);
     return `<div class="trend-row">
       <span class="tr-rank">${item.rank}</span>
       ${deltaHtml(item)}
@@ -810,7 +813,7 @@ function renderTrendRows(items) {
         <a href="https://www.youtube.com/results?search_query=${q}" target="_blank" rel="noopener">유튜브</a>
         <a href="https://www.google.com/search?q=${q}" target="_blank" rel="noopener">구글</a>
       </span>
-      <button type="button" class="trend-idea-btn${added ? " added" : ""}" data-add-idea="${esc(item.keyword)}" data-rank="${Number(item.rank || 0)}" aria-label="${added ? "발굴 키워드 추가됨" : "발굴 키워드로 추가"}" aria-disabled="${added ? "true" : "false"}">
+      <button type="button" class="trend-idea-btn${added ? " added" : ""}" data-add-idea="${esc(item.keyword)}" data-rank="${Number(item.rank || 0)}" data-volume="${searchVolume}" data-products="${products}" data-competition="${competitionScore}" aria-label="${added ? "발굴 키워드 추가됨" : "발굴 키워드로 추가"}" aria-disabled="${added ? "true" : "false"}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M8.5 14.5A6 6 0 1 1 15.5 14.5C14.5 15.3 14 16.2 14 18h-4c0-1.8-.5-2.7-1.5-3.5Z"/><path d="M12 2V0"/></svg>
         <span class="trend-idea-tip">${added ? "추가됨" : "발굴 키워드 추가"}</span>
       </button>
@@ -924,7 +927,10 @@ async function addTrendIdea(button) {
       action: "addContentIdea",
       keyword,
       rank: Number(button.dataset.rank || 0),
-      listType: activeTrendList
+      listType: activeTrendList,
+      searchVolume: Number(button.dataset.volume || 0),
+      products: Number(button.dataset.products || 0),
+      competitionScore: Number(button.dataset.competition || 0),
     });
     if (!data?.item) throw new Error("저장 결과가 없습니다.");
     const item = normalizeIdea(data.item);
@@ -944,6 +950,9 @@ async function addTrendIdea(button) {
 async function deleteIdea(button) {
   const id = String(button?.dataset?.deleteIdea || "");
   if (!id || button.disabled) return;
+  const target = ideas.find(item => String(item.id) === id);
+  const label = target?.keyword ? `“${target.keyword}”` : "이 발굴 키워드";
+  if (!window.confirm(`${label}를 삭제할까요?\n삭제하면 저장된 발굴 키워드와 연결된 초안도 함께 삭제됩니다.`)) return;
   button.disabled = true;
   try {
     const data = await callTrendFn({ action: "deleteContentIdea", id });
