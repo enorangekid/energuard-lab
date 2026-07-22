@@ -156,6 +156,10 @@
   .draft-section h3 { margin: 0 0 8px; font-size: 13px; font-weight: 900; color: var(--ink); }
   .draft-section p, .draft-section li { color: var(--sub); font-size: 13px; font-weight: 600; line-height: 1.65; }
   .draft-section p { margin: 0; white-space: pre-wrap; }
+  .draft-body { display: flex; flex-direction: column; gap: 12px; }
+  .draft-body p { margin: 0; white-space: normal; }
+  .draft-body h4 { margin: 8px 0 0; color: var(--ink); font-size: 14px; font-weight: 900; line-height: 1.55; }
+  .draft-body strong { color: var(--ink); font-weight: 900; }
   .draft-section ol, .draft-section ul { margin: 0; padding-left: 18px; }
   .draft-actions { display: flex; gap: 8px; padding-top: 4px; }
   .action-btn {
@@ -732,6 +736,28 @@ function selectedIdea() {
 function hasDraftContent(item) {
   return !!item && (item.body || item.thumbnail || item.aiNotes || (Array.isArray(item.outline) && item.outline.length) || (Array.isArray(item.faq) && item.faq.length));
 }
+function renderInlineMarkdown(text) {
+  return esc(text).replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+}
+function formatDraftBodyHtml(body) {
+  let text = String(body || "아직 생성된 본문 초안이 없습니다. AI 초안 생성 후 이 영역에 본문이 표시됩니다.").trim();
+  text = text.replace(/\r\n?/g, "\n");
+  if (!/\n\s*\n/.test(text)) {
+    text = text
+      .replace(/\s*(\*\*[^*]{2,90}\*\*)\s*/g, "\n\n$1\n\n")
+      .replace(/(습니다\.|합니다\.|됩니다\.|있습니다\.|많습니다\.|좋습니다\.|중요합니다\.|주세요\.|볼 수 있습니다\.)\s+/g, "$1\n\n");
+  }
+  const blocks = text
+    .split(/\n{2,}/)
+    .map(line => line.trim())
+    .filter(Boolean);
+  return `<div class="draft-body">${blocks.map(block => {
+    if (/^\*\*[^*]+\*\*$/.test(block)) {
+      return `<h4>${renderInlineMarkdown(block).replace(/^<strong>|<\/strong>$/g, "")}</h4>`;
+    }
+    return `<p>${renderInlineMarkdown(block)}</p>`;
+  }).join("")}</div>`;
+}
 function renderDraft() {
   const item = selectedIdea();
   const card = document.getElementById("draftCard");
@@ -767,7 +793,7 @@ function renderDraft() {
       </div>
       <div class="draft-section">
         <h3>본문 초안</h3>
-        <p>${esc(item.body || "아직 생성된 본문 초안이 없습니다. AI 초안 생성 후 이 영역에 본문이 표시됩니다.")}</p>
+        ${formatDraftBodyHtml(item.body)}
       </div>
       <div class="draft-section">
         <h3>FAQ</h3>

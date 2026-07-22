@@ -46,6 +46,23 @@ function cleanText(value: unknown) {
   return String(value || "").replace(/\s+/g, " ").trim();
 }
 
+function cleanBodyText(value: unknown) {
+  let text = String(value || "")
+    .replace(/\r\n?/g, "\n")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n[ \t]+/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  if (!/\n\s*\n/.test(text)) {
+    text = text
+      .replace(/\s*(\*\*[^*]{2,90}\*\*)\s*/g, "\n\n$1\n\n")
+      .replace(/(습니다\.|합니다\.|됩니다\.|있습니다\.|많습니다\.|좋습니다\.|중요합니다\.|주세요\.|볼 수 있습니다\.)\s+/g, "$1\n\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+  }
+  return text;
+}
+
 function inferCategory(keyword: string, category = "") {
   const text = `${keyword} ${category}`;
   if (/아이소핑크|XPS|압출/.test(text)) return "아이소핑크";
@@ -358,7 +375,7 @@ function normalizeDraft(raw: any, idea: Required<IdeaPayload>): DraftResult {
   return {
     title: cleanText(parsed.title) || `${idea.keyword} 콘텐츠 초안`,
     outline: outline.length ? outline.slice(0, 6) : ["검색 의도", "상품군 연결", "시공 체크포인트", "FAQ"],
-    body: cleanText(parsed.body) || `${idea.keyword} 관련 초안 본문을 검토해 주세요.`,
+    body: cleanBodyText(parsed.body) || `${idea.keyword} 관련 초안 본문을 검토해 주세요.`,
     faq: faq.length ? faq.slice(0, 5) : [`${idea.keyword} 선택 시 무엇을 확인해야 하나요?`],
     thumbnail: cleanText(parsed.thumbnail) || `${idea.keyword} 핵심 체크`,
     aiNotes: cleanText(parsed.aiNotes || parsed.ai_notes),
