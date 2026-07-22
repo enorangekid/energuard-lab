@@ -202,6 +202,9 @@
     background: #fff; color: var(--sub); font-family: inherit; font-size: 11.5px; font-weight: 800; cursor: pointer;
   }
   .slot-chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .slot-chip:disabled {
+    color: #c3cad6; background: #f6f8fb; border-color: #edf1f6; cursor: default;
+  }
   .trend-list { padding: 8px 0 6px; }
   .trend-row { display: flex; align-items: center; gap: 10px; padding: 9px 16px; border-bottom: 1px solid #f4f6f9; }
   .trend-row:last-child { border-bottom: 0; }
@@ -688,8 +691,22 @@ function slotLabel(slot) {
   if (!m) return slot;
   const today = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
   const date = `${m[1]}-${m[2]}-${m[3]}`;
-  const hour = Number(m[4]) + "시";
+  const hour = String(Number(m[4])).padStart(2, "0") + "시";
   return date === today ? hour : `${Number(m[2])}/${Number(m[3])} ${hour}`;
+}
+function fixedSlotChips(slots) {
+  const slotMap = new Map();
+  (slots || []).forEach(slot => {
+    const m = String(slot).match(/(\d{4}-\d{2}-\d{2}) (\d{2}):00/);
+    if (m && !slotMap.has(m[2])) slotMap.set(m[2], slot);
+  });
+  const hours = ["00", "03", "06", "09", "12", "15", "18", "21"];
+  return `<button type="button" class="slot-chip${activeSlot === "" ? " active" : ""}" data-slot="">실시간</button>`
+    + hours.map(hour => {
+      const slot = slotMap.get(hour) || "";
+      const active = activeSlot && slot === activeSlot;
+      return `<button type="button" class="slot-chip${active ? " active" : ""}" data-slot="${esc(slot)}"${slot ? "" : " disabled"}>${hour}시</button>`;
+    }).join("");
 }
 function deltaHtml(item) {
   if (item.spike != null) {
@@ -765,10 +782,7 @@ function renderRealtimeTrend() {
     return;
   }
   const slots = trendData.slots || [];
-  chipsEl.innerHTML = `<button type="button" class="slot-chip${activeSlot === "" ? " active" : ""}" data-slot="">실시간</button>`
-    + slots.filter(slot => slot !== trendData.slot || activeSlot !== "").slice(0, 10).map(slot =>
-      `<button type="button" class="slot-chip${activeSlot === slot ? " active" : ""}" data-slot="${esc(slot)}">${esc(slotLabel(slot))}</button>`
-    ).join("");
+  chipsEl.innerHTML = fixedSlotChips(slots);
   const items = trendData[activeTrendList] || [];
   listEl.innerHTML = renderTrendRows(items);
   if (activeSlot) {
