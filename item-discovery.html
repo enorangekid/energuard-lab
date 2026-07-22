@@ -609,7 +609,10 @@ function normalizeIdea(row) {
     searchVolume: Number(row.search_volume ?? row.searchVolume ?? 0),
     competitionScore: Number(row.competition_score ?? row.competitionScore ?? 0),
     seasonScore: Number(row.season_score ?? row.seasonScore ?? 0),
+    trendScore: Number(row.trend_score ?? row.trendScore ?? 0),
     aiScore: Number(row.ai_score ?? row.aiScore ?? 0),
+    contentAngle: row.content_angle || row.contentAngle || "",
+    selectionReason: row.selection_reason || row.selectionReason || "",
     status: row.status || (draft.body || row.body ? "drafted" : "candidate"),
     updatedAt: row.updated_at || row.updatedAt || row.created_at || "",
     title,
@@ -701,7 +704,7 @@ function renderIdeas() {
       <span class="idea-score">${Math.round(item.aiScore || 0)}</span>
       <span class="idea-main">
         <span class="idea-keyword"><span>${esc(item.keyword)}</span><span class="pill orange">${esc(item.productGroup)}</span></span>
-        <span class="idea-desc">${esc(SOURCE_LABELS[item.source] || item.source)} · 검색량 ${num(item.searchVolume)} · 경쟁 ${Math.round(item.competitionScore || 0)}</span>
+        <span class="idea-desc">${esc(item.selectionReason || `${SOURCE_LABELS[item.source] || item.source} · 화제성 ${Math.round(item.trendScore || 0)}`)}</span>
       </span>
       <span class="metric-mini"><b>${Math.round(item.seasonScore || 0)}</b><span>시즌성</span></span>
       <span class="pill ${item.status === "drafted" ? "green" : item.status === "review" ? "orange" : "gray"}">${esc(STATUS_LABELS[item.status] || item.status)}</span>

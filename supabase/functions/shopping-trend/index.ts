@@ -96,6 +96,8 @@ async function fetchRank(cid: string, start: string, end: string, unit: string, 
 
 const SNAPSHOT_TABLE = "realtime_trend_snapshot";
 const CONTENT_IDEA_TABLE = "content_ideas";
+const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") || "";
+const OPENAI_MODEL = Deno.env.get("OPENAI_MODEL") || "gpt-4o-mini";
 
 function getSupabaseCredentials() {
   const url = Deno.env.get("SUPABASE_URL") || "";
@@ -318,8 +320,13 @@ function isBlogCandidate(keyword: string) {
   return /단열|아이소핑크|스티로폼|비드법|폼보드|열반사|은박|온도리|보온|결로|창문|햇빛|열차단|냉기|우레탄|PF보드|페놀폼|미네랄울|글라스울|실외기|에어컨|냉방비|전기요금|폭염|열대야|장마|제습|습기|곰팡이|차량용햇빛|자동차햇빛|차박|썬쉐이드|햇빛가리개|차량커튼|커버|XPS|EPS/i.test(keyword);
 }
 
+function isPotentialContentTopic(keyword: string) {
+  return isBlogCandidate(keyword)
+    || /기온|무더위|더위|한파|폭설|태풍|집중호우|호우|침수|습도|냉방|난방|전기료|에너지비|관리비|실내온도|주거|주택|아파트|리모델링|인테리어|셀프시공|DIY|캠핑|차량온도|자동차열|차량커튼|방수|누수|환기/i.test(keyword);
+}
+
 function isBlogNoise(keyword: string) {
-  return /의원|선거|재검표|파업|노조|법원|회생|콘서트|홍보대사|역전승|외교관|이더|비니시우스|수력원자력|시위|MC몽|성애|경매|중구|연애|화재$|수소 자동차|자동차$/i.test(keyword);
+  return /의원|선거|재검표|파업|노조|법원|회생|콘서트|홍보대사|역전승|외교관|이더|비니시우스|수력원자력|시위|MC몽|성애|연애/i.test(keyword);
 }
 
 function ideaCategory(keyword: string) {
@@ -347,28 +354,140 @@ function ideaSeasonScore(keyword: string) {
   return 72;
 }
 
-async function saveContentIdeas(slot: string, listType: string, items: { rank: number; keyword: string; sources?: string[] }[]) {
-  const rows = items
-    .map(item => ({ ...item, keyword: cleanIdeaKeyword(item.keyword) }))
-    .filter(item => item.keyword && isBlogCandidate(item.keyword) && !isBlogNoise(item.keyword))
-    .slice(0, 12)
-    .map(item => {
-      const category = ideaCategory(item.keyword);
-      const seasonScore = ideaSeasonScore(item.keyword);
-      const trendScore = Math.max(45, 105 - Number(item.rank || 99) * 4);
-      return {
-        id: `trend-${kstDateKey(slot)}-${listType}-${ideaKey(item.keyword)}`,
-        keyword: item.keyword,
-        source: "trend",
-        category,
-        product_group: ideaProductGroup(item.keyword, category),
-        search_volume: 0,
-        competition_score: Math.max(25, Math.min(78, 45 + Number(item.rank || 0))),
-        season_score: seasonScore,
-        ai_score: Math.min(100, Math.round(trendScore * 0.58 + seasonScore * 0.42)),
-        updated_at: new Date().toISOString(),
-      };
+type ContentIdeaCandidate = {
+  rank: number;
+  keyword: string;
+  sources: string[];
+  context?: string;
+};
+
+type SemanticIdea = ContentIdeaCandidate & {
+  relevanceScore: number;
+  category: string;
+  productGroup: string;
+  contentAngle: string;
+  selectionReason: string;
+};
+
+function clampScore(value: unknown, fallback = 0) {
+  const score = Number(value);
+  return Number.isFinite(score) ? Math.max(0, Math.min(100, Math.round(score))) : fallback;
+}
+
+function contentIdeaPool(
+  realtime: Array<{ rank: number; keyword: string; sources?: string[] }>,
+  google: GoogleTrendItem[],
+) {
+  const map = new Map<string, ContentIdeaCandidate>();
+  realtime.forEach(item => {
+    const keyword = cleanIdeaKeyword(item.keyword);
+    const key = ideaKey(keyword);
+    if (!key || isBlogNoise(keyword) || !isPotentialContentTopic(keyword)) return;
+    map.set(key, { rank: item.rank, keyword, sources: item.sources || ["실시간 통합"] });
+  });
+  google.forEach(item => {
+    const keyword = cleanIdeaKeyword(item.keyword);
+    const key = ideaKey(keyword);
+    if (!key || isBlogNoise(keyword) || !isPotentialContentTopic(keyword)) return;
+    const current = map.get(key);
+    const sources = [...new Set([...(current?.sources || []), "구글"] )];
+    map.set(key, {
+      rank: Math.min(current?.rank || 99, item.rank), keyword, sources,
+      context: [item.newsTitle, item.newsSource, item.trafficLabel && `검색 ${item.trafficLabel}`].filter(Boolean).join(" · "),
     });
+  });
+  return [...map.values()].sort((a, b) => a.rank - b.rank).slice(0, 36);
+}
+
+function fallbackSemanticIdeas(items: ContentIdeaCandidate[]): SemanticIdea[] {
+  return items.filter(item => isBlogCandidate(item.keyword)).slice(0, 14).map(item => {
+    const category = ideaCategory(item.keyword);
+    return {
+      ...item,
+      relevanceScore: 72,
+      category,
+      productGroup: ideaProductGroup(item.keyword, category),
+      contentAngle: `${item.keyword} 이슈를 생활 속 단열·열차단·습기 관리 관점으로 정리`,
+      selectionReason: "현재 트렌드와 에너가드랩의 실용 콘텐츠 주제를 직접 연결할 수 있습니다.",
+    };
+  });
+}
+
+async function selectSemanticIdeas(items: ContentIdeaCandidate[]): Promise<SemanticIdea[]> {
+  if (!items.length) return [];
+  if (!OPENAI_API_KEY) return fallbackSemanticIdeas(items);
+  const month = new Date(Date.now() + 9 * 3600 * 1000).getUTCMonth() + 1;
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${OPENAI_API_KEY}` },
+    signal: AbortSignal.timeout(20_000),
+    body: JSON.stringify({
+      model: OPENAI_MODEL,
+      temperature: 0.2,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content: "너는 단열재 쇼핑몰의 엄격한 콘텐츠 편집자다. 키워드 자체가 날씨, 주거, 에너지 비용, 냉난방, 습기, 셀프시공, 차량 열차단처럼 소비자의 실용 문제를 나타낼 때만 채택한다. 사람 이름, 질병, 음식, 연예, 정치, 금융, 일반 IT 제품, 추상어를 단열과 비유하거나 억지로 연결하면 반드시 탈락시킨다. JSON만 반환한다.",
+        },
+        {
+          role: "user",
+          content: [
+            `현재 한국 기준 월: ${month}월`,
+            "아래 후보에서 최대 14개를 선택하세요. 적합한 후보가 없으면 빈 배열을 반환하세요.",
+            "채택 예: 장마, 제습기, 냉방비, 폭염, 차량 햇빛차단, 실외기 관리, 결로, 창문 열차단.",
+            "탈락 예: 연예인 이름, 치매, 스마트폰 신제품, 스포츠 경기, 정치인, 가짜뉴스. 단열과 문장으로 연결할 수 있다는 이유만으로 채택하지 마세요.",
+            "keep은 키워드 자체가 실용 콘텐츠 수요를 담을 때만 true이며 relevanceScore 70 이상이어야 합니다.",
+            "category는 아이소핑크, 열반사단열재, 단열벽지, 기타 중 하나로 분류하세요.",
+            "contentAngle은 실제 블로그 제목 방향을 한 문장으로, selectionReason은 선정 이유를 짧게 작성하세요.",
+            '반환 형식: {"items":[{"keyword":"","keep":true,"relevanceScore":0,"category":"기타","productGroup":"","contentAngle":"","selectionReason":""}]}',
+            JSON.stringify(items),
+          ].join("\n"),
+        },
+      ],
+    }),
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(`OpenAI 후보 선별 ${res.status}`);
+  const parsed = JSON.parse(data?.choices?.[0]?.message?.content || "{}");
+  const sourceMap = new Map(items.map(item => [ideaKey(item.keyword), item]));
+  return (Array.isArray(parsed.items) ? parsed.items : []).map((row: any) => {
+    const original = sourceMap.get(ideaKey(row.keyword));
+    if (!original) return null;
+    const relevanceScore = clampScore(row.relevanceScore);
+    if (row.keep !== true || relevanceScore < 70 || !isPotentialContentTopic(original.keyword)) return null;
+    const category = ["아이소핑크", "열반사단열재", "단열벽지", "기타"].includes(row.category) ? row.category : ideaCategory(original.keyword);
+    return {
+      ...original,
+      relevanceScore,
+      category,
+      productGroup: cleanIdeaKeyword(row.productGroup) || ideaProductGroup(original.keyword, category),
+      contentAngle: cleanIdeaKeyword(row.contentAngle),
+      selectionReason: cleanIdeaKeyword(row.selectionReason),
+    };
+  }).filter(Boolean).slice(0, 14) as SemanticIdea[];
+}
+
+async function saveContentIdeas(slot: string, items: SemanticIdea[]) {
+  const rows = items.map(item => {
+    const seasonScore = ideaSeasonScore(`${item.keyword} ${item.contentAngle}`);
+    const trendScore = Math.max(45, 105 - Number(item.rank || 99) * 4 + Math.max(0, item.sources.length - 1) * 6);
+    return {
+      id: `trend-${kstDateKey(slot)}-${ideaKey(item.keyword)}`,
+      keyword: item.keyword,
+      source: "trend",
+      category: item.category,
+      product_group: item.productGroup,
+      search_volume: 0,
+      competition_score: Math.max(25, Math.min(78, 45 + Number(item.rank || 0))),
+      season_score: seasonScore,
+      trend_score: clampScore(trendScore),
+      ai_score: clampScore(item.relevanceScore * 0.48 + trendScore * 0.34 + seasonScore * 0.18),
+      content_angle: item.contentAngle,
+      selection_reason: item.selectionReason,
+      updated_at: new Date().toISOString(),
+    };
+  });
   if (!rows.length) return 0;
   const idsFilter = encodeURIComponent(`(${rows.map(row => `"${row.id.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`).join(",")})`);
   const existing: Array<{ id: string; status: string }> = await supabaseRequest(
@@ -470,8 +589,9 @@ async function collectRealtime() {
     await saveSnapshot(slot, "realtime", merged);
     if (googleList.length) await saveSnapshot(slot, "google", googleList);
     await cleanupRealtimeSnapshots();
-    await saveContentIdeas(slot, "realtime", merged);
-    if (googleList.length) await saveContentIdeas(slot, "google", googleList);
+    const ideaPool = contentIdeaPool(merged, google);
+    const semanticIdeas = await selectSemanticIdeas(ideaPool).catch(() => fallbackSemanticIdeas(ideaPool));
+    await saveContentIdeas(slot, semanticIdeas);
     slots = await readSlots();
     const prevSlot = slots.find(s => s < slot);
     if (prevSlot) {
