@@ -550,7 +550,7 @@ function renderModeTabs() {
     <div class="mode-title-tabs" id="modeTabs" aria-label="아이템 발굴 화면 선택">
       <button type="button" class="mode-title-tab${activeView === "trend" ? " active" : ""}" data-view="trend">
         <span class="mode-title-text">
-          <span class="mode-label">실시간 트렌드</span>
+          <span class="mode-label">트렌드 분석</span>
           <span class="mode-help" title="실시간 검색 순위, 트렌드 순위, 뉴스 이슈와 카테고리별 키워드 순위를 확인합니다.">?</span>
         </span>
       </button>
@@ -574,12 +574,12 @@ function renderTrendSectionSelect() {
   const el = document.getElementById("trendSectionSelect");
   if (!el) return;
   const items = [
-    { key: "realtime", label: "실시간 트렌드" },
+    { key: "realtime", label: "트렌드 분석" },
     { key: "category", label: "카테고리별 키워드 순위" },
   ];
   const active = items.find(item => item.key === activeTrendSection) || items[0];
   el.innerHTML = `
-    <button type="button" class="trend-section-btn" data-action="toggle-trend-section" aria-label="실시간 트렌드 화면 선택">
+    <button type="button" class="trend-section-btn" data-action="toggle-trend-section" aria-label="트렌드 분석 화면 선택">
       <span>${esc(active.label)}</span>
       <span class="trend-section-caret" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
