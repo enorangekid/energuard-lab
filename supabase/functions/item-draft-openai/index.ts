@@ -538,6 +538,12 @@ async function saveDraft(idea: Required<IdeaPayload>, draft: DraftResult) {
         updated_at: new Date().toISOString(),
       }]),
     });
+    const existing = await fetchExistingDraft(idea.id);
+    const existingNotes = parseAiNotes(existing?.ai_notes);
+    const aiNotes = JSON.stringify({
+      note: draft.aiNotes || existingNotes.note || "",
+      youtube: existingNotes.youtube,
+    });
     await supabaseRequest("/rest/v1/content_drafts?on_conflict=idea_id", {
       method: "POST",
       headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
@@ -549,7 +555,7 @@ async function saveDraft(idea: Required<IdeaPayload>, draft: DraftResult) {
         body: draft.body,
         faq: draft.faq,
         thumbnail: draft.thumbnail,
-        ai_notes: draft.aiNotes || "",
+        ai_notes: aiNotes,
         status: "drafted",
         generated_at: new Date().toISOString(),
       }]),
