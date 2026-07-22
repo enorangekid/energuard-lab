@@ -110,34 +110,34 @@
 
   .idea-list { display: flex; flex-direction: column; gap: 8px; }
   .idea-row {
-    display: grid; grid-template-columns: 42px minmax(0, 1fr) 34px; gap: 12px; align-items: center;
-    min-height: 92px; padding: 13px 14px; border: 1px solid var(--line); border-radius: var(--radius);
+    display: grid; grid-template-columns: 34px minmax(0, 1fr) auto 32px; gap: 10px; align-items: center;
+    min-height: 58px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius);
     background: #fff; cursor: pointer; transition: .15s; text-align: left;
   }
   .idea-row:hover { background: #fafbfc; }
   .idea-row.active { border-color: #ffb899; background: #fff7f1; }
   .idea-score {
-    width: 34px; height: 34px; border-radius: 10px; background: var(--accent-tint);
-    display: flex; align-items: center; justify-content: center; color: var(--accent); font-family: var(--font-mono); font-size: 13px; font-weight: 900;
+    width: 30px; height: 30px; border-radius: 9px; background: var(--accent-tint);
+    display: flex; align-items: center; justify-content: center; color: var(--accent); font-family: var(--font-mono); font-size: 12px; font-weight: 900;
   }
   .idea-main { min-width: 0; }
-  .idea-keyword { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 14px; font-weight: 900; color: var(--ink); }
+  .idea-keyword { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: 13.5px; font-weight: 900; color: var(--ink); }
   .idea-keyword span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .idea-desc { margin-top: 3px; color: var(--sub); font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .idea-meta-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
-  .idea-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-top: 10px; }
+  .idea-desc { margin-top: 4px; color: var(--sub); font-size: 11.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .idea-meta-line { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 0; }
+  .idea-metrics { display: flex; align-items: center; justify-content: flex-end; gap: 5px; }
   .idea-metric {
-    min-width: 0; padding: 7px 8px; border: 1px solid var(--soft-line); border-radius: 7px;
-    background: #fafbfc; color: var(--sub); font-size: 10.5px; font-weight: 900;
+    min-width: 58px; padding: 5px 7px; border: 1px solid var(--soft-line); border-radius: 7px;
+    background: #fafbfc; color: var(--sub); font-size: 10px; font-weight: 900;
   }
-  .idea-metric b { display: block; margin-top: 2px; color: var(--ink); font-family: var(--font-mono); font-size: 13px; font-weight: 900; }
+  .idea-metric b { margin-left: 4px; color: var(--ink); font-family: var(--font-mono); font-size: 11.5px; font-weight: 900; }
   .idea-delete-btn {
-    width: 30px; height: 30px; justify-self: center; padding: 0;
+    width: 28px; height: 28px; justify-self: center; padding: 0;
     border: 1px solid var(--line); border-radius: 50%; background: #fff; color: #9aa3b3;
     display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all .14s;
   }
   .idea-delete-btn:hover { border-color: #d7dde7; color: var(--ink); background: #fafbfc; }
-  .idea-delete-btn svg { width: 15px; height: 15px; }
+  .idea-delete-btn svg { width: 14px; height: 14px; }
   .pill {
     display: inline-flex; align-items: center; justify-content: center; min-width: 54px;
     padding: 4px 8px; border-radius: 999px; background: #f3f5f8; color: #344054; font-size: 11px; font-weight: 900;
@@ -334,8 +334,8 @@
     .page-head, .control-row { flex-direction: column; align-items: flex-start; }
     .control-right, .input-control { width: 100%; }
     .category-tabs, .content-grid { grid-template-columns: 1fr; }
-    .idea-row { grid-template-columns: 36px minmax(0, 1fr) 34px; }
-    .idea-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .idea-row { grid-template-columns: 34px minmax(0, 1fr) 32px; }
+    .idea-metrics { grid-column: 2 / -1; justify-content: flex-start; flex-wrap: wrap; }
   }
 </style>
 </head>
@@ -644,6 +644,8 @@ function renderIdeas() {
       <span class="idea-main">
         <span class="idea-keyword"><span>${esc(item.keyword)}</span><span class="pill orange">${esc(item.productGroup)}</span></span>
         <span class="idea-desc">${esc(item.selectionReason || `${SOURCE_LABELS[item.source] || item.source} 흐름에서 저장된 후보입니다.`)}</span>
+      </span>
+      <span>
         <span class="idea-meta-line">
           <span class="pill gray">${esc(ideaSourceGroup(item))}</span>
           <span class="pill ${item.status === "drafted" ? "green" : item.status === "review" ? "orange" : "gray"}">${esc(STATUS_LABELS[item.status] || item.status)}</span>
