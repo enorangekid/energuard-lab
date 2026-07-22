@@ -427,9 +427,10 @@
     <div class="control-left">
       <select class="select-btn" id="sourceSelect" aria-label="소스 선택">
         <option value="all">전체 후보</option>
-        <option value="interest">관심 키워드</option>
-        <option value="trend">실시간 키워드</option>
-        <option value="season">계절 키워드</option>
+        <option value="trend">실시간 트렌드</option>
+        <option value="trend_manual">트렌드 저장</option>
+        <option value="keyword_search">검색 저장</option>
+        <option value="manual">직접 추가</option>
       </select>
       <select class="select-btn" id="statusSelect" aria-label="상태 선택">
         <option value="all">전체 상태</option>
@@ -525,9 +526,9 @@ const OPENAI_DRAFT_URL = `${SUPABASE_URL}/functions/v1/item-draft-openai`;
 const TREND_FN_URL = `${SUPABASE_URL}/functions/v1/shopping-trend`;
 const WEBHOOK_KEY = "energItemDiscoveryWebhook:v1";
 const LOCAL_IDEAS_KEY = "energContentIdeas:v1";
-const CATEGORIES = ["전체", "아이소핑크", "열반사단열재", "단열벽지", "기타"];
+const CATEGORIES = ["전체", "실시간 트렌드", "트렌드 저장", "검색 저장", "직접 추가"];
 const STATUS_LABELS = { candidate: "후보", drafted: "초안 생성", review: "검토 중", used: "사용", hold: "보류" };
-const SOURCE_LABELS = { interest: "관심", trend: "실시간", google: "구글", season: "계절", manual: "수동" };
+const SOURCE_LABELS = { interest: "관심", trend: "실시간", trend_manual: "트렌드 저장", keyword_search: "검색 저장", google: "구글", season: "계절", manual: "직접 추가", direct: "직접 추가" };
 
 let ideas = [];
 let selectedId = "";
@@ -644,6 +645,15 @@ function normalizeIdea(row) {
 function ideaKeywordKey(keyword) {
   return String(keyword || "").replace(/\s+/g, "").toLowerCase();
 }
+function ideaSourceGroup(item) {
+  const id = String(item.id || "");
+  const source = String(item.source || "");
+  if (id.startsWith("manual-search-") || source === "keyword_search") return "검색 저장";
+  if (id.startsWith("manual-trend-") || source === "trend_manual") return "트렌드 저장";
+  if (source === "trend" || source === "google" || source === "interest" || source === "season") return "실시간 트렌드";
+  if (source === "manual" || source === "direct") return "직접 추가";
+  return "직접 추가";
+}
 async function fetchSupabaseIdeas() {
   const headers = { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY };
   const ideasUrl = `${SUPABASE_URL}/rest/v1/content_ideas?select=*&order=updated_at.desc&limit=80`;
@@ -683,7 +693,7 @@ async function loadIdeas() {
 }
 function categoryCount(category) {
   if (category === "전체") return ideas.length;
-  return ideas.filter(item => item.category === category || item.productGroup === category).length;
+  return ideas.filter(item => ideaSourceGroup(item) === category).length;
 }
 function renderCategories() {
   document.getElementById("categoryTabs").innerHTML = CATEGORIES.map(cat =>
@@ -694,7 +704,7 @@ function filteredIdeas() {
   const source = document.getElementById("sourceSelect").value;
   const status = document.getElementById("statusSelect").value;
   return ideas.filter(item => {
-    if (activeCategory !== "전체" && item.category !== activeCategory && item.productGroup !== activeCategory) return false;
+    if (activeCategory !== "전체" && ideaSourceGroup(item) !== activeCategory) return false;
     if (source !== "all" && item.source !== source) return false;
     if (status !== "all" && item.status !== status) return false;
     return true;
@@ -1103,7 +1113,7 @@ async function runWorkflow() {
       },
       body: JSON.stringify({
         action: "generateDrafts",
-        categories: activeCategory === "전체" ? CATEGORIES.filter(x => x !== "전체") : [activeCategory],
+        categories: [...new Set(currentRows.map(item => item.productGroup || item.category).filter(Boolean))],
         ideas: currentRows,
         limit: 1,
         requestedAt: new Date().toISOString()

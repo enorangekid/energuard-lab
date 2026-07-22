@@ -538,7 +538,9 @@ async function saveContentIdeas(slot: string, items: SemanticIdea[]) {
 async function addContentIdea(body: Record<string, unknown>) {
   const keyword = cleanIdeaKeyword(String(body.keyword || ""));
   if (!keyword) throw new Error("추가할 키워드가 필요합니다.");
-  const id = `manual-trend-${ideaKey(keyword)}`;
+  const listType = String(body.listType || body.source || "").trim();
+  const fromSearch = listType === "keywordSearch" || listType === "keyword_search" || listType === "search";
+  const id = `${fromSearch ? "manual-search" : "manual-trend"}-${ideaKey(keyword)}`;
   const existing = await supabaseRequest(
     `/rest/v1/${CONTENT_IDEA_TABLE}?select=*&id=eq.${encodeURIComponent(id)}&limit=1`,
   ).catch(() => []);
@@ -551,7 +553,7 @@ async function addContentIdea(body: Record<string, unknown>) {
   const row = {
     id,
     keyword,
-    source: "trend",
+    source: fromSearch ? "keyword_search" : "trend_manual",
     category,
     product_group: ideaProductGroup(keyword, category),
     search_volume: 0,

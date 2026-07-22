@@ -51,9 +51,10 @@
     margin-top: 24px;
   }
   .keyword-result-chip {
+    position: relative;
     width: 100%;
     min-height: 64px;
-    padding: 11px 18px;
+    padding: 11px 56px 11px 18px;
     border: 1px solid var(--dark);
     border-radius: var(--radius);
     background: var(--dark);
@@ -81,6 +82,16 @@
     line-height: 1.2;
   }
   .keyword-result-sep { opacity: .72; }
+  .keyword-save-btn {
+    position: absolute; right: 18px; top: 50%; transform: translateY(-50%);
+    width: 30px; height: 30px; border: 1px solid rgba(255,255,255,.32); border-radius: 50%;
+    background: rgba(255,255,255,.08); color: #fff; display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: all .14s;
+  }
+  .keyword-save-btn:hover { border-color: rgba(255,255,255,.55); background: rgba(255,255,255,.16); }
+  .keyword-save-btn.added { border-color: #f0b79d; background: var(--accent-tint); color: var(--accent-dark); }
+  .keyword-save-btn svg { width: 15px; height: 15px; }
+  .keyword-save-btn .track-tip { bottom: calc(100% + 9px); }
 
   .keyword-filterbar {
     display: flex; align-items: center; gap: 12px; padding-bottom: 22px;
@@ -787,6 +798,7 @@
 const SUPABASE_URL = "https://eukwfypbfqojbaihfqye.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_MiBvlf3d6ulcVBsi7Odcgw_PTXSmXKj";
 const FN_URL = SUPABASE_URL + "/functions/v1/naver-rank";
+const TREND_FN_URL = SUPABASE_URL + "/functions/v1/shopping-trend";
 
 const MY_STORES = ["한국단열", "에너가드"];
 const STORE_BATCH_KEYWORDS = {
@@ -918,6 +930,34 @@ async function saveAnalysisHistory(keyword, store, data) {
   });
 }
 
+async function saveKeywordSearchIdea(button) {
+  const keyword = String(button?.dataset?.keyword || "").trim();
+  if (!keyword || button.disabled || button.classList.contains("added")) return;
+  button.disabled = true;
+  try {
+    const res = await fetch(TREND_FN_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + SUPABASE_ANON_KEY,
+        "apikey": SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({ action: "addContentIdea", keyword, listType: "keywordSearch" }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data.ok === false) throw new Error(data.error || `HTTP ${res.status}`);
+    button.classList.add("added");
+    button.setAttribute("aria-label", "검색 저장 완료");
+    const tip = button.querySelector(".track-tip");
+    if (tip) tip.textContent = data.alreadyExists ? "이미 저장됨" : "저장 완료";
+    if (window.showToast) showToast(data.alreadyExists ? "이미 저장된 발굴 키워드입니다." : "검색 키워드를 발굴 후보로 저장했습니다.");
+  } catch (error) {
+    button.disabled = false;
+    if (window.showToast) showToast("발굴 키워드 저장 실패: " + String(error.message || error));
+    else alert("발굴 키워드 저장 실패: " + (error.message || error));
+  }
+}
+
 async function runSearch(kwOverride) {
   const store = selectedStore;
   const kwInput = document.getElementById("keyword");
@@ -1032,9 +1072,14 @@ function render(d) {
 
   const resultBanner = document.getElementById("keywordResultBanner");
   const topCategory = d.stats?.topCategory || "";
+  const searchedKeyword = d.keyword || document.getElementById("keyword").value.trim();
   resultBanner.innerHTML = `<div class="keyword-result-chip">
-    <span class="keyword-result-name">${esc(d.keyword || document.getElementById("keyword").value.trim())}</span>
+    <span class="keyword-result-name">${esc(searchedKeyword)}</span>
     ${topCategory ? `<span class="keyword-result-meta">주요 카테고리 <span class="keyword-result-sep">&gt;</span> ${esc(topCategory)}</span>` : ""}
+    <button type="button" class="keyword-save-btn" data-keyword="${esc(searchedKeyword)}" onclick="saveKeywordSearchIdea(this)" aria-label="발굴 키워드로 저장">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+      <span class="track-tip">검색 저장</span>
+    </button>
   </div>`;
   resultBanner.style.display = "block";
   const insMeta = document.getElementById("insMeta");
