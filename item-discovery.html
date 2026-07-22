@@ -585,7 +585,8 @@ function normalizeIdea(row) {
     youtubeTitle: row.youtubeTitle || parsedNotes.youtube?.youtubeTitle || "",
     youtubeOutline: Array.isArray(row.youtubeOutline) ? row.youtubeOutline : Array.isArray(parsedNotes.youtube?.youtubeOutline) ? parsedNotes.youtube.youtubeOutline : [],
     youtubeBody: row.youtubeBody || parsedNotes.youtube?.youtubeBody || "",
-    youtubeNotes: row.youtubeNotes || parsedNotes.youtube?.youtubeNotes || ""
+    youtubeNotes: row.youtubeNotes || parsedNotes.youtube?.youtubeNotes || "",
+    youtubeStatus: row.youtubeStatus || parsedNotes.youtube?.status || ""
   };
 }
 function parseDraftNotes(value) {
@@ -717,8 +718,6 @@ function renderIdeas() {
   document.getElementById("ideaList").innerHTML = rows.length ? rows.map(item => {
     const draftReady = hasDraftContent(item);
     const newBadge = isNewIdea(item) ? `<span class="idea-new-badge">NEW</span>` : "";
-    const statusClass = draftStatusClass(item);
-    const statusLabel = draftStatusLabel(item);
     const blogTip = draftReady ? "블로그 초안 보기" : "블로그 초안 생성";
     const youtubeReady = hasYoutubeScript(item);
     const youtubeTip = youtubeReady ? "유튜브 대본 보기" : "유튜브 대본 생성";
@@ -732,7 +731,8 @@ function renderIdeas() {
       <span class="idea-side">
         <span class="idea-meta-line">
           <span class="pill gray">${esc(ideaSourceGroup(item))}</span>
-          <span class="pill ${statusClass}">${esc(statusLabel)}</span>
+          <span class="pill ${blogDraftStatusClass(item)}">${esc(blogDraftStatusLabel(item))}</span>
+          <span class="pill ${youtubeDraftStatusClass(item)}">${esc(youtubeDraftStatusLabel(item))}</span>
           <span class="pill gray">${esc(formatIdeaDate(item.updatedAt))}</span>
         </span>
         <span class="idea-metrics">
@@ -765,13 +765,21 @@ function hasDraftContent(item) {
 function hasYoutubeScript(item) {
   return !!item && (item.youtubeTitle || item.youtubeBody || (Array.isArray(item.youtubeOutline) && item.youtubeOutline.length));
 }
-function draftStatusLabel(item) {
-  if (!hasDraftContent(item)) return "후보";
-  return item?.status === "used" ? "초안 확정" : "초안 생성";
+function blogDraftStatusLabel(item) {
+  if (!hasDraftContent(item)) return "블로그 후보";
+  return item?.status === "used" ? "블로그 초안 확정" : "블로그 초안 생성";
 }
-function draftStatusClass(item) {
+function blogDraftStatusClass(item) {
   if (!hasDraftContent(item)) return "gray";
   return item?.status === "used" ? "orange" : "green";
+}
+function youtubeDraftStatusLabel(item) {
+  if (!hasYoutubeScript(item)) return "유튜브 후보";
+  return item?.youtubeStatus === "used" ? "유튜브 초안 확정" : "유튜브 초안 생성";
+}
+function youtubeDraftStatusClass(item) {
+  if (!hasYoutubeScript(item)) return "gray";
+  return item?.youtubeStatus === "used" ? "orange" : "green";
 }
 function renderInlineMarkdown(text) {
   return esc(text).replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
@@ -814,10 +822,12 @@ function renderDraft() {
     return;
   }
   card?.classList.remove("is-hidden");
-  document.getElementById("draftStatus").textContent = showYoutubeDraft ? "초안 생성" : draftStatusLabel(item);
-  document.getElementById("draftStatus").className = showYoutubeDraft ? "pill green" : `pill ${draftStatusClass(item)}`;
+  document.getElementById("draftStatus").textContent = showYoutubeDraft ? youtubeDraftStatusLabel(item) : blogDraftStatusLabel(item);
+  document.getElementById("draftStatus").className = `pill ${showYoutubeDraft ? youtubeDraftStatusClass(item) : blogDraftStatusClass(item)}`;
+  document.getElementById("confirmDraftBtn").dataset.tip = showYoutubeDraft ? "유튜브 초안 확정" : "블로그 초안 확정";
+  document.getElementById("confirmDraftBtn").setAttribute("aria-label", showYoutubeDraft ? "유튜브 초안 확정" : "블로그 초안 확정");
   document.getElementById("runWorkflowBtn").hidden = true;
-  document.getElementById("confirmDraftBtn").hidden = showYoutubeDraft;
+  document.getElementById("confirmDraftBtn").hidden = false;
   const outline = item.outline?.length ? item.outline : ["검색 의도 정리", "상품군 연결", "시공 팁", "FAQ"];
   const faq = item.faq?.length ? item.faq : ["이 키워드로 어떤 상품을 연결하면 좋을까요?", "셀프 시공 시 주의할 점은 무엇인가요?"];
   const youtubeSection = hasYoutubeScript(item) ? `
@@ -1248,7 +1258,10 @@ async function runWorkflow(targetId = "") {
     if (!res.ok || data.ok === false) throw new Error(data.error || `AI ${res.status}`);
     if (Array.isArray(data.items) && data.items.length) {
       const merged = new Map(ideas.map(item => [String(item.id), item]));
-      data.items.map(normalizeIdea).forEach(item => merged.set(String(item.id), item));
+      data.items.map(normalizeIdea).forEach(item => {
+        const before = merged.get(String(item.id)) || {};
+        merged.set(String(item.id), { ...before, ...item });
+      });
       ideas = Array.from(merged.values());
       selectedId = String(data.items[0].id || selectedId);
       localStorage.setItem(LOCAL_IDEAS_KEY, JSON.stringify(ideas));
@@ -1365,6 +1378,15 @@ function setIdeaStatus(status) {
   renderAll();
   showToast(`${STATUS_LABELS[status]} 상태로 변경했습니다.`);
 }
+function setYoutubeStatus(status) {
+  const item = selectedIdea();
+  if (!item) return;
+  item.youtubeStatus = status;
+  localStorage.setItem(LOCAL_IDEAS_KEY, JSON.stringify(ideas));
+  saveYoutubeStatus(item, status);
+  renderAll();
+  showToast(`유튜브 ${STATUS_LABELS[status]} 상태로 변경했습니다.`);
+}
 async function saveIdeaStatus(item, status) {
   try {
     await fetch(`${SUPABASE_URL}/rest/v1/content_ideas?id=eq.${encodeURIComponent(item.id)}`, {
@@ -1376,6 +1398,32 @@ async function saveIdeaStatus(item, status) {
         Prefer: "return=minimal"
       },
       body: JSON.stringify({ status, updated_at: new Date().toISOString() })
+    });
+  } catch (_) {}
+}
+function draftNotesPayload(item, youtubeStatus = item?.youtubeStatus || "") {
+  return JSON.stringify({
+    note: item?.aiNotes || "",
+    youtube: {
+      youtubeTitle: item?.youtubeTitle || "",
+      youtubeOutline: Array.isArray(item?.youtubeOutline) ? item.youtubeOutline : [],
+      youtubeBody: item?.youtubeBody || "",
+      youtubeNotes: item?.youtubeNotes || "",
+      status: youtubeStatus
+    }
+  });
+}
+async function saveYoutubeStatus(item, status) {
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/content_drafts?idea_id=eq.${encodeURIComponent(item.id)}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: "Bearer " + SUPABASE_ANON_KEY,
+        Prefer: "return=minimal"
+      },
+      body: JSON.stringify({ ai_notes: draftNotesPayload(item, status), updated_at: new Date().toISOString() })
     });
   } catch (_) {}
 }
@@ -1512,6 +1560,11 @@ document.getElementById("ideaList").addEventListener("keydown", e => {
 document.getElementById("runWorkflowBtn").addEventListener("click", () => runWorkflow());
 document.getElementById("confirmDraftBtn").addEventListener("click", () => {
   const item = selectedIdea();
+  const isYoutubeDraft = activeDraftType === "youtube" && hasYoutubeScript(item);
+  if (isYoutubeDraft) {
+    setYoutubeStatus("used");
+    return;
+  }
   if (!item || !hasDraftContent(item)) {
     showToast("확정할 초안이 없습니다.");
     return;
