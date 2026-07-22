@@ -718,13 +718,7 @@ function renderIdeas() {
     const newBadge = isNewIdea(item) ? `<span class="idea-new-badge">NEW</span>` : "";
     const statusClass = draftStatusClass(item);
     const statusLabel = draftStatusLabel(item);
-    const draftAction = draftReady ? `
-        <button type="button" class="ui-circle-btn is-active" data-confirm-blog="${esc(item.id)}" aria-label="초안 확정" data-tip="초안 확정">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>
-        </button>` : `
-        <button type="button" class="ui-circle-btn" data-generate-blog="${esc(item.id)}" aria-label="블로그 초안 생성" data-tip="블로그 초안 생성">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.2-8.56"></path><path d="M21 3v6h-6"></path></svg>
-        </button>`;
+    const blogTip = draftReady ? "블로그 초안 보기" : "블로그 초안 생성";
     return `
     <div class="idea-row${item.id === selectedId ? " active" : ""}" data-id="${esc(item.id)}" role="button" tabindex="0">
       <span class="idea-score">${Math.round(item.aiScore || 0)}</span>
@@ -746,7 +740,9 @@ function renderIdeas() {
         </span>
       </span>
       <span class="idea-actions">
-        ${draftAction}
+        <button type="button" class="ui-circle-btn${draftReady ? " is-active" : ""}" data-generate-blog="${esc(item.id)}" aria-label="${blogTip}" data-tip="${blogTip}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4 10 14"/><path d="M12 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6"/></svg>
+        </button>
         <button type="button" class="ui-circle-btn" data-generate-youtube="${esc(item.id)}" aria-label="유튜브 대본 생성" data-tip="유튜브 대본 생성">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M22 8.5a3 3 0 0 0-2.1-2.1C18 6 12 6 12 6s-6 0-7.9.4A3 3 0 0 0 2 8.5 31 31 0 0 0 2 15.5a3 3 0 0 0 2.1 2.1C6 18 12 18 12 18s6 0 7.9-.4a3 3 0 0 0 2.1-2.1 31 31 0 0 0 0-7Z"/><path d="m10 9 5 3-5 3Z"/></svg>
         </button>
@@ -1454,23 +1450,15 @@ document.getElementById("ideaList").addEventListener("click", e => {
   if (blogButton) {
     e.stopPropagation();
     const id = blogButton.dataset.generateBlog || "";
+    const item = ideas.find(candidate => String(candidate.id) === String(id));
     markIdeaSeen(id);
-    runWorkflow(id);
-    return;
-  }
-  const confirmButton = e.target.closest("[data-confirm-blog]");
-  if (confirmButton) {
-    e.stopPropagation();
-    const id = confirmButton.dataset.confirmBlog || "";
-    selectedId = id;
-    markIdeaSeen(id);
-    const item = selectedIdea();
-    if (!item || !hasDraftContent(item)) {
-      showToast("확정할 초안이 없습니다.");
+    if (hasDraftContent(item)) {
+      selectedId = id;
       renderAll();
-      return;
+      showToast("생성된 블로그 초안을 표시했습니다.");
+    } else {
+      runWorkflow(id);
     }
-    setIdeaStatus("used");
     return;
   }
   const youtubeButton = e.target.closest("[data-generate-youtube]");
@@ -1495,7 +1483,7 @@ document.getElementById("ideaList").addEventListener("click", e => {
 document.getElementById("ideaList").addEventListener("keydown", e => {
   if (e.key !== "Enter" && e.key !== " ") return;
   const row = e.target.closest(".idea-row");
-  if (!row || e.target.closest("[data-delete-idea],[data-generate-blog],[data-confirm-blog],[data-generate-youtube]")) return;
+  if (!row || e.target.closest("[data-delete-idea],[data-generate-blog],[data-generate-youtube]")) return;
   e.preventDefault();
   selectedId = row.dataset.id;
   markIdeaSeen(selectedId);
