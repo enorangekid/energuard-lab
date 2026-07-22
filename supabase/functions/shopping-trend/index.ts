@@ -97,6 +97,7 @@ async function fetchRank(cid: string, start: string, end: string, unit: string, 
 const SNAPSHOT_TABLE = "realtime_trend_snapshot";
 const TREND_ARCHIVE_TABLE = "realtime_trend_archive";
 const CONTENT_IDEA_TABLE = "content_ideas";
+const CONTENT_DRAFT_TABLE = "content_drafts";
 const NICHE_DAILY_TABLE = "niche_trend_daily_snapshot";
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") || "";
 const OPENAI_MODEL = Deno.env.get("OPENAI_MODEL") || "gpt-4o-mini";
@@ -605,6 +606,20 @@ async function addContentIdea(body: Record<string, unknown>) {
     body: JSON.stringify([row]),
   });
   return { ok: true, alreadyExists: false, item: Array.isArray(saved) ? saved[0] : row };
+}
+
+async function deleteContentIdea(idRaw: unknown) {
+  const id = String(idRaw || "").trim();
+  if (!id) throw new Error("삭제할 발굴 키워드 ID가 필요합니다.");
+  await supabaseRequest(`/rest/v1/${CONTENT_DRAFT_TABLE}?idea_id=eq.${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    headers: { "Prefer": "return=minimal" },
+  }).catch(() => null);
+  await supabaseRequest(`/rest/v1/${CONTENT_IDEA_TABLE}?id=eq.${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    headers: { "Prefer": "return=minimal" },
+  });
+  return { ok: true, id };
 }
 
 function parseStoredSources(value: string) {
@@ -1252,6 +1267,7 @@ Deno.serve(async (req) => {
     if (body.action === "realtimeAt") return json(await handleRealtimeAt(body.slot));
     if (body.action === "deleteRealtimeTrend") return json(await deleteTrendArchive(body.id));
     if (body.action === "addContentIdea") return json(await addContentIdea(body));
+    if (body.action === "deleteContentIdea") return json(await deleteContentIdea(body.id));
     if (body.action === "collectNicheDaily") return json(await collectNicheDaily());
     if (body.action === "nicheTrend") return json(await handleNicheTrend());
     if (body.action === "nicheSpike") return json(await handleNicheSpike());

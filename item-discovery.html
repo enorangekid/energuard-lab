@@ -110,9 +110,9 @@
 
   .idea-list { display: flex; flex-direction: column; gap: 8px; }
   .idea-row {
-    display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 12px; align-items: center;
+    display: grid; grid-template-columns: 42px minmax(0, 1fr) 34px; gap: 12px; align-items: center;
     min-height: 92px; padding: 13px 14px; border: 1px solid var(--line); border-radius: var(--radius);
-    background: #fff; cursor: pointer; transition: .15s;
+    background: #fff; cursor: pointer; transition: .15s; text-align: left;
   }
   .idea-row:hover { background: #fafbfc; }
   .idea-row.active { border-color: #ffb899; background: #fff7f1; }
@@ -131,6 +131,13 @@
     background: #fafbfc; color: var(--sub); font-size: 10.5px; font-weight: 900;
   }
   .idea-metric b { display: block; margin-top: 2px; color: var(--ink); font-family: var(--font-mono); font-size: 13px; font-weight: 900; }
+  .idea-delete-btn {
+    width: 30px; height: 30px; justify-self: center; padding: 0;
+    border: 1px solid var(--line); border-radius: 50%; background: #fff; color: #9aa3b3;
+    display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all .14s;
+  }
+  .idea-delete-btn:hover { border-color: #d7dde7; color: var(--ink); background: #fafbfc; }
+  .idea-delete-btn svg { width: 15px; height: 15px; }
   .pill {
     display: inline-flex; align-items: center; justify-content: center; min-width: 54px;
     padding: 4px 8px; border-radius: 999px; background: #f3f5f8; color: #344054; font-size: 11px; font-weight: 900;
@@ -220,13 +227,9 @@
   .trend-list { overflow-x: auto; }
   .trend-list-head,
   .trend-row {
-    display: grid; grid-template-columns: 44px 54px minmax(220px, 1fr) minmax(210px, .75fr) 154px 44px 44px;
-    align-items: center; gap: 10px; min-width: 1028px;
-  }
-  .trend-list-head.no-delete,
-  .trend-row.no-delete {
     grid-template-columns: 44px 54px minmax(220px, 1fr) minmax(210px, .75fr) 154px 44px;
     min-width: 974px;
+    display: grid; align-items: center; gap: 10px;
   }
   .trend-list-head {
     min-height: 36px; padding: 0 14px; background: #fafbfc;
@@ -236,8 +239,7 @@
   .trend-list-head span:nth-child(2),
   .trend-list-head span:nth-child(4),
   .trend-list-head span:nth-child(5),
-  .trend-list-head span:nth-child(6),
-  .trend-list-head span:nth-child(7) { text-align: center; }
+  .trend-list-head span:nth-child(6) { text-align: center; }
   .trend-row { min-height: 44px; padding: 9px 14px; border-bottom: 1px solid var(--line); }
   .trend-row:last-child { border-bottom: 0; }
   .trend-row:hover { background: #fafbfd; }
@@ -270,13 +272,6 @@
   .trend-idea-btn svg { width: 15px; height: 15px; }
   .trend-idea-btn.added { border-color: #f0b79d; background: var(--accent-tint); color: var(--accent-dark); }
   .trend-idea-btn.added:hover { border-color: #d7dde7; background: #fafbfc; color: var(--ink); }
-  .trend-delete-btn {
-    position: relative; width: 30px; height: 30px; justify-self: center; padding: 0;
-    border: 1px solid var(--line); border-radius: 50%; background: #fff; color: #9aa3b3;
-    display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all .14s;
-  }
-  .trend-delete-btn:hover { border-color: #d7dde7; color: var(--ink); background: #fafbfc; }
-  .trend-delete-btn svg { width: 15px; height: 15px; }
   .trend-idea-tip {
     display: none;
   }
@@ -339,7 +334,7 @@
     .page-head, .control-row { flex-direction: column; align-items: flex-start; }
     .control-right, .input-control { width: 100%; }
     .category-tabs, .content-grid { grid-template-columns: 1fr; }
-    .idea-row { grid-template-columns: 36px minmax(0, 1fr); }
+    .idea-row { grid-template-columns: 36px minmax(0, 1fr) 34px; }
     .idea-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
 </style>
@@ -644,7 +639,7 @@ function renderIdeas() {
   if (!rows.some(x => x.id === selectedId) && rows[0]) selectedId = rows[0].id;
   document.getElementById("ideaCount").textContent = `${rows.length}개`;
   document.getElementById("ideaList").innerHTML = rows.length ? rows.map(item => `
-    <button type="button" class="idea-row${item.id === selectedId ? " active" : ""}" data-id="${esc(item.id)}">
+    <div class="idea-row${item.id === selectedId ? " active" : ""}" data-id="${esc(item.id)}" role="button" tabindex="0">
       <span class="idea-score">${Math.round(item.aiScore || 0)}</span>
       <span class="idea-main">
         <span class="idea-keyword"><span>${esc(item.keyword)}</span><span class="pill orange">${esc(item.productGroup)}</span></span>
@@ -661,7 +656,10 @@ function renderIdeas() {
           <span class="idea-metric">경쟁도<b>${Math.round(item.competitionScore || 0)}</b></span>
         </span>
       </span>
-    </button>
+      <button type="button" class="idea-delete-btn" data-delete-idea="${esc(item.id)}" aria-label="발굴 키워드 삭제" title="삭제">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 15h10l1-15"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+      </button>
+    </div>
   `).join("") : `<div class="empty">조건에 맞는 후보가 없습니다.</div>`;
 }
 function selectedIdea() {
@@ -764,19 +762,14 @@ function deltaHtml(item) {
   if (item.change === "down") return `<span class="tr-delta down">▼${Math.abs(item.delta)}</span>`;
   return `<span class="tr-delta same">유지</span>`;
 }
-function renderTrendRows(items, options = {}) {
+function renderTrendRows(items) {
   if (!items.length) return `<div class="state">표시할 키워드가 없습니다.</div>`;
-  const canDelete = options.canDelete !== false;
   const rows = items.map(item => {
     const q = encodeURIComponent(item.query || item.keyword);
     const mainUrl = item.link || `https://search.naver.com/search.naver?query=${encodeURIComponent(item.keyword)}`;
     const added = ideas.some(idea => ideaKeywordKey(idea.keyword) === ideaKeywordKey(item.keyword));
     const sources = [...(item.sources || []), item.slot ? slotLabel(item.slot) : ""].filter(Boolean);
-    const deleteButton = canDelete && item.id ? `
-      <button type="button" class="trend-delete-btn" data-delete-trend="${esc(item.id)}" aria-label="트렌드 삭제" title="삭제">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 15h10l1-15"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
-      </button>` : `<span></span>`;
-    return `<div class="trend-row${canDelete ? "" : " no-delete"}">
+    return `<div class="trend-row">
       <span class="tr-rank">${item.rank}</span>
       ${deltaHtml(item)}
       <span class="tr-kw" onclick="window.open('${esc(mainUrl)}', '_blank')">${esc(item.keyword)}</span>
@@ -790,10 +783,9 @@ function renderTrendRows(items, options = {}) {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M8.5 14.5A6 6 0 1 1 15.5 14.5C14.5 15.3 14 16.2 14 18h-4c0-1.8-.5-2.7-1.5-3.5Z"/><path d="M12 2V0"/></svg>
         <span class="trend-idea-tip">${added ? "추가됨" : "발굴 키워드 추가"}</span>
       </button>
-      ${canDelete ? deleteButton : ""}
     </div>`;
   }).join("");
-  return `<div class="trend-list-head${canDelete ? "" : " no-delete"}"><span>순위</span><span>변동</span><span>키워드</span><span>근거</span><span>바로가기</span><span>발굴</span>${canDelete ? "<span>삭제</span>" : ""}</div>${rows}`;
+  return `<div class="trend-list-head"><span>순위</span><span>변동</span><span>키워드</span><span>근거</span><span>바로가기</span><span>발굴</span></div>${rows}`;
 }
 function renderRealtimeTrend() {
   const listEl = document.getElementById("realtimeTrendList");
@@ -811,7 +803,7 @@ function renderRealtimeTrend() {
       listEl.innerHTML = `<div class="state">데이터를 불러오지 못했습니다. 새로고침을 눌러 주세요.</div>`;
       return;
     }
-    listEl.innerHTML = renderTrendRows(spikeData.niche || [], { canDelete: false });
+    listEl.innerHTML = renderTrendRows(spikeData.niche || []);
     document.getElementById("trendMeta").textContent = `${spikeData.date}${spikeData.failNote ? " · " + spikeData.failNote : ""}`;
     return;
   }
@@ -827,7 +819,7 @@ function renderRealtimeTrend() {
       return;
     }
     const nicheItems = nicheData.niche || [];
-    listEl.innerHTML = nicheItems.length ? renderTrendRows(nicheItems, { canDelete: false }) : `<div class="state">최근 7일 사이 단열 관련 뉴스 이슈가 없습니다.</div>`;
+    listEl.innerHTML = nicheItems.length ? renderTrendRows(nicheItems) : `<div class="state">최근 7일 사이 단열 관련 뉴스 이슈가 없습니다.</div>`;
     document.getElementById("trendMeta").textContent = `${nicheData.date} · 이슈 클릭 시 기사가 열립니다`;
     return;
   }
@@ -918,21 +910,24 @@ async function addTrendIdea(button) {
     showToast("발굴 키워드 추가 실패: " + String(error.message || error));
   }
 }
-async function deleteRealtimeTrend(button) {
-  const id = String(button?.dataset?.deleteTrend || "");
+async function deleteIdea(button) {
+  const id = String(button?.dataset?.deleteIdea || "");
   if (!id || button.disabled) return;
   button.disabled = true;
   try {
-    const data = await callTrendFn({ action: "deleteRealtimeTrend", id });
+    const data = await callTrendFn({ action: "deleteContentIdea", id });
     if (data?.ok === false) throw new Error(data.error || "삭제 실패");
-    if (trendData && activeTrendList && Array.isArray(trendData[activeTrendList])) {
-      trendData[activeTrendList] = trendData[activeTrendList].filter(item => String(item.id || "") !== id);
-    }
+    ideas = ideas.filter(item => String(item.id) !== id);
+    localStorage.setItem(LOCAL_IDEAS_KEY, JSON.stringify(ideas));
+    if (selectedId === id) selectedId = filteredIdeas()[0]?.id || ideas[0]?.id || "";
     renderRealtimeTrend();
-    showToast("트렌드 키워드를 삭제했습니다.");
+    renderCategories();
+    renderIdeas();
+    renderDraft();
+    showToast("발굴 키워드를 삭제했습니다.");
   } catch (error) {
     button.disabled = false;
-    showToast("트렌드 삭제 실패: " + String(error.message || error));
+    showToast("발굴 키워드 삭제 실패: " + String(error.message || error));
   }
 }
 let floatingActionTip = null;
@@ -1175,11 +1170,6 @@ document.getElementById("slotChips").addEventListener("click", e => {
   loadRealtimeTrend(chip.dataset.slot || "");
 });
 document.getElementById("realtimeTrendList").addEventListener("click", e => {
-  const deleteButton = e.target.closest("[data-delete-trend]");
-  if (deleteButton) {
-    deleteRealtimeTrend(deleteButton);
-    return;
-  }
   const button = e.target.closest("[data-add-idea]");
   if (button) addTrendIdea(button);
 });
@@ -1211,8 +1201,22 @@ document.getElementById("catSelect3").addEventListener("change", () => {
   if (deepest) loadCategoryKeywords(deepest);
 });
 document.getElementById("ideaList").addEventListener("click", e => {
+  const deleteButton = e.target.closest("[data-delete-idea]");
+  if (deleteButton) {
+    e.stopPropagation();
+    deleteIdea(deleteButton);
+    return;
+  }
   const row = e.target.closest(".idea-row");
   if (!row) return;
+  selectedId = row.dataset.id;
+  renderAll();
+});
+document.getElementById("ideaList").addEventListener("keydown", e => {
+  if (e.key !== "Enter" && e.key !== " ") return;
+  const row = e.target.closest(".idea-row");
+  if (!row || e.target.closest("[data-delete-idea]")) return;
+  e.preventDefault();
   selectedId = row.dataset.id;
   renderAll();
 });
