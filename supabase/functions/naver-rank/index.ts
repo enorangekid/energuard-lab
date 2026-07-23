@@ -334,8 +334,25 @@ async function collectTrackedItems() {
   let keywordsDone = 0;
   let rowsSaved = 0;
 
-  for (const [keyword, codes] of keywordMap) {
-    if (Date.now() > deadline) break; // 남은 키워드는 다음 실행에서 (하루 1회라 이월돼도 무방)
+  // 키워드 수가 늘어나 전체가 100초 예산 안에 다 안 돌면, 고정된 순서 그대로는 뒤쪽 키워드가
+  // 매일 잘리기만 하고 영영 수집되지 않는다. 키워드별 마지막 수집일을 확인해 오래전에
+  // 수집됐거나(또는 한 번도 안 된) 키워드부터 처리하도록 순서를 매일 회전시킨다.
+  const historyRows: Array<Record<string, unknown>> = await supabaseRequest(
+    `/rest/v1/tracked_item_history?select=keyword,collected_date&order=collected_date.desc&limit=5000`,
+  ) || [];
+  const lastCollectedByKeyword = new Map<string, string>();
+  for (const row of historyRows) {
+    const kw = String(row.keyword || "");
+    if (kw && !lastCollectedByKeyword.has(kw)) lastCollectedByKeyword.set(kw, String(row.collected_date || ""));
+  }
+  const orderedKeywords = [...keywordMap.entries()].sort((a, b) => {
+    const da = lastCollectedByKeyword.get(a[0]) || ""; // 미수집 키워드는 빈 문자열 → 항상 최우선
+    const db = lastCollectedByKeyword.get(b[0]) || "";
+    return da.localeCompare(db);
+  });
+
+  for (const [keyword, codes] of orderedKeywords) {
+    if (Date.now() > deadline) break; // 남은 키워드는 다음 실행에서 — 오래된 순으로 돌기 때문에 매번 같은 키워드가 밀리진 않는다
     try {
       const watched = await scanKeywordForWatch(keyword, allCodes, clientId, clientSecret);
       const foundByCode = new Map(watched.map((w) => [w.productId, w]));

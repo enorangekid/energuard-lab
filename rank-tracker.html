@@ -1607,10 +1607,13 @@ function getCategoryLeadKeyword(product, categoryName) {
   const displayKeywords = getDisplayKeywords(categoryName);
   if (displayKeywords) {
     const detailKeywords = getDetailKeywords(categoryName) || displayKeywords;
+    // 대표 키워드(예: 아이소핑크)가 오늘 이탈/미수집이라고 해서 순위가 있는 보조 키워드(예:
+    // XPS단열재)를 "메인 키워드"로 대신 보여주면 안 된다 — 대표 키워드 우선순위(detailKeywords
+    // 순서)를 항상 먼저 따지고, 순위 유무는 같은 순서 안에서만 부차적으로 쓴다.
     return getVisibleKeywords(product, categoryName)
       .sort((a, b) =>
-        Number(a.rank == null) - Number(b.rank == null)
-        || detailKeywords.indexOf(a.keyword) - detailKeywords.indexOf(b.keyword)
+        detailKeywords.indexOf(a.keyword) - detailKeywords.indexOf(b.keyword)
+        || Number(a.rank == null) - Number(b.rank == null)
         || (a.rank ?? 9999) - (b.rank ?? 9999)
       )[0] || null;
   }
