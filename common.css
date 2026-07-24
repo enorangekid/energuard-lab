@@ -289,7 +289,7 @@ header.topbar .topbar-icon-btn svg {
   justify-content: center;
   padding: 0;
   cursor: pointer;
-  transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease, opacity 0.16s ease;
 }
 
 .ai-chat-fab:hover {
@@ -306,30 +306,39 @@ header.topbar .topbar-icon-btn svg {
 .ai-chat-fab svg {
   width: 34px;
   height: 34px;
+  transition: transform 0.18s ease;
 }
 
+/* 패널이 열려 있을 땐 같은 버튼이 종료(X) 아이콘으로 바뀐다 — 아이콘 교체 순간 살짝 회전하며 자리잡는 느낌 */
+.ai-chat-fab.is-open svg { transform: rotate(90deg); }
+
 .ai-work-panel {
+  /* 채팅 버튼 바로 위에서 떠오르는 위젯 형태 — 버튼(32px 여백 + 72px 높이) 위로 14px 띄운 지점에 고정. */
   position: fixed;
-  top: 88px;
-  right: -460px;
-  bottom: 24px;
+  right: 32px;
+  bottom: 118px;
   z-index: 4990;
   width: 420px;
   max-width: calc(100vw - 32px);
+  height: min(800px, calc(100vh - 120px));
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid rgba(5, 7, 11, 0.12);
-  border-radius: 8px;
+  border: 1px solid rgba(5, 7, 11, 0.1);
+  border-radius: 18px;
   background: #fff;
-  box-shadow: -18px 18px 52px rgba(5, 7, 11, 0.18);
+  box-shadow: -20px 26px 64px rgba(5, 7, 11, 0.22), 0 1px 0 rgba(255, 255, 255, 0.6) inset;
   opacity: 0;
-  transition: right 0.22s ease, opacity 0.18s ease;
+  transform-origin: bottom right;
+  transform: translateY(16px) scale(.92);
+  pointer-events: none;
+  transition: opacity 0.22s ease, transform 0.28s cubic-bezier(.16, 1, .3, 1);
 }
 
 .ai-work-panel.open {
-  right: 24px;
   opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
 }
 
 .ai-work-head {
@@ -339,7 +348,7 @@ header.topbar .topbar-icon-btn svg {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 16px 18px;
+  padding: 16px 20px;
   background: var(--dark, #05070b);
   color: #fff;
 }
@@ -348,7 +357,7 @@ header.topbar .topbar-icon-btn svg {
   display: block;
   font-size: 16px;
   font-weight: 800;
-  letter-spacing: 0;
+  letter-spacing: -0.01em;
 }
 
 .ai-work-head span {
@@ -358,49 +367,52 @@ header.topbar .topbar-icon-btn svg {
   color: rgba(255, 255, 255, 0.58);
 }
 
-.ai-work-close {
-  width: 34px;
-  height: 34px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.04);
-  color: rgba(255, 255, 255, 0.78);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  cursor: pointer;
-}
-
-.ai-work-close:hover { color: #fff; background: rgba(255, 255, 255, 0.09); }
-.ai-work-close svg { width: 18px; height: 18px; }
-
 .ai-work-tabs {
   flex-shrink: 0;
   display: flex;
-  gap: 0;
-  padding: 0 14px;
+  gap: 4px;
+  padding: 10px 14px 0;
   border-bottom: 1px solid var(--line, #e8ecf2);
   background: #fff;
 }
 
 .ai-work-tabs button {
   flex: 1;
-  height: 48px;
+  height: 42px;
   border: none;
-  border-bottom: 3px solid transparent;
+  border-radius: 9px 9px 0 0;
   background: transparent;
   color: var(--sub, #5a6378);
   font-family: var(--font-main, inherit);
   font-size: 13px;
   font-weight: 800;
   cursor: pointer;
+  position: relative;
+  transition: color 0.15s, background 0.15s;
 }
+
+.ai-work-tabs button:hover { color: var(--ink, #1a1f2e); background: rgba(232, 93, 47, 0.05); }
 
 .ai-work-tabs button.active {
   color: var(--accent, #e85d2f);
-  border-bottom-color: var(--accent, #e85d2f);
+  background: rgba(232, 93, 47, 0.07);
 }
+
+.ai-work-tabs button::after {
+  content: "";
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: -1px;
+  height: 3px;
+  border-radius: 999px 999px 0 0;
+  background: var(--accent, #e85d2f);
+  opacity: 0;
+  transform: scaleX(.4);
+  transition: opacity 0.15s, transform 0.15s;
+}
+
+.ai-work-tabs button.active::after { opacity: 1; transform: scaleX(1); }
 
 .ai-work-pane {
   display: none;
@@ -418,14 +430,31 @@ header.topbar .topbar-icon-btn svg {
   flex-direction: column;
   gap: 14px;
   overflow-y: auto;
-  padding: 18px;
+  padding: 20px 18px;
+  background: linear-gradient(180deg, #fbfcfe 0%, #f6f7fa 100%);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(5, 7, 11, 0.15) transparent;
 }
+
+.ai-chat-messages::-webkit-scrollbar { width: 6px; }
+.ai-chat-messages::-webkit-scrollbar-track { background: transparent; }
+.ai-chat-messages::-webkit-scrollbar-thumb {
+  background: rgba(5, 7, 11, 0.15);
+  border-radius: 999px;
+}
+.ai-chat-messages::-webkit-scrollbar-thumb:hover { background: rgba(5, 7, 11, 0.26); }
 
 .ai-msg {
   max-width: 88%;
   display: flex;
   align-items: flex-end;
   gap: 9px;
+  animation: aiMsgIn 0.22s cubic-bezier(.16, 1, .3, 1) both;
+}
+
+@keyframes aiMsgIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .ai-msg-user {
@@ -435,25 +464,29 @@ header.topbar .topbar-icon-btn svg {
 
 .ai-msg-avatar {
   flex: 0 0 auto;
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--dark, #05070b);
+  background: linear-gradient(135deg, var(--dark, #05070b) 0%, #262c3a 100%);
   color: #fff;
   font-size: 10px;
   font-family: var(--font-mono, monospace);
   font-weight: 800;
+  box-shadow: 0 3px 8px rgba(5, 7, 11, 0.22), 0 0 0 1px rgba(255, 255, 255, 0.06) inset;
 }
 
-.ai-msg-user .ai-msg-avatar { background: var(--accent, #e85d2f); }
+.ai-msg-user .ai-msg-avatar {
+  background: linear-gradient(135deg, var(--accent, #e85d2f) 0%, var(--accent-dark, #d04420) 100%);
+  box-shadow: 0 3px 8px rgba(232, 93, 47, 0.32), 0 0 0 1px rgba(255, 255, 255, 0.12) inset;
+}
 
 .ai-msg-bubble {
-  padding: 11px 13px;
-  border: 1px solid var(--line, #e8ecf2);
-  border-radius: 14px;
+  padding: 11px 14px;
+  border: none;
+  border-radius: 16px;
   border-bottom-left-radius: 4px;
   background: #fff;
   color: var(--ink, #1a1f2e);
@@ -461,15 +494,34 @@ header.topbar .topbar-icon-btn svg {
   line-height: 1.55;
   word-break: keep-all;
   overflow-wrap: anywhere;
-  box-shadow: 0 1px 2px rgba(5, 7, 11, 0.04);
+  box-shadow: 0 1px 2px rgba(5, 7, 11, 0.05), 0 8px 20px rgba(5, 7, 11, 0.04);
 }
 
 .ai-msg-user .ai-msg-bubble {
-  border-color: var(--accent, #e85d2f);
-  border-bottom-left-radius: 14px;
+  border-bottom-left-radius: 16px;
   border-bottom-right-radius: 4px;
-  background: var(--accent, #e85d2f);
+  background: linear-gradient(135deg, var(--accent, #e85d2f) 0%, var(--accent-dark, #d04420) 100%);
   color: #fff;
+  box-shadow: 0 4px 14px rgba(232, 93, 47, 0.28);
+}
+
+/* 계산기 로직을 그대로 호출해서 만든 답(어림짐작 아님)임을 색으로 구분 — 초록 = 검증된 수치 */
+.ai-msg-calc .ai-msg-avatar {
+  background: linear-gradient(135deg, var(--good, #16a34a) 0%, #0f7a34 100%);
+  box-shadow: 0 3px 8px rgba(22, 163, 74, 0.32), 0 0 0 1px rgba(255, 255, 255, 0.12) inset;
+}
+
+.ai-msg-calc .ai-msg-bubble {
+  border: 1px solid rgba(22, 163, 74, 0.28);
+  background: #f2fbf5;
+}
+
+.ai-msg-tag {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--good, #16a34a);
+  font-size: 11px;
+  font-weight: 800;
 }
 
 .ai-chat-input-row {
@@ -494,20 +546,20 @@ header.topbar .topbar-icon-btn svg {
   line-height: 1.45;
   outline: none;
   resize: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
 .ai-chat-input-row textarea {
   flex: 1;
   min-height: 44px;
   max-height: 120px;
-  padding: 12px 14px;
+  padding: 12px 16px;
   border-radius: 22px;
+  box-shadow: inset 0 1px 2px rgba(5, 7, 11, 0.03);
 }
 
 .ai-chat-input-row textarea:focus,
-.ai-inquiry-text:focus,
-.ai-inquiry-controls select:focus,
-.ai-inquiry-label select:focus {
+.ai-inquiry-text:focus {
   border-color: var(--accent, #e85d2f);
   box-shadow: 0 0 0 3px rgba(232, 93, 47, 0.12);
 }
@@ -521,12 +573,15 @@ header.topbar .topbar-icon-btn svg {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--accent, #e85d2f);
+  background: linear-gradient(135deg, var(--accent, #e85d2f) 0%, var(--accent-dark, #d04420) 100%);
   color: #fff;
   cursor: pointer;
+  box-shadow: 0 4px 12px rgba(232, 93, 47, 0.28);
+  transition: transform 0.15s, box-shadow 0.15s;
 }
 
-.ai-send-btn:hover { background: var(--accent-dark, #d04420); }
+.ai-send-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 22px rgba(232, 93, 47, 0.36); }
+.ai-send-btn:active { transform: translateY(0); }
 .ai-send-btn svg { width: 19px; height: 19px; }
 
 .ai-typing-dot {
@@ -547,45 +602,20 @@ header.topbar .topbar-icon-btn svg {
   40% { transform: scale(1); opacity: 1; }
 }
 
-.ai-inquiry-controls {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  padding: 16px 16px 0;
+.ai-lang-tabs { display: flex; flex-wrap: wrap; gap: 6px; padding: 14px 16px 0; }
+.ai-lang-tab {
+  height: 30px; padding: 0 12px; border: 1px solid var(--line, #e8ecf2); border-radius: 999px;
+  background: #fff; color: var(--sub, #5a6378); font-family: inherit; font-size: 12px; font-weight: 800;
+  cursor: pointer; transition: all 0.15s;
 }
+.ai-lang-tab:hover { border-color: #f0b79d; color: var(--ink, #1a1f2e); background: #fffaf7; }
+.ai-lang-tab.active { background: var(--accent, #e85d2f); border-color: var(--accent, #e85d2f); color: #fff; }
 
-.ai-inquiry-label {
-  display: block;
-  padding: 10px 16px 0;
-}
-
-.ai-inquiry-controls label,
-.ai-inquiry-label {
-  color: var(--sub, #5a6378);
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.ai-inquiry-controls select,
-.ai-inquiry-label select {
-  width: 100%;
-  height: 38px;
-  margin-top: 6px;
-  border: 1px solid #d8dde6;
-  border-radius: 6px;
-  background: #fff;
-  color: var(--ink, #1a1f2e);
-  font-family: var(--font-main, inherit);
-  font-size: 13px;
-  font-weight: 700;
-  padding: 0 10px;
-  outline: none;
-}
-
+/* 질문칸:답변칸 = 3:7 비율로 답변 쪽을 더 넉넉하게 준다 */
 .ai-inquiry-text {
-  flex: 0 0 150px;
+  flex: 3 1 0;
   width: calc(100% - 32px);
-  margin: 14px 16px 0;
+  margin: 16px 16px 0;
   padding: 12px;
 }
 
@@ -601,21 +631,23 @@ header.topbar .topbar-icon-btn svg {
 .ai-secondary-btn,
 .ai-copy-btn {
   height: 36px;
-  border-radius: 6px;
+  border-radius: 8px;
   font-family: var(--font-main, inherit);
   font-size: 13px;
   font-weight: 800;
   padding: 0 14px;
   cursor: pointer;
+  transition: all 0.15s;
 }
 
 .ai-primary-btn {
   border: none;
-  background: var(--accent, #e85d2f);
+  background: linear-gradient(135deg, var(--accent, #e85d2f) 0%, var(--accent-dark, #d04420) 100%);
   color: #fff;
+  box-shadow: 0 3px 10px rgba(232, 93, 47, 0.24);
 }
 
-.ai-primary-btn:hover { background: var(--accent-dark, #d04420); }
+.ai-primary-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 18px rgba(232, 93, 47, 0.32); }
 
 .ai-secondary-btn,
 .ai-copy-btn {
@@ -624,18 +656,22 @@ header.topbar .topbar-icon-btn svg {
   color: var(--sub, #5a6378);
 }
 
+.ai-secondary-btn:hover,
+.ai-copy-btn:hover { border-color: #f0b79d; color: var(--ink, #1a1f2e); background: #fffaf7; }
+
 .ai-inquiry-result {
-  flex: 1;
+  flex: 7 1 0;
   min-height: 0;
   margin: 0 16px 12px;
   padding: 14px;
   overflow-y: auto;
   border: 1px solid var(--line, #e8ecf2);
-  border-radius: 8px;
-  background: #fff;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #fff 0%, #fbfbfd 100%);
   color: var(--ink, #1a1f2e);
   font-size: 13px;
   line-height: 1.6;
+  box-shadow: inset 0 1px 2px rgba(5, 7, 11, 0.02);
 }
 
 .ai-inquiry-result span,
@@ -670,14 +706,20 @@ header.topbar .topbar-icon-btn svg {
   }
   .ai-work-panel {
     top: 74px;
-    right: -100vw;
+    right: 0;
     bottom: 0;
-    width: 100vw;
+    left: 0;
+    width: auto;
     max-width: 100vw;
-    border-radius: 0;
+    height: auto;
+    border-radius: 18px 18px 0 0;
+    transform-origin: bottom center;
+    transform: translateY(100%);
   }
-  .ai-work-panel.open { right: 0; }
-  .ai-inquiry-controls { grid-template-columns: 1fr; }
+  .ai-work-panel.open { transform: translateY(0); }
+  /* 화면을 꽉 채운 상태에서도 채팅 버튼(이제 종료 버튼)이 같은 자리에 그대로 떠 있으므로,
+     입력창/답변 영역 맨 아래가 버튼에 가리지 않도록 여유 공간을 확보한다. */
+  .ai-work-pane { padding-bottom: 84px; }
 }
 
 /* ─────────────────────────────────────────

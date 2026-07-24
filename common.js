@@ -89,9 +89,22 @@ const AI_SUPABASE_ANON_KEY = typeof SUPABASE_ANON_KEY !== "undefined"
   ? SUPABASE_ANON_KEY
   : "sb_publishable_MiBvlf3d6ulcVBsi7Odcgw_PTXSmXKj";
 const AI_CHAT_URL = AI_SUPABASE_URL + "/functions/v1/gemini-chat";
-const AI_INQUIRY_URL = AI_SUPABASE_URL + "/functions/v1/inquiry-assistant";
+// 실제 배포된 함수 이름이 "inquiry-assistant-"(끝에 하이픈)라 그대로 맞춰준다.
+const AI_INQUIRY_URL = AI_SUPABASE_URL + "/functions/v1/inquiry-assistant-";
 const AI_CHAT_HISTORY_LIMIT = 12;
 let aiWorkChatHistory = [];
+// AI 답변 아바타 — 글자 "AI" 대신 로봇 얼굴 아이콘으로 AI다운 느낌을 준다.
+const AI_AVATAR_ICON = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8V4H8"></path><rect width="16" height="12" x="4" y="8" rx="2"></rect><path d="M2 14h2"></path><path d="M20 14h2"></path><path d="M15 13v2"></path><path d="M9 13v2"></path></svg>`;
+// FAB 버튼 아이콘 — 패널이 닫혀 있을 땐 채팅 말풍선, 열려 있을 땐 종료(X)로 바뀐다.
+const AI_FAB_ICON_CHAT = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.6 8.6 0 0 1-7.7 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.6a8.4 8.4 0 0 1-.9-3.8 8.6 8.6 0 0 1 4.7-7.7 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5Z"></path><path d="M8.2 11.8h.01"></path><path d="M12 11.8h.01"></path><path d="M15.8 11.8h.01"></path></svg>`;
+const AI_FAB_ICON_CLOSE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>`;
+function setAiFabState(isOpen) {
+  const btn = document.getElementById("__aiChatFab");
+  if (!btn) return;
+  btn.innerHTML = isOpen ? AI_FAB_ICON_CLOSE : AI_FAB_ICON_CHAT;
+  btn.classList.toggle("is-open", isOpen);
+  btn.setAttribute("aria-label", isOpen ? "AI 업무도우미 닫기" : "AI 업무도우미 열기");
+}
 
 function initAiChatFab() {
   initAiWorkPanel();
@@ -466,18 +479,17 @@ function initAiWorkPanel() {
         <strong>AI 업무도우미</strong>
         <span>내부 상담/답변 초안 도구</span>
       </div>
-      <button type="button" class="ai-work-close" data-ai-close aria-label="닫기">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
-      </button>
     </div>
     <div class="ai-work-tabs" role="tablist">
       <button type="button" class="active" data-ai-tab="chat">업무 질문</button>
+      <button type="button" data-ai-tab="spellcheck">맞춤법 검사</button>
+      <button type="button" data-ai-tab="translate">번역</button>
       <button type="button" data-ai-tab="inquiry">문의 답변</button>
     </div>
     <section class="ai-work-pane active" data-ai-pane="chat">
       <div class="ai-chat-messages" id="__aiChatMessages">
         <div class="ai-msg ai-msg-bot">
-          <div class="ai-msg-avatar">AI</div>
+          <div class="ai-msg-avatar">${AI_AVATAR_ICON}</div>
           <div class="ai-msg-bubble">내부 업무용 AI 도우미입니다. 단열재 설명, 고객 응대 문구, 계산 결과 해석처럼 업무에 필요한 내용을 질문해 주세요.</div>
         </div>
       </div>
@@ -488,38 +500,39 @@ function initAiWorkPanel() {
         </button>
       </div>
     </section>
-    <section class="ai-work-pane" data-ai-pane="inquiry">
-      <div class="ai-inquiry-controls">
-        <label>스토어
-          <select id="__aiStore">
-            <option value="energuard">에너가드컴퍼니</option>
-            <option value="korean">한국단열</option>
-          </select>
-        </label>
-        <label>답변 방식
-          <select id="__aiMode">
-            <option value="simple">심플</option>
-            <option value="detail">심화</option>
-          </select>
-        </label>
+    <section class="ai-work-pane" data-ai-pane="spellcheck">
+      <textarea id="__aiSpellInput" class="ai-inquiry-text" placeholder="맞춤법을 검사할 문장을 입력하세요."></textarea>
+      <div class="ai-inquiry-actions">
+        <button type="button" class="ai-secondary-btn" data-ai-clear-spell>지우기</button>
+        <button type="button" class="ai-primary-btn" data-ai-generate-spell>검사하기</button>
       </div>
-      <label class="ai-inquiry-label">상품
-        <select id="__aiProduct">
-          <option value="">자동 인식</option>
-          <option value="빌트론 열반사 단열재">빌트론 열반사 단열재</option>
-          <option value="아이소핑크 (XPS)">아이소핑크 (XPS)</option>
-          <option value="비드법 단열재">비드법 단열재</option>
-          <option value="경질우레탄 보드">경질우레탄 보드</option>
-          <option value="PF보드">PF보드</option>
-          <option value="불연단열재">불연단열재</option>
-          <option value="우레탄폼본드">우레탄폼본드</option>
-          <option value="어싱매트 / 어싱패드">어싱매트 / 어싱패드</option>
-        </select>
-      </label>
+      <div class="ai-inquiry-result" id="__aiSpellResult">
+        <span>교정된 문장이 여기에 표시됩니다.</span>
+      </div>
+      <button type="button" class="ai-copy-btn" data-ai-copy-spell hidden>결과 복사</button>
+    </section>
+    <section class="ai-work-pane" data-ai-pane="translate">
+      <div class="ai-lang-tabs" id="__aiLangTabs">
+        <button type="button" class="ai-lang-tab active" data-lang="en">영어</button>
+        <button type="button" class="ai-lang-tab" data-lang="ja">일본어</button>
+        <button type="button" class="ai-lang-tab" data-lang="zh-Hans">중국어(간체)</button>
+        <button type="button" class="ai-lang-tab" data-lang="ru">러시아어</button>
+      </div>
+      <textarea id="__aiTranslateInput" class="ai-inquiry-text" placeholder="번역할 문장을 입력하세요."></textarea>
+      <div class="ai-inquiry-actions">
+        <button type="button" class="ai-secondary-btn" data-ai-clear-translate>지우기</button>
+        <button type="button" class="ai-primary-btn" data-ai-generate-translate>번역하기</button>
+      </div>
+      <div class="ai-inquiry-result" id="__aiTranslateResult">
+        <span>번역 결과가 여기에 표시됩니다.</span>
+      </div>
+      <button type="button" class="ai-copy-btn" data-ai-copy-translate hidden>결과 복사</button>
+    </section>
+    <section class="ai-work-pane" data-ai-pane="inquiry">
       <textarea id="__aiInquiryInput" class="ai-inquiry-text" placeholder="고객 문의를 붙여넣으세요."></textarea>
       <div class="ai-inquiry-actions">
         <button type="button" class="ai-secondary-btn" data-ai-clear-inquiry>지우기</button>
-        <button type="button" class="ai-primary-btn" data-ai-generate-inquiry>답변 생성</button>
+        <button type="button" class="ai-primary-btn" data-ai-generate-inquiry>생성하기</button>
       </div>
       <div class="ai-inquiry-result" id="__aiInquiryResult">
         <span>생성된 고객 답변 초안이 여기에 표시됩니다.</span>
@@ -532,10 +545,20 @@ function initAiWorkPanel() {
 
 function bindAiWorkPanel() {
   document.addEventListener("click", (e) => {
-    if (e.target.closest("[data-ai-close]")) closeAiWorkPanel();
     const tab = e.target.closest("[data-ai-tab]");
     if (tab) setAiTab(tab.dataset.aiTab);
+    const langTab = e.target.closest("[data-lang]");
+    if (langTab) {
+      activeTranslateLang = langTab.dataset.lang;
+      document.querySelectorAll(".ai-lang-tab").forEach(b => b.classList.toggle("active", b.dataset.lang === activeTranslateLang));
+    }
     if (e.target.closest("[data-ai-send-chat]")) sendAiWorkChat();
+    if (e.target.closest("[data-ai-generate-spell]")) generateSpellCheck();
+    if (e.target.closest("[data-ai-clear-spell]")) clearSpellCheck();
+    if (e.target.closest("[data-ai-copy-spell]")) copySpellCheckAnswer();
+    if (e.target.closest("[data-ai-generate-translate]")) generateTranslate();
+    if (e.target.closest("[data-ai-clear-translate]")) clearTranslate();
+    if (e.target.closest("[data-ai-copy-translate]")) copyTranslateAnswer();
     if (e.target.closest("[data-ai-generate-inquiry]")) generateAiInquiryAnswer();
     if (e.target.closest("[data-ai-clear-inquiry]")) clearAiInquiry();
     if (e.target.closest("[data-ai-copy-inquiry]")) copyAiInquiryAnswer();
@@ -559,6 +582,7 @@ function toggleAiWorkPanel() {
   const panel = document.getElementById("__aiWorkPanel");
   if (!panel) return;
   panel.classList.toggle("open");
+  setAiFabState(panel.classList.contains("open"));
   if (panel.classList.contains("open")) {
     setTimeout(() => {
       const input = document.getElementById("__aiChatInput");
@@ -570,6 +594,7 @@ function toggleAiWorkPanel() {
 function closeAiWorkPanel() {
   const panel = document.getElementById("__aiWorkPanel");
   if (panel) panel.classList.remove("open");
+  setAiFabState(false);
 }
 
 function setAiTab(name) {
@@ -587,6 +612,17 @@ async function sendAiWorkChat() {
   aiWorkChatHistory.push({ role: "user", parts: [{ text }] });
   trimAiWorkChatHistory();
   showAiTyping();
+
+  // 판상형 단열재 수량 질문은 AI가 어림짐작하지 않고, 실제 계산기(calc/insulation-board.html)와
+  // 같은 산식으로 정확히 계산한 값으로 답한다. 계산 요청이 아니면 null → 일반 대화로 넘어간다.
+  const calcAnswer = await tryInsulationBoardCalc(text);
+  if (calcAnswer) {
+    hideAiTyping();
+    appendAiChatMessage("model", calcAnswer, { calc: true });
+    aiWorkChatHistory.push({ role: "model", parts: [{ text: calcAnswer }] });
+    trimAiWorkChatHistory();
+    return;
+  }
 
   try {
     const res = await fetch(AI_CHAT_URL, {
@@ -612,18 +648,222 @@ async function sendAiWorkChat() {
   }
 }
 
+// ── 판상형 단열재 수량 계산기 연동 (파일럿) ──────────────────────────────
+// calc/insulation-board.js의 calculate() 산식을 그대로 포팅. 평수만 알아도(가로×세로가
+// 아니어도) 계산 가능하도록 areaPyeong 경로를 추가한 것 외엔 실제 계산기와 동일하다.
+const AI_CALC_KEYWORD_RE = /판상형|아이소핑크|비드법|단열재.{0,6}(장|수량)|단열재.{0,10}필요|몇\s*장/;
+async function tryInsulationBoardCalc(question) {
+  if (!AI_CALC_KEYWORD_RE.test(question)) return null;
+
+  const extractPrompt = `다음 문장이 "판상형 단열재(아이소핑크, 비드법 단열재 등) 수량 계산" 요청인지 판단해줘.
+아래 JSON 형식으로만 답하고, 그 외의 설명이나 말은 절대 하지 마.
+
+{"match": true 또는 false, "areaM2": 숫자 또는 null, "areaPyeong": 숫자 또는 null, "wallWidthMm": 숫자 또는 null, "wallHeightMm": 숫자 또는 null, "boardWidthMm": 숫자, "boardHeightMm": 숫자, "lossRate": 숫자}
+
+- "헤베", "㎡", "제곱미터", "평방미터", "m2"처럼 면적을 제곱미터 단위로 직접 말했으면 areaM2만 채우고 나머지(areaPyeong/wallWidthMm/wallHeightMm)는 null.
+- 평수(평)만 언급됐으면 areaPyeong만 채우고 나머지는 null.
+- 가로×세로(m, cm, mm 등 길이 두 개)가 따로 언급됐으면 mm 단위로 환산해 wallWidthMm/wallHeightMm를 채우고 나머지는 null.
+- 면적을 특정할 수 없으면 match를 false로.
+- 단열재 규격 언급이 없으면 boardWidthMm=900, boardHeightMm=1800 (표준 규격).
+- 할증률 언급이 없으면 lossRate=5.
+- 계산 요청이 아니면 {"match": false} 만 답해.
+
+문장: "${question}"`;
+
+  try {
+    const res = await fetch(AI_CHAT_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + AI_SUPABASE_ANON_KEY,
+        "apikey": AI_SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({ chatHistory: [{ role: "user", parts: [{ text: extractPrompt }] }] }),
+    });
+    const data = await res.json();
+    const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const jsonText = (raw.match(/\{[\s\S]*\}/) || [])[0];
+    if (!jsonText) return null;
+    const parsed = JSON.parse(jsonText);
+    if (!parsed || !parsed.match) return null;
+
+    const boardWidthMm = Number(parsed.boardWidthMm) || 900;
+    const boardHeightMm = Number(parsed.boardHeightMm) || 1800;
+    const lossRate = Number.isFinite(Number(parsed.lossRate)) ? Number(parsed.lossRate) : 5;
+
+    let netAreaM2 = null;
+    if (Number(parsed.areaM2) > 0) {
+      netAreaM2 = Number(parsed.areaM2);
+    } else if (Number(parsed.areaPyeong) > 0) {
+      netAreaM2 = Number(parsed.areaPyeong) * 3.30579;
+    } else if (Number(parsed.wallWidthMm) > 0 && Number(parsed.wallHeightMm) > 0) {
+      netAreaM2 = (Number(parsed.wallWidthMm) * Number(parsed.wallHeightMm)) / 1_000_000;
+    }
+    if (!(netAreaM2 > 0) || !(boardWidthMm > 0) || !(boardHeightMm > 0)) return null;
+
+    const boardAreaM2 = (boardWidthMm * boardHeightMm) / 1_000_000;
+    const baseCount = netAreaM2 / boardAreaM2;
+    const finalCount = Math.ceil(baseCount * (1 + lossRate / 100));
+    const netAreaText = (Math.round(netAreaM2 * 100) / 100).toFixed(2);
+    const boardAreaText = (Math.round(boardAreaM2 * 100) / 100).toFixed(2);
+
+    return `면적: 약 ${netAreaText}㎡\n` +
+      `단열재 규격: ${boardWidthMm}×${boardHeightMm}mm (1장 ${boardAreaText}㎡)\n` +
+      `할증률: ${lossRate}%\n\n` +
+      `필요 수량: 총 ${finalCount}장\n\n` +
+      `(현장 여건이나 차감면적(창문·문 등)에 따라 실제 수량은 달라질 수 있습니다.)`;
+  } catch (err) {
+    return null; // 추출 실패 시 조용히 일반 대화로 넘어간다
+  }
+}
+
+// ── 맞춤법 검사 탭 ──────────────────────────────────────────────
+let aiSpellReqId = 0;
+async function generateSpellCheck() {
+  const input = document.getElementById("__aiSpellInput");
+  const result = document.getElementById("__aiSpellResult");
+  const copyBtn = document.querySelector("[data-ai-copy-spell]");
+  const text = input ? input.value.trim() : "";
+  if (!text) {
+    showToast("검사할 문장을 입력해 주세요.");
+    return;
+  }
+  const reqId = ++aiSpellReqId;
+  result.innerHTML = `<div class="ai-result-loading">맞춤법 검사 중...</div>`;
+  copyBtn.hidden = true;
+
+  const prompt = `다음 문장의 맞춤법과 띄어쓰기를 교정해줘. 원래 의미와 말투(존댓말/반말 등)는 최대한 그대로 유지하고,
+설명이나 부가 설명 없이 교정된 문장만 답해. 이미 맞으면 원문 그대로 답해.
+
+문장: "${text}"`;
+
+  try {
+    const res = await fetch(AI_CHAT_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + AI_SUPABASE_ANON_KEY,
+        "apikey": AI_SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({ chatHistory: [{ role: "user", parts: [{ text: prompt }] }] }),
+    });
+    const data = await res.json();
+    if (reqId !== aiSpellReqId) return;
+    const answer = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!res.ok || data.error || !answer) throw new Error(data?.error?.message || data?.error || "응답을 받지 못했습니다.");
+    const cleaned = answer.trim().replace(/^["'“”]|["'“”]$/g, "");
+    result.dataset.answer = cleaned;
+    result.innerHTML = formatAiText(cleaned);
+    copyBtn.hidden = false;
+  } catch (err) {
+    if (reqId !== aiSpellReqId) return;
+    result.dataset.answer = "";
+    result.innerHTML = `<span>맞춤법 검사 중 오류가 발생했습니다: ${escapeAiText(err.message || "오류")}</span>`;
+  }
+}
+
+function clearSpellCheck() {
+  aiSpellReqId++; // 진행 중이던 요청의 응답이 와도 무시되게
+  const input = document.getElementById("__aiSpellInput");
+  const result = document.getElementById("__aiSpellResult");
+  const copyBtn = document.querySelector("[data-ai-copy-spell]");
+  if (input) input.value = "";
+  if (result) {
+    result.dataset.answer = "";
+    result.innerHTML = "<span>교정된 문장이 여기에 표시됩니다.</span>";
+  }
+  if (copyBtn) copyBtn.hidden = true;
+}
+
+function copySpellCheckAnswer() {
+  const result = document.getElementById("__aiSpellResult");
+  const text = result?.dataset.answer || result?.textContent || "";
+  if (!text.trim()) return;
+  navigator.clipboard.writeText(text).then(() => showToast("교정된 문장을 복사했습니다."));
+}
+
+// ── 번역 탭 ──────────────────────────────────────────────────
+const AI_LANG_LABELS = { en: "영어", ja: "일본어", "zh-Hans": "중국어(간체)", ru: "러시아어" };
+let activeTranslateLang = "en";
+let aiTranslateReqId = 0;
+async function generateTranslate() {
+  const input = document.getElementById("__aiTranslateInput");
+  const result = document.getElementById("__aiTranslateResult");
+  const copyBtn = document.querySelector("[data-ai-copy-translate]");
+  const text = input ? input.value.trim() : "";
+  if (!text) {
+    showToast("번역할 문장을 입력해 주세요.");
+    return;
+  }
+  const reqId = ++aiTranslateReqId;
+  result.innerHTML = `<div class="ai-result-loading">번역 중...</div>`;
+  copyBtn.hidden = true;
+
+  const langLabel = AI_LANG_LABELS[activeTranslateLang] || "영어";
+  const prompt = `다음 문장을 ${langLabel}로 번역해줘. 원래 의미와 어투(존댓말/반말, 안내/문의 등)를 최대한 살리고,
+설명이나 부가 설명 없이 번역된 문장만 답해.
+
+문장: "${text}"`;
+
+  try {
+    const res = await fetch(AI_CHAT_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + AI_SUPABASE_ANON_KEY,
+        "apikey": AI_SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({ chatHistory: [{ role: "user", parts: [{ text: prompt }] }] }),
+    });
+    const data = await res.json();
+    if (reqId !== aiTranslateReqId) return;
+    const answer = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!res.ok || data.error || !answer) throw new Error(data?.error?.message || data?.error || "응답을 받지 못했습니다.");
+    const cleaned = answer.trim().replace(/^["'“”]|["'“”]$/g, "");
+    result.dataset.answer = cleaned;
+    result.innerHTML = formatAiText(cleaned);
+    copyBtn.hidden = false;
+  } catch (err) {
+    if (reqId !== aiTranslateReqId) return;
+    result.dataset.answer = "";
+    result.innerHTML = `<span>번역 중 오류가 발생했습니다: ${escapeAiText(err.message || "오류")}</span>`;
+  }
+}
+
+function clearTranslate() {
+  aiTranslateReqId++; // 진행 중이던 요청의 응답이 와도 무시되게
+  const input = document.getElementById("__aiTranslateInput");
+  const result = document.getElementById("__aiTranslateResult");
+  const copyBtn = document.querySelector("[data-ai-copy-translate]");
+  if (input) input.value = "";
+  if (result) {
+    result.dataset.answer = "";
+    result.innerHTML = "<span>번역 결과가 여기에 표시됩니다.</span>";
+  }
+  if (copyBtn) copyBtn.hidden = true;
+}
+
+function copyTranslateAnswer() {
+  const result = document.getElementById("__aiTranslateResult");
+  const text = result?.dataset.answer || result?.textContent || "";
+  if (!text.trim()) return;
+  navigator.clipboard.writeText(text).then(() => showToast("번역 결과를 복사했습니다."));
+}
+
 function trimAiWorkChatHistory() {
   if (aiWorkChatHistory.length > AI_CHAT_HISTORY_LIMIT) {
     aiWorkChatHistory = aiWorkChatHistory.slice(-AI_CHAT_HISTORY_LIMIT);
   }
 }
 
-function appendAiChatMessage(role, text) {
+function appendAiChatMessage(role, text, opts) {
   const box = document.getElementById("__aiChatMessages");
   if (!box) return;
+  const isCalc = !!(opts && opts.calc);
   const div = document.createElement("div");
-  div.className = "ai-msg " + (role === "user" ? "ai-msg-user" : "ai-msg-bot");
-  div.innerHTML = `<div class="ai-msg-avatar">${role === "user" ? "나" : "AI"}</div><div class="ai-msg-bubble">${formatAiText(text)}</div>`;
+  div.className = "ai-msg " + (role === "user" ? "ai-msg-user" : "ai-msg-bot") + (isCalc ? " ai-msg-calc" : "");
+  const tag = isCalc ? `<span class="ai-msg-tag">🧮 계산기 연동 답변</span>` : "";
+  div.innerHTML = `<div class="ai-msg-avatar">${role === "user" ? "나" : AI_AVATAR_ICON}</div><div class="ai-msg-bubble">${tag}${formatAiText(text)}</div>`;
   box.appendChild(div);
   box.scrollTop = box.scrollHeight;
 }
@@ -634,7 +874,7 @@ function showAiTyping() {
   const div = document.createElement("div");
   div.id = "__aiTyping";
   div.className = "ai-msg ai-msg-bot";
-  div.innerHTML = `<div class="ai-msg-avatar">AI</div><div class="ai-msg-bubble"><span class="ai-typing-dot"></span><span class="ai-typing-dot"></span><span class="ai-typing-dot"></span></div>`;
+  div.innerHTML = `<div class="ai-msg-avatar">${AI_AVATAR_ICON}</div><div class="ai-msg-bubble"><span class="ai-typing-dot"></span><span class="ai-typing-dot"></span><span class="ai-typing-dot"></span></div>`;
   box.appendChild(div);
   box.scrollTop = box.scrollHeight;
 }
@@ -644,6 +884,7 @@ function hideAiTyping() {
   if (typing) typing.remove();
 }
 
+let aiInquiryReqId = 0;
 async function generateAiInquiryAnswer() {
   const input = document.getElementById("__aiInquiryInput");
   const result = document.getElementById("__aiInquiryResult");
@@ -653,10 +894,9 @@ async function generateAiInquiryAnswer() {
     showToast("고객 문의 내용을 입력해 주세요.");
     return;
   }
-  const product = document.getElementById("__aiProduct").value;
-  const store = document.getElementById("__aiStore").value;
-  const mode = document.getElementById("__aiMode").value;
-  const payloadInquiry = product ? `[상품: ${product}]\n\n${inquiry}` : inquiry;
+  // 스토어/상품/답변방식을 직접 고르게 하지 않고, 문의 내용만으로 AI가 전부 자동 인식하게 한다.
+  // 답변은 항상 심화(detail) 모드로 고정.
+  const reqId = ++aiInquiryReqId;
   result.innerHTML = `<div class="ai-result-loading">답변 생성 중...</div>`;
   copyBtn.hidden = true;
 
@@ -668,20 +908,23 @@ async function generateAiInquiryAnswer() {
         "Authorization": "Bearer " + AI_SUPABASE_ANON_KEY,
         "apikey": AI_SUPABASE_ANON_KEY,
       },
-      body: JSON.stringify({ inquiry: payloadInquiry, store, mode }),
+      body: JSON.stringify({ inquiry, mode: "detail" }),
     });
     const data = await res.json();
+    if (reqId !== aiInquiryReqId) return; // 응답 도착 전에 문의 내용이 더 바뀌어 새 요청이 이미 시작됨
     if (!res.ok || data.error) throw new Error(data.error || "서버 오류");
     result.dataset.answer = data.answer || "";
     result.innerHTML = formatAiText(data.answer || "");
     copyBtn.hidden = false;
   } catch (err) {
+    if (reqId !== aiInquiryReqId) return;
     result.dataset.answer = "";
     result.innerHTML = `<span>답변 생성 중 오류가 발생했습니다: ${escapeAiText(err.message || "오류")}</span>`;
   }
 }
 
 function clearAiInquiry() {
+  aiInquiryReqId++; // 진행 중이던 요청의 응답이 와도 무시되게
   const input = document.getElementById("__aiInquiryInput");
   const result = document.getElementById("__aiInquiryResult");
   const copyBtn = document.querySelector("[data-ai-copy-inquiry]");
