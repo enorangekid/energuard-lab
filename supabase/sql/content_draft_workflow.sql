@@ -59,3 +59,12 @@ create policy "content drafts anon read"
 on public.content_drafts for select
 to anon
 using (true);
+
+-- 유튜브 초안 확정(setYoutubeStatus → content_drafts.ai_notes PATCH)이 anon 키로 오는데
+-- update 정책이 없어서 조용히 막히고 있었다(에러 없이 0행 갱신 → 새로고침하면 원상복구된 것처럼 보임).
+drop policy if exists "content drafts anon update" on public.content_drafts;
+create policy "content drafts anon update"
+on public.content_drafts for update
+to anon
+using (true)
+with check (true);

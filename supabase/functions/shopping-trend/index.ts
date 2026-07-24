@@ -385,7 +385,7 @@ function isBlogCandidate(keyword: string) {
 
 function isPotentialContentTopic(keyword: string) {
   return isBlogCandidate(keyword)
-    || /기온|무더위|더위|한파|폭설|태풍|집중호우|호우|침수|습도|냉방|난방|전기료|에너지비|관리비|실내온도|주거|주택|아파트|리모델링|인테리어|셀프시공|DIY|캠핑|차량온도|자동차열|차량커튼|방수|누수|환기/i.test(keyword);
+    || /기온|무더위|더위|한파|폭설|태풍|집중호우|호우|침수|습도|냉방|난방|전기료|에너지비|관리비|실내온도|주거|주택|아파트|리모델링|인테리어|셀프시공|DIY|캠핑|차량온도|자동차열|차량커튼|방수|누수|환기|겨울|여름|환절기|미세먼지|가습기|보일러|난방비|전기세|가스비|온풍기|히터|장판|바닥|외풍|문풍지|뽁뽁이|샷시|창호|방음|흡음|건조|온수매트|전기장판/i.test(keyword);
 }
 
 function isBlogNoise(keyword: string) {
@@ -422,6 +422,7 @@ type ContentIdeaCandidate = {
   keyword: string;
   sources: string[];
   context?: string;
+  searchVolume?: number;
 };
 
 type SemanticIdea = ContentIdeaCandidate & {
@@ -462,8 +463,42 @@ function contentIdeaPool(
   return [...map.values()].sort((a, b) => a.rank - b.rank).slice(0, 36);
 }
 
+/* 단열뉴스(이슈 클러스터)·단열급상승(데이터랩 급증 감지) 후보 → 발굴 키워드 자동 적재용 풀.
+   실시간 통합과 달리 이 둘은 애초에 단열 시드어로만 모은 데이터라 관련성 필터
+   (isBlogNoise/isPotentialContentTopic)를 다시 걸 필요가 없어 그대로 통과시킨다. */
+function contentIdeaPoolFromNiche(
+  newsNiche: Array<{ rank: number; keyword: string; sources?: string[]; query?: string }>,
+  spikeNiche: Array<{ rank: number; keyword: string; sources?: string[]; volume?: number | null }>,
+) {
+  const map = new Map<string, ContentIdeaCandidate>();
+  newsNiche.forEach(item => {
+    const keyword = cleanIdeaKeyword(item.keyword); // 이슈 헤드라인 자체를 아이디어로 — 시드어보다 구체적
+    const key = ideaKey(keyword);
+    if (!key) return;
+    map.set(key, {
+      rank: item.rank,
+      keyword,
+      sources: item.sources || [],
+      context: item.query ? `시드어: ${item.query}` : undefined,
+    });
+  });
+  spikeNiche.forEach(item => {
+    const keyword = cleanIdeaKeyword(item.keyword);
+    const key = ideaKey(keyword);
+    if (!key || map.has(key)) return; // 뉴스 쪽에 이미 같은 키워드로 이슈가 잡혔으면 그쪽을 우선
+    // 급상승 후보는 이미 검색광고 키워드도구로 검색량을 확인해뒀다(collectNicheSpikeData) — 그대로 물려준다.
+    map.set(key, {
+      rank: item.rank, keyword, sources: item.sources || [],
+      searchVolume: item.volume != null ? item.volume : undefined,
+    });
+  });
+  return [...map.values()].sort((a, b) => a.rank - b.rank).slice(0, 36);
+}
+
 function fallbackSemanticIdeas(items: ContentIdeaCandidate[]): SemanticIdea[] {
-  return items.filter(item => isBlogCandidate(item.keyword)).slice(0, 14).map(item => {
+  // isPotentialContentTopic(더 넓은 기준)을 씀 — isBlogCandidate로 한 번 더 좁히면
+  // contentIdeaPool에서 이미 통과한 후보를 여기서 다시 걸러내는 이중 필터가 된다.
+  return items.filter(item => isPotentialContentTopic(item.keyword)).slice(0, 14).map(item => {
     const category = ideaCategory(item.keyword);
     return {
       ...item,
@@ -500,7 +535,7 @@ async function selectSemanticIdeas(items: ContentIdeaCandidate[]): Promise<Seman
             "아래 후보에서 최대 14개를 선택하세요. 적합한 후보가 없으면 빈 배열을 반환하세요.",
             "채택 예: 장마, 제습기, 냉방비, 폭염, 차량 햇빛차단, 실외기 관리, 결로, 창문 열차단.",
             "탈락 예: 연예인 이름, 치매, 스마트폰 신제품, 스포츠 경기, 정치인, 가짜뉴스. 단열과 문장으로 연결할 수 있다는 이유만으로 채택하지 마세요.",
-            "keep은 키워드 자체가 실용 콘텐츠 수요를 담을 때만 true이며 relevanceScore 70 이상이어야 합니다.",
+            "keep은 키워드 자체가 실용 콘텐츠 수요를 담을 때만 true이며 relevanceScore 55 이상이어야 합니다.",
             "category는 아이소핑크, 열반사단열재, 단열벽지, 기타 중 하나로 분류하세요.",
             "contentAngle은 실제 블로그 제목 방향을 한 문장으로, selectionReason은 선정 이유를 짧게 작성하세요.",
             '반환 형식: {"items":[{"keyword":"","keep":true,"relevanceScore":0,"category":"기타","productGroup":"","contentAngle":"","selectionReason":""}]}',
@@ -518,7 +553,7 @@ async function selectSemanticIdeas(items: ContentIdeaCandidate[]): Promise<Seman
     const original = sourceMap.get(ideaKey(row.keyword));
     if (!original) return null;
     const relevanceScore = clampScore(row.relevanceScore);
-    if (row.keep !== true || relevanceScore < 70 || !isPotentialContentTopic(original.keyword)) return null;
+    if (row.keep !== true || relevanceScore < 55 || !isPotentialContentTopic(original.keyword)) return null;
     const category = ["아이소핑크", "열반사단열재", "단열벽지", "기타"].includes(row.category) ? row.category : ideaCategory(original.keyword);
     return {
       ...original,
@@ -531,17 +566,17 @@ async function selectSemanticIdeas(items: ContentIdeaCandidate[]): Promise<Seman
   }).filter(Boolean).slice(0, 14) as SemanticIdea[];
 }
 
-async function saveContentIdeas(slot: string, items: SemanticIdea[]) {
+async function saveContentIdeas(slot: string, items: SemanticIdea[], idPrefix = "trend", source = "trend") {
   const rows = items.map(item => {
     const seasonScore = ideaSeasonScore(`${item.keyword} ${item.contentAngle}`);
     const trendScore = Math.max(45, 105 - Number(item.rank || 99) * 4 + Math.max(0, item.sources.length - 1) * 6);
     return {
-      id: `trend-${kstDateKey(slot)}-${ideaKey(item.keyword)}`,
+      id: `${idPrefix}-${kstDateKey(slot)}-${ideaKey(item.keyword)}`,
       keyword: item.keyword,
-      source: "trend",
+      source,
       category: item.category,
       product_group: item.productGroup,
-      search_volume: 0,
+      search_volume: Math.max(0, Number(item.searchVolume) || 0),
       competition_score: Math.max(25, Math.min(78, 45 + Number(item.rank || 0))),
       season_score: seasonScore,
       trend_score: clampScore(trendScore),
@@ -552,12 +587,29 @@ async function saveContentIdeas(slot: string, items: SemanticIdea[]) {
     };
   });
   if (!rows.length) return 0;
-  const idsFilter = encodeURIComponent(`(${rows.map(row => `"${row.id.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`).join(",")})`);
+  const pgListLiteral = (values: string[]) =>
+    encodeURIComponent(`(${values.map(v => `"${v.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`).join(",")})`);
+
+  const idsFilter = pgListLiteral(rows.map(row => row.id));
   const existing: Array<{ id: string; status: string }> = await supabaseRequest(
     `/rest/v1/${CONTENT_IDEA_TABLE}?select=id,status&id=in.${idsFilter}`,
   ).catch(() => []) || [];
   const existingStatus = new Map(existing.map(row => [row.id, row.status]));
+
+  // 다른 id(다른 소스)로 이미 등록된 같은 키워드는 새로 만들지 않는다 — 예: 실시간(trend)이나
+  // 사용자가 직접(manual) 추가해 이미 처리(used/hold 등)한 키워드를, 단열뉴스/급상승(niche)이
+  // 나중에 또 발견해서 "새 후보"로 다시 띄우면 사용자가 이미 다룬 키워드가 재등장한다.
+  const keywordFilter = pgListLiteral(rows.map(row => row.keyword));
+  const existingByKeyword: Array<{ id: string; keyword: string }> = await supabaseRequest(
+    `/rest/v1/${CONTENT_IDEA_TABLE}?select=id,keyword&keyword=in.${keywordFilter}`,
+  ).catch(() => []) || [];
+  const idSet = new Set(rows.map(row => row.id));
+  const takenKeywords = new Set(
+    existingByKeyword.filter(row => !idSet.has(row.id)).map(row => ideaKey(row.keyword)),
+  );
+
   const writableRows = rows
+    .filter(row => !takenKeywords.has(ideaKey(row.keyword)))
     .filter(row => !existingStatus.has(row.id) || existingStatus.get(row.id) === "candidate")
     .map(row => ({ ...row, status: existingStatus.get(row.id) || "candidate" }));
   if (!writableRows.length) return 0;
@@ -1135,6 +1187,19 @@ async function collectNicheDaily() {
   } else errors.push(`spike: ${String(spikeResult.reason?.message || spikeResult.reason)}`);
   if (!saved.length) throw new Error(errors.join(" / "));
   await cleanupNicheDailySnapshots().catch(() => null);
+
+  // 단열뉴스·단열급상승은 이미 단열 시드어로만 모은 데이터라 발굴 키워드 자동 적재에도 쓴다.
+  // 실패해도 위 스냅샷 저장은 이미 끝났으니 조용히 무시한다.
+  try {
+    const newsNiche = newsResult.status === "fulfilled" ? (newsResult.value.niche || []) : [];
+    const spikeNiche = spikeResult.status === "fulfilled" ? (spikeResult.value.niche || []) : [];
+    const nichePool = contentIdeaPoolFromNiche(newsNiche, spikeNiche);
+    if (nichePool.length) {
+      const nicheIdeas = await selectSemanticIdeas(nichePool).catch(() => fallbackSemanticIdeas(nichePool));
+      await saveContentIdeas(kstToday(), nicheIdeas, "niche", "niche");
+    }
+  } catch (_) { /* 발굴 키워드 자동 적재 실패는 무시 */ }
+
   return { ok: true, snapshotDate: kstToday(), saved, errors, capturedAt: new Date().toISOString() };
 }
 

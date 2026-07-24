@@ -25,8 +25,6 @@ type DraftResult = {
   title: string;
   outline: string[];
   body: string;
-  faq: string[];
-  thumbnail: string;
   aiNotes?: string;
 };
 
@@ -34,7 +32,6 @@ type YoutubeScriptResult = {
   youtubeTitle: string;
   youtubeOutline: string[];
   youtubeBody: string;
-  youtubeNotes?: string;
 };
 
 function json(data: unknown, status = 200) {
@@ -370,20 +367,17 @@ function buildPrompt(idea: Required<IdeaPayload>) {
     "- 문단 사이 호흡이 느껴지도록 줄바꿈을 충분히 넣습니다.",
     "",
     "반드시 JSON만 반환하세요.",
-    '형식: {"title":"질문형 제목","outline":["이모지 소제목1","이모지 소제목2"],"body":"도입부부터 마무리까지 포함한 전체 본문 초안","faq":["질문1","질문2"],"thumbnail":"썸네일 문구","aiNotes":"검토 메모"}',
+    '형식: {"title":"질문형 제목","outline":["이모지 소제목1","이모지 소제목2"],"body":"도입부부터 마무리까지 포함한 전체 본문 초안","aiNotes":"검토 메모"}',
   ].join("\n");
 }
 
 function normalizeDraft(raw: any, idea: Required<IdeaPayload>): DraftResult {
   const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
   const outline = Array.isArray(parsed.outline) ? parsed.outline.map(cleanText).filter(Boolean) : [];
-  const faq = Array.isArray(parsed.faq) ? parsed.faq.map(cleanText).filter(Boolean) : [];
   return {
     title: cleanText(parsed.title) || `${idea.keyword} 콘텐츠 초안`,
-    outline: outline.length ? outline.slice(0, 6) : ["검색 의도", "상품군 연결", "시공 체크포인트", "FAQ"],
+    outline: outline.length ? outline.slice(0, 6) : ["검색 의도", "상품군 연결", "시공 체크포인트"],
     body: cleanBodyText(parsed.body) || `${idea.keyword} 관련 초안 본문을 검토해 주세요.`,
-    faq: faq.length ? faq.slice(0, 5) : [`${idea.keyword} 선택 시 무엇을 확인해야 하나요?`],
-    thumbnail: cleanText(parsed.thumbnail) || `${idea.keyword} 핵심 체크`,
     aiNotes: cleanText(parsed.aiNotes || parsed.ai_notes),
   };
 }
@@ -440,7 +434,7 @@ function buildYoutubePrompt(idea: Required<IdeaPayload>) {
     "- 결과 본문은 5~8분 분량을 목표로 합니다.",
     "",
     "반드시 JSON만 반환하세요.",
-    '형식: {"youtubeTitle":"영상 제목","youtubeOutline":["[오프닝]","[섹션1]","[아웃트로]"],"youtubeBody":"전체 유튜브 대본","youtubeNotes":"검토 메모"}',
+    '형식: {"youtubeTitle":"영상 제목","youtubeOutline":["[오프닝]","[섹션1]","[아웃트로]"],"youtubeBody":"전체 유튜브 대본"}',
   ].join("\n");
 }
 
@@ -451,7 +445,6 @@ function normalizeYoutubeScript(raw: any, idea: Required<IdeaPayload>): YoutubeS
     youtubeTitle: cleanText(parsed.youtubeTitle || parsed.title) || `${idea.keyword} 유튜브 대본`,
     youtubeOutline: outline.length ? outline.slice(0, 8) : ["[오프닝]", "[핵심 문제]", "[선택 기준]", "[아웃트로]"],
     youtubeBody: cleanBodyText(parsed.youtubeBody || parsed.body) || `${idea.keyword} 관련 유튜브 대본을 검토해 주세요.`,
-    youtubeNotes: cleanText(parsed.youtubeNotes || parsed.aiNotes || parsed.ai_notes),
   };
 }
 
@@ -553,8 +546,6 @@ async function saveDraft(idea: Required<IdeaPayload>, draft: DraftResult) {
         title: draft.title,
         outline: draft.outline,
         body: draft.body,
-        faq: draft.faq,
-        thumbnail: draft.thumbnail,
         ai_notes: aiNotes,
         status: "drafted",
         generated_at: new Date().toISOString(),

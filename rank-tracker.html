@@ -2409,8 +2409,9 @@ function itemKeywords(item) {
   catch (_) { return []; }
 }
 
-/* 상품 링크 → 네이버 상품코드. 스마트스토어/브랜드스토어의 /products/{id}가 기본.
-   가격비교(catalog) 링크는 개별 몰 상품이 아니라 추적이 불안정해 경고만 하고 허용. */
+/* 상품 링크 → 네이버 상품코드. 스마트스토어/브랜드스토어의 /products/{id}가 기본이자 유일하게
+   진짜 판매처 상품번호다. catalog/{id}·nvMid={id}는 둘 다 가격비교(통합) 번호라 판매처 상품
+   번호와 다르고, 등록 시점마다 매칭이 불안정해질 수 있어 둘 다 경고하고 허용만 한다. */
 function parseProductLink(raw) {
   const s = String(raw || "").trim();
   if (!s) return { code: "", warn: "" };
@@ -2419,7 +2420,7 @@ function parseProductLink(raw) {
   m = s.match(/catalog\/(\d+)/);
   if (m) return { code: m[1], warn: "가격비교 카탈로그 링크입니다 — 개별 판매처 상품 링크를 권장합니다." };
   m = s.match(/nvMid=(\d+)/);
-  if (m) return { code: m[1], warn: "" };
+  if (m) return { code: m[1], warn: "가격비교(nvMid) 링크입니다 — 개별 판매처 상품 링크를 권장합니다." };
   if (/^\d{6,}$/.test(s)) return { code: s, warn: "" };
   return { code: "", warn: "" };
 }
@@ -2894,7 +2895,9 @@ function renderTrackedItemCard(item) {
         <button type="button" class="expand-btn" onclick="toggleTrackedItem('${esc(item.product_code)}')" aria-label="키워드 상세 보기"></button>
         ${item.product_link ? `<a class="product-thumb-link" href="${esc(item.product_link)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${thumb}</a>` : thumb}
         <div class="product-info">
-          <span class="product-name" title="${esc(name)}">${esc(name)}</span>
+          ${item.product_link
+            ? `<a class="product-name" href="${esc(item.product_link)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="${esc(name)}">${esc(name)}</a>`
+            : `<span class="product-name" title="${esc(name)}">${esc(name)}</span>`}
           <div class="product-sub">
             <span class="product-code-inline">${esc(item.product_code)}</span>
             ${item.mall_name ? ` · <span class="product-mall-inline">${esc(item.mall_name)}</span>` : ""}
@@ -2949,6 +2952,13 @@ function handleTrendRangeClick(e) {
 
 /* 키워드 랭킹의 내 상품 카드 → 아이템 추적 등록. 모달을 상품 정보로 미리 채워서 연다.
    이미 추적 중이면 수정 모드로 연다. */
+// 네이버가 같은 상품을 스마트스토어 직접링크 대신 가격비교 통합링크로 돌려줄 때가 있어,
+// 등록 시점마다 상품코드가 달라질 수 있다(상품코드가 다르면 코드 비교로는 중복을 못 잡음).
+// 상품명은 그 순간 링크 형태와 무관하게 항상 같으므로, 이름 기준으로 한 번 더 확인한다.
+function duplicateNameKey(name) {
+  return String(name || "").replace(/\s+/g, "").toLowerCase();
+}
+
 async function trackFromProduct(event, code) {
   event.stopPropagation();
   const product = findCachedProduct(code);
@@ -2958,6 +2968,16 @@ async function trackFromProduct(event, code) {
   if (existing) {
     openItemModal(existing.product_code);
     return;
+  }
+  const nameKey = duplicateNameKey(product.name);
+  const nameDup = nameKey && trackedItems.find(i => duplicateNameKey(i.product_name) === nameKey);
+  if (nameDup) {
+    const proceed = confirm(
+      `이름이 같은 상품이 이미 등록되어 있습니다.\n"${nameDup.product_name}" (코드: ${nameDup.product_code})\n\n` +
+      `네이버가 같은 상품을 다른 링크 형태로 보여줘서 코드가 다르게 잡혔을 가능성이 높습니다.\n` +
+      `그래도 별도 상품으로 새로 등록하시겠어요? (취소하면 기존 항목을 엽니다)`
+    );
+    if (!proceed) { openItemModal(nameDup.product_code); return; }
   }
   openItemModal();
   document.getElementById("itemLinkInput").value = product.link || String(code);

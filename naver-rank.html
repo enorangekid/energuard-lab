@@ -1655,6 +1655,13 @@ async function markTrackedButtons() {
   });
 }
 
+// 네이버가 같은 상품을 스마트스토어 직접링크 대신 가격비교 통합링크로 돌려줄 때가 있어,
+// 등록 시점마다 상품코드가 달라질 수 있다(상품코드가 다르면 코드 비교로는 중복을 못 잡음).
+// 상품명은 그 순간 링크 형태와 무관하게 항상 같으므로, 이름 기준으로 한 번 더 확인한다.
+function duplicateNameKey(name) {
+  return String(name || "").replace(/\s+/g, "").toLowerCase();
+}
+
 async function trackItemFromAnalysis(btn) {
   const p = JSON.parse(btn.dataset.item);
   const headers = {
@@ -1678,16 +1685,41 @@ async function trackItemFromAnalysis(btn) {
         });
       }
     } else {
-      await fetch(SUPABASE_URL + "/rest/v1/tracked_items", {
-        method: "POST",
-        headers: { ...headers, "Prefer": "return=minimal" },
-        body: JSON.stringify([{
-          product_code: p.code,
-          product_name: p.name || "", product_image: p.image || "",
-          product_link: p.link || "", mall_name: p.mall || "",
-          is_mine: !!p.isMine, keywords: [p.keyword],
-        }]),
-      });
+      // 코드가 다른 기존 등록이 있는지 이름으로 한 번 더 확인 — 있으면 새로 만들지 말고 그
+      // 항목에 키워드만 얹는다(사용자가 "새로 등록"을 선택하면 그대로 신규 등록).
+      const nameKey = duplicateNameKey(p.name);
+      let dup = null;
+      if (nameKey) {
+        const nameRes = await fetch(SUPABASE_URL + `/rest/v1/tracked_items?select=product_code,product_name,keywords`, { headers });
+        const nameList = nameRes.ok ? await nameRes.json() : [];
+        dup = nameList.find(i => duplicateNameKey(i.product_name) === nameKey) || null;
+      }
+      if (dup && confirm(
+        `이름이 같은 상품이 이미 등록되어 있습니다.\n"${dup.product_name}" (코드: ${dup.product_code})\n\n` +
+        `네이버가 같은 상품을 다른 링크 형태로 보여줘서 코드가 다르게 잡혔을 가능성이 높습니다.\n` +
+        `기존 항목에 이 키워드만 추가할까요? (취소하면 별도 상품으로 새로 등록합니다)`
+      )) {
+        const keywords = Array.isArray(dup.keywords) ? dup.keywords : [];
+        if (!keywords.includes(p.keyword)) {
+          await fetch(SUPABASE_URL + `/rest/v1/tracked_items?product_code=eq.${encodeURIComponent(dup.product_code)}`, {
+            method: "PATCH",
+            headers: { ...headers, "Prefer": "return=minimal" },
+            body: JSON.stringify({ keywords: [...keywords, p.keyword], updated_at: new Date().toISOString() }),
+          });
+        }
+        p.code = dup.product_code; // 아래 이력 저장도 병합된 코드로 맞춘다
+      } else {
+        await fetch(SUPABASE_URL + "/rest/v1/tracked_items", {
+          method: "POST",
+          headers: { ...headers, "Prefer": "return=minimal" },
+          body: JSON.stringify([{
+            product_code: p.code,
+            product_name: p.name || "", product_image: p.image || "",
+            product_link: p.link || "", mall_name: p.mall || "",
+            is_mine: !!p.isMine, keywords: [p.keyword],
+          }]),
+        });
+      }
     }
     // 이미 알고 있는 오늘의 순위·가격을 첫 이력으로 저장 (수집 버튼을 기다릴 필요 없음)
     await fetch(SUPABASE_URL + "/rest/v1/tracked_item_history?on_conflict=product_code,keyword,collected_date", {
