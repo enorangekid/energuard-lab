@@ -1,11 +1,11 @@
 /* ─────────────────────────────────────────
-   칸칸 — sidebar.js
+   에너가드랩 — sidebar.js
    ───────────────────────────────────────── */
 
 'use strict';
 
 // ── 공지사항 ──
-const NOTICE = '몇 장 사야 할지 몰라서 검색하셨나요?     ·     한 장 더 시켰다가 반품 못 한 경험, 있죠?     ·     어림잡지 마세요, 칸칸이 계산합니다     ·     자재 발주가 두려운 당신에게     ·     현장 오차를 줄이는 정밀 실무 로직     ·     셀프 인테리어의 필수 도구 칸칸';
+const NOTICE = '몇 장 사야 할지 몰라서 검색하셨나요?     ·     한 장 더 시켰다가 반품 못 한 경험, 있죠?     ·     어림잡지 마세요, 에너가드랩이 계산합니다     ·     자재 발주가 두려운 당신에게     ·     현장 오차를 줄이는 정밀 실무 로직     ·     셀프 인테리어의 필수 도구 에너가드랩';
 
 function renderNotice() {
   const el = document.getElementById('topbarNotice');
@@ -66,7 +66,7 @@ const NAV_ITEMS = [
 ];
 
 // ── 최근 본 계산기 추적 ──
-const RECENT_KEY = 'kankan_recent';
+const RECENT_KEY = 'energuard_utility_recent';
 
 function trackRecentCalc(name, url) {
   if (!url) return;
@@ -270,7 +270,7 @@ function buildCategoryDropdowns(container, root) {
     dropdown.querySelectorAll('a').forEach(link => {
       link.addEventListener('click', () => {
         if (!document.body.classList.contains('home')) {
-          sessionStorage.setItem('kankan_open_cat', cat);
+          sessionStorage.setItem('energuard_utility_open_cat', cat);
         }
       });
     });
@@ -283,9 +283,9 @@ function buildCategoryDropdowns(container, root) {
   });
 
   // 이전 페이지에서 저장된 카테고리 드롭다운 복원
-  const savedCat = sessionStorage.getItem('kankan_open_cat');
+  const savedCat = sessionStorage.getItem('energuard_utility_open_cat');
   if (savedCat) {
-    sessionStorage.removeItem('kankan_open_cat');
+    sessionStorage.removeItem('energuard_utility_open_cat');
     const savedTab = container.querySelector(`.cat-tab[data-cat="${savedCat}"]`);
     if (savedTab) {
       const savedWrap = savedTab.closest('.cat-tab-wrap');

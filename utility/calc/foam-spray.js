@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────
-   칸칸 — 우레탄폼 스프레이폼[소량] 소요량 계산기 (foam-spray.js)
+   에너가드랩 — 우레탄폼 스프레이폼[소량] 소요량 계산기 (foam-spray.js)
    캔형 840ml / 20mm 기준 3.3㎡ → 필요 캔 수 산출
    ───────────────────────────────────────── */
 
@@ -93,8 +93,8 @@ function resetAll() {
 
 // ── 히스토리 ──
 function addHistory(count, area, thickness, lossRate) {
-  if (KankanHistory.isRestoring) return;
-  KankanHistory.save({
+  if (UtilityHistory.isRestoring) return;
+  UtilityHistory.save({
     id: 'foam-spray',
     calcName: '우레탄폼 스프레이폼[소량] 소요량 계산기',
     url: 'foam-spray.html',
@@ -114,7 +114,7 @@ function addHistory(count, area, thickness, lossRate) {
       { key: '할증률',    val: `${lossRate}%` },
     ]
   });
-  KankanHistory.renderPanel();
+  UtilityHistory.renderPanel();
 }
 
 // ── DOMContentLoaded ──
@@ -125,7 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Enter') calculate();
   });
 
-  KankanHistory.restoreForm();
-  KankanHistory.renderPanel();
-  KankanHistory.renderClearBtn();
+  UtilityHistory.restoreForm();
+  UtilityHistory.renderPanel();
+  UtilityHistory.renderClearBtn();
 });

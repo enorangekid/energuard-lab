@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────
-   칸칸 — 재료별 열전도율 표 (thermal-conductivity.js)
+   에너가드랩 — 재료별 열전도율 표 (thermal-conductivity.js)
    ───────────────────────────────────────── */
 
 'use strict';
@@ -230,6 +230,6 @@ document.addEventListener('DOMContentLoaded', () => {
     render(document.getElementById('tcSearch').value.trim(), currentCat);
   });
 
-  KankanHistory.renderPanel();
-  KankanHistory.renderClearBtn();
+  UtilityHistory.renderPanel();
+  UtilityHistory.renderClearBtn();
 });

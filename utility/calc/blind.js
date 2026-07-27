@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────
-   칸칸 — 블라인드 사이즈 계산기 (blind.js)
+   에너가드랩 — 블라인드 사이즈 계산기 (blind.js)
    ───────────────────────────────────────── */
 
 'use strict';
@@ -87,8 +87,8 @@ function resetAll() {
 
 // ── 히스토리 ──
 function addHistory(orderW, orderH, fw, fh, hm, vm) {
-  if (KankanHistory.isRestoring) return;
-  KankanHistory.save({
+  if (UtilityHistory.isRestoring) return;
+  UtilityHistory.save({
     id: 'blind',
     calcName: '블라인드 사이즈 계산기',
     url: 'blind.html',
@@ -107,7 +107,7 @@ function addHistory(orderW, orderH, fw, fh, hm, vm) {
       { key: '하단 여유', val: marginLabel(vm) },
     ]
   });
-  KankanHistory.renderPanel();
+  UtilityHistory.renderPanel();
 }
 
 function initCustomSelect(wrapId, btnId, listId, hiddenId, onSelect) {
@@ -153,7 +153,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Enter') calculate();
   });
 
-  KankanHistory.restoreForm();
-  KankanHistory.renderPanel();
-  KankanHistory.renderClearBtn();
+  UtilityHistory.restoreForm();
+  UtilityHistory.renderPanel();
+  UtilityHistory.renderClearBtn();
 });

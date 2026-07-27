@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────
-   칸칸 — 단열초배지 소요량 계산기 (thermal-base-wallpaper.js)
+   에너가드랩 — 단열초배지 소요량 계산기 (thermal-base-wallpaper.js)
    폭 1000mm(1M) 고정 롤형 제품 → 필요 길이(m) + 롤 수 산출
    ───────────────────────────────────────── */
 
@@ -222,8 +222,8 @@ function resetAll() {
 
 // ── 히스토리 ──
 function addHistory(length, rollCount, netArea, lossRate, productLabel, rollLength) {
-  if (KankanHistory.isRestoring) return;
-  KankanHistory.save({
+  if (UtilityHistory.isRestoring) return;
+  UtilityHistory.save({
     id: 'thermal-base-wallpaper',
     calcName: '단열초배지 소요량 계산기',
     url: 'thermal-base-wallpaper.html',
@@ -243,7 +243,7 @@ function addHistory(length, rollCount, netArea, lossRate, productLabel, rollLeng
       { key: '할증률',  val: `${lossRate}%` },
     ]
   });
-  KankanHistory.renderPanel();
+  UtilityHistory.renderPanel();
 }
 
 // ── DOMContentLoaded ──
@@ -266,7 +266,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Enter') calculate();
   });
 
-  KankanHistory.restoreForm();
-  KankanHistory.renderPanel();
-  KankanHistory.renderClearBtn();
+  UtilityHistory.restoreForm();
+  UtilityHistory.renderPanel();
+  UtilityHistory.renderClearBtn();
 });

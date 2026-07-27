@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────
-   칸칸 — 빙어낚시 매트 소요량 계산기 (ice-fishing-mat.js)
+   에너가드랩 — 빙어낚시 매트 소요량 계산기 (ice-fishing-mat.js)
    ───────────────────────────────────────── */
 
 'use strict';
@@ -126,8 +126,8 @@ function resetView() { zoom = 1; panX = 0; panY = 0; }
 
 // ── 히스토리 ──
 function addHistory(label, matM, isoPink, tape) {
-  if (KankanHistory.isRestoring) return;
-  KankanHistory.save({
+  if (UtilityHistory.isRestoring) return;
+  UtilityHistory.save({
     id: 'ice-fishing-mat',
     calcName: '빙어낚시 매트 소요량 계산기',
     url: 'ice-fishing-mat.html',
@@ -142,7 +142,7 @@ function addHistory(label, matM, isoPink, tape) {
       { key: '면테이프',     val: `${tape}개` },
     ]
   });
-  KankanHistory.renderPanel();
+  UtilityHistory.renderPanel();
 }
 
 function initCustomSelect(wrapId, btnId, listId, hiddenId, onSelect) {
@@ -193,7 +193,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const scale = Math.min((cw - pad * 2) / w, (ch - pad * 2) / h);
     const wPx = w * scale, hPx = h * scale;
 
-    // ── 칸칸 디자인 토큰 ──
+    // ── 에너가드랩 디자인 토큰 ──
     const C_TEXT   = '#1a1a1a';
     const C_MUTED  = '#888';
     const C_BG     = '#f7f7f5';
@@ -461,7 +461,7 @@ document.addEventListener('DOMContentLoaded', () => {
     tc.fillRect(0, 0, tmp.width, tmp.height);
     tc.drawImage(canvas, 0, 0);
     const link = document.createElement('a');
-    link.download = `칸칸_빙어매트_${new Date().toISOString().slice(0, 10)}.png`;
+    link.download = `에너가드랩_빙어매트_${new Date().toISOString().slice(0, 10)}.png`;
     link.href = tmp.toDataURL('image/png');
     link.click();
   });
@@ -475,7 +475,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Enter') calculate();
   });
 
-  KankanHistory.restoreForm();
-  KankanHistory.renderPanel();
-  KankanHistory.renderClearBtn();
+  UtilityHistory.restoreForm();
+  UtilityHistory.renderPanel();
+  UtilityHistory.renderClearBtn();
 });

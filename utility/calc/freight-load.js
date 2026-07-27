@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────
-   칸칸 — 단열재 차량별 적재량 확인 (freight-load.js)
+   에너가드랩 — 단열재 차량별 적재량 확인 (freight-load.js)
    ───────────────────────────────────────── */
 
 'use strict';
@@ -221,8 +221,8 @@ function buildRefTable() {
 
 // ── 히스토리 ──
 function addHistory(vehicleName, totalBundles, thickness, bundleHeightMm) {
-  if (KankanHistory.isRestoring) return;
-  KankanHistory.save({
+  if (UtilityHistory.isRestoring) return;
+  UtilityHistory.save({
     id: 'freight-load',
     calcName: '단열재 차량별 적재량 확인',
     url: 'freight-load.html',
@@ -236,7 +236,7 @@ function addHistory(vehicleName, totalBundles, thickness, bundleHeightMm) {
       { key: '1단 높이', val: `${bundleHeightMm}mm` },
     ]
   });
-  KankanHistory.renderPanel();
+  UtilityHistory.renderPanel();
 }
 
 // ── 초기화 ──
@@ -304,6 +304,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (spec) renderResult(spec);
   });
 
-  KankanHistory.renderPanel();
-  KankanHistory.renderClearBtn();
+  UtilityHistory.renderPanel();
+  UtilityHistory.renderClearBtn();
 });

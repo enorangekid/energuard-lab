@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────
-   칸칸 — router.js  (SPA PJAX Router)
+   에너가드랩 — router.js  (SPA PJAX Router)
    ───────────────────────────────────────── */
 'use strict';
 
@@ -13,7 +13,7 @@
   let navigating = false;
 
   // ── Public API ──────────────────────────────────────────────────────────────
-  window.KankanRouter = { navigate };
+  window.UtilityRouter = { navigate };
 
   // ── Hover preload ────────────────────────────────────────────────────────────
   document.addEventListener('mouseover', e => {
@@ -96,7 +96,7 @@
       }
 
       // Clear MPA-era sessionStorage
-      sessionStorage.removeItem('kankan_open_cat');
+      sessionStorage.removeItem('energuard_utility_open_cat');
 
     } catch (err) {
       console.error('[Router]', err);
@@ -155,7 +155,7 @@
 
       // Skip guard scripts
       const inlineText = script.textContent.trim();
-      if (!src && inlineText.includes('KankanRouter') && inlineText.includes('location.replace')) continue;
+      if (!src && inlineText.includes('UtilityRouter') && inlineText.includes('location.replace')) continue;
 
       let text;
       if (src) {

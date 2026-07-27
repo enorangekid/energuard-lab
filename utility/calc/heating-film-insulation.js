@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────
-   칸칸 — 전기난방필름 단열재 소요량 계산기 (heating-film-insulation.js)
+   에너가드랩 — 전기난방필름 단열재 소요량 계산기 (heating-film-insulation.js)
    폭 1M 고정 롤형 → 필요 길이(m) 산출
    ───────────────────────────────────────── */
 
@@ -84,8 +84,8 @@ function resetAll() {
 
 // ── 히스토리 ──
 function addHistory(length, netArea, stripCount, lossRate) {
-  if (KankanHistory.isRestoring) return;
-  KankanHistory.save({
+  if (UtilityHistory.isRestoring) return;
+  UtilityHistory.save({
     id: 'heating-film-insulation',
     calcName: '전기난방필름 단열재 소요량 계산기',
     url: 'heating-film-insulation.html',
@@ -103,7 +103,7 @@ function addHistory(length, netArea, stripCount, lossRate) {
       { key: '할증률',  val: `${lossRate}%` },
     ]
   });
-  KankanHistory.renderPanel();
+  UtilityHistory.renderPanel();
 }
 
 // ── DOMContentLoaded ──
@@ -114,7 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Enter') calculate();
   });
 
-  KankanHistory.restoreForm();
-  KankanHistory.renderPanel();
-  KankanHistory.renderClearBtn();
+  UtilityHistory.restoreForm();
+  UtilityHistory.renderPanel();
+  UtilityHistory.renderClearBtn();
 });

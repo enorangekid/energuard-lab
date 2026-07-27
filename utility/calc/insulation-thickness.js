@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────
-   칸칸 — 단열재 두께 계산기 (insulation-thickness.js)
+   에너가드랩 — 단열재 두께 계산기 (insulation-thickness.js)
    ───────────────────────────────────────── */
 
 'use strict';
@@ -239,8 +239,8 @@ function resetAll() {
 
 // ── 히스토리 ──
 function addHistory(final, exact, region, part, material, uValue, kValue) {
-  if (KankanHistory.isRestoring) return;
-  KankanHistory.save({
+  if (UtilityHistory.isRestoring) return;
+  UtilityHistory.save({
     id: 'insulation-thickness',
     calcName: '단열재 두께 계산기',
     url: 'insulation-thickness.html',
@@ -261,7 +261,7 @@ function addHistory(final, exact, region, part, material, uValue, kValue) {
       { key: '계산값',    val: `${exact.toFixed(1)}mm` },
     ]
   });
-  KankanHistory.renderPanel();
+  UtilityHistory.renderPanel();
 }
 
 function initCustomSelect(wrapId, btnId, listId, hiddenId, onSelect) {
@@ -318,7 +318,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Enter') calculate();
   });
 
-  KankanHistory.restoreForm();
-  KankanHistory.renderPanel();
-  KankanHistory.renderClearBtn();
+  UtilityHistory.restoreForm();
+  UtilityHistory.renderPanel();
+  UtilityHistory.renderClearBtn();
 });

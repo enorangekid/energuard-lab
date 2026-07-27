@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────
-   칸칸 — 천장재(텍스) 수량 계산기 (tex.js)
+   에너가드랩 — 천장재(텍스) 수량 계산기 (tex.js)
    ───────────────────────────────────────── */
 
 'use strict';
@@ -204,8 +204,8 @@ function resetAll() {
 
 // ── 히스토리 ──
 function addHistory(boxes, pcs, netArea, lossRate, boxQty) {
-  if (KankanHistory.isRestoring) return;
-  KankanHistory.save({
+  if (UtilityHistory.isRestoring) return;
+  UtilityHistory.save({
     id: 'tex',
     calcName: '천장재(텍스) 수량 계산기',
     url: 'tex.html',
@@ -228,7 +228,7 @@ function addHistory(boxes, pcs, netArea, lossRate, boxQty) {
       { key: '할증률',    val: `${lossRate}%` },
     ]
   });
-  KankanHistory.renderPanel();
+  UtilityHistory.renderPanel();
 }
 
 // ── DOMContentLoaded ──
@@ -251,7 +251,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Enter') calculate();
   });
 
-  KankanHistory.restoreForm();
-  KankanHistory.renderPanel();
-  KankanHistory.renderClearBtn();
+  UtilityHistory.restoreForm();
+  UtilityHistory.renderPanel();
+  UtilityHistory.renderClearBtn();
 });

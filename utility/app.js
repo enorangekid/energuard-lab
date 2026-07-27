@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────
-   칸칸 — app.js
+   에너가드랩 — app.js
    ───────────────────────────────────────── */
 
 // ── CALCULATORS — NAV_ITEMS에서 자동 생성 (calculators-data.js가 먼저 로드되어야 함) ──
@@ -73,8 +73,8 @@ function openCalc(id) {
     ? calc.url
     : `coming-soon.html?name=${encodeURIComponent(calc.name)}`;
   if (calc.url) trackRecentCalc(calc.name, calc.url);
-  if (window.KankanRouter) {
-    window.KankanRouter.navigate(url);
+  if (window.UtilityRouter) {
+    window.UtilityRouter.navigate(url);
   } else {
     window.location.href = url;
   }
@@ -132,8 +132,8 @@ function initHomePage() {
   }
 
   renderCalcGrid();
-  KankanHistory.renderPanel();
-  KankanHistory.renderClearBtn();
+  UtilityHistory.renderPanel();
+  UtilityHistory.renderClearBtn();
 }
 
 document.addEventListener('DOMContentLoaded', initHomePage);

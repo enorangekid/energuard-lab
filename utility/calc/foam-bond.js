@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────
-   칸칸 — 우레탄폼 폼본드 소요량 계산기 (foam-bond.js)
+   에너가드랩 — 우레탄폼 폼본드 소요량 계산기 (foam-bond.js)
    1캔 = 16㎡ 기준 → 필요 캔 수 산출
    ───────────────────────────────────────── */
 
@@ -91,8 +91,8 @@ function resetAll() {
 
 // ── 히스토리 ──
 function addHistory(count, boardCount, boardW, boardH, boardUnit, totalArea, lossRate) {
-  if (KankanHistory.isRestoring) return;
-  KankanHistory.save({
+  if (UtilityHistory.isRestoring) return;
+  UtilityHistory.save({
     id: 'foam-bond',
     calcName: '우레탄폼 폼본드 소요량 계산기',
     url: 'foam-bond.html',
@@ -112,7 +112,7 @@ function addHistory(count, boardCount, boardW, boardH, boardUnit, totalArea, los
       { key: '할증률',      val: `${lossRate}%` },
     ]
   });
-  KankanHistory.renderPanel();
+  UtilityHistory.renderPanel();
 }
 
 function initCustomSelect(wrapId, btnId, listId, hiddenId, onSelect) {
@@ -157,7 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Enter') calculate();
   });
 
-  KankanHistory.restoreForm();
-  KankanHistory.renderPanel();
-  KankanHistory.renderClearBtn();
+  UtilityHistory.restoreForm();
+  UtilityHistory.renderPanel();
+  UtilityHistory.renderClearBtn();
 });

@@ -56,7 +56,7 @@ const NAV_ITEMS = [
   },
 ];
 
-const RECENT_KEY = 'kankan_recent';
+const RECENT_KEY = 'energuard_utility_recent';
 
 function trackRecentCalc(name, url) {
   if (!url) return;

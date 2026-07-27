@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────
-   칸칸 — 인테리어 필름/시트지 소요량 계산기 (interior-film.js)
+   에너가드랩 — 인테리어 필름/시트지 소요량 계산기 (interior-film.js)
    폭 1220mm 고정 기준 → 필요 길이(m) 산출
    ───────────────────────────────────────── */
 
@@ -111,8 +111,8 @@ function resetAll() {
 
 // ── 히스토리 ──
 function addHistory(length, netArea, stripCount, lossRate, filmLabel) {
-  if (KankanHistory.isRestoring) return;
-  KankanHistory.save({
+  if (UtilityHistory.isRestoring) return;
+  UtilityHistory.save({
     id: 'interior-film',
     calcName: '인테리어 필름/시트지 소요량 계산기',
     url: 'interior-film.html',
@@ -136,7 +136,7 @@ function addHistory(length, netArea, stripCount, lossRate, filmLabel) {
       { key: '할증률',    val: `${lossRate}%` },
     ]
   });
-  KankanHistory.renderPanel();
+  UtilityHistory.renderPanel();
 }
 
 // ── DOMContentLoaded ──
@@ -153,7 +153,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Enter') calculate();
   });
 
-  KankanHistory.restoreForm();
-  KankanHistory.renderPanel();
-  KankanHistory.renderClearBtn();
+  UtilityHistory.restoreForm();
+  UtilityHistory.renderPanel();
+  UtilityHistory.renderClearBtn();
 });

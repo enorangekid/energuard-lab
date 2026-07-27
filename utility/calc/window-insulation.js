@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────
-   칸칸 — 창문 단열재 견적 계산기 (window-insulation.js)
+   에너가드랩 — 창문 단열재 견적 계산기 (window-insulation.js)
    ───────────────────────────────────────── */
 
 'use strict';
@@ -107,8 +107,8 @@ function resetAll() {
 
 // ── 히스토리 ──
 function addHistory(totalPrice, unitPrice, payQty, w, h, qty, material, thickness) {
-  if (KankanHistory.isRestoring) return;
-  KankanHistory.save({
+  if (UtilityHistory.isRestoring) return;
+  UtilityHistory.save({
     id: 'window-insulation',
     calcName: '창문 단열재 견적 계산기',
     url: 'window-insulation.html',
@@ -128,7 +128,7 @@ function addHistory(totalPrice, unitPrice, payQty, w, h, qty, material, thicknes
       { key: '수량',   val: `${qty}개 (결제 ${payQty}개)` },
     ]
   });
-  KankanHistory.renderPanel();
+  UtilityHistory.renderPanel();
 }
 
 function initCustomSelect(wrapId, btnId, listId, hiddenId, onSelect) {
@@ -174,7 +174,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Enter') calculate();
   });
 
-  KankanHistory.restoreForm();
-  KankanHistory.renderPanel();
-  KankanHistory.renderClearBtn();
+  UtilityHistory.restoreForm();
+  UtilityHistory.renderPanel();
+  UtilityHistory.renderClearBtn();
 });

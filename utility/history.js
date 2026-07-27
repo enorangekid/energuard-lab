@@ -5,10 +5,10 @@
 'use strict';
 
 try {
-  localStorage.removeItem('kankan_history');
+  localStorage.removeItem('energuard_utility_history');
 } catch(e) {}
 
-const KankanHistory = {
+const UtilityHistory = {
   isRestoring: false,
   save() {},
   load() { return []; },
@@ -18,3 +18,5 @@ const KankanHistory = {
   renderPanel() {},
   renderClearBtn() {},
 };
+
+window.UtilityHistory = UtilityHistory;

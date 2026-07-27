@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────
-   칸칸 — 방음/흡음재 수량 계산기 (acoustic.js)
+   에너가드랩 — 방음/흡음재 수량 계산기 (acoustic.js)
    ───────────────────────────────────────── */
 
 'use strict';
@@ -191,8 +191,8 @@ function resetAll() {
 
 // ── 히스토리 ──
 function addHistory(pcs, netArea, lossRate) {
-  if (KankanHistory.isRestoring) return;
-  KankanHistory.save({
+  if (UtilityHistory.isRestoring) return;
+  UtilityHistory.save({
     id: 'acoustic',
     calcName: '방음/흡음재 수량 계산기',
     url: 'calc/acoustic.html',
@@ -213,7 +213,7 @@ function addHistory(pcs, netArea, lossRate) {
       { key: '할증률',    val: `${lossRate}%` },
     ]
   });
-  KankanHistory.renderPanel();
+  UtilityHistory.renderPanel();
 }
 
 // ── DOMContentLoaded ──
@@ -235,7 +235,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('calcForm').addEventListener('keydown', e => {
     if (e.key === 'Enter') calculate();
   });
-  KankanHistory.restoreForm();
-  KankanHistory.renderPanel();
-  KankanHistory.renderClearBtn();
+  UtilityHistory.restoreForm();
+  UtilityHistory.renderPanel();
+  UtilityHistory.renderClearBtn();
 });

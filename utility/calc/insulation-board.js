@@ -186,7 +186,7 @@ function resetAll() {
 }
 
 function addHistory(count, netArea, lossRate) {
-  const historyApi = window.KankanHistory;
+  const historyApi = window.UtilityHistory;
   if (!historyApi || historyApi.isRestoring) return;
   historyApi.save({
     id: 'insulation-board',
@@ -233,9 +233,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Enter') calculate();
   });
 
-  if (window.KankanHistory) {
-    window.KankanHistory.restoreForm();
-    window.KankanHistory.renderPanel();
-    window.KankanHistory.renderClearBtn();
+  if (window.UtilityHistory) {
+    window.UtilityHistory.restoreForm();
+    window.UtilityHistory.renderPanel();
+    window.UtilityHistory.renderClearBtn();
   }
 });

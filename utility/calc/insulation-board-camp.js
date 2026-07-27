@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────
-   칸칸 — 캠핑단열재 수량 계산기 (insulation-board-camp.js)
+   에너가드랩 — 캠핑단열재 수량 계산기 (insulation-board-camp.js)
    ───────────────────────────────────────── */
 
 'use strict';
@@ -10,7 +10,7 @@ let ctx;
 let currentMode = 'square';
 let currentDiagramData = null;
 
-// ── 칸칸 디자인 토큰 ──
+// ── 에너가드랩 디자인 토큰 ──
 const C_TEXT   = '#1a1a1a';
 const C_MUTED  = '#888';
 const C_BG     = '#f7f7f5';
@@ -297,8 +297,8 @@ function getModeLabel(mode) {
 
 // ── 히스토리 ──
 function addHistory(name, result, detail) {
-  if (KankanHistory.isRestoring) return;
-  KankanHistory.save({
+  if (UtilityHistory.isRestoring) return;
+  UtilityHistory.save({
     id: 'insulation-board-camp',
     calcName: '캠핑단열재 수량 계산기',
     url: 'insulation-board-camp.html',
@@ -327,7 +327,7 @@ function addHistory(name, result, detail) {
       { key: '비고',      val: detail },
     ]
   });
-  KankanHistory.renderPanel();
+  UtilityHistory.renderPanel();
 }
 
 // ── 도면 저장 ──
@@ -340,7 +340,7 @@ function saveDiagramImage() {
   tc.fillRect(0, 0, tmp.width, tmp.height);
   tc.drawImage(canvas, 0, 0);
   const link = document.createElement('a');
-  link.download = `칸칸_캠핑단열재_${new Date().toISOString().slice(0, 10)}.png`;
+  link.download = `에너가드랩_캠핑단열재_${new Date().toISOString().slice(0, 10)}.png`;
   link.href = tmp.toDataURL('image/png');
   link.click();
 }
@@ -502,7 +502,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Enter') calculate();
   });
 
-  KankanHistory.restoreForm();
-  KankanHistory.renderPanel();
-  KankanHistory.renderClearBtn();
+  UtilityHistory.restoreForm();
+  UtilityHistory.renderPanel();
+  UtilityHistory.renderClearBtn();
 });
