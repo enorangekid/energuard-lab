@@ -160,6 +160,12 @@ function extractBlogCards(html: string) {
     .map(card => card.slice(0, 24000));
 }
 
+function isAdCard(card: string) {
+  const normalized = decodeHtml(card);
+  return /ader\.naver\.com/i.test(normalized) ||
+    /aria-label=["']광고["']|>\s*광고\s*</.test(normalized);
+}
+
 function extractNextRequest(html: string) {
   const normalized = decodeHtml(html);
   const request = normalized.match(/url:"(https:\/\/s\.search\.naver\.com\/p\/review\/50\/search\.naver[^"]+)"[\s\S]{0,500}?X-Prs-Query-Info":"([^"]+)"/);
@@ -318,6 +324,8 @@ async function fetchNaverBlogScreen(target: BlogTarget): Promise<RankResult> {
     const cards = extractBlogCards(html);
 
     for (const card of cards) {
+      if (isAdCard(card)) continue;
+
       const mainUrl = extractMainUrlFromCard(card);
       const key = mainUrl || `card:${simpleHash(stripTags(card).slice(0, 800))}`;
       if (seen.has(key)) continue;
