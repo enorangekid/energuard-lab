@@ -762,13 +762,61 @@ async function generateSpellCheck() {
     if (!res.ok || data.error || !answer) throw new Error(data?.error?.message || data?.error || "응답을 받지 못했습니다.");
     const cleaned = answer.trim().replace(/^["'“”]|["'“”]$/g, "");
     result.dataset.answer = cleaned;
-    result.innerHTML = formatAiText(cleaned);
+    result.innerHTML = renderSpellCheckDiff(text, cleaned);
     copyBtn.hidden = false;
   } catch (err) {
     if (reqId !== aiSpellReqId) return;
     result.dataset.answer = "";
     result.innerHTML = `<span>맞춤법 검사 중 오류가 발생했습니다: ${escapeAiText(err.message || "오류")}</span>`;
   }
+}
+
+// 원문과 교정문을 문자 단위로 비교해서, 고쳐진 부분만 강조 표시한다(띄어쓰기 변경도 잡아내야 해서
+// 단어 단위가 아니라 문자 단위 LCS 기반 diff를 쓴다).
+function diffChars(oldStr, newStr) {
+  const a = Array.from(oldStr);
+  const b = Array.from(newStr);
+  const n = a.length, m = b.length;
+  const dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    }
+  }
+  const ops = []; // 교정문(b) 기준으로 same/changed만 기록 — 삭제된 원문 글자는 결과에 안 보이므로 생략
+  let i = 0, j = 0;
+  while (i < n && j < m) {
+    if (a[i] === b[j]) {
+      ops.push({ ch: b[j], type: "same" });
+      i++; j++;
+    } else if (dp[i + 1][j] >= dp[i][j + 1]) {
+      i++;
+    } else {
+      ops.push({ ch: b[j], type: "changed" });
+      j++;
+    }
+  }
+  while (j < m) { ops.push({ ch: b[j], type: "changed" }); j++; }
+  return ops;
+}
+
+function renderSpellCheckDiff(original, corrected) {
+  const ops = diffChars(original, corrected);
+  const runs = [];
+  for (const op of ops) {
+    const last = runs[runs.length - 1];
+    if (last && last.type === op.type) last.text += op.ch;
+    else runs.push({ type: op.type, text: op.ch });
+  }
+  const hasChange = runs.some(run => run.type === "changed");
+  const body = runs.map(run => {
+    const escaped = escapeAiText(run.text).replace(/\n/g, "<br>");
+    return run.type === "changed" ? `<mark class="ai-diff-fix">${escaped}</mark>` : escaped;
+  }).join("");
+  const tag = hasChange
+    ? `<span class="ai-msg-tag ai-msg-tag-fix">✏️ 수정된 부분이 강조 표시됩니다</span>`
+    : `<span class="ai-msg-tag">✅ 수정할 부분이 없습니다</span>`;
+  return tag + body;
 }
 
 function clearSpellCheck() {

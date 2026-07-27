@@ -524,6 +524,17 @@ header.topbar .topbar-icon-btn svg {
   font-weight: 800;
 }
 
+.ai-msg-tag-fix { color: var(--accent, #e85d2f); }
+
+/* 맞춤법 검사 — 고쳐진 부분만 색+볼드로 강조 */
+.ai-diff-fix {
+  background: rgba(232, 93, 47, 0.14);
+  color: var(--accent-dark, #d04420);
+  font-weight: 800;
+  border-radius: 3px;
+  padding: 0 2px;
+}
+
 .ai-chat-input-row {
   flex-shrink: 0;
   display: flex;
