@@ -313,9 +313,21 @@ async function collectTrackedItems() {
   if (!clientId || !clientSecret) throw new Error("NAVER_CLIENT_ID / NAVER_CLIENT_SECRET 필요");
 
   const items: Array<Record<string, unknown>> = await supabaseRequest(
-    `/rest/v1/tracked_items?select=product_code,product_name,product_image,product_link,mall_name,keywords`,
+    `/rest/v1/tracked_items?select=product_code,product_name,product_image,product_link,mall_name,keywords,alt_codes`,
   ) || [];
   if (!items.length) return { ok: true, message: "추적 아이템 없음", keywords: 0, rowsSaved: 0 };
+
+  // 그룹상품 대체 코드 — 대표 옵션이 며칠 사이 다른 코드로 바뀌어도 같은 추적 대상(기준 코드)으로
+  // 인식되도록, 기준 코드와 alt_codes를 전부 같은 canonical(기준 코드)로 매핑해둔다.
+  const codeToCanonical = new Map<string, string>();
+  items.forEach((it) => {
+    const canon = String(it.product_code);
+    codeToCanonical.set(canon, canon);
+    (Array.isArray(it.alt_codes) ? it.alt_codes : []).forEach((alt) => {
+      const code = String(alt).trim();
+      if (code) codeToCanonical.set(code, canon);
+    });
+  });
 
   const keywordMap = new Map<string, Set<string>>();
   items.forEach((it) => {
@@ -327,7 +339,7 @@ async function collectTrackedItems() {
       keywordMap.get(k)!.add(String(it.product_code));
     });
   });
-  const allCodes = new Set(items.map((i) => String(i.product_code)));
+  const allCodes = new Set(codeToCanonical.keys()); // 기준 코드 + alt_codes 전부 감시 대상
   const kst = new Date(Date.now() + 9 * 3600 * 1000);
   const collectedDate = kst.toISOString().slice(0, 10);
   const deadline = Date.now() + 100_000; // Edge Function 실행시간 한도 대비 100초 예산
@@ -355,7 +367,12 @@ async function collectTrackedItems() {
     if (Date.now() > deadline) break; // 남은 키워드는 다음 실행에서 — 오래된 순으로 돌기 때문에 매번 같은 키워드가 밀리진 않는다
     try {
       const watched = await scanKeywordForWatch(keyword, allCodes, clientId, clientSecret);
-      const foundByCode = new Map(watched.map((w) => [w.productId, w]));
+      // 검색에 걸린 코드가 기준 코드든 alt_codes든 항상 기준 코드로 모아서 저장한다.
+      const foundByCode = new Map<string, typeof watched[number]>();
+      watched.forEach((w) => {
+        const canon = codeToCanonical.get(w.productId) || w.productId;
+        if (!foundByCode.has(canon)) foundByCode.set(canon, w);
+      });
 
       const rows: Array<Record<string, unknown>> = [];
       const seen = new Set<string>();
@@ -371,10 +388,10 @@ async function collectTrackedItems() {
         });
         seen.add(code);
       });
-      watched.forEach((w) => { // 이 키워드를 추적하지 않는 감시 상품도 걸리면 보너스 저장
-        if (seen.has(w.productId)) return;
+      foundByCode.forEach((w, canon) => { // 이 키워드를 추적하지 않는 감시 상품도 걸리면 보너스 저장
+        if (seen.has(canon)) return;
         rows.push({
-          product_code: w.productId, keyword,
+          product_code: canon, keyword,
           rank: w.rank, price: w.price, mall_name: w.mallName,
           collected_date: collectedDate, checked_at: new Date().toISOString(),
         });
@@ -388,9 +405,11 @@ async function collectTrackedItems() {
         rowsSaved += rows.length;
       }
 
-      // 상품명/이미지/판매처 메타 자동 갱신
+      // 상품명/이미지/판매처 메타 자동 갱신 — alt_codes로 걸렸어도 기준 코드 행을 갱신한다
+      // (오늘의 대표 옵션 정보를 보여주되, 추적 식별자는 기준 코드로 고정 유지)
       for (const w of watched) {
-        const item = items.find((i) => String(i.product_code) === w.productId);
+        const canon = codeToCanonical.get(w.productId) || w.productId;
+        const item = items.find((i) => String(i.product_code) === canon);
         if (!item) continue;
         const patch: Record<string, unknown> = {};
         if (w.title && w.title !== item.product_name) patch.product_name = w.title;
@@ -399,7 +418,7 @@ async function collectTrackedItems() {
         if (w.link && !item.product_link) patch.product_link = w.link;
         if (Object.keys(patch).length) {
           patch.updated_at = new Date().toISOString();
-          await supabaseRequest(`/rest/v1/tracked_items?product_code=eq.${encodeURIComponent(w.productId)}`, {
+          await supabaseRequest(`/rest/v1/tracked_items?product_code=eq.${encodeURIComponent(canon)}`, {
             method: "PATCH",
             headers: { "Prefer": "return=minimal" },
             body: JSON.stringify(patch),
@@ -546,9 +565,20 @@ async function collectStoreKeywords(storeName: string) {
   });
 
   const watchItems: Array<Record<string, unknown>> = await supabaseRequest(
-    `/rest/v1/tracked_items?select=product_code`,
+    `/rest/v1/tracked_items?select=product_code,alt_codes`,
   ) || [];
-  const watchSet = new Set(watchItems.map((i) => String(i.product_code)));
+  // 그룹상품 대체 코드 — collectTrackedItems()와 동일하게, 여기서도 alt_codes로 걸리면
+  // 기준 코드(product_code) 아래로 이력을 모은다.
+  const watchCodeToCanonical = new Map<string, string>();
+  watchItems.forEach((i) => {
+    const canon = String(i.product_code);
+    watchCodeToCanonical.set(canon, canon);
+    (Array.isArray(i.alt_codes) ? i.alt_codes : []).forEach((alt) => {
+      const code = String(alt).trim();
+      if (code) watchCodeToCanonical.set(code, canon);
+    });
+  });
+  const watchSet = new Set(watchCodeToCanonical.keys());
 
   const kst = new Date(Date.now() + 9 * 3600 * 1000);
   const collectedDate = kst.toISOString().slice(0, 10);
@@ -600,8 +630,13 @@ async function collectStoreKeywords(storeName: string) {
       rowsSaved += payload.length;
 
       if (watchedRows.length) {
-        const rows = watchedRows.map((w) => ({
-          product_code: String(w.productId), keyword,
+        const byCanon = new Map<string, Record<string, unknown>>();
+        watchedRows.forEach((w) => {
+          const canon = watchCodeToCanonical.get(String(w.productId)) || String(w.productId);
+          if (!byCanon.has(canon)) byCanon.set(canon, w);
+        });
+        const rows = [...byCanon.entries()].map(([canon, w]) => ({
+          product_code: canon, keyword,
           rank: w.rank, price: Number(w.price) || 0, mall_name: w.mallName || "",
           collected_date: collectedDate, checked_at: new Date().toISOString(),
         }));
