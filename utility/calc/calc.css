@@ -1582,8 +1582,8 @@ select.field-input {
 
 /* Shared Energuard calculator surface */
 .main-content:has(.calc-wrapper) .page-header {
-  padding: 0 0 12px !important;
-  margin-bottom: 18px;
+  padding: 0 !important;
+  margin-bottom: 30px;
   gap: 0;
 }
 
