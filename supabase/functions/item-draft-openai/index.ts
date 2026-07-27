@@ -102,177 +102,14 @@ function normalizeIdea(row: IdeaPayload): Required<IdeaPayload> {
   };
 }
 
-function fallbackIdeas(categories: string[], limit: number) {
-  return [];
-}
-
-function currentKstMonth() {
-  const kst = new Date(Date.now() + 9 * 60 * 60 * 1000);
-  return `${kst.getUTCFullYear()}-${String(kst.getUTCMonth() + 1).padStart(2, "0")}`;
-}
-
-function prevKstMonth() {
-  const kst = new Date(Date.now() + 9 * 60 * 60 * 1000);
-  kst.setUTCMonth(kst.getUTCMonth() - 1);
-  return `${kst.getUTCFullYear()}-${String(kst.getUTCMonth() + 1).padStart(2, "0")}`;
-}
-
-function categoryAllowed(category: string, categories: string[]) {
-  return !categories.length || categories.includes(category);
-}
-
 function isContentKeyword(keyword: string) {
-  return /단열|아이소핑크|스티로폼|비드법|폼보드|열반사|은박|온도리|보온|결로|창문|햇빛|열차단|냉기|우레탄|PF보드|페놀폼|미네랄울|글라스울|실외기|에어컨|냉방비|전기요금|폭염|열대야|장마|제습|습기|곰팡이|차량용햇빛|자동차햇빛|차박|썬쉐이드|햇빛가리개|차량커튼|커버|XPS|EPS/i.test(keyword);
+  // "커버"를 단독 단어로 두면 "언더커버 셰프"처럼 부분 문자열로 우연히 걸리는 무관한 트렌드
+  // 키워드까지 단열재 콘텐츠 후보로 오인한다 — 실제로 의도한 복합어로 좁혀서만 매칭한다.
+  return /단열|아이소핑크|스티로폼|비드법|폼보드|열반사|은박|온도리|보온|결로|창문|햇빛|열차단|냉기|우레탄|PF보드|페놀폼|미네랄울|글라스울|실외기|에어컨|냉방비|전기요금|폭염|열대야|장마|제습|습기|곰팡이|차량용햇빛|자동차햇빛|차박|썬쉐이드|햇빛가리개|차량커튼|실외기\s?커버|에어컨\s?커버|차량용?\s?커버|자동차\s?커버|XPS|EPS/i.test(keyword);
 }
 
 function isNewsNoise(keyword: string) {
   return /의원|선거|재검표|파업|노조|법원|회생|콘서트|홍보대사|역전승|외교관|이더|비니시우스|수력원자력|시위|MC몽|성애|경매|중구|연애|화재$|수소 자동차|자동차$/i.test(keyword);
-}
-
-function seasonScoreFor(keyword: string) {
-  const month = new Date(Date.now() + 9 * 60 * 60 * 1000).getUTCMonth() + 1;
-  const summer = /열차단|햇빛|창문|실외기|에어컨|열반사|단열필름|은박|온도리/i.test(keyword);
-  const winter = /결로|냉기|난방|보온|곰팡이|단열벽지|바닥/i.test(keyword);
-  if ([6, 7, 8, 9].includes(month)) return summer ? 92 : winter ? 35 : 68;
-  if ([11, 12, 1, 2].includes(month)) return winter ? 92 : summer ? 40 : 68;
-  return 72;
-}
-
-function keywordIdeaFromVolume(row: any): Required<IdeaPayload> | null {
-  const keyword = cleanText(row.keyword);
-  if (!keyword || !isContentKeyword(keyword) || isNewsNoise(keyword)) return null;
-  const category = inferCategory(keyword);
-  const total = safeNumber(row.total);
-  const competition = Math.max(20, Math.min(85, Math.round(70 - Math.log10(Math.max(total, 10)) * 8)));
-  const season = seasonScoreFor(keyword);
-  const volumeScore = Math.min(100, Math.round(Math.log10(Math.max(total, 10)) * 22));
-  return normalizeIdea({
-    id: `volume-${keyword}`,
-    keyword,
-    source: season >= 85 ? "season" : "interest",
-    category,
-    productGroup: inferProductGroup(keyword, category),
-    searchVolume: total,
-    competitionScore: competition,
-    seasonScore: season,
-    aiScore: Math.round(volumeScore * 0.48 + season * 0.34 + (100 - competition) * 0.18),
-  });
-}
-
-function keywordIdeaFromRankHistory(row: any): Required<IdeaPayload> | null {
-  const keyword = cleanText(row.keyword);
-  if (!keyword || !isContentKeyword(keyword) || isNewsNoise(keyword)) return null;
-  const category = inferCategory(keyword, cleanText(row.main_keyword || ""));
-  const total = safeNumber(row.search_volume_total);
-  if (!total) return null;
-  const competition = Math.max(18, Math.min(88, Math.round(72 - Math.log10(Math.max(total, 10)) * 8)));
-  const season = seasonScoreFor(keyword);
-  const volumeScore = Math.min(100, Math.round(Math.log10(Math.max(total, 10)) * 23));
-  return normalizeIdea({
-    id: `rank-volume-${keyword}`,
-    keyword,
-    source: season >= 85 ? "season" : "interest",
-    category,
-    productGroup: inferProductGroup(keyword, category),
-    searchVolume: total,
-    competitionScore: competition,
-    seasonScore: season,
-    aiScore: Math.round(volumeScore * 0.5 + season * 0.34 + (100 - competition) * 0.16),
-  });
-}
-
-async function fetchRankHistoryIdeas(categories: string[], limit: number) {
-  const rows = await supabaseRequest(
-    "/rest/v1/keyword_rank_history?select=keyword,main_keyword,search_volume_total,collected_date&search_volume_total=gt.0&order=collected_date.desc,search_volume_total.desc&limit=1500",
-  );
-  const seen = new Set<string>();
-  return (Array.isArray(rows) ? rows : [])
-    .map(keywordIdeaFromRankHistory)
-    .filter((idea): idea is Required<IdeaPayload> => {
-      if (!idea) return false;
-      if (!categoryAllowed(idea.category, categories)) return false;
-      if (seen.has(idea.keyword)) return false;
-      seen.add(idea.keyword);
-      return true;
-    })
-    .sort((a, b) => b.aiScore - a.aiScore || b.searchVolume - a.searchVolume)
-    .slice(0, limit);
-}
-
-function keywordIdeaFromTrend(row: any): Required<IdeaPayload> | null {
-  const keyword = cleanText(row.keyword);
-  if (!keyword || !isContentKeyword(keyword) || isNewsNoise(keyword)) return null;
-  const category = inferCategory(keyword);
-  const rank = safeNumber(row.rank) || 99;
-  const season = seasonScoreFor(keyword);
-  const trendScore = Math.max(45, 105 - rank * 4);
-  const productGroup = inferProductGroup(keyword, category);
-  return normalizeIdea({
-    id: `trend-${keyword}`,
-    keyword,
-    source: "trend",
-    category,
-    productGroup,
-    searchVolume: 0,
-    competitionScore: Math.max(25, Math.min(78, 45 + rank)),
-    seasonScore: season,
-    aiScore: Math.min(100, Math.round(trendScore * 0.58 + season * 0.42)),
-  });
-}
-
-async function fetchTrendIdeas(categories: string[], limit: number) {
-  const rows = await supabaseRequest(
-    "/rest/v1/realtime_trend_snapshot?select=keyword,list_type,rank,sources,captured_at&order=captured_at.desc,rank.asc&limit=300",
-  );
-  const seen = new Set<string>();
-  return (Array.isArray(rows) ? rows : [])
-    .map(keywordIdeaFromTrend)
-    .filter((idea): idea is Required<IdeaPayload> => {
-      if (!idea) return false;
-      if (!categoryAllowed(idea.category, categories)) return false;
-      const key = idea.keyword.replace(/\s+/g, "");
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    })
-    .sort((a, b) => b.aiScore - a.aiScore)
-    .slice(0, limit);
-}
-
-async function fetchVolumeIdeas(categories: string[], limit: number) {
-  const months = [currentKstMonth(), prevKstMonth()];
-  const rows = await supabaseRequest(
-    `/rest/v1/keyword_search_volume_monthly?select=keyword,snapshot_month,total&snapshot_month=in.(${months.join(",")})&total=gt.0&order=total.desc&limit=300`,
-  );
-  const seen = new Set<string>();
-  return (Array.isArray(rows) ? rows : [])
-    .map(keywordIdeaFromVolume)
-    .filter((idea): idea is Required<IdeaPayload> => {
-      if (!idea) return false;
-      if (!categoryAllowed(idea.category, categories)) return false;
-      if (seen.has(idea.keyword)) return false;
-      seen.add(idea.keyword);
-      return true;
-    })
-    .sort((a, b) => b.aiScore - a.aiScore || b.searchVolume - a.searchVolume)
-    .slice(0, limit);
-}
-
-async function fetchTrendBoostMap() {
-  try {
-    const rows = await supabaseRequest(
-      "/rest/v1/realtime_trend_snapshot?select=keyword,rank,captured_at&order=captured_at.desc,rank.asc&limit=80",
-    );
-    const boost = new Map<string, number>();
-    (Array.isArray(rows) ? rows : []).forEach((row) => {
-      const keyword = cleanText(row.keyword);
-      if (!isContentKeyword(keyword) || isNewsNoise(keyword)) return;
-      boost.set(keyword.replace(/\s+/g, ""), Math.max(0, 35 - safeNumber(row.rank)));
-    });
-    return boost;
-  } catch (_) {
-    return new Map<string, number>();
-  }
 }
 
 async function supabaseRequest(path: string, init: RequestInit = {}) {
@@ -293,26 +130,13 @@ async function supabaseRequest(path: string, init: RequestInit = {}) {
   return text ? JSON.parse(text) : null;
 }
 
-async function fetchIdeas(categories: string[], limit: number, supplied: IdeaPayload[]) {
-  if (supplied.length) {
-    const rows = supplied
-      .map(normalizeIdea)
-      .filter((idea) => isContentKeyword(idea.keyword) && !isNewsNoise(idea.keyword));
-    if (rows.length) return rows.slice(0, limit);
-  }
-
-  const trendIdeas = await fetchTrendIdeas(categories, limit);
-
-  if (trendIdeas.length >= limit) return trendIdeas;
-
-  const volumeIdeas = await fetchVolumeIdeas(categories, limit);
-  const rankHistoryIdeas = volumeIdeas;
-  const trendBoost = await fetchTrendBoostMap();
-  const boosted = rankHistoryIdeas.map((idea) => {
-    const boost = trendBoost.get(idea.keyword.replace(/\s+/g, "")) || 0;
-    return { ...idea, source: boost ? "trend" : idea.source, aiScore: Math.min(100, idea.aiScore + boost) };
-  });
-  return [...trendIdeas, ...boosted].slice(0, limit);
+// 트렌드/검색량에서 자동으로 후보를 골라 초안까지 만들어버리던 기능은 제거했다 — 어떤 키워드를
+// 초안으로 만들지는 항상 사람이 아이템발굴 화면에서 추천 카테고리를 확인하고 직접 고른 뒤에만 진행한다.
+async function fetchIdeas(limit: number, supplied: IdeaPayload[]) {
+  return supplied
+    .map(normalizeIdea)
+    .filter((idea) => isContentKeyword(idea.keyword) && !isNewsNoise(idea.keyword))
+    .slice(0, limit);
 }
 
 function buildPrompt(idea: Required<IdeaPayload>) {
@@ -646,10 +470,9 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json().catch(() => ({}));
     const action = cleanText(body.action || "generateDrafts");
-    const categories = Array.isArray(body.categories) ? body.categories.map(cleanText).filter(Boolean) : [];
     const limit = Math.min(Math.max(Number(body.limit || 3), 1), 8);
     const requestedIdeas = Array.isArray(body.ideas) ? body.ideas : [];
-    const ideas = await fetchIdeas(categories, limit, requestedIdeas);
+    const ideas = await fetchIdeas(limit, requestedIdeas);
 
     const items = [];
     for (const idea of ideas) {
