@@ -48,6 +48,53 @@ interface RankResult {
   collected_at: string;
 }
 
+interface DiagnosisSnapshot {
+  blog_level: number | null;
+  neighbor_count: number | null;
+  visitors_today: number | null;
+  visitors_avg: number | null;
+  visitors_total: number | null;
+  category_label: string | null;
+  category_rank: number | null;
+  best_rank: number | null;
+  valid_keyword_count: number | null;
+  total_keyword_count: number | null;
+}
+
+interface TargetKeywordRow {
+  id: number;
+  blog_id: string;
+  keyword: string;
+  category: "메인" | "서브";
+  device: Device;
+  max_rank: number;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+interface PostContentAnalysis {
+  thumbnail_url: string | null;
+  char_count: number | null;
+  image_count: number | null;
+  comment_count: number | null;
+  quote_count: number | null;
+  external_link_count: number | null;
+}
+
+/* 노출 현황 진단(블로그 전체 기준 키워드 검색)은 특정 포스팅에 미리 연결하지 않으므로
+   검색해서 걸린 포스팅 정보(log_no/title/url)까지 결과에 같이 담아야 한다 — RankResult와 다른 점. */
+interface ExposureResult {
+  provider: Provider;
+  found: boolean;
+  rank: number | null;
+  page: number | null;
+  resultLogNo: string | null;
+  resultUrl: string | null;
+  checked_count: number;
+  collected_at: string;
+}
+
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -183,6 +230,99 @@ async function fetchBlogRss(blogId: string): Promise<{ blogName: string; posts: 
   return { blogName: blogName || blogId, posts };
 }
 
+/* ── whereispost.com에서 블로그 지수/방문자 현황 스냅샷 조회 (로그인 불필요, 서버 렌더링) ── */
+function extractStat(html: string, label: string): number | null {
+  const match = html.match(new RegExp(`${label}[\\s\\S]{0,200}?fw-bold[^"]*"[^>]*>\\s*([\\d,]+)\\s*<`));
+  if (!match) return null;
+  const value = Number(match[1].replace(/,/g, ""));
+  return Number.isFinite(value) ? value : null;
+}
+
+async function fetchWhereIsPost(blogId: string): Promise<Partial<DiagnosisSnapshot>> {
+  const response = await fetch("https://whereispost.com/level", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    },
+    body: `blogurl=${encodeURIComponent(blogId)}`,
+  });
+  const text = await response.text();
+  if (!response.ok) throw new Error(`블로그 지수 조회 실패 (${response.status})`);
+
+  // 실제 결과는 class="level {색상}">뿐이고, 위쪽 범례(0~10단계 설명)는 "level {색상} mt-1"이라 구분된다.
+  const levelMatch = text.match(/class="level (?:gray|green|blue|purple|red)">\s*Level\s*(\d+)/i);
+  return {
+    blog_level: levelMatch ? Number(levelMatch[1]) : null,
+    neighbor_count: extractStat(text, "이웃"),
+    visitors_today: extractStat(text, "오늘 방문자"),
+    visitors_avg: extractStat(text, "평균 방문자"),
+    visitors_total: extractStat(text, "전체 방문자"),
+  };
+}
+
+/* ── 블로그차트 로그인 세션으로 "내 블로그" 카테고리 랭킹 조회 (로그인 필요) ──
+   /user/mychart는 302로 insight.blogchart.co.kr/user/blog로 넘어가는데, fetch 기본 redirect:"follow"는
+   그 과정에서 수동으로 넣은 Cookie 헤더를 다음 호스트로 넘기지 못해 로그인 페이지로 튕긴다.
+   그래서 리다이렉트를 따라가지 않고 최종 목적지(insight.blogchart.co.kr/user/blog)를 바로 호출한다. */
+async function blogchartLogin(): Promise<string> {
+  const email = env("BLOGCHART_EMAIL");
+  const password = env("BLOGCHART_PASSWORD");
+  if (!email || !password) throw new Error("블로그차트 계정이 설정되지 않았습니다.");
+
+  const response = await fetch("https://www.blogchart.co.kr/user/do_login", {
+    method: "POST",
+    redirect: "manual",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      "Referer": "https://www.blogchart.co.kr/",
+    },
+    body: `email=${encodeURIComponent(email)}&passwd=${encodeURIComponent(password)}`,
+  });
+
+  let cookies = response.headers.getSetCookie?.() || [];
+  if (!cookies.length) {
+    cookies = [...response.headers.entries()]
+      .filter(([key]) => key.toLowerCase() === "set-cookie")
+      .map(([, value]) => value);
+  }
+  if (!cookies.length) throw new Error("블로그차트 로그인에 실패했습니다.");
+  return cookies.map((c) => c.split(";")[0]).join("; ");
+}
+
+async function fetchBlogchartMyChartHtml(): Promise<string> {
+  const cookie = await blogchartLogin();
+  const response = await fetch("https://insight.blogchart.co.kr/user/blog", {
+    headers: {
+      Cookie: cookie,
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    },
+  });
+  return response.text();
+}
+
+/* insight.blogchart.co.kr/user/blog 는 로그인한 계정 소유주(내 블로그) 1개만 보여준다 —
+   blogId 파라미터로 다른 블로그를 조회하는 기능이 없어서, 이 진단은 내 블로그에만 적용된다. */
+async function fetchBlogchartRank(): Promise<Partial<DiagnosisSnapshot>> {
+  const html = await fetchBlogchartMyChartHtml();
+
+  const categoryMatch = html.match(
+    /kt-widget24__desc[^>]*>\s*([^<]+?)\s*<\/span>[\s\S]{0,400}?kt-widget24__stats[^>]*>\s*([\d,]+)\s*위/,
+  );
+  const bestRankMatch = html.match(/최고 랭킹[\s\S]{0,200}?kt-widget4__number[^>]*>\s*([\d,]+)\s*위/);
+  const validKeywordMatch = html.match(/유효키워드 수[\s\S]{0,200}?kt-widget4__number[^>]*>\s*([\d,]+)\s*개/);
+  const totalKeywordMatch = html.match(/전체키워드 수[\s\S]{0,200}?kt-widget4__number[^>]*>\s*([\d,]+)\s*개/);
+
+  return {
+    category_label: categoryMatch ? categoryMatch[1].trim() : null,
+    category_rank: categoryMatch ? Number(categoryMatch[2].replace(/,/g, "")) : null,
+    best_rank: bestRankMatch ? Number(bestRankMatch[1].replace(/,/g, "")) : null,
+    valid_keyword_count: validKeywordMatch ? Number(validKeywordMatch[1].replace(/,/g, "")) : null,
+    total_keyword_count: totalKeywordMatch ? Number(totalKeywordMatch[1].replace(/,/g, "")) : null,
+  };
+}
+
 /* ── 검색광고 API 서명 (HMAC-SHA256) — naver-rank 함수와 동일한 방식 ── */
 async function adSignature(secret: string, timestamp: string, method: string, path: string) {
   const key = await crypto.subtle.importKey(
@@ -273,6 +413,17 @@ async function fetchNaverText(url: string, device: Device, queryInfo = "") {
 function isSamePost(link: string, blogId: string, logNo: string) {
   const normalized = decodeHtml(link).toLowerCase();
   return normalized.includes(`blog.naver.com/${blogId.toLowerCase()}/${logNo}`);
+}
+
+/* 노출 현황 진단용 — 특정 포스팅이 아니라 "이 블로그의 아무 포스팅이나" 걸리는지만 확인 */
+function linkBelongsToBlog(link: string, blogId: string) {
+  const normalized = decodeHtml(link).toLowerCase();
+  return normalized.includes(`blog.naver.com/${blogId.toLowerCase()}/`);
+}
+
+function extractLogNoFromUrl(url: string) {
+  const match = url.match(/blog\.naver\.com\/[^/]+\/(\d+)/i);
+  return match ? match[1] : null;
 }
 
 function extractMainUrlFromCard(card: string) {
@@ -439,6 +590,135 @@ async function fetchNaverBlogApiForPost(
   };
 }
 
+async function fetchNaverBlogScreenForKeyword(
+  keyword: string,
+  blogId: string,
+  device: Device,
+  maxRank: number,
+): Promise<ExposureResult> {
+  const limit = Math.min(1000, Math.max(30, maxRank || 300));
+  const firstUrl = new URL("https://search.naver.com/search.naver");
+  firstUrl.searchParams.set("ssc", "tab.blog.all");
+  firstUrl.searchParams.set("sm", "tab_jum");
+  firstUrl.searchParams.set("query", keyword);
+
+  let html = await fetchNaverText(firstUrl.toString(), device);
+  let next = extractNextRequest(html);
+  const seen = new Set<string>();
+  let checked = 0;
+
+  for (let pageLoop = 0; pageLoop < 40 && checked < limit; pageLoop += 1) {
+    const cards = extractBlogCards(html);
+
+    for (const card of cards) {
+      if (isAdCard(card)) continue;
+
+      const mainUrl = extractMainUrlFromCard(card);
+      const key = mainUrl || `card:${simpleHash(stripTags(card).slice(0, 800))}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      checked += 1;
+
+      if (mainUrl && linkBelongsToBlog(mainUrl, blogId)) {
+        return {
+          provider: "naver_blog_screen",
+          found: true,
+          rank: checked,
+          page: Math.ceil(checked / 30),
+          resultLogNo: extractLogNoFromUrl(mainUrl),
+          resultUrl: mainUrl,
+          checked_count: checked,
+          collected_at: new Date().toISOString(),
+        };
+      }
+
+      if (checked >= limit) break;
+    }
+
+    if (checked >= limit || !next?.url) break;
+
+    const jsonText = await fetchNaverText(next.url, device, next.queryInfo);
+    const data = JSON.parse(jsonText);
+    html = Array.isArray(data.collection)
+      ? data.collection.map((item: Record<string, unknown>) => cleanText(item.html)).join("\n")
+      : "";
+    next = data.url ? { url: decodeHtml(data.url), queryInfo: next.queryInfo } : null;
+    if (!html) break;
+  }
+
+  return {
+    provider: "naver_blog_screen",
+    found: false,
+    rank: null,
+    page: null,
+    resultLogNo: null,
+    resultUrl: null,
+    checked_count: checked,
+    collected_at: new Date().toISOString(),
+  };
+}
+
+async function fetchNaverBlogApiForKeyword(keyword: string, blogId: string, maxRank: number): Promise<ExposureResult> {
+  const clientId = env("NAVER_CLIENT_ID");
+  const clientSecret = env("NAVER_CLIENT_SECRET");
+  if (!clientId || !clientSecret) throw new Error("네이버 검색 API 키가 없습니다.");
+
+  const limit = Math.min(1000, Math.max(100, maxRank || 300));
+  let checked = 0;
+
+  for (let start = 1; start <= limit; start += 100) {
+    const url = new URL("https://openapi.naver.com/v1/search/blog.json");
+    url.searchParams.set("query", keyword);
+    url.searchParams.set("display", String(Math.min(100, limit - start + 1)));
+    url.searchParams.set("start", String(start));
+    url.searchParams.set("sort", "sim");
+
+    const response = await fetch(url, {
+      headers: {
+        "X-Naver-Client-Id": clientId,
+        "X-Naver-Client-Secret": clientSecret,
+      },
+    });
+    const text = await response.text();
+    if (!response.ok) {
+      throw new Error(`네이버 블로그 API ${response.status}: ${text.slice(0, 300)}`);
+    }
+    const data = JSON.parse(text);
+    const items = Array.isArray(data.items) ? data.items : [];
+
+    for (let index = 0; index < items.length; index += 1) {
+      checked += 1;
+      const link = cleanText(items[index]?.link);
+      if (link && linkBelongsToBlog(link, blogId)) {
+        const rank = start + index;
+        return {
+          provider: "naver_blog_api",
+          found: true,
+          rank,
+          page: Math.ceil(rank / 10),
+          resultLogNo: extractLogNoFromUrl(link),
+          resultUrl: link,
+          checked_count: checked,
+          collected_at: new Date().toISOString(),
+        };
+      }
+    }
+
+    if (items.length < 100) break;
+  }
+
+  return {
+    provider: "naver_blog_api",
+    found: false,
+    rank: null,
+    page: null,
+    resultLogNo: null,
+    resultUrl: null,
+    checked_count: checked,
+    collected_at: new Date().toISOString(),
+  };
+}
+
 async function saveHistory(blogId: string, logNo: string, keyword: string, device: Device, result: RankResult) {
   const collectedDate = new Date().toISOString().slice(0, 10);
   await db("blog_rank_history?on_conflict=blog_id,log_no,keyword,provider,device,collected_date", {
@@ -460,12 +740,243 @@ async function saveHistory(blogId: string, logNo: string, keyword: string, devic
   });
 }
 
+/* RSS는 최신 50개까지만 주기 때문에 그보다 오래된 포스팅이 검색에 걸리면 blog_rank_posts에 없어서
+   제목을 못 찾는다. 그럴 땐 모바일 블로그 페이지(m.blog.naver.com)를 직접 열어 제목을 가져온다 —
+   데스크톱 페이지(blog.naver.com)는 iframe 래퍼라 <title>이 블로그 이름만 나오고 실제 글 제목은 안 나온다. */
+async function fetchPostTitleFallback(blogId: string, logNo: string): Promise<string | null> {
+  try {
+    const response = await fetch(`https://m.blog.naver.com/${encodeURIComponent(blogId)}/${encodeURIComponent(logNo)}`, {
+      headers: { "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1" },
+    });
+    const text = await response.text();
+    const match = text.match(/<title>([\s\S]*?)<\/title>/i);
+    if (!match) return null;
+    return stripTags(decodeHtml(match[1])).replace(/\s*:\s*네이버 블로그\s*$/, "").trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+/* 게시글 진단 모달용 — 모바일 페이지(m.blog.naver.com)를 열어 본문 분석 지표를 뽑는다.
+   공감(좋아요) 수는 이 정적 페이지 안에 없어서(별도 API로 로드되는 것으로 보임) 제외했다. */
+async function fetchPostContentAnalysis(blogId: string, logNo: string): Promise<PostContentAnalysis> {
+  const response = await fetch(`https://m.blog.naver.com/${encodeURIComponent(blogId)}/${encodeURIComponent(logNo)}`, {
+    headers: { "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1" },
+  });
+  const text = await response.text();
+  if (!response.ok) throw new Error(`포스팅 페이지 조회 실패 (${response.status})`);
+
+  const commentMatch = text.match(/commentCount="(\d+)"/);
+
+  let imageCount: number | null = null;
+  let thumbnailUrl: string | null = null;
+  const imageInfoMatch = text.match(/attachImagePathAndIdInfo\s*=\s*'([^']*)'/);
+  if (imageInfoMatch) {
+    try {
+      const decoded = imageInfoMatch[1].replace(/&#034;/g, "\"").replace(/&#039;/g, "'").replace(/&amp;/g, "&");
+      const images = JSON.parse(decoded) as Array<{ path?: string }>;
+      imageCount = images.length;
+      if (images[0]?.path) thumbnailUrl = `https://blogfiles.pstatic.net${images[0].path}`;
+    } catch {
+      // 이미지 정보 파싱 실패 시 무시하고 null로 둔다
+    }
+  }
+
+  const paragraphMatches = [...text.matchAll(/<p class="se-text-paragraph[^>]*>([\s\S]*?)<\/p>/g)];
+  const charCount = paragraphMatches.length
+    ? paragraphMatches.map((m) => stripTags(decodeHtml(m[1]))).join("").length
+    : null;
+
+  const quoteCount = (text.match(/class="se-quotation"/g) || []).length;
+  const externalLinkCount = (text.match(/se-oglink/g) || []).length;
+
+  return {
+    thumbnail_url: thumbnailUrl,
+    char_count: charCount,
+    image_count: imageCount,
+    comment_count: commentMatch ? Number(commentMatch[1]) : null,
+    quote_count: quoteCount,
+    external_link_count: externalLinkCount,
+  };
+}
+
+async function saveExposureHistory(blogId: string, keyword: string, device: Device, result: ExposureResult) {
+  const collectedDate = new Date().toISOString().slice(0, 10);
+  let resultTitle: string | null = null;
+  if (result.resultLogNo) {
+    const rows = await db(
+      `blog_rank_posts?select=title&blog_id=eq.${encodeURIComponent(blogId)}&log_no=eq.${encodeURIComponent(result.resultLogNo)}`,
+    ) as Array<{ title: string }>;
+    resultTitle = rows?.[0]?.title || null;
+    if (!resultTitle) resultTitle = await fetchPostTitleFallback(blogId, result.resultLogNo);
+  }
+  await db("blog_rank_exposure_history?on_conflict=blog_id,keyword,provider,device,checked_date", {
+    method: "POST",
+    headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+    body: JSON.stringify([{
+      blog_id: blogId,
+      keyword,
+      provider: result.provider,
+      device,
+      found: result.found,
+      rank: result.rank,
+      page: result.page,
+      result_log_no: result.resultLogNo,
+      result_title: resultTitle,
+      result_url: result.resultUrl,
+      checked_count: result.checked_count,
+      checked_date: collectedDate,
+      collected_at: result.collected_at,
+    }]),
+  });
+}
+
+async function addTargetKeywords(body: Record<string, unknown>) {
+  const blogId = cleanText(body.blogId);
+  if (!blogId) throw new Error("블로그를 확인할 수 없습니다.");
+  const items = Array.isArray(body.keywords) ? body.keywords : [];
+  const rows = items
+    .map((item) => {
+      const rec = item as Record<string, unknown>;
+      const keyword = cleanText(typeof rec === "object" && rec !== null ? rec.keyword : item);
+      const category = (typeof rec === "object" && rec !== null && rec.category === "메인") ? "메인" : "서브";
+      return { blog_id: blogId, keyword, category, updated_at: new Date().toISOString() };
+    })
+    .filter((row) => row.keyword);
+  if (!rows.length) throw new Error("추가할 키워드가 없습니다.");
+
+  await db("blog_rank_target_keywords?on_conflict=blog_id,keyword", {
+    method: "POST",
+    headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+    body: JSON.stringify(rows),
+  });
+  return listData();
+}
+
+async function removeTargetKeyword(id: number) {
+  if (!id) throw new Error("삭제할 키워드가 없습니다.");
+  await db(`blog_rank_target_keywords?id=eq.${id}`, { method: "DELETE", headers: { Prefer: "return=minimal" } });
+  return listData();
+}
+
+async function collectExposure(body: Record<string, unknown>) {
+  const blogId = cleanText(body.blogId);
+  if (!blogId) throw new Error("블로그를 확인할 수 없습니다.");
+  const keyword = cleanText(body.keyword);
+  const path = keyword
+    ? `blog_rank_target_keywords?select=*&blog_id=eq.${encodeURIComponent(blogId)}&keyword=eq.${encodeURIComponent(keyword)}`
+    : `blog_rank_target_keywords?select=*&blog_id=eq.${encodeURIComponent(blogId)}&active=eq.true`;
+  const rows = await db(path) as TargetKeywordRow[];
+  if (!rows?.length) throw new Error("등록된 진단 키워드가 없습니다.");
+
+  const errors: Array<{ keyword: string; provider: string; message: string }> = [];
+  let collected = 0;
+
+  for (const row of (keyword ? rows : rows.slice(0, 60))) {
+    try {
+      const screen = await fetchNaverBlogScreenForKeyword(row.keyword, blogId, row.device, row.max_rank);
+      await saveExposureHistory(blogId, row.keyword, row.device, screen);
+      collected += 1;
+    } catch (error) {
+      errors.push({ keyword: row.keyword, provider: "naver_blog_screen", message: error instanceof Error ? error.message : String(error) });
+    }
+    try {
+      const official = await fetchNaverBlogApiForKeyword(row.keyword, blogId, row.max_rank);
+      await saveExposureHistory(blogId, row.keyword, row.device, official);
+    } catch (error) {
+      errors.push({ keyword: row.keyword, provider: "naver_blog_api", message: error instanceof Error ? error.message : String(error) });
+    }
+    await db(`blog_rank_target_keywords?id=eq.${row.id}`, {
+      method: "PATCH",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify({ updated_at: new Date().toISOString() }),
+    });
+  }
+
+  return { ...(await listData()), collected, errors };
+}
+
+async function collectPostTitleCheck(body: Record<string, unknown>) {
+  const blogId = cleanText(body.blogId);
+  if (!blogId) throw new Error("블로그를 확인할 수 없습니다.");
+  const logNo = cleanText(body.logNo);
+  const path = logNo
+    ? `blog_rank_posts?select=log_no,title&blog_id=eq.${encodeURIComponent(blogId)}&log_no=eq.${encodeURIComponent(logNo)}`
+    : `blog_rank_posts?select=log_no,title&blog_id=eq.${encodeURIComponent(blogId)}&order=published_at.desc.nullslast&limit=50`;
+  const posts = await db(path) as Array<{ log_no: string; title: string }>;
+  if (!posts?.length) throw new Error("확인할 포스팅이 없습니다.");
+
+  const errors: Array<{ logNo: string; message: string }> = [];
+  let collected = 0;
+
+  for (const post of posts) {
+    try {
+      const result = await fetchNaverBlogScreenForPost(post.title, blogId, post.log_no, "desktop", 100);
+      await db("blog_rank_post_title_check?on_conflict=blog_id,log_no", {
+        method: "POST",
+        headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+        body: JSON.stringify([{
+          blog_id: blogId,
+          log_no: post.log_no,
+          found: result.found,
+          checked_at: new Date().toISOString(),
+        }]),
+      });
+      collected += 1;
+    } catch (error) {
+      errors.push({ logNo: post.log_no, message: error instanceof Error ? error.message : String(error) });
+    }
+  }
+
+  return { ...(await listData()), collected, errors };
+}
+
+async function collectPostContentCheck(body: Record<string, unknown>) {
+  const blogId = cleanText(body.blogId);
+  if (!blogId) throw new Error("블로그를 확인할 수 없습니다.");
+  const logNo = cleanText(body.logNo);
+  const path = logNo
+    ? `blog_rank_posts?select=log_no&blog_id=eq.${encodeURIComponent(blogId)}&log_no=eq.${encodeURIComponent(logNo)}`
+    : `blog_rank_posts?select=log_no&blog_id=eq.${encodeURIComponent(blogId)}&order=published_at.desc.nullslast&limit=10`;
+  const posts = await db(path) as Array<{ log_no: string }>;
+  if (!posts?.length) throw new Error("확인할 포스팅이 없습니다.");
+
+  const errors: Array<{ logNo: string; message: string }> = [];
+  let collected = 0;
+
+  for (const post of posts) {
+    try {
+      const analysis = await fetchPostContentAnalysis(blogId, post.log_no);
+      await db("blog_rank_post_content_check?on_conflict=blog_id,log_no", {
+        method: "POST",
+        headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+        body: JSON.stringify([{
+          blog_id: blogId,
+          log_no: post.log_no,
+          ...analysis,
+          checked_at: new Date().toISOString(),
+        }]),
+      });
+      collected += 1;
+    } catch (error) {
+      errors.push({ logNo: post.log_no, message: error instanceof Error ? error.message : String(error) });
+    }
+  }
+
+  return { ...(await listData()), collected, errors };
+}
+
 async function listData() {
-  const [blogs, posts, postKeywords, history] = await Promise.all([
+  const [blogs, posts, postKeywords, history, diagnosis, targetKeywords, exposureHistory, postTitleChecks, postContentChecks] = await Promise.all([
     db("blog_rank_blogs?select=*&order=created_at.desc") as Promise<BlogRow[]>,
     db("blog_rank_posts?select=*&order=published_at.desc.nullslast&limit=500") as Promise<PostRow[]>,
     db("blog_rank_post_keywords?select=*&order=created_at.asc") as Promise<PostKeywordRow[]>,
     db("blog_rank_history?select=*&order=collected_at.desc&limit=3000") as Promise<Array<Record<string, unknown>>>,
+    db("blog_rank_diagnosis?select=*&order=snapshot_date.desc&limit=400") as Promise<Array<Record<string, unknown>>>,
+    db("blog_rank_target_keywords?select=*&order=created_at.asc") as Promise<TargetKeywordRow[]>,
+    db("blog_rank_exposure_history?select=*&order=collected_at.desc&limit=2000") as Promise<Array<Record<string, unknown>>>,
+    db("blog_rank_post_title_check?select=*") as Promise<Array<Record<string, unknown>>>,
+    db("blog_rank_post_content_check?select=*") as Promise<Array<Record<string, unknown>>>,
   ]);
 
   return {
@@ -473,6 +984,11 @@ async function listData() {
     posts: posts || [],
     postKeywords: postKeywords || [],
     history: history || [],
+    diagnosis: diagnosis || [],
+    targetKeywords: targetKeywords || [],
+    exposureHistory: exposureHistory || [],
+    postTitleChecks: postTitleChecks || [],
+    postContentChecks: postContentChecks || [],
     capabilities: {
       naverBlogScreen: true,
       naverBlogApi: !!env("NAVER_CLIENT_ID") && !!env("NAVER_CLIENT_SECRET"),
@@ -635,6 +1151,49 @@ async function collect(body: Record<string, unknown>) {
   return { ...(await listData()), collected, errors };
 }
 
+async function collectDiagnosis(body: Record<string, unknown>) {
+  const blogId = cleanText(body.blogId);
+  const path = blogId
+    ? `blog_rank_blogs?select=blog_id&blog_id=eq.${encodeURIComponent(blogId)}`
+    : "blog_rank_blogs?select=blog_id&is_mine=eq.true&active=eq.true";
+  const blogs = await db(path) as Array<{ blog_id: string }>;
+  if (!blogs?.length) throw new Error("진단할 블로그가 없습니다.");
+
+  const today = new Date().toISOString().slice(0, 10);
+  const errors: Array<{ blogId: string; message: string }> = [];
+  let collected = 0;
+
+  // 블로그차트는 로그인한 계정 소유주의 블로그 1개만 보여주므로 매 블로그마다 다시 부르지 않고 한 번만 조회한다.
+  let blogchartRank: Partial<DiagnosisSnapshot> = {};
+  try {
+    blogchartRank = await fetchBlogchartRank();
+  } catch (error) {
+    errors.push({ blogId: "blogchart", message: error instanceof Error ? error.message : String(error) });
+  }
+
+  for (const { blog_id } of blogs) {
+    try {
+      const snapshot = await fetchWhereIsPost(blog_id);
+      await db("blog_rank_diagnosis?on_conflict=blog_id,snapshot_date", {
+        method: "POST",
+        headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+        body: JSON.stringify([{
+          blog_id,
+          snapshot_date: today,
+          ...snapshot,
+          ...blogchartRank,
+          collected_at: new Date().toISOString(),
+        }]),
+      });
+      collected += 1;
+    } catch (error) {
+      errors.push({ blogId: blog_id, message: error instanceof Error ? error.message : String(error) });
+    }
+  }
+
+  return { ...(await listData()), collected, errors };
+}
+
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (request.method !== "POST") return json({ error: "POST 요청만 지원합니다." }, 405);
@@ -650,6 +1209,12 @@ Deno.serve(async (request) => {
     if (action === "addPostKeyword") return json(await addPostKeyword(body));
     if (action === "removePostKeyword") return json(await removePostKeyword(Number(body.id)));
     if (action === "collect") return json(await collect(body));
+    if (action === "collectDiagnosis") return json(await collectDiagnosis(body));
+    if (action === "addTargetKeywords") return json(await addTargetKeywords(body));
+    if (action === "removeTargetKeyword") return json(await removeTargetKeyword(Number(body.id)));
+    if (action === "collectExposure") return json(await collectExposure(body));
+    if (action === "collectPostTitleCheck") return json(await collectPostTitleCheck(body));
+    if (action === "collectPostContentCheck") return json(await collectPostContentCheck(body));
     return json({ error: "지원하지 않는 작업입니다." }, 400);
   } catch (error) {
     console.error(error);

@@ -26,6 +26,9 @@
       --green-soft: #eaf8ef;
       --danger: #e32636;
       --danger-soft: #fdebec;
+      --good: #0f9f6e;
+      --bad: #dc2626;
+      --dark-tint: #eef0f3;
       --radius: 6px;
       --font-main: "Pretendard Variable", Pretendard, -apple-system, sans-serif;
       --font-mono: "JetBrains Mono", "Fira Code", monospace;
@@ -208,81 +211,184 @@
       gap: 18px;
     }
 
-    .blog-diagnosis-grid {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 0;
-    }
-
-    .blog-diagnosis-metric {
-      min-width: 0;
-      padding: 0 20px;
-      border-right: 1px solid var(--line);
-    }
-
-    .blog-diagnosis-metric:first-child {
-      padding-left: 0;
-    }
-
-    .blog-diagnosis-metric:last-child {
-      padding-right: 0;
-      border-right: 0;
-    }
-
-    .blog-diagnosis-label {
-      display: block;
-      margin-bottom: 6px;
-      color: #8590a3;
-      font-size: 11px;
-      font-weight: 800;
-    }
-
-    .blog-diagnosis-value {
-      display: flex;
-      align-items: baseline;
-      gap: 4px;
-      color: var(--ink);
-      font-family: var(--font-mono);
-      font-size: 22px;
-      font-weight: 800;
-    }
-
-    .blog-diagnosis-value small {
-      color: var(--sub);
-      font-family: var(--font-main);
-      font-size: 12px;
-      font-weight: 700;
-    }
-
-    .blog-placeholder-grid {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 12px;
-    }
-
-    .blog-placeholder-card {
-      min-height: 132px;
-      padding: 18px;
+    /* ── 블로그 진단 요약 대시보드 — 매출분석의 .rank-dash/.dash-tile 구조를 그대로 옮겨온 것 ── */
+    .rank-dash {
       border: 1px solid var(--line);
       border-radius: var(--radius);
-      background: #fbfcfe;
+      background: #fff;
+      padding: 16px 18px 14px;
+      box-shadow: 0 14px 34px rgba(5, 7, 11, .05);
+    }
+    .rank-dash-tiles {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .dash-tile { padding: 4px 2px; min-width: 0; }
+    .dash-tile + .dash-tile { border-left: 1px solid var(--line); padding-left: 14px; }
+    .dash-label { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 800; color: #8a93a5; white-space: nowrap; }
+    .dash-value {
+      margin-top: 2px; font-size: 21px; font-weight: 800; color: var(--ink);
+      font-variant-numeric: tabular-nums; letter-spacing: -0.01em; white-space: nowrap;
+    }
+    .dash-value small { margin-left: 4px; font-size: 11.5px; font-weight: 700; color: var(--sub); }
+    .dash-info {
+      position: relative;
+      width: 14px; height: 14px; flex-shrink: 0;
+      display: inline-flex; align-items: center; justify-content: center;
+      border: 1px solid #cfd5df; border-radius: 50%;
+      background: #f4f6f9; color: #8a93a5;
+      font-size: 9.5px; font-weight: 900; cursor: default; line-height: 1;
+    }
+    .dash-tip {
+      position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(3px);
+      z-index: 60; width: max-content; max-width: 230px;
+      padding: 8px 11px; border-radius: 6px;
+      background: #161a22; color: #fff;
+      font-size: 11.5px; font-weight: 600; line-height: 1.5; text-align: left; white-space: normal;
+      opacity: 0; visibility: hidden; transition: all .12s; pointer-events: none;
+    }
+    .dash-info:hover .dash-tip { opacity: 1; visibility: visible; transform: translateX(-50%) translateY(0); }
+    .metric-cmp { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+    .metric-cmp .cmp {
+      display: inline-flex; align-items: center; gap: 2px; font-size: 10.5px; font-weight: 800;
+      padding: 1px 6px; border-radius: 8px; background: var(--dark-tint); color: var(--sub); white-space: nowrap;
+    }
+    .metric-cmp .cmp.up { color: var(--good); background: #e7f6ec; }
+    .metric-cmp .cmp.down { color: var(--bad); background: #fdecec; }
+    .metric-cmp .cmp.alert { color: #fff; background: var(--bad); }
+    @media (max-width: 900px) {
+      .rank-dash-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 14px; }
+      .dash-tile:nth-child(4) { border-left: none; padding-left: 2px; }
     }
 
-    .blog-placeholder-card strong {
-      display: block;
-      margin-bottom: 8px;
-      color: var(--ink);
-      font-size: 14px;
-      font-weight: 900;
-    }
+    /* ── 1페이지/2~3페이지/4페이지 이하 비율 바 — 랭킹추적 .rank-dash 그대로 ── */
+    .dash-bar-wrap { margin-top: 14px; }
+    .dash-bar { display: flex; gap: 2px; height: 12px; }
+    .dash-bar-seg { min-width: 3px; }
+    .dash-bar-seg:first-child { border-radius: 6px 0 0 6px; }
+    .dash-bar-seg:last-child { border-radius: 0 6px 6px 0; }
+    .dash-bar-seg:only-child { border-radius: 6px; }
+    .dash-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 8px; font-size: 11.5px; color: var(--sub); font-weight: 700; }
+    .dash-legend-item { display: inline-flex; align-items: center; gap: 5px; }
+    .dash-legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .dash-legend-item b { color: var(--ink); font-weight: 800; }
 
-    .blog-placeholder-card p {
-      margin: 0;
-      color: var(--sub);
+    /* ── 순위 변동/이탈 카드 — 랭킹추적 .summary-top3-card/.summary-mover-row 그대로 ── */
+    .summary-top3-row-wrap { display: flex; gap: 14px; flex-wrap: wrap; }
+    .summary-mover-grid .summary-top3-card { flex: 1 1 260px; }
+    .summary-top3-card { flex: 1 1 260px; min-width: 240px; border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; }
+    .summary-top3-title { font-size: 12px; font-weight: 800; color: var(--sub); margin-bottom: 12px; }
+    .summary-top3-rank {
+      flex: 0 0 auto; width: 20px; height: 20px; border-radius: 50%; background: var(--dark-tint);
+      display: inline-flex; align-items: center; justify-content: center;
+      font-family: var(--font-mono); font-size: 11px; font-weight: 800; color: var(--sub);
+    }
+    .summary-top3-name {
+      flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      font-size: 13px; font-weight: 700; color: inherit; text-decoration: none;
+    }
+    a.summary-top3-name:hover { color: var(--accent); text-decoration: underline; }
+    .summary-mover-row { padding: 9px 0; border-bottom: 1px solid #f4f5f7; }
+    .summary-mover-row:last-child { border-bottom: none; }
+    .summary-mover-row-main { display: flex; align-items: center; gap: 8px; }
+    .summary-mover-row-detail { margin-top: 4px; padding-left: 28px; font-size: 11.5px; color: var(--sub); font-family: var(--font-mono); }
+    .summary-mover-delta { flex: 0 0 auto; margin-left: auto; font-family: var(--font-mono); font-size: 12px; font-weight: 800; white-space: nowrap; }
+    .summary-mover-delta.up { color: #16a34a; }
+    .summary-mover-delta.down { color: var(--danger); }
+    .summary-mover-row-detail.dropout-keywords { display: flex; flex-wrap: wrap; gap: 6px; font-family: inherit; }
+    .dropout-keyword-chip {
+      display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 20px;
+      background: #fdecec; color: var(--danger); font-size: 11px; font-weight: 700; white-space: nowrap;
+    }
+    .dropout-keyword-rank { font-family: var(--font-mono); font-weight: 700; color: var(--sub); }
+    .summary-top3-more {
+      display: flex; align-items: center; justify-content: center; gap: 4px; width: 100%;
+      margin-top: 10px; padding: 10px 0 0; border: 0; border-top: 1px solid #f4f5f7; background: transparent;
+      color: var(--sub); font-family: inherit; font-size: 12px; font-weight: 800; cursor: pointer;
+    }
+    .summary-top3-more:hover { color: var(--accent); }
+
+    /* ── 최근 게시글 진단 표 ── */
+    .recent-post-row {
+      display: grid;
+      grid-template-columns: minmax(160px, 2fr) 70px 1.2fr 80px 90px 68px;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fff;
+    }
+    .recent-post-row.head {
+      background: var(--soft);
+      color: #7c8799;
+      font-size: 10.5px;
+      font-weight: 800;
+      text-align: center;
+    }
+    .recent-post-row.head span:first-child { text-align: left; }
+    .recent-post-row + .recent-post-row { margin-top: 6px; }
+    .recent-post-title {
+      min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      color: var(--ink); font-size: 12.5px; font-weight: 800; text-decoration: none;
+    }
+    .recent-post-title:hover { color: var(--accent); text-decoration: underline; }
+    .recent-post-cell { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; color: var(--sub); text-align: center; }
+    .recent-post-cell.text-bad { color: var(--danger); font-weight: 800; }
+
+    .diagnosis-refresh-btn {
+      flex-shrink: 0;
+      height: 34px;
+      padding: 0 14px;
+      border: 1px solid var(--line-strong);
+      border-radius: 4px;
+      background: #fff;
       font-size: 12px;
-      font-weight: 600;
-      line-height: 1.65;
+      font-weight: 800;
+      cursor: pointer;
     }
+    .diagnosis-refresh-btn:hover { border-color: #aeb6c4; background: #f5f7fa; }
+
+    /* ── 노출 현황 진단 — 키워드 검색 결과(노출중) / 미노출 키워드 목록 ── */
+    .exposure-list { display: flex; flex-direction: column; gap: 6px; }
+    .exposure-row {
+      display: grid;
+      grid-template-columns: 60px 1fr 1.3fr 70px 32px;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fff;
+    }
+    .exposure-cat-badge {
+      padding: 2px 7px; border-radius: 999px; text-align: center;
+      background: #f1f3f7; color: #69758a; font-size: 10px; font-weight: 800;
+    }
+    .exposure-cat-badge.main { background: var(--accent-soft); color: var(--accent); }
+    .exposure-keyword { min-width: 0; font-size: 12.5px; font-weight: 800; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .exposure-post-title {
+      min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      color: var(--sub); font-size: 11.5px; text-decoration: none;
+    }
+    .exposure-post-title:hover { color: var(--accent); text-decoration: underline; }
+    .exposure-rank { text-align: center; font-family: var(--font-mono); font-size: 13px; font-weight: 800; color: var(--ink); }
+    .missing-keyword-wrap { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .missing-keyword-chip {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 4px 5px 4px 10px; border-radius: 999px;
+      background: #f7f8fa; color: #8a94a6; font-size: 11px; font-weight: 700;
+    }
+    .missing-keyword-chip button {
+      width: 16px; height: 16px; padding: 0; border: 0; border-radius: 50%;
+      background: transparent; color: #b0b8c5; font-size: 12px; line-height: 1; cursor: pointer;
+    }
+    .missing-keyword-chip button:hover { background: #e6e9ef; color: #566176; }
+    .blog-diagnosis-stack .summary-mini-card + .summary-mini-card { margin-top: 16px; }
+    /* common.css의 .summary-mini-card는 둥근 모서리 때문에 overflow:hidden인데,
+       그러면 .dash-tip 툴팁이 카드 밖으로 못 나가고 잘린다 — 이 탭에서만 풀어준다. */
+    .blog-diagnosis-stack .summary-mini-card { overflow: visible; }
 
     .summary-grid {
       display: grid;
@@ -656,6 +762,30 @@
       background: #fff;
       box-shadow: 0 24px 80px rgba(4, 9, 18, .25);
     }
+    .modal.modal-lg { width: min(820px, 100%); max-height: 88vh; display: flex; flex-direction: column; }
+    .modal.modal-lg .modal-body { overflow-y: auto; }
+    .post-detail-layout { display: flex; gap: 20px; }
+    .post-detail-thumb {
+      flex-shrink: 0; width: 160px; height: 160px; border-radius: var(--radius);
+      overflow: hidden; background: var(--soft); border: 1px solid var(--line);
+    }
+    .post-detail-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .post-detail-thumb-empty {
+      width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+      color: #b0b8c5; font-size: 11.5px; font-weight: 700;
+    }
+    .post-detail-meta { flex: 1; min-width: 0; }
+    .post-detail-title a {
+      color: var(--ink); font-size: 15px; font-weight: 900; text-decoration: none;
+      display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .post-detail-title a:hover { color: var(--accent); text-decoration: underline; }
+    .post-detail-date { margin-top: 6px; color: var(--sub); font-size: 12px; font-weight: 700; }
+    .post-detail-section-title { margin-bottom: 10px; font-size: 12px; font-weight: 800; color: var(--sub); }
+    @media (max-width: 640px) {
+      .post-detail-layout { flex-direction: column; }
+      .post-detail-thumb { width: 100%; height: 180px; }
+    }
     .modal-head {
       min-height: 64px;
       padding: 0 20px;
@@ -784,20 +914,20 @@
 <main class="wrap app-shell">
   <header class="page-head app-page-head">
     <div class="mode-title-tabs app-title-tabs" aria-label="블로그 분석">
-      <button class="mode-title-tab app-title-tab" type="button" data-blog-view="diagnosis">
+      <button class="mode-title-tab app-title-tab active" type="button" data-blog-view="diagnosis">
         <span class="mode-title-text app-title-text">
           <span class="mode-label app-title-label">블로그 진단</span>
           <span class="mode-help app-title-help" title="블로그 운영 상태와 콘텐츠 지표를 요약해서 확인합니다.">?</span>
         </span>
       </button>
-      <button class="mode-title-tab app-title-tab active" type="button" data-blog-view="rank">
+      <button class="mode-title-tab app-title-tab" type="button" data-blog-view="rank">
         <span class="mode-title-text app-title-text">
           <span class="mode-label app-title-label">포스팅 순위</span>
           <span class="mode-help app-title-help" title="블로그 포스팅이 검색 키워드에서 몇 위에 노출되는지 추적합니다.">?</span>
         </span>
       </button>
     </div>
-    <div class="head-actions" id="rankHeadActions">
+    <div class="head-actions" id="rankHeadActions" hidden>
       <button class="icon-btn collect" type="button" data-tip="전체 순위 수집" onclick="collectRanks()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 12a9 9 0 0 1-15.5 6.2"></path><path d="M3 12a9 9 0 0 1 15.5-6.2"></path>
@@ -810,65 +940,11 @@
     </div>
   </header>
 
-  <section class="blog-view blog-diagnosis-stack" id="blogDiagnosisView" hidden>
-    <div class="summary-mini-card app-card">
-      <div class="summary-section-title-row app-card-head">
-        <div class="summary-section-title-wrap app-card-title-wrap">
-          <span class="summary-section-title app-card-title">블로그 진단 요약</span>
-          <span class="summary-section-subtitle app-card-subtitle">블로그 상태를 한눈에 확인하는 영역입니다.</span>
-        </div>
-      </div>
-      <div class="summary-divider"></div>
-      <div class="summary-section-body app-card-body">
-        <div class="blog-diagnosis-grid">
-          <div class="blog-diagnosis-metric">
-            <span class="blog-diagnosis-label">추적 블로그</span>
-            <span class="blog-diagnosis-value">-<small>개</small></span>
-          </div>
-          <div class="blog-diagnosis-metric">
-            <span class="blog-diagnosis-label">등록 포스팅</span>
-            <span class="blog-diagnosis-value">-<small>개</small></span>
-          </div>
-          <div class="blog-diagnosis-metric">
-            <span class="blog-diagnosis-label">평균 노출 순위</span>
-            <span class="blog-diagnosis-value">-<small>위</small></span>
-          </div>
-          <div class="blog-diagnosis-metric">
-            <span class="blog-diagnosis-label">개선 필요</span>
-            <span class="blog-diagnosis-value">-<small>건</small></span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="summary-mini-card app-card">
-      <div class="summary-section-title-row app-card-head">
-        <div class="summary-section-title-wrap app-card-title-wrap">
-          <span class="summary-section-title app-card-title">진단 항목</span>
-          <span class="summary-section-subtitle app-card-subtitle">콘텐츠 품질과 노출 흐름을 점검합니다.</span>
-        </div>
-      </div>
-      <div class="summary-divider"></div>
-      <div class="summary-section-body app-card-body">
-        <div class="blog-placeholder-grid">
-          <div class="blog-placeholder-card">
-            <strong>콘텐츠 상태</strong>
-            <p>포스팅 제목, 본문 구성, 키워드 사용 흐름을 점검하는 영역입니다.</p>
-          </div>
-          <div class="blog-placeholder-card">
-            <strong>노출 흐름</strong>
-            <p>검색 키워드별 노출 변화와 하락 위험 포스팅을 확인하는 영역입니다.</p>
-          </div>
-          <div class="blog-placeholder-card">
-            <strong>개선 메모</strong>
-            <p>수정이 필요한 포스팅과 다음 작업 우선순위를 정리하는 영역입니다.</p>
-          </div>
-        </div>
-      </div>
-    </div>
+  <section class="blog-view blog-diagnosis-stack" id="blogDiagnosisView">
+    <div id="diagnosisList"></div>
   </section>
 
-  <section class="blog-view" id="blogRankView">
+  <section class="blog-view" id="blogRankView" hidden>
     <section class="summary-grid" aria-label="블로그 순위 요약">
       <div class="summary-item">
         <span class="summary-label">추적 키워드</span>
@@ -933,6 +1009,20 @@
   </div>
 </div>
 
+<div class="modal-backdrop" id="postDetailModal" aria-hidden="true">
+  <div class="modal modal-lg" role="dialog" aria-modal="true" aria-labelledby="postDetailModalTitle">
+    <div class="modal-head">
+      <div class="modal-title" id="postDetailModalTitle">게시글 진단</div>
+      <button class="modal-close" type="button" onclick="closePostDetailModal()" aria-label="닫기">&times;</button>
+    </div>
+    <div class="modal-body" id="postDetailModalBody"></div>
+    <div class="modal-foot">
+      <button class="text-btn" type="button" onclick="closePostDetailModal()">닫기</button>
+      <button class="text-btn primary" type="button" id="postDetailRefreshBtn">분석 새로고침</button>
+    </div>
+  </div>
+</div>
+
 <div class="loading-overlay" id="loadingOverlay">
   <div class="loading-box">
     <div class="spinner"></div>
@@ -946,7 +1036,8 @@ const SUPABASE_URL = "https://eukwfypbfqojbaihfqye.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_MiBvlf3d6ulcVBsi7Odcgw_PTXSmXKj";
 const BLOG_RANK_URL = `${SUPABASE_URL}/functions/v1/blog-rank`;
 
-let state = { blogs: [], posts: [], postKeywords: [], history: [], capabilities: {} };
+let state = { blogs: [], posts: [], postKeywords: [], history: [], diagnosis: [], targetKeywords: [], exposureHistory: [], postTitleChecks: [], postContentChecks: [], capabilities: {} };
+let currentPostDetail = null;
 let toastTimer = 0;
 
 function esc(value) {
@@ -1180,9 +1271,484 @@ function renderRows() {
   list.innerHTML = state.blogs.map(blog => renderBlogCard(blog)).join("");
 }
 
+function diagnosisAt(blogId, daysAgo) {
+  const rows = state.diagnosis
+    .filter(row => row.blog_id === blogId)
+    .sort((a, b) => String(b.snapshot_date).localeCompare(String(a.snapshot_date)));
+  if (!rows.length) return null;
+  if (daysAgo === 0) return rows[0];
+  const target = new Date(rows[0].snapshot_date);
+  target.setUTCDate(target.getUTCDate() - daysAgo);
+  const targetStr = target.toISOString().slice(0, 10);
+  return rows.find(row => row.snapshot_date === targetStr)
+    || rows.find(row => row.snapshot_date < targetStr)
+    || null;
+}
+
+// whereispost가 알려주는 자체 평균 대신, 우리가 실제로 쌓은(백필 포함) 방문 이력으로 직접 평균을 낸다.
+function avgVisitors(blogId) {
+  const values = state.diagnosis
+    .filter(row => row.blog_id === blogId && row.visitors_today != null)
+    .map(row => Number(row.visitors_today));
+  if (!values.length) return null;
+  return values.reduce((sum, v) => sum + v, 0) / values.length;
+}
+
+// alertPct를 주면 그 이상 하락 시 "급감"으로 강조 표시 (예: 이웃/방문자 급감 감지)
+function pctChangeChip(label, cur, prev, alertPct = null) {
+  if (cur == null) return `<span class="cmp">${esc(label)} -</span>`;
+  if (prev == null) return `<span class="cmp">${esc(label)} 데이터 없음</span>`;
+  if (prev === 0) {
+    if (cur === 0) return `<span class="cmp">${esc(label)} -</span>`;
+    return `<span class="cmp up">${esc(label)} 신규</span>`;
+  }
+  const pct = ((cur - prev) / prev) * 100;
+  const isAlert = alertPct != null && pct <= alertPct;
+  const cls = isAlert ? "alert" : pct > 0.05 ? "up" : pct < -0.05 ? "down" : "";
+  const arrow = pct > 0.05 ? "▲" : pct < -0.05 ? "▼" : "-";
+  return `<span class="cmp ${cls}">${esc(label)} ${isAlert ? "급감 " : ""}${arrow}${Math.abs(pct).toFixed(1)}%</span>`;
+}
+
+// 순위는 숫자가 작아질수록 좋아지는 값이라 pctChangeChip과 up/down 방향이 반대다.
+function rankChangeChip(label, cur, prev) {
+  if (cur == null) return `<span class="cmp">${esc(label)} -</span>`;
+  if (prev == null) return `<span class="cmp">${esc(label)} 데이터 없음</span>`;
+  const diff = prev - cur;
+  const cls = diff > 0 ? "up" : diff < 0 ? "down" : "";
+  const arrow = diff > 0 ? "▲" : diff < 0 ? "▼" : "-";
+  return `<span class="cmp ${cls}">${esc(label)} ${arrow}${Math.abs(diff).toLocaleString()}</span>`;
+}
+
+function renderDiagnosisCard(blog) {
+  const snapshot = diagnosisAt(blog.blog_id, 0);
+  const dayAgo = diagnosisAt(blog.blog_id, 1);
+  const weekAgo = diagnosisAt(blog.blog_id, 7);
+  const snapshotLabel = snapshot ? `최근 진단: ${formatTime(snapshot.collected_at)}` : "아직 진단한 적이 없습니다.";
+
+  const tiles = [
+    {
+      label: "블로그 지수",
+      tip: "키워드마스터가 제공하는 자체 지수(0~10단계)로, 네이버 공식 지표가 아닙니다.",
+      value: snapshot?.blog_level != null ? `Lv.${snapshot.blog_level}` : "-",
+      cmp: "",
+    },
+    {
+      label: "이웃",
+      tip: "블로그차트에서 조회한 이웃 수입니다.",
+      value: snapshot?.neighbor_count != null ? Number(snapshot.neighbor_count).toLocaleString() : "-",
+      unit: "명",
+      cmp: "",
+    },
+    {
+      label: "방문자",
+      tip: "오늘 하루 방문자 수 · 평균은 실제 방문 이력 평균 · 전일/전주 같은 요일 대비 변동입니다.",
+      value: snapshot?.visitors_today != null ? Number(snapshot.visitors_today).toLocaleString() : "-",
+      unit: (() => { const avg = avgVisitors(blog.blog_id); return avg != null ? `명 · 평균 ${Math.round(avg).toLocaleString()}` : "명"; })(),
+      cmp: `<div class="metric-cmp">${pctChangeChip("전일", snapshot?.visitors_today, dayAgo?.visitors_today, -30)}${pctChangeChip("전주", snapshot?.visitors_today, weekAgo?.visitors_today, -30)}</div>`,
+    },
+    {
+      label: "블로그 순위",
+      tip: snapshot?.category_label ? `블로그차트 "${snapshot.category_label}" 카테고리 기준 순위입니다. (주간 단위 갱신)` : "블로그차트 연동 계정의 카테고리 순위입니다. (주간 단위 갱신)",
+      value: snapshot?.category_rank != null ? Number(snapshot.category_rank).toLocaleString() : "-",
+      unit: `위${snapshot?.best_rank != null ? ` · 최고 ${Number(snapshot.best_rank).toLocaleString()}위` : ""}`,
+      cmp: `<div class="metric-cmp">${rankChangeChip("전주", snapshot?.category_rank, weekAgo?.category_rank)}</div>`,
+    },
+    {
+      label: "유효키워드",
+      tip: "블로그차트 기준, 검색에 실제로 잡히고 있는 키워드 수입니다. (주간 단위 갱신)",
+      value: snapshot?.valid_keyword_count ?? "-",
+      unit: snapshot?.total_keyword_count != null ? `/ 전체 ${Number(snapshot.total_keyword_count).toLocaleString()}개` : "개",
+      cmp: `<div class="metric-cmp">${pctChangeChip("전주", snapshot?.valid_keyword_count, weekAgo?.valid_keyword_count)}</div>`,
+    },
+  ];
+
+  const tilesHtml = tiles.map(t => `
+    <div class="dash-tile">
+      <div class="dash-label">${esc(t.label)}<span class="dash-info">?<span class="dash-tip">${esc(t.tip)}</span></span></div>
+      <div class="dash-value">${t.value}${t.unit ? `<small>${esc(t.unit)}</small>` : ""}</div>
+      ${t.cmp}
+    </div>`).join("");
+
+  return `
+    <div class="summary-mini-card app-card">
+      <div class="summary-section-title-row app-card-head">
+        <div class="summary-section-title-wrap app-card-title-wrap">
+          <span class="summary-section-title app-card-title">${esc(blog.blog_name || blog.blog_id)}</span>
+          <span class="summary-section-subtitle app-card-subtitle">${esc(snapshotLabel)}</span>
+        </div>
+        <button class="diagnosis-refresh-btn" type="button" onclick="refreshDiagnosis('${esc(blog.blog_id)}')">진단 새로고침</button>
+      </div>
+      <div class="summary-divider"></div>
+      <div class="summary-section-body app-card-body">
+        <div class="rank-dash-tiles">${tilesHtml}</div>
+      </div>
+    </div>`;
+}
+
+function latestExposure(blogId, keyword, provider) {
+  return state.exposureHistory
+    .filter(row => row.blog_id === blogId && row.keyword === keyword && row.provider === provider)
+    .sort((a, b) => String(b.collected_at).localeCompare(String(a.collected_at)))[0] || null;
+}
+
+function postTitleCheckFor(blogId, logNo) {
+  return state.postTitleChecks.find(row => row.blog_id === blogId && row.log_no === logNo) || null;
+}
+
+function exposureHistoryFor(blogId, keyword, provider) {
+  return state.exposureHistory
+    .filter(row => row.blog_id === blogId && row.keyword === keyword && row.provider === provider)
+    .sort((a, b) => String(b.collected_at).localeCompare(String(a.collected_at)));
+}
+
+// 랭킹추적의 "순위 더보기"(moverExpandedCards)와 동일한 패턴 — 기본 3개만 보이고 눌러야 펼쳐진다.
+const exposureMoverExpanded = new Set();
+const EXPOSURE_MOVER_LIMIT = 10;
+function exposureMoreBtnHtml(key, totalCount, threshold = 3) {
+  if (totalCount <= threshold) return "";
+  const expanded = exposureMoverExpanded.has(key);
+  return `<button type="button" class="summary-top3-more" data-action="toggle-exposure-mover" data-mover-key="${esc(key)}">${expanded ? "간략히 보기" : "순위 더보기"} <span>${expanded ? "−" : "+"}</span></button>`;
+}
+
+function exposureMovers(blogId) {
+  const keywords = state.targetKeywords.filter(k => k.blog_id === blogId);
+  const moves = keywords.map(kw => {
+    const rows = exposureHistoryFor(blogId, kw.keyword, "naver_blog_screen");
+    const current = rows[0];
+    const previous = rows[1];
+    if (!current || !previous || !current.found || !previous.found || current.rank == null || previous.rank == null) return null;
+    const delta = previous.rank - current.rank; // 양수면 순위 상승(숫자가 작아짐)
+    if (delta === 0) return null;
+    return { kw, current, previous, delta };
+  }).filter(Boolean);
+
+  const byCategory = (category, dir) => moves
+    .filter(m => m.kw.category === category && (dir === "up" ? m.delta > 0 : m.delta < 0))
+    .sort((a, b) => dir === "up" ? b.delta - a.delta : a.delta - b.delta);
+
+  return {
+    mainUp: byCategory("메인", "up"),
+    mainDown: byCategory("메인", "down"),
+    subUp: byCategory("서브", "up"),
+    subDown: byCategory("서브", "down"),
+  };
+}
+
+function exposureDropouts(blogId) {
+  const keywords = state.targetKeywords.filter(k => k.blog_id === blogId);
+  const byPost = new Map();
+  keywords.forEach(kw => {
+    const rows = exposureHistoryFor(blogId, kw.keyword, "naver_blog_screen");
+    const current = rows[0];
+    const previous = rows[1];
+    if (!current || !previous || !previous.found || current.found) return;
+    const key = previous.result_log_no || previous.result_title || previous.result_url || kw.keyword;
+    if (!byPost.has(key)) {
+      byPost.set(key, { title: previous.result_title, url: previous.result_url, logNo: previous.result_log_no, keywords: [] });
+    }
+    byPost.get(key).keywords.push({ keyword: kw.keyword, prevRank: previous.rank, prevDate: previous.checked_date });
+  });
+  return [...byPost.values()];
+}
+
+function exposurePageDistribution(blogId) {
+  const keywords = state.targetKeywords.filter(k => k.blog_id === blogId);
+  let page1 = 0, page23 = 0, page4plus = 0;
+  keywords.forEach(kw => {
+    const current = exposureHistoryFor(blogId, kw.keyword, "naver_blog_screen")[0];
+    if (!current?.found || current.page == null) return;
+    if (current.page === 1) page1 += 1;
+    else if (current.page <= 3) page23 += 1;
+    else page4plus += 1;
+  });
+  return { page1, page23, page4plus };
+}
+
+function moverKeywordRowHtml(m, rank) {
+  const up = m.delta > 0;
+  const searchUrl = `https://search.naver.com/search.naver?ssc=tab.blog.all&query=${encodeURIComponent(m.kw.keyword)}`;
+  return `<div class="summary-mover-row">
+    <div class="summary-mover-row-main">
+      <span class="summary-top3-rank">${rank}</span>
+      <a class="summary-top3-name" href="${esc(searchUrl)}" target="_blank" rel="noopener" title="${esc(m.kw.keyword)}">${esc(m.kw.keyword)}</a>
+      <span class="summary-mover-delta ${up ? "up" : "down"}">${up ? "▲" : "▼"}${Math.abs(m.delta)}</span>
+    </div>
+    <div class="summary-mover-row-detail">${m.previous.rank}위 → ${m.current.rank}위</div>
+  </div>`;
+}
+
+function dashMoverSubCard(title, rowsHtml) {
+  const body = rowsHtml || `<div class="empty-state" style="padding:8px 0;font-size:12px;">데이터가 없습니다.</div>`;
+  return `<div class="summary-top3-card"><div class="summary-top3-title">${esc(title)}</div>${body}</div>`;
+}
+
+function exposureDropoutRowHtml(post, rank) {
+  const nameHtml = post.url
+    ? `<a class="summary-top3-name" href="${esc(post.url)}" target="_blank" rel="noopener" title="${esc(post.title || post.logNo || "")}">${esc(post.title || post.logNo || "포스팅 확인 필요")}</a>`
+    : `<span class="summary-top3-name">${esc(post.title || post.logNo || "포스팅 확인 필요")}</span>`;
+  const chips = post.keywords.map(k => `<span class="dropout-keyword-chip">${esc(k.keyword)} <span class="dropout-keyword-rank">최근 ${k.prevRank}위 · ${esc(String(k.prevDate || "").slice(5).replace("-", "/"))} 이후</span></span>`).join("");
+  return `<div class="summary-mover-row">
+    <div class="summary-mover-row-main">
+      <span class="summary-top3-rank">${rank}</span>
+      ${nameHtml}
+      <span class="summary-mover-delta down">이탈 ${post.keywords.length}건</span>
+    </div>
+    <div class="summary-mover-row-detail dropout-keywords">${chips}</div>
+  </div>`;
+}
+
+function renderExposureCard(blog) {
+  const keywords = state.targetKeywords.filter(k => k.blog_id === blog.blog_id);
+  const results = keywords.map(k => ({ kw: k, result: latestExposure(blog.blog_id, k.keyword, "naver_blog_screen") }));
+  const checkedCount = results.filter(r => r.result).length;
+  const exposedCount = results.filter(r => r.result?.found).length;
+  const notExposedCount = checkedCount - exposedCount;
+  const exposureRate = checkedCount ? Math.round((exposedCount / checkedCount) * 100) : null;
+
+  const posts = state.posts.filter(p => p.blog_id === blog.blog_id);
+  const titleChecks = posts.map(p => postTitleCheckFor(blog.blog_id, p.log_no)).filter(Boolean);
+  const missingCount = titleChecks.filter(c => !c.found).length;
+
+  const tilesHtml = [
+    { label: "노출중", value: exposedCount, tip: "검색 시 우리 블로그 포스팅이 결과에 걸린 키워드 수입니다." },
+    { label: "미노출", value: notExposedCount, tip: "검색해봤지만 우리 블로그 포스팅이 안 걸린 키워드 수입니다." },
+    { label: "누락", value: missingCount, tip: "포스팅 제목으로 검색해도 그 포스팅 자체가 안 뜨는 경우 — 노출 경쟁력이 아니라 색인/노출 자체의 문제입니다." },
+    { label: "노출률", value: exposureRate != null ? `${exposureRate}%` : "-", tip: "진단 키워드 중 노출중 비율입니다." },
+  ].map(t => `
+    <div class="dash-tile">
+      <div class="dash-label">${esc(t.label)}<span class="dash-info">?<span class="dash-tip">${esc(t.tip)}</span></span></div>
+      <div class="dash-value">${t.value}</div>
+    </div>`).join("");
+
+  const pageDist = exposurePageDistribution(blog.blog_id);
+  const rankedTotal = pageDist.page1 + pageDist.page23 + pageDist.page4plus;
+  const pagePct = n => rankedTotal ? Math.round(n / rankedTotal * 100) : 0;
+  const pageSegs = [
+    { label: "1페이지", count: pageDist.page1, color: "#e85d2f" },
+    { label: "2~3페이지", count: pageDist.page23, color: "#f4a988" },
+    { label: "4페이지 이하", count: pageDist.page4plus, color: "#fbdccb" },
+  ].filter(seg => seg.count > 0);
+  const pageBarHtml = rankedTotal ? `
+    <div class="dash-bar-wrap">
+      <div class="dash-bar">${pageSegs.map(seg => `<span class="dash-bar-seg" style="flex:${seg.count};background:${seg.color};" title="${seg.label} ${seg.count}개 (${pagePct(seg.count)}%)"></span>`).join("")}</div>
+      <div class="dash-legend">${pageSegs.map(seg => `<span class="dash-legend-item"><span class="dash-legend-dot" style="background:${seg.color};"></span>${seg.label} <b>${seg.count}개</b> · ${pagePct(seg.count)}%</span>`).join("")}</div>
+    </div>` : "";
+
+  const movers = exposureMovers(blog.blog_id);
+  const mainUpKey = `exp-mup-${blog.blog_id}`, mainDownKey = `exp-mdown-${blog.blog_id}`, subUpKey = `exp-sup-${blog.blog_id}`, subDownKey = `exp-sdown-${blog.blog_id}`;
+  const sliceFor = (key, list) => list.slice(0, exposureMoverExpanded.has(key) ? EXPOSURE_MOVER_LIMIT : 3);
+  const moverCardsHtml = [
+    dashMoverSubCard("메인 키워드 상승", sliceFor(mainUpKey, movers.mainUp).map((m, i) => moverKeywordRowHtml(m, i + 1)).join("") + exposureMoreBtnHtml(mainUpKey, movers.mainUp.length)),
+    dashMoverSubCard("메인 키워드 하락", sliceFor(mainDownKey, movers.mainDown).map((m, i) => moverKeywordRowHtml(m, i + 1)).join("") + exposureMoreBtnHtml(mainDownKey, movers.mainDown.length)),
+    dashMoverSubCard("보조 키워드 상승", sliceFor(subUpKey, movers.subUp).map((m, i) => moverKeywordRowHtml(m, i + 1)).join("") + exposureMoreBtnHtml(subUpKey, movers.subUp.length)),
+    dashMoverSubCard("보조 키워드 하락", sliceFor(subDownKey, movers.subDown).map((m, i) => moverKeywordRowHtml(m, i + 1)).join("") + exposureMoreBtnHtml(subDownKey, movers.subDown.length)),
+  ].join("");
+
+  const dropouts = exposureDropouts(blog.blog_id);
+  const dropKey = `exp-drop-${blog.blog_id}`;
+  const dropoutHtml = dropouts.length
+    ? `<div class="summary-divider" style="margin:18px 0;"></div>
+       ${dashMoverSubCard("이탈 포스팅", sliceFor(dropKey, dropouts).map((p, i) => exposureDropoutRowHtml(p, i + 1)).join("") + exposureMoreBtnHtml(dropKey, dropouts.length))}`
+    : "";
+
+  const exposedResults = results.filter(r => r.result?.found).sort((a, b) => (a.result.rank || 9999) - (b.result.rank || 9999));
+  const exposedKey = `exp-list-${blog.blog_id}`;
+  const exposedRowsHtml = sliceFor(exposedKey, exposedResults).map(r => `
+      <div class="exposure-row">
+        <span class="exposure-cat-badge${r.kw.category === "메인" ? " main" : ""}">${esc(r.kw.category)}</span>
+        <span class="exposure-keyword">${esc(r.kw.keyword)}</span>
+        <a class="exposure-post-title" href="${esc(r.result.result_url || "#")}" target="_blank" rel="noopener">${esc(r.result.result_title || r.result.result_log_no || "포스팅 확인 필요")}</a>
+        <span class="exposure-rank">${r.result.rank}위</span>
+        <button class="row-btn" type="button" data-tip="삭제" onclick="removeTargetKeywordHandler(${r.kw.id}, '${esc(r.kw.keyword)}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M19 6l-1 14H6L5 6"></path><path d="M10 11v5M14 11v5"></path></svg>
+        </button>
+      </div>`).join("") + exposureMoreBtnHtml(exposedKey, exposedResults.length);
+
+  const missingKeywordsHtml = results
+    .filter(r => !r.result?.found)
+    .map(r => `
+      <span class="missing-keyword-chip">
+        ${esc(r.kw.category)} · ${esc(r.kw.keyword)}${!r.result ? " (수집 전)" : ""}
+        <button type="button" onclick="removeTargetKeywordHandler(${r.kw.id}, '${esc(r.kw.keyword)}')">&times;</button>
+      </span>`).join("");
+
+  const missingPostsHtml = posts
+    .map(p => ({ post: p, check: postTitleCheckFor(blog.blog_id, p.log_no) }))
+    .filter(({ check }) => check && !check.found)
+    .map(({ post }) => `
+      <span class="missing-keyword-chip">
+        <a href="${esc(post.post_url)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">${esc(post.title || post.log_no)}</a>
+      </span>`).join("");
+
+  return `
+    <div class="summary-mini-card app-card">
+      <div class="summary-section-title-row app-card-head">
+        <div class="summary-section-title-wrap app-card-title-wrap">
+          <span class="summary-section-title app-card-title">노출 현황 진단</span>
+          <span class="summary-section-subtitle app-card-subtitle">주요 키워드 ${keywords.length}개로 검색했을 때 우리 블로그 포스팅이 노출되는지 확인합니다.</span>
+        </div>
+        <div style="display:flex;gap:8px;flex-shrink:0;">
+          <button class="diagnosis-refresh-btn" type="button" onclick="collectPostTitleCheckHandler('${esc(blog.blog_id)}')">제목 자가진단</button>
+          <button class="diagnosis-refresh-btn" type="button" onclick="collectExposureHandler('${esc(blog.blog_id)}')">노출 진단 수집</button>
+        </div>
+      </div>
+      <div class="summary-divider"></div>
+      <div class="summary-section-body app-card-body">
+        <div class="rank-dash-tiles" style="grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:18px;">${tilesHtml}</div>
+        ${pageBarHtml}
+        <div class="summary-divider" style="margin:18px 0;"></div>
+        <div class="summary-top3-row-wrap summary-mover-grid">${moverCardsHtml}</div>
+        ${dropoutHtml}
+        <div class="summary-divider" style="margin:18px 0;"></div>
+        ${keywords.length
+          ? `${exposedRowsHtml ? `<div class="exposure-list">${exposedRowsHtml}</div>` : `<div class="empty-state" style="padding:16px 4px;font-size:12px;">아직 노출 중인 키워드가 없습니다.</div>`}
+             ${missingKeywordsHtml ? `<div style="margin-top:14px;">
+               <div style="margin-bottom:6px;color:#8590a3;font-size:11px;font-weight:800;">미노출 키워드</div>
+               <div class="missing-keyword-wrap">${missingKeywordsHtml}</div>
+             </div>` : ""}`
+          : `<div class="empty-state" style="padding:24px 4px;font-size:12px;">등록된 진단 키워드가 없습니다. 아래에서 추가해 주세요.</div>`}
+        ${missingPostsHtml ? `<div style="margin-top:14px;">
+          <div style="margin-bottom:6px;color:#8590a3;font-size:11px;font-weight:800;">누락된 포스팅 (제목으로 검색해도 안 뜸)</div>
+          <div class="missing-keyword-wrap">${missingPostsHtml}</div>
+        </div>` : ""}
+        <div class="post-keyword-add-row" style="margin-top:16px;">
+          <input type="text" placeholder="메인 키워드 추가 (쉼표로 여러 개)" onkeydown="if(event.key==='Enter') addTargetKeywordsBulk('${esc(blog.blog_id)}', '메인', this)">
+          <button class="keyword-add-btn" type="button" onclick="addTargetKeywordsBulk('${esc(blog.blog_id)}', '메인', this.previousElementSibling)">+ 메인 추가</button>
+        </div>
+        <div class="post-keyword-add-row">
+          <input type="text" placeholder="서브 키워드 추가 (쉼표로 여러 개)" onkeydown="if(event.key==='Enter') addTargetKeywordsBulk('${esc(blog.blog_id)}', '서브', this)">
+          <button class="keyword-add-btn" type="button" onclick="addTargetKeywordsBulk('${esc(blog.blog_id)}', '서브', this.previousElementSibling)">+ 서브 추가</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function bestKeywordForPost(blogId, logNo) {
+  const rows = state.postKeywords.filter(kw => kw.blog_id === blogId && kw.log_no === logNo);
+  let best = null;
+  rows.forEach(kw => {
+    const [latest] = latestPair(blogId, logNo, kw.keyword, "naver_blog_screen");
+    if (latest?.found && latest.rank != null && (!best || latest.rank < best.rank)) {
+      best = { keyword: kw.keyword, rank: latest.rank };
+    }
+  });
+  return best;
+}
+
+// 우리가 정하는 자체 최적화 점수 — 노출 비율(최대 70점) + 순위 보너스(1위에 가까울수록 최대 30점).
+// 제목 검색 자가진단에서 누락으로 뜬 포스팅은 0점 고정, 등록된 키워드가 없으면 채점하지 않는다(null).
+function postContentCheckFor(blogId, logNo) {
+  return state.postContentChecks.find(row => row.blog_id === blogId && row.log_no === logNo) || null;
+}
+
+// 우리가 정하는 자체 종합분석 점수 — 글자수(30) + 사진수(25) + 인용구 유무(15) + 외부링크 유무(15) + 댓글수(15).
+// 제목 검색 자가진단에서 누락으로 뜬 포스팅은 0점 고정, 본문 분석을 아직 안 돌렸으면 채점하지 않는다(null).
+function postOptimizationScore(blogId, logNo) {
+  const titleCheck = postTitleCheckFor(blogId, logNo);
+  if (titleCheck && !titleCheck.found) return 0;
+
+  const content = postContentCheckFor(blogId, logNo);
+  if (!content) return null;
+
+  const charScore = Math.min(1, (content.char_count || 0) / 1000) * 30;
+  const imageScore = Math.min(1, (content.image_count || 0) / 6) * 25;
+  const quoteScore = (content.quote_count || 0) > 0 ? 15 : 0;
+  const linkScore = (content.external_link_count || 0) > 0 ? 15 : 0;
+  const commentScore = Math.min(1, (content.comment_count || 0) / 5) * 15;
+  return Math.round(charScore + imageScore + quoteScore + linkScore + commentScore);
+}
+
+function renderRecentPostRow(blog, post) {
+  const check = postTitleCheckFor(blog.blog_id, post.log_no);
+  const missingLabel = !check ? "확인 전" : check.found ? "정상" : "누락";
+  const best = bestKeywordForPost(blog.blog_id, post.log_no);
+  const score = postOptimizationScore(blog.blog_id, post.log_no);
+
+  return `
+    <div class="recent-post-row">
+      <a class="recent-post-title" href="${esc(post.post_url)}" target="_blank" rel="noopener">${esc(post.title || post.log_no)}</a>
+      <span class="recent-post-cell${check && !check.found ? " text-bad" : ""}">${esc(missingLabel)}</span>
+      <span class="recent-post-cell">${best ? `${esc(best.keyword)} · ${best.rank}위` : "-"}</span>
+      <span class="recent-post-cell">${score != null ? `${score}점` : "-"}</span>
+      <span class="recent-post-cell">${formatDate(post.published_at)}</span>
+      <div style="display:flex;gap:4px;justify-content:center;">
+        <button class="row-btn" type="button" data-tip="게시글 진단" onclick="openPostDetailModal('${esc(blog.blog_id)}', '${esc(post.log_no)}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path></svg>
+        </button>
+        <a class="row-btn" href="${esc(post.post_url)}" target="_blank" rel="noopener" data-tip="포스팅 보기">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><path d="M15 3h6v6"></path><path d="M10 14 21 3"></path></svg>
+        </a>
+      </div>
+    </div>`;
+}
+
+function renderRecentPostsCard(blog) {
+  const posts = state.posts
+    .filter(p => p.blog_id === blog.blog_id)
+    .sort((a, b) => String(b.published_at || "").localeCompare(String(a.published_at || "")))
+    .slice(0, 10);
+
+  const headHtml = `
+    <div class="recent-post-row head">
+      <span>제목</span><span>누락여부</span><span>상위노출 키워드</span><span>최적화 점수</span><span>발행일</span><span></span>
+    </div>`;
+
+  return `
+    <div class="summary-mini-card app-card">
+      <div class="summary-section-title-row app-card-head">
+        <div class="summary-section-title-wrap app-card-title-wrap">
+          <span class="summary-section-title app-card-title">최근 게시글 진단</span>
+          <span class="summary-section-subtitle app-card-subtitle">최근 발행한 포스팅 ${posts.length}개의 상태를 확인합니다.</span>
+        </div>
+      </div>
+      <div class="summary-divider"></div>
+      <div class="summary-section-body app-card-body">
+        ${posts.length
+          ? `${headHtml}<div style="margin-top:6px;display:flex;flex-direction:column;">${posts.map(post => renderRecentPostRow(blog, post)).join("")}</div>`
+          : `<div class="empty-state" style="padding:24px 4px;font-size:12px;">불러온 포스팅이 없습니다.</div>`}
+      </div>
+    </div>`;
+}
+
+function diagnosisPlaceholderCardsHtml() {
+  const sections = [
+    { title: "경쟁자 블로그", subtitle: "등록한 경쟁사 블로그와 비교 분석하는 영역입니다.", note: "준비 중입니다." },
+  ];
+  return sections.map(s => `
+    <div class="summary-mini-card app-card">
+      <div class="summary-section-title-row app-card-head">
+        <div class="summary-section-title-wrap app-card-title-wrap">
+          <span class="summary-section-title app-card-title">${esc(s.title)}</span>
+          <span class="summary-section-subtitle app-card-subtitle">${esc(s.subtitle)}</span>
+        </div>
+      </div>
+      <div class="summary-divider"></div>
+      <div class="summary-section-body app-card-body">
+        <div class="empty-state" style="padding:32px 4px;font-size:12px;">${esc(s.note)}</div>
+      </div>
+    </div>`).join("");
+}
+
+function renderDiagnosis() {
+  const list = document.getElementById("diagnosisList");
+  const mine = state.blogs.filter(blog => blog.is_mine);
+  if (!mine.length) {
+    list.innerHTML = `
+      <div class="rank-card app-card">
+        <div class="empty-state">
+          <strong>내 블로그로 등록된 블로그가 없습니다.</strong>
+          블로그 추가 시 "내 블로그입니다"를 체크해 주세요.
+        </div>
+      </div>`;
+    return;
+  }
+  list.innerHTML = mine.map(blog => renderDiagnosisCard(blog) + renderExposureCard(blog) + renderRecentPostsCard(blog)).join("") + diagnosisPlaceholderCardsHtml();
+}
+
 function renderAll() {
   renderSummary();
   renderRows();
+  renderDiagnosis();
 }
 
 async function loadData() {
@@ -1208,6 +1774,78 @@ function openModal() {
 function closeModal() {
   document.getElementById("targetModal").classList.remove("show");
   document.getElementById("targetModal").setAttribute("aria-hidden", "true");
+}
+
+function openPostDetailModal(blogId, logNo) {
+  currentPostDetail = { blogId, logNo };
+  renderPostDetailModal();
+  document.getElementById("postDetailModal").classList.add("show");
+  document.getElementById("postDetailModal").setAttribute("aria-hidden", "false");
+}
+
+function closePostDetailModal() {
+  document.getElementById("postDetailModal").classList.remove("show");
+  document.getElementById("postDetailModal").setAttribute("aria-hidden", "true");
+  currentPostDetail = null;
+}
+
+function renderPostDetailModal() {
+  if (!currentPostDetail) return;
+  const { blogId, logNo } = currentPostDetail;
+  const post = state.posts.find(p => p.blog_id === blogId && p.log_no === logNo);
+  if (!post) return;
+
+  const content = postContentCheckFor(blogId, logNo);
+  const score = postOptimizationScore(blogId, logNo);
+  const keywords = state.postKeywords
+    .filter(kw => kw.blog_id === blogId && kw.log_no === logNo)
+    .map(kw => ({ kw, latest: latestPair(blogId, logNo, kw.keyword, "naver_blog_screen")[0] }))
+    .filter(r => r.latest?.found && r.latest.rank != null)
+    .sort((a, b) => a.latest.rank - b.latest.rank);
+
+  document.getElementById("postDetailModalTitle").textContent = "게시글 진단";
+  document.getElementById("postDetailModalBody").innerHTML = `
+    <div class="post-detail-layout">
+      <div class="post-detail-thumb">
+        ${content?.thumbnail_url ? `<img src="${esc(content.thumbnail_url)}" alt="">` : `<div class="post-detail-thumb-empty">썸네일 없음</div>`}
+      </div>
+      <div class="post-detail-meta">
+        <div class="post-detail-title"><a href="${esc(post.post_url)}" target="_blank" rel="noopener">${esc(post.title || post.log_no)}</a></div>
+        <div class="post-detail-date">발행일 ${esc(formatDate(post.published_at))}</div>
+        <div class="rank-dash-tiles" style="grid-template-columns:repeat(5,minmax(0,1fr));margin-top:14px;">
+          <div class="dash-tile"><div class="dash-label">글자수</div><div class="dash-value">${content?.char_count != null ? content.char_count.toLocaleString() : "-"}</div></div>
+          <div class="dash-tile"><div class="dash-label">사진</div><div class="dash-value">${content?.image_count ?? "-"}</div></div>
+          <div class="dash-tile"><div class="dash-label">댓글</div><div class="dash-value">${content?.comment_count ?? "-"}</div></div>
+          <div class="dash-tile"><div class="dash-label">인용구/외부링크</div><div class="dash-value">${content ? `${content.quote_count ?? 0} / ${content.external_link_count ?? 0}` : "-"}</div></div>
+          <div class="dash-tile"><div class="dash-label">종합분석 점수</div><div class="dash-value">${score != null ? `${score}점` : "-"}</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="summary-divider" style="margin:18px 0;"></div>
+    <div class="post-detail-section-title">이 글의 상위노출 키워드</div>
+    ${keywords.length
+      ? `<div class="exposure-list">${keywords.map(r => `
+          <div class="exposure-row" style="grid-template-columns:1fr 70px;">
+            <span class="exposure-keyword">${esc(r.kw.keyword)}</span>
+            <span class="exposure-rank">${r.latest.rank}위</span>
+          </div>`).join("")}</div>`
+      : `<div class="empty-state" style="padding:16px 4px;font-size:12px;">노출 중인 키워드가 없습니다.</div>`}`;
+
+  document.getElementById("postDetailRefreshBtn").onclick = () => refreshPostContentCheck(blogId, logNo);
+}
+
+async function refreshPostContentCheck(blogId, logNo) {
+  setLoading(true, "게시글 본문을 분석하는 중입니다.");
+  try {
+    state = await callApi("collectPostContentCheck", { blogId, logNo });
+    renderAll();
+    renderPostDetailModal();
+    showToast("게시글 분석을 완료했습니다.");
+  } catch (error) {
+    showToast(error.message);
+  } finally {
+    setLoading(false);
+  }
 }
 
 async function saveTarget() {
@@ -1302,6 +1940,97 @@ async function deletePostKeyword(id, keyword) {
   }
 }
 
+async function refreshDiagnosis(blogId) {
+  setLoading(true, "블로그 지수와 방문자 현황을 조회하는 중입니다.");
+  try {
+    state = await callApi("collectDiagnosis", { blogId });
+    renderAll();
+    showToast("블로그 진단을 새로고침했습니다.");
+  } catch (error) {
+    showToast(error.message);
+  } finally {
+    setLoading(false);
+  }
+}
+
+async function addTargetKeywordsBulk(blogId, category, inputEl) {
+  const keywords = inputEl.value.split(",").map(v => v.trim()).filter(Boolean);
+  if (!keywords.length) return showToast("키워드를 입력해 주세요.");
+  inputEl.value = "";
+  setLoading(true, "진단 키워드를 추가하는 중입니다.");
+  try {
+    state = await callApi("addTargetKeywords", { blogId, keywords: keywords.map(keyword => ({ keyword, category })) });
+    renderAll();
+    showToast(`${category} 키워드 ${keywords.length}개를 추가했습니다.`);
+  } catch (error) {
+    showToast(error.message);
+  } finally {
+    setLoading(false);
+  }
+}
+
+async function removeTargetKeywordHandler(id, keyword) {
+  if (!confirm(`"${keyword}" 진단 키워드를 삭제할까요?`)) return;
+  setLoading(true, "키워드를 삭제하는 중입니다.");
+  try {
+    state = await callApi("removeTargetKeyword", { id });
+    renderAll();
+    showToast("키워드를 삭제했습니다.");
+  } catch (error) {
+    showToast(error.message);
+  } finally {
+    setLoading(false);
+  }
+}
+
+async function collectExposureHandler(blogId) {
+  const keywords = state.targetKeywords.filter(k => k.blog_id === blogId && k.active);
+  if (!keywords.length) return showToast("등록된 진단 키워드가 없습니다.");
+  const errors = [];
+  setLoading(true, `0/${keywords.length} 키워드 진단 중...`);
+  for (let i = 0; i < keywords.length; i++) {
+    const kw = keywords[i];
+    setLoading(true, `${i + 1}/${keywords.length} "${kw.keyword}" 확인 중...`);
+    try {
+      state = await callApi("collectExposure", { blogId, keyword: kw.keyword });
+      renderAll();
+    } catch (error) {
+      errors.push({ keyword: kw.keyword, message: error.message });
+    }
+  }
+  setLoading(false);
+  if (errors.length) {
+    showToast(`진단 완료 · ${errors.length}건은 확인이 필요합니다.`);
+    console.warn("노출 현황 진단 오류", errors);
+  } else {
+    showToast(`키워드 ${keywords.length}개 진단을 완료했습니다.`);
+  }
+}
+
+async function collectPostTitleCheckHandler(blogId) {
+  const posts = state.posts.filter(p => p.blog_id === blogId);
+  if (!posts.length) return showToast("확인할 포스팅이 없습니다.");
+  const errors = [];
+  setLoading(true, `0/${posts.length} 포스팅 제목 확인 중...`);
+  for (let i = 0; i < posts.length; i++) {
+    const post = posts[i];
+    setLoading(true, `${i + 1}/${posts.length} 포스팅 제목 확인 중...`);
+    try {
+      state = await callApi("collectPostTitleCheck", { blogId, logNo: post.log_no });
+      renderAll();
+    } catch (error) {
+      errors.push({ logNo: post.log_no, message: error.message });
+    }
+  }
+  setLoading(false);
+  if (errors.length) {
+    showToast(`자가진단 완료 · ${errors.length}건은 확인이 필요합니다.`);
+    console.warn("포스팅 제목 자가진단 오류", errors);
+  } else {
+    showToast(`포스팅 ${posts.length}개 자가진단을 완료했습니다.`);
+  }
+}
+
 async function deleteBlog(blogId, blogName) {
   if (!confirm(`"${blogName}" 블로그 추적을 삭제할까요?\n등록된 키워드와 순위 이력이 모두 삭제됩니다.`)) return;
   setLoading(true, "블로그를 삭제하는 중입니다.");
@@ -1319,8 +2048,20 @@ async function deleteBlog(blogId, blogName) {
 document.getElementById("targetModal").addEventListener("click", event => {
   if (event.target.id === "targetModal") closeModal();
 });
+document.getElementById("postDetailModal").addEventListener("click", event => {
+  if (event.target.id === "postDetailModal") closePostDetailModal();
+});
 document.addEventListener("keydown", event => {
-  if (event.key === "Escape") closeModal();
+  if (event.key === "Escape") { closeModal(); closePostDetailModal(); }
+});
+
+document.addEventListener("click", event => {
+  const toggle = event.target.closest('[data-action="toggle-exposure-mover"]');
+  if (!toggle) return;
+  const key = toggle.dataset.moverKey;
+  if (exposureMoverExpanded.has(key)) exposureMoverExpanded.delete(key);
+  else exposureMoverExpanded.add(key);
+  renderDiagnosis();
 });
 
 function setBlogView(view) {
@@ -1339,7 +2080,7 @@ document.querySelector(".app-title-tabs")?.addEventListener("click", event => {
   setBlogView(tab.dataset.blogView);
 });
 
-setBlogView("rank");
+setBlogView("diagnosis");
 loadData();
 </script>
 <script src="common.js?v=20260714-loading4"></script>
