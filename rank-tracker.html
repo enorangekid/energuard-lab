@@ -1429,15 +1429,21 @@ function categorySortIndex(categoryName) {
   return idx < 0 ? 9999 : idx;
 }
 
+// "스티로폼" 카테고리의 대표(메인) 후보는 이 2개뿐이다 — 압축스티로폼/EPS블럭/조각용스티로폼 등
+// 나머지는 소속 판별(getVisibleKeywords)과 "보조 N개" 집계에는 쓰지만 대표로는 절대 안 뽑힌다.
+const STYROFOAM_LEAD_POOL = ["스티로폼", "스티로폼단열재"];
+
 function getCategoryLeadKeyword(product, categoryName) {
   const detailKeywords = getDetailKeywords(categoryName);
   if (detailKeywords) {
+    const leadPool = categoryName === "스티로폼" ? STYROFOAM_LEAD_POOL : detailKeywords;
     // 대표 키워드(예: 아이소핑크)가 오늘 이탈/미수집이라고 해서 순위가 있는 보조 키워드(예:
-    // XPS단열재)를 "메인 키워드"로 대신 보여주면 안 된다 — 대표 키워드 우선순위(detailKeywords
+    // XPS단열재)를 "메인 키워드"로 대신 보여주면 안 된다 — 대표 키워드 우선순위(leadPool
     // 순서)를 항상 먼저 따지고, 순위 유무는 같은 순서 안에서만 부차적으로 쓴다.
     return getVisibleKeywords(product, categoryName)
+      .filter(k => leadPool.includes(k.keyword))
       .sort((a, b) =>
-        detailKeywords.indexOf(a.keyword) - detailKeywords.indexOf(b.keyword)
+        leadPool.indexOf(a.keyword) - leadPool.indexOf(b.keyword)
         || Number(a.rank == null) - Number(b.rank == null)
         || (a.rank ?? 9999) - (b.rank ?? 9999)
       )[0] || null;
