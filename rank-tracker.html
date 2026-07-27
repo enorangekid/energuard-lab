@@ -885,15 +885,8 @@ function getDisplayKeywords(categoryName) {
   return STORE_CATEGORY_DISPLAY_KEYWORDS[selectedStore]?.[categoryName] || null;
 }
 
-// 스토어별 우선순위 목록이 따로 없는 카테고리(예: "스티로폼")는 카테고리 판별에 쓰던
-// CATEGORY_KEYWORD_GROUPS를 그대로 대표 키워드 우선순위로도 재활용한다 — 이게 없으면
-// getCategoryLeadKeyword가 "첫 번째 메인급 키워드"로 폴백하면서, 상품명에 우연히 다른
-// 카테고리 키워드(예: 아이소핑크)가 섞여 있을 때 그게 대표로 잘못 뽑힌다.
 function getDetailKeywords(categoryName) {
-  return STORE_CATEGORY_DETAIL_KEYWORDS[selectedStore]?.[categoryName]
-    || getDisplayKeywords(categoryName)
-    || CATEGORY_KEYWORD_GROUPS[categoryName]
-    || null;
+  return STORE_CATEGORY_DETAIL_KEYWORDS[selectedStore]?.[categoryName] || getDisplayKeywords(categoryName);
 }
 
 function getVisibleKeywords(product, categoryName) {
@@ -1430,8 +1423,9 @@ function categorySortIndex(categoryName) {
 }
 
 function getCategoryLeadKeyword(product, categoryName) {
-  const detailKeywords = getDetailKeywords(categoryName);
-  if (detailKeywords) {
+  const displayKeywords = getDisplayKeywords(categoryName);
+  if (displayKeywords) {
+    const detailKeywords = getDetailKeywords(categoryName) || displayKeywords;
     // 대표 키워드(예: 아이소핑크)가 오늘 이탈/미수집이라고 해서 순위가 있는 보조 키워드(예:
     // XPS단열재)를 "메인 키워드"로 대신 보여주면 안 된다 — 대표 키워드 우선순위(detailKeywords
     // 순서)를 항상 먼저 따지고, 순위 유무는 같은 순서 안에서만 부차적으로 쓴다.
