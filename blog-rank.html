@@ -1,0 +1,1032 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>블로그 순위 | ENERGUARD LAB</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800;900&family=Roboto+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="common.css?v=20260727-blogrank1">
+  <style>
+    :root {
+      --dark: #05070b;
+      --ink: #07111f;
+      --sub: #667085;
+      --muted: #98a2b3;
+      --line: #e1e6ee;
+      --line-strong: #d4dae4;
+      --bg: #f5f7fa;
+      --panel: #fff;
+      --soft: #f8fafc;
+      --accent: #e85d2f;
+      --accent-soft: #fff0e9;
+      --green: #16a34a;
+      --green-soft: #eaf8ef;
+      --danger: #e32636;
+      --danger-soft: #fdebec;
+      --radius: 6px;
+      --font-main: "Noto Sans KR", sans-serif;
+      --font-mono: "Roboto Mono", monospace;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--font-main);
+      font-size: 14px;
+    }
+    button, input, select { font: inherit; }
+    button { color: inherit; }
+
+    body > main.wrap {
+      width: calc(100% - 40px);
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 68px 0 80px;
+    }
+
+    .page-head {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 30px;
+    }
+    .mode-title-tabs {
+      display: inline-flex;
+      align-items: center;
+      gap: 28px;
+    }
+    .mode-title-tab {
+      position: relative;
+      height: 34px;
+      padding: 0 0 8px;
+      border: 0;
+      background: transparent;
+      color: #aeb6c4;
+      font-family: inherit;
+      font-size: 21px;
+      font-weight: 900;
+      line-height: 1;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .mode-title-tab:not(.active):hover { color: #7f8795; }
+    .mode-title-tab + .mode-title-tab::before {
+      content: "";
+      position: absolute;
+      left: -15px;
+      top: 4px;
+      width: 1px;
+      height: 18px;
+      background: #d8dde6;
+    }
+    .mode-title-text {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .mode-label {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+    }
+    .mode-title-tab.active { color: var(--ink); }
+    .mode-title-tab.active .mode-label::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: -13px;
+      height: 3px;
+      border-radius: 999px;
+      background: var(--accent);
+    }
+    .mode-help {
+      width: 18px;
+      height: 18px;
+      border: 1px solid #cfd5df;
+      border-radius: 50%;
+      background: #f4f6f9;
+      color: #8a93a5;
+      font-size: 12px;
+      font-weight: 900;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+    }
+
+    .head-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .icon-btn {
+      width: 38px;
+      height: 38px;
+      padding: 0;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius);
+      background: #fff;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: border-color .15s, background .15s, color .15s;
+      position: relative;
+    }
+    .icon-btn svg { width: 18px; height: 18px; }
+    .icon-btn:hover { border-color: #aeb6c4; background: #f5f7fa; }
+    .icon-btn.primary {
+      border-color: var(--dark);
+      background: var(--dark);
+      color: #fff;
+    }
+    .icon-btn.primary:hover { background: #252b36; border-color: #252b36; }
+    .icon-btn.collect {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: #fff;
+    }
+    .icon-btn.collect:hover { background: #d94f24; border-color: #d94f24; }
+    .icon-btn[data-tip]::after {
+      content: attr(data-tip);
+      position: absolute;
+      z-index: 20;
+      right: 0;
+      top: calc(100% + 8px);
+      padding: 6px 8px;
+      border-radius: 4px;
+      background: #20242d;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(-3px);
+      transition: opacity .15s, transform .15s;
+    }
+    .icon-btn[data-tip]:hover::after { opacity: 1; transform: translateY(0); }
+
+    .setup-note {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      min-height: 48px;
+      margin-bottom: 24px;
+      padding: 11px 14px;
+      border: 1px solid #f4c4ae;
+      border-radius: var(--radius);
+      background: #fff8f4;
+      color: #7a3d26;
+      font-size: 12.5px;
+    }
+    .setup-note.show { display: flex; }
+    .setup-note strong { color: var(--accent); }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      margin-bottom: 24px;
+      padding: 16px 18px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      box-shadow: 0 10px 28px rgba(20, 27, 40, .05);
+    }
+    .summary-item {
+      min-width: 0;
+      padding: 0 18px;
+      border-right: 1px solid var(--line);
+    }
+    .summary-item:first-child { padding-left: 0; }
+    .summary-item:last-child { padding-right: 0; border-right: 0; }
+    .summary-label {
+      display: block;
+      margin-bottom: 5px;
+      color: #8590a3;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .summary-value {
+      font-family: var(--font-mono);
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--ink);
+    }
+    .summary-value small {
+      margin-left: 2px;
+      font-family: var(--font-main);
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--sub);
+    }
+    .summary-value.up { color: var(--green); }
+    .summary-value.down { color: var(--danger); }
+
+    .rank-card {
+      overflow: visible;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      box-shadow: 0 12px 32px rgba(20, 27, 40, .055);
+    }
+    .card-head {
+      min-height: 62px;
+      padding: 0 18px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .card-title { font-size: 16px; font-weight: 900; }
+    .card-sub { margin-top: 4px; color: var(--sub); font-size: 12px; }
+    .card-count {
+      min-width: 52px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      background: #f1f3f7;
+      color: #536077;
+      text-align: center;
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .table-head,
+    .rank-row {
+      display: grid;
+      grid-template-columns: minmax(270px, 2.4fr) minmax(120px, 1fr) 120px 120px 110px 150px 86px;
+      align-items: center;
+      column-gap: 14px;
+    }
+    .table-head {
+      min-height: 40px;
+      margin: 12px 12px 8px;
+      padding: 0 12px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--soft);
+      color: #7c8799;
+      font-size: 11px;
+      font-weight: 800;
+      text-align: center;
+    }
+    .table-head span:first-child,
+    .table-head span:nth-child(2) { text-align: left; }
+    .rank-list { padding: 0 12px 12px; }
+    .rank-row {
+      min-height: 78px;
+      margin-top: 8px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fff;
+      transition: border-color .15s, background .15s;
+    }
+    .rank-row:hover { border-color: #ccd3de; background: #fcfdff; }
+    .post-cell { min-width: 0; }
+    .post-title {
+      overflow: hidden;
+      color: var(--ink);
+      font-size: 13.5px;
+      font-weight: 800;
+      text-decoration: none;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .post-title:hover { color: var(--accent); text-decoration: underline; }
+    .post-meta {
+      margin-top: 5px;
+      color: #8b95a7;
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+    }
+    .keyword-link {
+      overflow: hidden;
+      color: #263248;
+      font-size: 13px;
+      font-weight: 800;
+      text-decoration: none;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .keyword-link:hover { color: var(--accent); text-decoration: underline; }
+    .device-pill {
+      display: inline-flex;
+      margin-top: 5px;
+      padding: 3px 7px;
+      border-radius: 999px;
+      background: #f1f3f7;
+      color: #69758a;
+      font-size: 10px;
+      font-weight: 700;
+    }
+    .rank-cell { text-align: center; }
+    .rank-badge {
+      min-width: 74px;
+      min-height: 44px;
+      padding: 5px 8px;
+      border-radius: var(--radius);
+      background: var(--accent-soft);
+      color: var(--accent);
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-size: 16px;
+      font-weight: 700;
+      line-height: 1.1;
+    }
+    .rank-badge span {
+      margin-top: 4px;
+      font-family: var(--font-main);
+      font-size: 9px;
+      font-weight: 700;
+    }
+    .rank-badge.missing { background: #f0f2f5; color: #8a94a6; }
+    .rank-badge.empty { background: #f7f8fa; color: #b0b8c5; }
+    .delta {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 700;
+      text-align: center;
+    }
+    .delta.up { color: var(--green); }
+    .delta.down { color: var(--danger); }
+    .delta.neutral { color: #a4adbb; }
+    .sparkline {
+      width: 142px;
+      height: 38px;
+      display: block;
+      margin: 0 auto;
+    }
+    .sparkline .grid { stroke: #e7eaf0; stroke-width: 1; }
+    .sparkline .area { fill: rgba(232, 93, 47, .09); }
+    .sparkline .line {
+      fill: none;
+      stroke: var(--accent);
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .spark-empty { color: #b0b8c5; font-size: 11px; text-align: center; }
+    .row-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 7px;
+    }
+    .row-btn {
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      background: #fff;
+      color: #8490a3;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      position: relative;
+    }
+    .row-btn svg { width: 15px; height: 15px; }
+    .row-btn:hover { border-color: #aeb6c4; background: #f3f5f8; color: #566176; }
+    .row-btn.collect-one:hover { border-color: #f1ad90; background: #fff4ef; color: var(--accent); }
+    .row-btn[data-tip]::after {
+      content: attr(data-tip);
+      position: absolute;
+      z-index: 30;
+      right: 0;
+      bottom: calc(100% + 7px);
+      padding: 5px 7px;
+      border-radius: 4px;
+      background: #20242d;
+      color: #fff;
+      font-size: 10.5px;
+      font-weight: 600;
+      white-space: nowrap;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .row-btn[data-tip]:hover::after { opacity: 1; }
+    .empty-state {
+      padding: 70px 24px 76px;
+      color: #8994a6;
+      text-align: center;
+      font-size: 13px;
+    }
+    .empty-state strong {
+      display: block;
+      margin-bottom: 7px;
+      color: #475467;
+      font-size: 15px;
+    }
+
+    .loading-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 500;
+      background: rgba(245, 247, 250, .76);
+      backdrop-filter: blur(2px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+    .loading-overlay.show { display: flex; }
+    .loading-box {
+      min-width: 220px;
+      padding: 22px 26px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fff;
+      box-shadow: 0 18px 44px rgba(20, 27, 40, .12);
+      text-align: center;
+    }
+    .spinner {
+      width: 22px;
+      height: 22px;
+      margin: 0 auto 10px;
+      border: 3px solid #ffe1d4;
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+    .loading-text { color: #566176; font-size: 12px; font-weight: 700; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 450;
+      padding: 24px;
+      background: rgba(7, 12, 22, .48);
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-backdrop.show { display: flex; }
+    .modal {
+      width: min(540px, 100%);
+      overflow: hidden;
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 24px 80px rgba(4, 9, 18, .25);
+    }
+    .modal-head {
+      min-height: 64px;
+      padding: 0 20px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .modal-title { font-size: 16px; font-weight: 900; }
+    .modal-close {
+      width: 32px;
+      height: 32px;
+      border: 0;
+      background: transparent;
+      color: #7c8799;
+      font-size: 25px;
+      cursor: pointer;
+    }
+    .modal-body {
+      padding: 20px;
+      display: grid;
+      gap: 16px;
+    }
+    .field { display: grid; gap: 7px; }
+    .field-label { color: #445067; font-size: 12px; font-weight: 800; }
+    .field input,
+    .field select {
+      width: 100%;
+      height: 42px;
+      padding: 0 12px;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius);
+      background: #fff;
+      color: var(--ink);
+      outline: none;
+    }
+    .field input:focus,
+    .field select:focus {
+      border-color: #efae91;
+      box-shadow: 0 0 0 3px rgba(232, 93, 47, .09);
+    }
+    .field-hint { color: #8a94a6; font-size: 11px; line-height: 1.6; }
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .modal-foot {
+      padding: 14px 20px;
+      border-top: 1px solid var(--line);
+      background: #fafbfc;
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    .text-btn {
+      height: 38px;
+      padding: 0 18px;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius);
+      background: #fff;
+      font-size: 12px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .text-btn:hover { background: #f3f5f8; }
+    .text-btn.primary { border-color: var(--dark); background: var(--dark); color: #fff; }
+    .text-btn.primary:hover { background: #252b36; }
+
+    .toast {
+      position: fixed;
+      z-index: 800;
+      left: 50%;
+      bottom: 32px;
+      padding: 10px 14px;
+      border-radius: 5px;
+      background: #20242d;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      opacity: 0;
+      pointer-events: none;
+      transform: translate(-50%, 10px);
+      transition: opacity .2s, transform .2s;
+    }
+    .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+    @media (max-width: 1040px) {
+      .summary-grid { grid-template-columns: repeat(3, 1fr); row-gap: 18px; }
+      .summary-item:nth-child(3) { border-right: 0; }
+      .rank-card { overflow-x: auto; }
+      .table-head, .rank-row { min-width: 1040px; }
+    }
+    @media (max-width: 720px) {
+      body > main.wrap { width: calc(100% - 24px); padding-top: 42px; }
+      .page-head { align-items: flex-start; }
+      .mode-title-tabs { gap: 22px; overflow-x: auto; }
+      .mode-title-tab { font-size: 18px; white-space: nowrap; }
+      .summary-grid { grid-template-columns: 1fr 1fr; }
+      .summary-item { padding: 0 12px; }
+      .summary-item:nth-child(2n) { border-right: 0; }
+      .field-row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<header class="topbar" data-topbar>
+  <div class="topbar-inner">
+    <a href="index.html" class="topbar-logo"><span>ENERGUARD</span><span>LAB</span></a>
+    <nav class="topbar-nav">
+      <a href="rank-tracker.html" class="active">랭킹추적</a>
+      <a href="naver-rank.html">키워드분석</a>
+      <a href="sales-analysis.html">매출분석</a>
+      <a href="item-discovery.html">아이템발굴</a>
+      <a href="utility.html">유틸리티</a>
+    </nav>
+    <div class="topbar-actions" aria-hidden="true">
+      <button type="button" class="topbar-icon-btn" tabindex="-1" aria-label="검색">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path></svg>
+      </button>
+      <button type="button" class="topbar-icon-btn" tabindex="-1" aria-label="분석 내역">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 3"></path></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <header class="page-head">
+    <div class="mode-title-tabs" aria-label="랭킹추적 화면 선택">
+      <a href="rank-tracker.html" class="mode-title-tab">
+        <span class="mode-title-text"><span class="mode-label">키워드 랭킹</span></span>
+      </a>
+      <a href="rank-tracker.html#items" class="mode-title-tab">
+        <span class="mode-title-text"><span class="mode-label">아이템 추적</span></span>
+      </a>
+      <a href="blog-rank.html" class="mode-title-tab active">
+        <span class="mode-title-text">
+          <span class="mode-label">블로그 순위</span>
+          <span class="mode-help" title="블로그 포스팅이 검색 키워드에서 몇 위에 노출되는지 추적합니다.">?</span>
+        </span>
+      </a>
+    </div>
+    <div class="head-actions">
+      <button class="icon-btn collect" type="button" data-tip="전체 순위 수집" onclick="collectRanks()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12a9 9 0 0 1-15.5 6.2"></path><path d="M3 12a9 9 0 0 1 15.5-6.2"></path>
+          <path d="M18 3v4h-4"></path><path d="M6 21v-4h4"></path>
+        </svg>
+      </button>
+      <button class="icon-btn primary" type="button" data-tip="추적 키워드 추가" onclick="openModal()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="setup-note" id="setupNote">
+    <span><strong>실제 통합검색 순위 연결 대기</strong> · 현재는 네이버 공식 블로그 API 순위를 수집합니다. SerpApi 키를 연결하면 비로그인 통합검색 VIEW 노출도 함께 확인합니다.</span>
+  </div>
+
+  <section class="summary-grid" aria-label="블로그 순위 요약">
+    <div class="summary-item">
+      <span class="summary-label">추적 키워드</span>
+      <span class="summary-value" id="summaryTargets">0<small>개</small></span>
+    </div>
+    <div class="summary-item">
+      <span class="summary-label">API 노출</span>
+      <span class="summary-value" id="summaryFound">0<small>개</small></span>
+    </div>
+    <div class="summary-item">
+      <span class="summary-label">순위 상승</span>
+      <span class="summary-value up" id="summaryUp">▲0</span>
+    </div>
+    <div class="summary-item">
+      <span class="summary-label">순위 하락</span>
+      <span class="summary-value down" id="summaryDown">▼0</span>
+    </div>
+    <div class="summary-item">
+      <span class="summary-label">최근 수집</span>
+      <span class="summary-value" id="summaryTime" style="font-family:var(--font-main);font-size:14px;">-</span>
+    </div>
+  </section>
+
+  <section class="rank-card">
+    <div class="card-head">
+      <div>
+        <div class="card-title">블로그 포스팅 순위</div>
+        <div class="card-sub">실제 통합검색 노출과 네이버 공식 블로그 API 순위를 분리해 확인합니다.</div>
+      </div>
+      <span class="card-count" id="targetCount">0개</span>
+    </div>
+    <div class="table-head">
+      <span>포스팅</span>
+      <span>검색 키워드</span>
+      <span>통합검색 VIEW</span>
+      <span>블로그 API</span>
+      <span>변동</span>
+      <span>최근 흐름</span>
+      <span>관리</span>
+    </div>
+    <div class="rank-list" id="rankList">
+      <div class="empty-state"><strong>순위 데이터를 불러오는 중입니다.</strong></div>
+    </div>
+  </section>
+</main>
+
+<footer id="__commonFooter" class="site-footer common-site-footer">
+  <div class="site-footer-inner">
+    <span>Copyright 2026. Energuard Company. All Rights Reserved.</span>
+    <nav class="footer-links" aria-label="푸터 메뉴">
+      <a href="#">맨 위로</a><a href="#">사용 가이드 ↗</a><a href="#">이용약관 ↗</a><a href="#">개인정보처리방침 ↗</a>
+    </nav>
+  </div>
+</footer>
+
+<div class="modal-backdrop" id="targetModal" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-head">
+      <div class="modal-title" id="modalTitle">블로그 순위 추적 추가</div>
+      <button class="modal-close" type="button" onclick="closeModal()" aria-label="닫기">&times;</button>
+    </div>
+    <div class="modal-body">
+      <label class="field">
+        <span class="field-label">네이버 블로그 포스팅 URL</span>
+        <input id="postUrlInput" type="url" placeholder="https://blog.naver.com/blogId/223000000000">
+      </label>
+      <label class="field">
+        <span class="field-label">포스팅 제목</span>
+        <input id="postTitleInput" type="text" placeholder="목록에서 확인할 제목을 입력하세요">
+      </label>
+      <label class="field">
+        <span class="field-label">검색 키워드</span>
+        <input id="keywordsInput" type="text" placeholder="아이소핑크, 베란다 단열, 단열재 시공">
+        <span class="field-hint">여러 키워드는 쉼표로 구분합니다. 한 번에 최대 20개까지 등록할 수 있습니다.</span>
+      </label>
+      <div class="field-row">
+        <label class="field">
+          <span class="field-label">통합검색 환경</span>
+          <select id="deviceInput">
+            <option value="desktop">PC</option>
+            <option value="mobile">모바일</option>
+          </select>
+        </label>
+        <label class="field">
+          <span class="field-label">공식 API 확인 범위</span>
+          <select id="maxRankInput">
+            <option value="100">100위까지</option>
+            <option value="300" selected>300위까지</option>
+            <option value="500">500위까지</option>
+            <option value="1000">1,000위까지</option>
+          </select>
+        </label>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="text-btn" type="button" onclick="closeModal()">취소</button>
+      <button class="text-btn primary" type="button" onclick="saveTarget()">추가</button>
+    </div>
+  </div>
+</div>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-box">
+    <div class="spinner"></div>
+    <div class="loading-text" id="loadingText">블로그 순위를 확인하는 중입니다.</div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPABASE_URL = "https://eukwfypbfqojbaihfqye.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_MiBvlf3d6ulcVBsi7Odcgw_PTXSmXKj";
+const BLOG_RANK_URL = `${SUPABASE_URL}/functions/v1/blog-rank`;
+
+let state = { targets: [], history: [], capabilities: {} };
+let toastTimer = 0;
+
+function esc(value) {
+  return String(value ?? "").replace(/[&<>"']/g, char => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  })[char]);
+}
+
+function showToast(message) {
+  const toast = document.getElementById("toast");
+  toast.textContent = message;
+  toast.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove("show"), 2400);
+}
+
+function setLoading(show, message = "블로그 순위를 확인하는 중입니다.") {
+  document.getElementById("loadingText").textContent = message;
+  document.getElementById("loadingOverlay").classList.toggle("show", show);
+}
+
+async function callApi(action, payload = {}) {
+  const response = await fetch(BLOG_RANK_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+    },
+    body: JSON.stringify({ action, ...payload }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data.error) throw new Error(data.error || `요청 실패 (${response.status})`);
+  return data;
+}
+
+function histories(targetId, provider) {
+  return state.history
+    .filter(row => row.target_id === targetId && row.provider === provider)
+    .sort((a, b) => String(b.collected_at).localeCompare(String(a.collected_at)));
+}
+
+function latestPair(targetId, provider) {
+  const rows = histories(targetId, provider);
+  return [rows[0] || null, rows[1] || null];
+}
+
+function deltaInfo(current, previous) {
+  if (!current) return { text: "-", cls: "neutral", amount: 0 };
+  if (!current.found && previous?.found) return { text: "이탈", cls: "down", amount: -1 };
+  if (current.found && previous && !previous.found) return { text: "진입", cls: "up", amount: 1 };
+  if (current.rank == null || previous?.rank == null) return { text: "-", cls: "neutral", amount: 0 };
+  const delta = Number(previous.rank) - Number(current.rank);
+  if (delta > 0) return { text: `▲${delta}`, cls: "up", amount: delta };
+  if (delta < 0) return { text: `▼${Math.abs(delta)}`, cls: "down", amount: delta };
+  return { text: "-", cls: "neutral", amount: 0 };
+}
+
+function rankBadge(row, providerReady = true) {
+  if (!providerReady) return `<span class="rank-badge empty">연결 전<span>API 키 필요</span></span>`;
+  if (!row) return `<span class="rank-badge empty">-<span>수집 전</span></span>`;
+  if (!row.found || row.rank == null) {
+    const label = row.provider === "naver_blog_api"
+      ? `${Number(row.checked_count || 0).toLocaleString()}위 밖`
+      : "VIEW 미노출";
+    return `<span class="rank-badge missing">미노출<span>${esc(label)}</span></span>`;
+  }
+  const sub = row.provider === "naver_blog_api" ? `${row.page || Math.ceil(row.rank / 10)}페이지` : "VIEW 영역";
+  return `<span class="rank-badge">${Number(row.rank).toLocaleString()}위<span>${esc(sub)}</span></span>`;
+}
+
+function sparkline(targetId) {
+  const rows = histories(targetId, "naver_blog_api")
+    .filter(row => row.rank != null)
+    .slice(0, 7)
+    .reverse();
+  if (rows.length < 2) return `<div class="spark-empty">이력 부족</div>`;
+
+  const values = rows.map(row => Number(row.rank));
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = Math.max(1, max - min);
+  const points = values.map((value, index) => {
+    const x = 5 + (132 * index / Math.max(1, values.length - 1));
+    const y = 5 + ((value - min) / range) * 27;
+    return [x, y];
+  });
+  const line = points.map(point => point.join(",")).join(" ");
+  const area = `5,35 ${line} 137,35`;
+  return `
+    <svg class="sparkline" viewBox="0 0 142 38" aria-label="최근 순위 흐름">
+      <line class="grid" x1="5" y1="35" x2="137" y2="35"></line>
+      <polygon class="area" points="${area}"></polygon>
+      <polyline class="line" points="${line}"></polyline>
+    </svg>`;
+}
+
+function formatTime(value) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return new Intl.DateTimeFormat("ko-KR", {
+    month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit",
+  }).format(date);
+}
+
+function renderSummary() {
+  const latestRows = state.targets.map(target => latestPair(target.id, "naver_blog_api")[0]).filter(Boolean);
+  const found = latestRows.filter(row => row.found).length;
+  const deltas = state.targets.map(target => {
+    const [current, previous] = latestPair(target.id, "naver_blog_api");
+    return deltaInfo(current, previous).amount;
+  });
+  const newest = state.history
+    .map(row => row.collected_at)
+    .filter(Boolean)
+    .sort()
+    .at(-1);
+
+  document.getElementById("summaryTargets").innerHTML = `${state.targets.length}<small>개</small>`;
+  document.getElementById("summaryFound").innerHTML = `${found}<small>개</small>`;
+  document.getElementById("summaryUp").textContent = `▲${deltas.filter(value => value > 0).length}`;
+  document.getElementById("summaryDown").textContent = `▼${deltas.filter(value => value < 0).length}`;
+  document.getElementById("summaryTime").textContent = formatTime(newest);
+  document.getElementById("targetCount").textContent = `${state.targets.length}개`;
+  document.getElementById("setupNote").classList.toggle("show", !state.capabilities?.serpApiNexearch);
+}
+
+function renderRows() {
+  const list = document.getElementById("rankList");
+  if (!state.targets.length) {
+    list.innerHTML = `
+      <div class="empty-state">
+        <strong>추적 중인 블로그 포스팅이 없습니다.</strong>
+        우측 상단의 추가 버튼에서 포스팅 URL과 검색 키워드를 등록해 주세요.
+      </div>`;
+    return;
+  }
+
+  list.innerHTML = state.targets.map(target => {
+    const [actual] = latestPair(target.id, "serpapi_nexearch");
+    const [official, previous] = latestPair(target.id, "naver_blog_api");
+    const delta = deltaInfo(official, previous);
+    const searchUrl = `https://search.naver.com/search.naver?ssc=tab.blog.all&query=${encodeURIComponent(target.keyword)}`;
+    const title = target.post_title || `${target.blog_id} 블로그 포스팅`;
+    return `
+      <article class="rank-row">
+        <div class="post-cell">
+          <a class="post-title" href="${esc(target.post_url)}" target="_blank" rel="noopener">${esc(title)}</a>
+          <div class="post-meta">${esc(target.blog_id)} · ${esc(target.log_no)}</div>
+        </div>
+        <div>
+          <a class="keyword-link" href="${searchUrl}" target="_blank" rel="noopener">${esc(target.keyword)}</a>
+          <div><span class="device-pill">${target.device === "mobile" ? "모바일" : "PC"} · ${Number(target.max_rank).toLocaleString()}위 확인</span></div>
+        </div>
+        <div class="rank-cell">${rankBadge(actual, !!state.capabilities?.serpApiNexearch)}</div>
+        <div class="rank-cell">${rankBadge(official, !!state.capabilities?.naverBlogApi)}</div>
+        <div class="delta ${delta.cls}">${esc(delta.text)}</div>
+        <div>${sparkline(target.id)}</div>
+        <div class="row-actions">
+          <button class="row-btn collect-one" type="button" data-tip="순위 수집" onclick="collectRanks('${esc(target.id)}')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><path d="M20 11a8 8 0 1 1-2.3-5.7"></path><path d="M20 4v7h-7"></path></svg>
+          </button>
+          <button class="row-btn" type="button" data-tip="삭제" onclick="deleteTarget('${esc(target.id)}', '${esc(target.keyword)}')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M19 6l-1 14H6L5 6"></path><path d="M10 11v5M14 11v5"></path></svg>
+          </button>
+        </div>
+      </article>`;
+  }).join("");
+}
+
+function renderAll() {
+  renderSummary();
+  renderRows();
+}
+
+async function loadData() {
+  try {
+    const data = await callApi("list");
+    state = data;
+    renderAll();
+  } catch (error) {
+    document.getElementById("rankList").innerHTML = `
+      <div class="empty-state"><strong>블로그 순위 데이터를 불러오지 못했습니다.</strong>${esc(error.message)}</div>`;
+    showToast(error.message);
+  }
+}
+
+function openModal() {
+  document.getElementById("targetModal").classList.add("show");
+  document.getElementById("targetModal").setAttribute("aria-hidden", "false");
+  setTimeout(() => document.getElementById("postUrlInput").focus(), 50);
+}
+
+function closeModal() {
+  document.getElementById("targetModal").classList.remove("show");
+  document.getElementById("targetModal").setAttribute("aria-hidden", "true");
+}
+
+async function saveTarget() {
+  const postUrl = document.getElementById("postUrlInput").value.trim();
+  const postTitle = document.getElementById("postTitleInput").value.trim();
+  const keywords = document.getElementById("keywordsInput").value.split(",").map(value => value.trim()).filter(Boolean);
+  if (!postUrl || !keywords.length) {
+    showToast("포스팅 URL과 검색 키워드를 입력해 주세요.");
+    return;
+  }
+
+  setLoading(true, "블로그 순위 추적을 추가하는 중입니다.");
+  try {
+    state = await callApi("add", {
+      postUrl,
+      postTitle,
+      keywords,
+      device: document.getElementById("deviceInput").value,
+      maxRank: Number(document.getElementById("maxRankInput").value),
+    });
+    closeModal();
+    document.getElementById("postUrlInput").value = "";
+    document.getElementById("postTitleInput").value = "";
+    document.getElementById("keywordsInput").value = "";
+    renderAll();
+    showToast(`${keywords.length}개 키워드를 추가했습니다.`);
+  } catch (error) {
+    showToast(error.message);
+  } finally {
+    setLoading(false);
+  }
+}
+
+async function collectRanks(targetId = "") {
+  if (!state.targets.length) {
+    showToast("먼저 추적할 포스팅을 추가해 주세요.");
+    return;
+  }
+  setLoading(true, targetId ? "선택한 블로그 순위를 확인하는 중입니다." : "전체 블로그 순위를 확인하는 중입니다.");
+  try {
+    const data = await callApi("collect", targetId ? { targetId } : {});
+    state = data;
+    renderAll();
+    if (data.errors?.length) {
+      showToast(`수집 완료 · ${data.errors.length}건은 확인이 필요합니다.`);
+      console.warn("블로그 순위 수집 오류", data.errors);
+    } else {
+      showToast("블로그 순위 수집을 완료했습니다.");
+    }
+  } catch (error) {
+    showToast(error.message);
+  } finally {
+    setLoading(false);
+  }
+}
+
+async function deleteTarget(targetId, keyword) {
+  if (!confirm(`"${keyword}" 블로그 순위 추적을 삭제할까요?\n저장된 순위 이력도 함께 삭제됩니다.`)) return;
+  setLoading(true, "블로그 순위 추적을 삭제하는 중입니다.");
+  try {
+    state = await callApi("delete", { targetId });
+    renderAll();
+    showToast("블로그 순위 추적을 삭제했습니다.");
+  } catch (error) {
+    showToast(error.message);
+  } finally {
+    setLoading(false);
+  }
+}
+
+document.getElementById("targetModal").addEventListener("click", event => {
+  if (event.target.id === "targetModal") closeModal();
+});
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape") closeModal();
+});
+
+loadData();
+</script>
+<script src="common.js?v=20260714-loading4"></script>
+</body>
+</html>

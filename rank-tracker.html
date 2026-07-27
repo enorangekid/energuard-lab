@@ -813,6 +813,12 @@
           <span class="mode-help" title="내 상품과 경쟁사 상품을 등록해 키워드 순위와 판매가 변동을 추적합니다.">?</span>
         </span>
       </button>
+      <a href="blog-rank.html" class="mode-title-tab" style="display:inline-flex;text-decoration:none;">
+        <span class="mode-title-text">
+          <span class="mode-label">블로그 순위</span>
+          <span class="mode-help" title="블로그 포스팅의 검색 키워드 순위와 변동을 추적합니다.">?</span>
+        </span>
+      </a>
     </div>
   </header>
 
@@ -2365,11 +2371,16 @@ document.getElementById("itemGroupFilter").addEventListener("click", (e) => {
 
 document.querySelectorAll(".view-tab").forEach(tab => tab.addEventListener("click", () => {
   activeView = tab.dataset.view;
+  history.replaceState(null, "", activeView === "items" ? "#items" : location.pathname + location.search);
   document.querySelectorAll(".view-tab").forEach(t => t.classList.toggle("active", t === tab));
   document.getElementById("rankView").style.display = activeView === "rank" ? "" : "none";
   document.getElementById("itemView").style.display = activeView === "items" ? "" : "none";
   if (activeView === "items" && !trackedLoaded) loadTrackedData();
 }));
+
+if (location.hash === "#items") {
+  document.querySelector('.view-tab[data-view="items"]')?.click();
+}
 
 function sbHeaders(extra) {
   return {

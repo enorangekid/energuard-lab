@@ -2,3 +2,6 @@ project_id = "eukwfypbfqojbaihfqye"
 
 [functions.naver-ad-report]
 verify_jwt = false
+
+[functions.blog-rank]
+verify_jwt = false
