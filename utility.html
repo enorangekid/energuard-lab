@@ -41,7 +41,7 @@
       background: var(--bg);
       color: var(--ink);
       font-family: var(--font-main);
-      font-size: 15px;
+      font-size: 14px;
       line-height: 1.55;
     }
 
@@ -49,16 +49,9 @@
 
     /* 상단바(.topbar 계열)는 ../common.css 공용 스타일을 그대로 사용합니다. 이 페이지 전용 중복 정의는 제거했습니다. */
 
-    .main-content {
+    .utility-main {
       background: transparent;
       overflow-x: visible;
-    }
-
-    /* 랭킹추적·키워드분석·매출분석과 동일한 시작 헤드(.mode-title-tabs) 스타일.
-       유틸리티는 하위 탭이 없는 단일 페이지라 키워드분석과 같은 방식(탭 1개, 항상 active)으로 쓴다. */
-    .main-content > header {
-      padding-bottom: 12px;
-      box-sizing: border-box;
     }
 
     .utility-grid {
@@ -116,13 +109,12 @@
     }
 
     @media (max-width: 720px) {
-      .main-content { padding: 42px 16px 64px; }
+      .utility-main { padding: 42px 16px 64px; }
       .page-header,
       .calc-wrapper {
         padding-left: 0;
         padding-right: 0;
       }
-      .main-content > header { padding-top: 0; }
       .utility-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
       .utility-card { min-height: 118px; padding: 14px; }
       .utility-card strong { font-size: 14px; }
@@ -152,12 +144,12 @@
     </div>
   </header>
 
-  <main class="main-content app-shell">
+  <main class="wrap app-shell utility-main">
     <header class="app-page-head">
-      <h1 class="page-title app-title-single">
-        <span class="calc-title-label app-title-label active">유틸리티</span>
-        <span class="calc-title-help app-title-help" title="단열/보온, 목공/보드, 마감/인테리어 등 실무에 필요한 계산기 도구를 모아뒀습니다.">?</span>
-      </h1>
+      <div class="page-title-row app-title-row">
+        <h1 class="page-title app-title-single">유틸리티</h1>
+        <span class="page-help app-title-single-help" title="단열/보온, 목공/보드, 마감/인테리어 등 실무에 필요한 계산기 도구를 모아뒀습니다.">?</span>
+      </div>
     </header>
 
     <section class="utility-grid app-section" aria-label="계산기 목록">
