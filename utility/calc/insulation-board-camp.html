@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
@@ -8,8 +8,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="calc.css?v=20260721-relatedair" />
-  <link rel="stylesheet" href="../../common.css?v=20260721-align2" />
+  <link rel="stylesheet" href="calc.css?v=20260727-calc-common1" />
+  <link rel="stylesheet" href="../../common.css?v=20260727-utility-common1" />
 </head>
 <body class="utility-page">
   <header class="topbar" data-topbar>
@@ -33,7 +33,7 @@
       </div>
     </div>
   </header>
-<main class="main-content">
+<main class="main-content app-shell">
   <div class="calc-tool-page calc-tool-insulation-board calc-tool-camp-insulation">
   <style>
     /* ── 캠핑 계산기 전용 ── */
@@ -83,18 +83,18 @@
     }
   </style>
 
-      <div class="page-header">
-        <h1 class="page-title" id="pageTitle">
-          <span class="calc-title-label">캠핑 단열재 소요량 계산기</span>
-          <span class="calc-title-help" title="텐트 형태와 크기를 기준으로 필요한 캠핑 단열재 길이를 계산합니다.">?</span>
+      <div class="page-header app-page-head">
+        <h1 class="page-title app-title-single" id="pageTitle">
+          <span class="calc-title-label app-title-label active">캠핑 단열재 소요량 계산기</span>
+          <span class="calc-title-help app-title-help" title="텐트 형태와 크기를 기준으로 필요한 캠핑 단열재 길이를 계산합니다.">?</span>
         </h1>
       </div>
 
-      <div class="calc-wrapper">
+      <div class="calc-wrapper app-section">
         <div class="calc-main-wrap">
 
           <!-- 입력 카드 -->
-          <div class="calc-card-main" id="calcForm">
+          <div class="calc-card-main app-card" id="calcForm">
 
             <!-- 텐트 형태 + 시공 방식 한 줄 -->
             <div class="select-pair-row">
@@ -273,7 +273,7 @@
 
           <!-- 결과 패널 -->
           <div class="calc-right-col">
-          <div class="result-panel" id="resultPanel" style="display:none;">
+          <div class="result-panel app-card" id="resultPanel" style="display:none;">
             <div class="result-main-row">
 
               <!-- 좌: 수치 -->
@@ -303,7 +303,7 @@
           </div>
 
           <!-- 팁 + 관련 -->
-          <div class="tip-related-wrap">
+          <div class="tip-related-wrap app-section">
             <div class="tip-box">
               <div class="tip-title">확인해주세요</div>
               <ul class="tip-list">
@@ -329,7 +329,7 @@
         </div><!-- /calc-main-wrap -->
 
         <!-- SEO -->
-        <div class="seo-wrap">
+        <div class="seo-wrap app-card">
           <div class="seo-section">
             <h2 class="seo-title">캠핑 텐트 바닥 단열재 소요량 계산기</h2>
             <p class="seo-body">텐트 형태와 시공 방식에 맞는 캠핑 단열재 길이를 계산합니다.</p>

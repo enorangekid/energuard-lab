@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="common.css?v=20260721-align2">
+<link rel="stylesheet" href="common.css?v=20260727-sales-common1">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   :root {
@@ -23,15 +23,10 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html { scrollbar-gutter: stable; }
   body { font-family: var(--font-main); background: var(--bg); color: var(--ink); font-size: 15px; line-height: 1.55; }
-  .wrap { max-width: 1180px; margin: 0 auto; padding: 64px 0 80px; }
   header.page-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 20px; }
   header.page-head h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; }
   header.page-head .tag { font-size: 12px; font-weight: 600; color: var(--dark); background: var(--dark-tint); padding: 2px 8px; border-radius: 20px; }
 
-  .card {
-    background: var(--card); border: 1.5px solid var(--line); border-radius: var(--radius); padding: 20px;
-    box-shadow: 0 14px 34px rgba(5, 7, 11, 0.05);
-  }
   .field { display: flex; align-items: center; gap: 6px; color: var(--sub); font-size: 12px; font-weight: 800; }
   .field input, .field select {
     height: 32px; border: 1px solid var(--line); border-radius: 4px; padding: 0 9px;
@@ -71,63 +66,10 @@
   /* ── 상단 카테고리 전환(스토어 분석/광고 분석) + 스토어 드롭박스 ──
      랭킹추적과 완전히 동일한 값: 탭 줄(.wrap > header)과 드롭박스 줄(.rank-filterbar)이
      세로로 분리된 두 블록이라 이 페이지도 같은 구조(.analysis-mode-header / .analysis-filterbar)로 맞춘다. */
-  .analysis-mode-header { display: flex; align-items: flex-end; gap: 0; margin-bottom: 30px; }
-  .analysis-filterbar {
-    display: flex; align-items: center; gap: 16px; padding-bottom: 22px;
-    border-bottom: 1px solid var(--line); margin-bottom: 24px;
-  }
+  .analysis-filterbar { margin-bottom: 24px; }
   /* 스토어 드롭박스 + 엑셀 업로드(+) 버튼 묶음 — 키워드분석(.keyword-store-row)과 동일하게
      좁은 간격(8px)으로 한 그룹처럼 붙여준다. */
   .analysis-store-row { display: inline-flex; align-items: center; gap: 8px; }
-  .mode-title-tabs { display: inline-flex; align-items: center; gap: 28px; }
-  .mode-title-tab {
-    position: relative; height: 34px; padding: 0 0 8px; border: 0; background: transparent;
-    color: #aeb6c4; font-family: inherit; font-size: 21px; font-weight: 900; cursor: pointer;
-  }
-  .mode-title-tab:not(.active):hover { color: #7f8795; }
-  .mode-title-tab + .mode-title-tab::before {
-    content: "";
-    position: absolute;
-    left: -15px;
-    top: 4px;
-    width: 1px;
-    height: 18px;
-    background: #d8dde6;
-  }
-  .mode-title-text { display: inline-flex; align-items: center; gap: 12px; }
-  .mode-label { position: relative; display: inline-flex; align-items: center; }
-  .mode-title-tab.active { color: #07111f; }
-  .mode-title-tab.active .mode-label::after {
-    content: ""; position: absolute; left: 0; right: 0; bottom: -13px; height: 3px;
-    background: var(--accent); border-radius: 999px;
-  }
-  .mode-help {
-    width: 18px; height: 18px; border: 1px solid #cfd5df; border-radius: 50%;
-    background: #f4f6f9; color: #8a93a5; font-size: 12px; font-weight: 900;
-    display: inline-flex; align-items: center; justify-content: center; line-height: 1;
-  }
-  .store-chips { position: relative; display: block; flex: 0 0 auto; }
-  .store-select {
-    height: 42px; min-width: 150px; padding: 0 14px 0 18px; border: 1px solid #dfe4ec;
-    border-radius: var(--radius); background: #fff; color: var(--sub); font-family: inherit;
-    font-size: 14px; font-weight: 800; cursor: pointer; display: inline-flex;
-    align-items: center; justify-content: space-between; gap: 18px;
-  }
-  .store-select:hover, .store-chips.open .store-select { border-color: #c8cdd4; background: #fafbfc; }
-  .store-caret { display: inline-flex; align-items: center; justify-content: center; color: #8a93a5; line-height: 1; }
-  .store-caret svg { width: 14px; height: 14px; }
-  .store-menu {
-    position: absolute; z-index: 50; top: calc(100% + 6px); right: 0; min-width: 100%;
-    padding: 6px; border: 1px solid var(--line); border-radius: var(--radius);
-    background: #fff; box-shadow: 0 16px 34px rgba(5, 7, 11, 0.12); display: none;
-  }
-  .store-chips.open .store-menu { display: flex; flex-direction: column; gap: 4px; }
-  .store-chip {
-    height: 34px; padding: 0 12px; border: 0; border-radius: 4px; background: transparent;
-    color: var(--sub); font-family: inherit; font-size: 12.5px; font-weight: 800; text-align: left; cursor: pointer;
-  }
-  .store-chip:hover { background: #f4f6f9; color: var(--ink); }
-  .store-chip.active { background: var(--ink); color: #fff; }
 
   .status { margin-top: 10px; color: var(--sub); font-size: 12px; }
   .status.error { color: var(--bad); }
@@ -302,18 +244,6 @@
      specificity를 올려서 순서와 무관하게 항상 이기게 한다) */
   .content-card.summary-card { background: transparent; border: 0; box-shadow: none; overflow: visible; }
   .summary-cards-stack { display: flex; flex-direction: column; gap: 18px; }
-  .summary-mini-card {
-    background: #fff; border: 1px solid var(--line); border-radius: var(--radius);
-    box-shadow: 0 14px 34px rgba(5, 7, 11, 0.05); overflow: hidden;
-  }
-  .summary-divider { height: 1px; background: var(--line); }
-  .summary-section-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 20px 20px 16px; }
-  .summary-section-title-wrap { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-  .summary-section-title { font-size: 15px; font-weight: 800; color: var(--ink); }
-  /* 제목보다 한 단계 작은 회색 보조 설명 — 줄 하나 늘었다고 카드가 눈에 띄게 더 커지지 않도록
-     제목 줄 패딩(24px→20px)을 살짝 줄여서 상쇄했다 */
-  .summary-section-subtitle { font-size: 12px; font-weight: 600; color: var(--sub); }
-  .summary-section-body { padding: 20px 20px 28px; }
   /* 유입 그래프 — 타일 밑에 작게 붙어있던 것보다 막대를 굵게, 범례 글자를 크게 키워서 독립 섹션답게 */
   .summary-section-body .dash-bar-wrap { margin-top: 0; }
   .summary-section-body .dash-bar { height: 28px; border-radius: 8px; overflow: hidden; }
@@ -464,22 +394,7 @@
   .file-input { max-width: 260px; font-family: inherit; font-size: 12px; color: var(--sub); }
   /* 랭킹추적(rank-tracker.html)의 "전체 펼치기" 버튼과 동일한 스타일 — 카드 헤더 안에서 캐럿(펼치기) 옆에
      붙는 작은 버튼. 거긴 <button>, 여기선 <label>로 파일 입력을 감싸 클릭 시 바로 파일선택창이 뜨게 한다. */
-  .expand-all-btn {
-    flex: 0 0 auto; height: 28px; padding: 0 10px;
-    border: 1px solid #dfe4ec; border-radius: 4px; background: #fff; color: var(--sub);
-    font-family: inherit; font-size: 12px; font-weight: 800; cursor: pointer;
-    display: inline-flex; align-items: center; justify-content: center;
-    transition: background .12s, border-color .12s, color .12s;
-  }
-  .expand-all-btn:hover { border-color: #c8cdd4; color: var(--ink); background: #fafbfc; }
   /* 파일 업로드 트리거 — 키워드분석의 스토어 추가(+) 버튼과 동일한 스타일 */
-  .store-add-icon {
-    width: 42px; height: 42px; border: 1px solid #07111f; border-radius: var(--radius);
-    background: #07111f; color: #fff; display: inline-flex; align-items: center; justify-content: center;
-    cursor: pointer; transition: all .12s; flex-shrink: 0;
-  }
-  .store-add-icon:hover { border-color: #111827; color: #fff; background: #111827; }
-  .store-add-icon svg { width: 16px; height: 16px; }
   /* 광고 데이터 수집 아이콘 — 랭킹추적 아이템 추적의 오렌지색 수집 버튼과 동일한 색상 */
   .store-add-icon.collect { border-color: var(--accent); background: var(--accent); }
   .store-add-icon.collect:hover { border-color: var(--accent-dark); background: var(--accent-dark); }
@@ -642,7 +557,6 @@
   .placeholder strong { display: block; margin-bottom: 6px; color: var(--ink); font-size: 15px; }
 
   @media (max-width: 900px) {
-    .wrap { padding: 42px 14px 70px; }
     .rank-dash-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .dash-tile:nth-child(odd) { border-left: none; padding-left: 2px; }
     .content-head { align-items: flex-start; flex-direction: column; }
@@ -676,25 +590,25 @@
   </div>
 </header>
 
-<div class="wrap">
-  <header class="analysis-mode-header">
-    <div class="mode-title-tabs" id="categoryTabs">
-      <button type="button" class="mode-title-tab active" data-subtab="sales">
-        <span class="mode-title-text">
-          <span class="mode-label">스토어 분석</span>
-          <span class="mode-help" title="네이버/쿠팡 스토어의 매출·방문·전환 데이터를 확인합니다.">?</span>
+<div class="wrap app-shell">
+  <header class="analysis-mode-header app-page-head">
+    <div class="mode-title-tabs app-title-tabs" id="categoryTabs">
+      <button type="button" class="mode-title-tab app-title-tab active" data-subtab="sales">
+        <span class="mode-title-text app-title-text">
+          <span class="mode-label app-title-label">스토어 분석</span>
+          <span class="mode-help app-title-help" title="네이버/쿠팡 스토어의 매출·방문·전환 데이터를 확인합니다.">?</span>
         </span>
       </button>
-      <button type="button" class="mode-title-tab" data-subtab="ads">
-        <span class="mode-title-text">
-          <span class="mode-label">광고 분석</span>
-          <span class="mode-help" title="네이버/쿠팡 광고 캠페인의 노출·클릭·전환·비용을 확인합니다.">?</span>
+      <button type="button" class="mode-title-tab app-title-tab" data-subtab="ads">
+        <span class="mode-title-text app-title-text">
+          <span class="mode-label app-title-label">광고 분석</span>
+          <span class="mode-help app-title-help" title="네이버/쿠팡 광고 캠페인의 노출·클릭·전환·비용을 확인합니다.">?</span>
         </span>
       </button>
     </div>
   </header>
 
-  <div class="analysis-filterbar">
+  <div class="analysis-filterbar app-filterbar">
     <div class="analysis-store-row">
       <div class="store-chips" id="platformChips"></div>
       <button type="button" class="store-add-icon collect" id="adCollectIconBtn" style="display:none;" onclick="collectNaverAds()" title="광고 데이터 수집" aria-label="광고 데이터 수집">
@@ -708,7 +622,7 @@
     </div>
   </div>
 
-  <section class="card">
+  <section class="card app-card">
     <div class="hidden-date-inputs">
       <input id="dateFrom" type="date">
       <input id="dateTo" type="date">
@@ -1900,15 +1814,15 @@ function renderMetricDash(tiles, moversHtml = "", title = "", subtitle = "") {
     </div>
     ${moversHtml}`;
   document.getElementById("metricGrid").innerHTML = title
-    ? `<div class="summary-mini-card">
-        <div class="summary-section-title-row">
-          <div class="summary-section-title-wrap">
-            <span class="summary-section-title">${esc(title)}</span>
-            <span class="summary-section-subtitle">${esc(subtitle)}</span>
+    ? `<div class="summary-mini-card app-card">
+        <div class="summary-section-title-row app-card-head">
+          <div class="summary-section-title-wrap app-card-title-wrap">
+            <span class="summary-section-title app-card-title">${esc(title)}</span>
+            <span class="summary-section-subtitle app-card-subtitle">${esc(subtitle)}</span>
           </div>
         </div>
         <div class="summary-divider"></div>
-        <div class="summary-section-body">${tilesHtml}</div>
+        <div class="summary-section-body app-card-body">${tilesHtml}</div>
       </div>`
     : `<div class="rank-dash">${tilesHtml}</div>`;
 }
@@ -2495,7 +2409,7 @@ function coupangTrendChartRows() {
 
 function coupangDailyChartHtml() {
   return `
-    <div class="summary-section-title-row" style="padding:0 0 18px;">
+    <div class="summary-section-title-row app-card-head" style="padding:0 0 18px;">
       <span class="summary-top3-title" style="margin-bottom:0;">매출 추이</span>
       <select id="coupangTrendRangeSelect" class="period-select">
         ${Object.entries(COUPANG_TREND_RANGE_LABELS).map(([key, label]) =>
@@ -2767,17 +2681,17 @@ function coupangSummaryTop3RowsHtml() {
 
 function coupangSummaryCardHtml() {
   const titleRow = (title, subtitle, rightHtml = "") =>
-    `<div class="summary-section-title-row">
-      <div class="summary-section-title-wrap">
-        <span class="summary-section-title">${esc(title)}</span>
-        <span class="summary-section-subtitle">${esc(subtitle)}</span>
+    `<div class="summary-section-title-row app-card-head">
+      <div class="summary-section-title-wrap app-card-title-wrap">
+        <span class="summary-section-title app-card-title">${esc(title)}</span>
+        <span class="summary-section-subtitle app-card-subtitle">${esc(subtitle)}</span>
       </div>
       ${rightHtml}
     </div>`;
-  const body = html => `<div class="summary-section-body">${html}</div>`;
+  const body = html => `<div class="summary-section-body app-card-body">${html}</div>`;
   const divider = `<div class="summary-divider"></div>`;
   const miniCard = (title, subtitle, content, rightHtml = "") =>
-    `<div class="summary-mini-card">${titleRow(title, subtitle, rightHtml)}${divider}${body(content)}</div>`;
+    `<div class="summary-mini-card app-card">${titleRow(title, subtitle, rightHtml)}${divider}${body(content)}</div>`;
 
   const cards = [
     miniCard("전월·전년 비교", "최신 상품별 스냅샷 기준으로 매출·조회가 크게 늘거나 줄어든 옵션을 확인하세요.", coupangSummaryMoversCardsHtml(), salesMoverPeriodToggleHtml()),
@@ -2785,7 +2699,7 @@ function coupangSummaryCardHtml() {
     miniCard("전체 데이터 도구 보기", "살펴보면 좋을 데이터 분석 도구들을 모아봤어요. 클릭하면 해당 데이터 도구로 연결됩니다.", coupangSummaryToolLinksHtml()),
   ].join("");
 
-  return `<div class="content-card summary-card">
+  return `<div class="content-card summary-card app-card">
     <h2 style="display:none">요약분석</h2>
     <div class="summary-cards-stack">${cards}</div>
   </div>`;
@@ -2809,17 +2723,17 @@ function coupangSalesDashCompareHtml(curVal, prevKeyFn, type = "abs") {
 
 function coupangSalesDetailCardHtml() {
   const titleRow = (title, subtitle, rightHtml = "") =>
-    `<div class="summary-section-title-row">
-      <div class="summary-section-title-wrap">
-        <span class="summary-section-title">${esc(title)}</span>
-        <span class="summary-section-subtitle">${esc(subtitle)}</span>
+    `<div class="summary-section-title-row app-card-head">
+      <div class="summary-section-title-wrap app-card-title-wrap">
+        <span class="summary-section-title app-card-title">${esc(title)}</span>
+        <span class="summary-section-subtitle app-card-subtitle">${esc(subtitle)}</span>
       </div>
       ${rightHtml}
     </div>`;
-  const body = html => `<div class="summary-section-body">${html}</div>`;
+  const body = html => `<div class="summary-section-body app-card-body">${html}</div>`;
   const divider = `<div class="summary-divider"></div>`;
   const miniCard = (title, subtitle, content, rightHtml = "") =>
-    `<div class="summary-mini-card">${titleRow(title, subtitle, rightHtml)}${divider}${body(content)}</div>`;
+    `<div class="summary-mini-card app-card">${titleRow(title, subtitle, rightHtml)}${divider}${body(content)}</div>`;
 
   const t = coupangSalesTotals();
   const dayCount = coupangSalesRows.length;
@@ -2872,7 +2786,7 @@ function coupangSalesDetailCardHtml() {
     miniCard("데이터 테이블", "일별 매출 상세데이터를 제공합니다.", dataTableContent),
   ].join("");
 
-  return `<div class="content-card summary-card">
+  return `<div class="content-card summary-card app-card">
     <h2 style="display:none">일별 매출</h2>
     <div class="summary-cards-stack">${cards}</div>
   </div>`;
@@ -2932,17 +2846,17 @@ function coupangItemDashTiles() {
 
 function coupangItemDetailCardHtml() {
   const titleRow = (title, subtitle, rightHtml = "") =>
-    `<div class="summary-section-title-row">
-      <div class="summary-section-title-wrap">
-        <span class="summary-section-title">${esc(title)}</span>
-        <span class="summary-section-subtitle">${esc(subtitle)}</span>
+    `<div class="summary-section-title-row app-card-head">
+      <div class="summary-section-title-wrap app-card-title-wrap">
+        <span class="summary-section-title app-card-title">${esc(title)}</span>
+        <span class="summary-section-subtitle app-card-subtitle">${esc(subtitle)}</span>
       </div>
       ${rightHtml}
     </div>`;
-  const body = html => `<div class="summary-section-body">${html}</div>`;
+  const body = html => `<div class="summary-section-body app-card-body">${html}</div>`;
   const divider = `<div class="summary-divider"></div>`;
   const miniCard = (title, subtitle, content, rightHtml = "") =>
-    `<div class="summary-mini-card">${titleRow(title, subtitle, rightHtml)}${divider}${body(content)}</div>`;
+    `<div class="summary-mini-card app-card">${titleRow(title, subtitle, rightHtml)}${divider}${body(content)}</div>`;
 
   const dashTiles = coupangItemDashTiles();
   const dashHtml = `
@@ -2988,7 +2902,7 @@ function coupangItemDetailCardHtml() {
     miniCard("데이터 테이블", "선택한 기간의 상품별 상세데이터를 제공합니다.", dataTableContent),
   ].join("");
 
-  return `<div class="content-card summary-card">
+  return `<div class="content-card summary-card app-card">
     <h2 style="display:none">상품별 실적</h2>
     <div class="summary-cards-stack">${cards}</div>
   </div>`;
@@ -3093,7 +3007,7 @@ function dataTableTh(tableId, sortState, key, label, width, isNum) {
 // (naverDailyDataTableHtml) 그래프만 보고 싶을 때 표에 밀려 스크롤이 길어지지 않게 한다.
 function naverDailyTableHtml() {
   return `
-    <div class="summary-section-title-row" style="padding:0 0 18px;">
+    <div class="summary-section-title-row app-card-head" style="padding:0 0 18px;">
       <span class="summary-top3-title" id="salesTrendTitleLabel" style="margin-bottom:0;">${esc(SALES_TREND_METRICS[salesTrendMetric].label)}</span>
       <div style="display:flex; align-items:center; gap:8px;">
         <select id="salesTrendRangeSelect" class="period-select">
@@ -3383,17 +3297,17 @@ function naverCustomerGenderAgeRankingCardHtml() {
 // 대시보드 카드 제목 옆)으로 고른다 — 고객 스냅샷은 날짜 범위가 아니라 월 단위라서다.
 function naverCustomerDetailCardHtml() {
   const titleRow = (title, subtitle, rightHtml = "") =>
-    `<div class="summary-section-title-row">
-      <div class="summary-section-title-wrap">
-        <span class="summary-section-title">${esc(title)}</span>
-        <span class="summary-section-subtitle">${esc(subtitle)}</span>
+    `<div class="summary-section-title-row app-card-head">
+      <div class="summary-section-title-wrap app-card-title-wrap">
+        <span class="summary-section-title app-card-title">${esc(title)}</span>
+        <span class="summary-section-subtitle app-card-subtitle">${esc(subtitle)}</span>
       </div>
       ${rightHtml}
     </div>`;
-  const body = html => `<div class="summary-section-body">${html}</div>`;
+  const body = html => `<div class="summary-section-body app-card-body">${html}</div>`;
   const divider = `<div class="summary-divider"></div>`;
   const miniCard = (title, subtitle, content, rightHtml = "") =>
-    `<div class="summary-mini-card">${titleRow(title, subtitle, rightHtml)}${divider}${body(content)}</div>`;
+    `<div class="summary-mini-card app-card">${titleRow(title, subtitle, rightHtml)}${divider}${body(content)}</div>`;
 
   const periodSelect = naverStat.customerPeriods.length
     ? `<select id="naverCustomerPeriodSelect" class="period-select">${naverStat.customerPeriods.map(p =>
@@ -3423,7 +3337,7 @@ function naverCustomerDetailCardHtml() {
     miniCard("주요 지표별 고객 비중 · 성/연령별", "성별·연령대별로 어떤 고객군이 방문·결제·매출에서 가장 성과가 좋은지 순위로 확인하세요.", naverCustomerGenderAgeRankingCardHtml(), genderAgeUploadBtn),
   ].join("");
 
-  return `<div class="content-card summary-card">
+  return `<div class="content-card summary-card app-card">
     <h2 style="display:none">고객분석</h2>
     <div class="summary-cards-stack">${cards}</div>
   </div>`;
@@ -3533,17 +3447,17 @@ function naverSummaryCardHtml() {
   const movers = naverSummaryMoversCardsHtml();
 
   const titleRow = (title, subtitle, rightHtml = "") =>
-    `<div class="summary-section-title-row">
-      <div class="summary-section-title-wrap">
-        <span class="summary-section-title">${esc(title)}</span>
-        <span class="summary-section-subtitle">${esc(subtitle)}</span>
+    `<div class="summary-section-title-row app-card-head">
+      <div class="summary-section-title-wrap app-card-title-wrap">
+        <span class="summary-section-title app-card-title">${esc(title)}</span>
+        <span class="summary-section-subtitle app-card-subtitle">${esc(subtitle)}</span>
       </div>
       ${rightHtml}
     </div>`;
-  const body = html => `<div class="summary-section-body">${html}</div>`;
+  const body = html => `<div class="summary-section-body app-card-body">${html}</div>`;
   const divider = `<div class="summary-divider"></div>`;
   const miniCard = (title, subtitle, content, rightHtml = "") =>
-    `<div class="summary-mini-card">${titleRow(title, subtitle, rightHtml)}${divider}${body(content)}</div>`;
+    `<div class="summary-mini-card app-card">${titleRow(title, subtitle, rightHtml)}${divider}${body(content)}</div>`;
 
   const cards = [
     miniCard("유입경로 비율", "어떤 경로로 고객이 유입되고 있는지 비율로 한눈에 확인하세요.", visitBar),
@@ -3552,7 +3466,7 @@ function naverSummaryCardHtml() {
     miniCard("전체 데이터 도구 보기", "살펴보면 좋을 데이터 분석 도구들을 모아봤어요. 클릭하면 해당 데이터 도구로 연결됩니다.", naverSummaryToolLinksHtml()),
   ].join("");
 
-  return `<div class="content-card summary-card">
+  return `<div class="content-card summary-card app-card">
     <h2 style="display:none">요약분석</h2>
     <div class="summary-cards-stack">${cards}</div>
   </div>`;
@@ -3582,17 +3496,17 @@ function naverSalesDashCompareHtml(curVal, prevKeyFn, type = "abs") {
 // 머무른 채로도 이번 기간 핵심 지표를 바로 볼 수 있게 한다.
 function naverSalesDetailCardHtml() {
   const titleRow = (title, subtitle, rightHtml = "") =>
-    `<div class="summary-section-title-row">
-      <div class="summary-section-title-wrap">
-        <span class="summary-section-title">${esc(title)}</span>
-        <span class="summary-section-subtitle">${esc(subtitle)}</span>
+    `<div class="summary-section-title-row app-card-head">
+      <div class="summary-section-title-wrap app-card-title-wrap">
+        <span class="summary-section-title app-card-title">${esc(title)}</span>
+        <span class="summary-section-subtitle app-card-subtitle">${esc(subtitle)}</span>
       </div>
       ${rightHtml}
     </div>`;
-  const body = html => `<div class="summary-section-body">${html}</div>`;
+  const body = html => `<div class="summary-section-body app-card-body">${html}</div>`;
   const divider = `<div class="summary-divider"></div>`;
   const miniCard = (title, subtitle, content, rightHtml = "") =>
-    `<div class="summary-mini-card">${titleRow(title, subtitle, rightHtml)}${divider}${body(content)}</div>`;
+    `<div class="summary-mini-card app-card">${titleRow(title, subtitle, rightHtml)}${divider}${body(content)}</div>`;
 
   // 요약분석의 "요약 리포트"(매출·결제건수·방문수·구매전환율·객단가)와 지표가 겹치지 않도록,
   // 여기서는 일별·상품별 매출 표 두 개를 가로지르는 "분포" 관점 지표로 구성한다.
@@ -3646,7 +3560,7 @@ function naverSalesDetailCardHtml() {
       naverSalesDataTableSectionHtml(), salesDataTableModeToggleHtml()),
   ].join("");
 
-  return `<div class="content-card summary-card">
+  return `<div class="content-card summary-card app-card">
     <h2 style="display:none">매출분석</h2>
     <div class="summary-cards-stack">${cards}</div>
   </div>`;
@@ -3676,17 +3590,17 @@ function channelVisitsOfPaths(paths, names) {
 // 직접유입/검색/광고처럼 궁금해할 만한 채널 비중 몇 개를 낱개 숫자 지표로 뽑아서 보여준다.
 function naverVisitDetailCardHtml() {
   const titleRow = (title, subtitle, rightHtml = "") =>
-    `<div class="summary-section-title-row">
-      <div class="summary-section-title-wrap">
-        <span class="summary-section-title">${esc(title)}</span>
-        <span class="summary-section-subtitle">${esc(subtitle)}</span>
+    `<div class="summary-section-title-row app-card-head">
+      <div class="summary-section-title-wrap app-card-title-wrap">
+        <span class="summary-section-title app-card-title">${esc(title)}</span>
+        <span class="summary-section-subtitle app-card-subtitle">${esc(subtitle)}</span>
       </div>
       ${rightHtml}
     </div>`;
-  const body = html => `<div class="summary-section-body">${html}</div>`;
+  const body = html => `<div class="summary-section-body app-card-body">${html}</div>`;
   const divider = `<div class="summary-divider"></div>`;
   const miniCard = (title, subtitle, content, rightHtml = "") =>
-    `<div class="summary-mini-card">${titleRow(title, subtitle, rightHtml)}${divider}${body(content)}</div>`;
+    `<div class="summary-mini-card app-card">${titleRow(title, subtitle, rightHtml)}${divider}${body(content)}</div>`;
 
   const paths = naverStat.visitPaths;
   const totalVisits = paths.reduce((s, r) => s + (Number(r.visits) || 0), 0);
@@ -3732,7 +3646,7 @@ function naverVisitDetailCardHtml() {
       uploadBtn),
   ].join("");
 
-  return `<div class="content-card summary-card">
+  return `<div class="content-card summary-card app-card">
     <h2 style="display:none">유입분석</h2>
     <div class="summary-cards-stack">${cards}</div>
   </div>`;
@@ -3744,17 +3658,17 @@ function naverVisitDetailCardHtml() {
 // 몇 %를 차지하는지 보여준다.
 function naverSearchDetailCardHtml() {
   const titleRow = (title, subtitle, rightHtml = "") =>
-    `<div class="summary-section-title-row">
-      <div class="summary-section-title-wrap">
-        <span class="summary-section-title">${esc(title)}</span>
-        <span class="summary-section-subtitle">${esc(subtitle)}</span>
+    `<div class="summary-section-title-row app-card-head">
+      <div class="summary-section-title-wrap app-card-title-wrap">
+        <span class="summary-section-title app-card-title">${esc(title)}</span>
+        <span class="summary-section-subtitle app-card-subtitle">${esc(subtitle)}</span>
       </div>
       ${rightHtml}
     </div>`;
-  const body = html => `<div class="summary-section-body">${html}</div>`;
+  const body = html => `<div class="summary-section-body app-card-body">${html}</div>`;
   const divider = `<div class="summary-divider"></div>`;
   const miniCard = (title, subtitle, content, rightHtml = "") =>
-    `<div class="summary-mini-card">${titleRow(title, subtitle, rightHtml)}${divider}${body(content)}</div>`;
+    `<div class="summary-mini-card app-card">${titleRow(title, subtitle, rightHtml)}${divider}${body(content)}</div>`;
 
   const terms = naverStat.searchTerms;
   const totalVisits = terms.reduce((s, r) => s + (Number(r.visits) || 0), 0);
@@ -3804,7 +3718,7 @@ function naverSearchDetailCardHtml() {
       uploadBtn),
   ].join("");
 
-  return `<div class="content-card summary-card">
+  return `<div class="content-card summary-card app-card">
     <h2 style="display:none">검색분석</h2>
     <div class="summary-cards-stack">${cards}</div>
   </div>`;
@@ -3813,7 +3727,7 @@ function naverSearchDetailCardHtml() {
 function renderNaverSalesPanel() {
   if (naverStatLoading) {
     document.getElementById("mainPanel").innerHTML = `
-      <div class="content-card">
+      <div class="content-card app-card">
         <div class="empty">불러오는 중...</div>
       </div>`;
     return;
@@ -3914,17 +3828,17 @@ function salesTableHtml(products) {
 // 요약분석에서 쓰던 것을 그대로 재사용한다.
 function renderAdsPanel() {
   const titleRow = (title, subtitle, rightHtml = "") =>
-    `<div class="summary-section-title-row">
-      <div class="summary-section-title-wrap">
-        <span class="summary-section-title">${esc(title)}</span>
-        <span class="summary-section-subtitle">${esc(subtitle)}</span>
+    `<div class="summary-section-title-row app-card-head">
+      <div class="summary-section-title-wrap app-card-title-wrap">
+        <span class="summary-section-title app-card-title">${esc(title)}</span>
+        <span class="summary-section-subtitle app-card-subtitle">${esc(subtitle)}</span>
       </div>
       ${rightHtml}
     </div>`;
-  const body = html => `<div class="summary-section-body">${html}</div>`;
+  const body = html => `<div class="summary-section-body app-card-body">${html}</div>`;
   const divider = `<div class="summary-divider"></div>`;
   const miniCard = (title, subtitle, content, rightHtml = "") =>
-    `<div class="summary-mini-card">${titleRow(title, subtitle, rightHtml)}${divider}${body(content)}</div>`;
+    `<div class="summary-mini-card app-card">${titleRow(title, subtitle, rightHtml)}${divider}${body(content)}</div>`;
 
   if (activePlatform === "coupang") {
     document.getElementById("adCollectIconBtn").style.display = "none"; // 쿠팡 광고는 엑셀 업로드 방식이라 수집 버튼이 필요 없다
@@ -3955,7 +3869,7 @@ function renderAdsPanel() {
         `${tableToolbar}${content}`, rightHtml),
       miniCard("전체 데이터 도구 보기", "살펴보면 좋을 데이터 분석 도구들을 모아봤어요. 클릭하면 해당 데이터 도구로 연결됩니다.", coupangSummaryToolLinksHtml()),
     ].join("");
-    document.getElementById("mainPanel").innerHTML = `<div class="content-card summary-card">
+    document.getElementById("mainPanel").innerHTML = `<div class="content-card summary-card app-card">
       <h2 style="display:none">쿠팡 광고</h2>
       <div class="summary-cards-stack">${cards}</div>
     </div>`;
@@ -4012,7 +3926,7 @@ function renderAdsPanel() {
     miniCard("네이버 광고", "네이버 광고관리에서 내려받은 캠페인 보고서를 확인하세요.", content, adCmpPeriodToggleHtml()),
     miniCard("전체 데이터 도구 보기", "살펴보면 좋을 데이터 분석 도구들을 모아봤어요. 클릭하면 해당 데이터 도구로 연결됩니다.", naverSummaryToolLinksHtml()),
   ].join("");
-  document.getElementById("mainPanel").innerHTML = `<div class="content-card summary-card">
+  document.getElementById("mainPanel").innerHTML = `<div class="content-card summary-card app-card">
     <h2 style="display:none">네이버 광고</h2>
     <div class="summary-cards-stack">${cards}</div>
   </div>`;

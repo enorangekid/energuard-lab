@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
@@ -8,8 +8,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="calc.css?v=20260721-relatedair" />
-  <link rel="stylesheet" href="../../common.css?v=20260721-align2" />
+  <link rel="stylesheet" href="calc.css?v=20260727-calc-common1" />
+  <link rel="stylesheet" href="../../common.css?v=20260727-utility-common1" />
 </head>
 <body class="utility-page">
   <header class="topbar" data-topbar>
@@ -33,24 +33,24 @@
       </div>
     </div>
   </header>
-<main class="main-content">
+<main class="main-content app-shell">
 
       <!-- 페이지 헤더 -->
-      <div class="page-header">
-        <h1 class="page-title">
-          <span class="calc-title-label">석고보드 수량 계산기</span>
-          <span class="calc-title-help" title="석고보드 수량 계산기 도구 설명">?</span>
+      <div class="page-header app-page-head">
+        <h1 class="page-title app-title-single">
+          <span class="calc-title-label app-title-label active">석고보드 수량 계산기</span>
+          <span class="calc-title-help app-title-help" title="석고보드 수량 계산기 도구 설명">?</span>
         </h1>
       </div>
 
       <!-- 계산기 카드 -->
-      <div class="calc-wrapper">
+      <div class="calc-wrapper app-section">
 
         <!-- ── 회색 묶음: 입력 + 결과 + 확인 + 관련 ── -->
         <div class="calc-main-wrap">
 
         <!-- 입력 섹션 -->
-        <div class="calc-card-main" id="calcForm">
+        <div class="calc-card-main app-card" id="calcForm">
 
           <!-- Row 1: 가벽 가로 / 가벽 높이 -->
           <div class="field-row">
@@ -179,7 +179,7 @@
 
         <!-- 결과 패널 (계산 전 숨김) -->
         <div class="calc-right-col">
-        <div class="result-panel" id="resultPanel" style="display:none;">
+        <div class="result-panel app-card" id="resultPanel" style="display:none;">
           <div class="result-main-row">
 
             <!-- 왼쪽: 메인 수량 카드 -->
@@ -224,7 +224,7 @@
         </div>
 
         <!-- 확인해주세요 + 관련 계산기 묶음 -->
-        <div class="tip-related-wrap">
+        <div class="tip-related-wrap app-section">
 
         <div class="tip-box">
           <div class="tip-title">확인해주세요</div>
@@ -253,7 +253,7 @@
         </div><!-- /calc-main-wrap -->
 
         <!-- ── SEO 콘텐츠 블록 ── -->
-        <div class="seo-wrap">
+        <div class="seo-wrap app-card">
         <div class="seo-section">
           <h2 class="seo-title">석고보드 물량 계산기, 가벽·천장 시공 자재 산출 (1P/2P/양면 대응)</h2>
           <p class="seo-body">벽면 치수와 보드 규격으로 필요한 석고보드 수량을 계산합니다.</p>

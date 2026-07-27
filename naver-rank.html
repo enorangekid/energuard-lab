@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="common.css?v=20260721-align2">
+<link rel="stylesheet" href="common.css?v=20260727-keyword-common1">
 <style>
   :root {
     --bg: #f8f9fb; --card: #fff; --ink: #1a1f2e; --sub: #5a6378;
@@ -24,28 +24,6 @@
     font-family: var(--font-main);
     background: var(--bg); color: var(--ink); font-size: 15px; line-height: 1.55;
   }
-  .wrap { max-width: 1180px; margin: 0 auto; padding: 64px 0 80px; }
-  .wrap > header { display: flex; align-items: flex-end; gap: 0; margin-bottom: 30px; }
-  .mode-title-tabs { display: inline-flex; align-items: center; gap: 28px; }
-  .mode-title-tab {
-    position: relative; height: 34px; padding: 0 0 8px; border: 0; background: transparent;
-    color: #07111f; font-family: inherit; font-size: 21px; font-weight: 900; cursor: default;
-  }
-  .mode-title-text { display: inline-flex; align-items: center; gap: 12px; }
-  .mode-label { position: relative; display: inline-flex; align-items: center; }
-  .mode-title-tab.active .mode-label::after {
-    content: ""; position: absolute; left: 0; right: 0; bottom: -13px; height: 3px;
-    background: var(--accent); border-radius: 999px;
-  }
-  .mode-help {
-    width: 18px; height: 18px; border: 1px solid #cfd5df; border-radius: 50%;
-    background: #f4f6f9; color: #8a93a5; font-size: 12px; font-weight: 900;
-    display: inline-flex; align-items: center; justify-content: center; line-height: 1;
-  }
-
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }
-  .card + .card { margin-top: 16px; }
-
   .keyword-result-banner {
     display: none;
     margin-top: 24px;
@@ -82,44 +60,8 @@
   }
   .keyword-result-sep { opacity: .72; }
 
-  .keyword-filterbar {
-    display: flex; align-items: center; gap: 12px; padding-bottom: 22px;
-    border-bottom: 1px solid var(--line);
-  }
+  .keyword-filterbar { gap: 12px; }
   .keyword-store-row { display: inline-flex; align-items: center; gap: 8px; }
-  .store-chips { position: relative; display: block; flex: 0 0 auto; }
-  .store-select {
-    height: 42px; min-width: 190px; padding: 0 14px 0 18px; border: 1px solid #dfe4ec;
-    border-radius: var(--radius); background: #fff; color: var(--sub); font-family: inherit;
-    font-size: 14px; font-weight: 800; cursor: pointer; display: inline-flex;
-    align-items: center; justify-content: space-between; gap: 18px;
-  }
-  .store-select:hover, .store-chips.open .store-select { border-color: #c8cdd4; background: #fafbfc; }
-  .store-caret { display: inline-flex; align-items: center; justify-content: center; color: #8a93a5; line-height: 1; }
-  .store-caret svg { width: 14px; height: 14px; }
-  .store-menu {
-    position: absolute; z-index: 50; top: calc(100% + 6px); left: 0; min-width: 100%;
-    padding: 6px; border: 1px solid var(--line); border-radius: var(--radius);
-    background: #fff; box-shadow: 0 16px 34px rgba(5, 7, 11, 0.12); display: none;
-  }
-  .store-chips.open .store-menu { display: flex; flex-direction: column; gap: 4px; }
-  .store-option {
-    height: 34px; padding: 0 12px; border: 0; border-radius: 4px; background: transparent;
-    color: var(--sub); font-family: inherit; font-size: 12.5px; font-weight: 800; text-align: left; cursor: pointer;
-    display: flex; align-items: center; gap: 8px;
-  }
-  .store-option:hover { background: #f4f6f9; color: var(--ink); }
-  .store-option.active { background: var(--ink); color: #fff; }
-  .store-option-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .store-option-remove { opacity: .6; font-weight: 900; }
-  .store-option-remove:hover { opacity: 1; }
-  .store-add-icon {
-    width: 42px; height: 42px; border: 1px solid #07111f; border-radius: var(--radius);
-    background: #07111f; color: #fff; display: inline-flex; align-items: center; justify-content: center;
-    cursor: pointer; transition: all .12s;
-  }
-  .store-add-icon:hover { border-color: #111827; color: #fff; background: #111827; }
-  .store-add-icon svg { width: 16px; height: 16px; }
   .keyword-search-panel { margin-top: 24px; }
 
   /* 검색 폼 */
@@ -240,16 +182,6 @@
   #insight { display: none; margin-top: 18px; }
   /* 매출분석(sales-analysis.html) 요약분석과 동일한 독립 카드 스타일(제목 → 부제목 → 구분선 →
      내용). 여기서는 접었다 펴는 caret 없이 항상 펼쳐진 카드로 쓴다. */
-  .summary-mini-card {
-    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
-    box-shadow: 0 14px 34px rgba(5, 7, 11, 0.05); overflow: hidden;
-  }
-  .summary-divider { height: 1px; background: var(--line); }
-  .summary-section-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 20px 20px 16px; }
-  .summary-section-title-wrap { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-  .summary-section-title { font-size: 15px; font-weight: 800; color: var(--ink); }
-  .summary-section-subtitle { font-size: 12px; font-weight: 600; color: var(--sub); }
-  .summary-section-body { padding: 20px 20px 24px; }
   /* 기기별(PC/모바일) 검색 비중 미니 바 — 판다랭크의 "기기별" 지표를 참고해 추가 */
   .ins-device-bar { margin-top: 14px; display: none; }
   .ins-device-track { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--dark-tint); }
@@ -592,19 +524,19 @@
     </div>
   </div>
 </header>
-<div class="wrap">
-  <header>
-    <div class="mode-title-tabs">
-      <button type="button" class="mode-title-tab active">
-        <span class="mode-title-text">
-          <span class="mode-label">키워드 분석</span>
-          <span class="mode-help" title="키워드 검색량, 내 스토어 순위, 검색 노출 상태를 한 곳에서 확인합니다.">?</span>
+<div class="wrap app-shell">
+  <header class="app-page-head">
+    <div class="mode-title-tabs app-title-tabs">
+      <button type="button" class="mode-title-tab app-title-tab active">
+        <span class="mode-title-text app-title-text">
+          <span class="mode-label app-title-label">키워드 분석</span>
+          <span class="mode-help app-title-help" title="키워드 검색량, 내 스토어 순위, 검색 노출 상태를 한 곳에서 확인합니다.">?</span>
         </span>
       </button>
     </div>
   </header>
 
-  <div class="keyword-filterbar">
+  <div class="keyword-filterbar app-filterbar">
     <div class="keyword-store-row">
       <div class="store-chips" id="storeChips"></div>
       <button type="button" class="store-add-icon" id="addStoreBtn" aria-label="스토어 추가" title="스토어 추가">
@@ -632,7 +564,7 @@
   </div>
 
   <!-- 키워드 일괄 수집 (기본 접힘) -->
-  <div class="card" id="batchCard">
+  <div class="card app-card" id="batchCard">
     <div class="batch-head" onclick="document.getElementById('batchCard').classList.toggle('open')">
       <span class="batch-title">키워드 일괄 수집</span>
       <span class="batch-store-label" id="batchStoreLabel"></span>
@@ -690,15 +622,15 @@
   <div class="keyword-result-banner" id="keywordResultBanner"></div>
 
   <div id="insight">
-    <div class="summary-mini-card">
-      <div class="summary-section-title-row">
-        <div class="summary-section-title-wrap">
-          <span class="summary-section-title">키워드 요약</span>
-          <span class="summary-section-subtitle">이 키워드의 검색량·경쟁·노출 현황을 핵심 지표로 확인하세요.</span>
+    <div class="summary-mini-card app-card">
+      <div class="summary-section-title-row app-card-head">
+        <div class="summary-section-title-wrap app-card-title-wrap">
+          <span class="summary-section-title app-card-title">키워드 요약</span>
+          <span class="summary-section-subtitle app-card-subtitle">이 키워드의 검색량·경쟁·노출 현황을 핵심 지표로 확인하세요.</span>
         </div>
       </div>
       <div class="summary-divider"></div>
-      <div class="summary-section-body">
+      <div class="summary-section-body app-card-body">
         <div class="ins-meta" id="insMeta" style="display:none;"></div>
         <div class="ins-grid" id="insGrid"></div>
         <div class="ins-device-bar" id="insDeviceBar"></div>
@@ -709,15 +641,15 @@
 
   <!-- 검색량 추이 차트 + 연관 키워드 -->
   <div class="sec open" id="secVolTrend" style="display:none;">
-    <div class="summary-mini-card">
-      <div class="summary-section-title-row">
-        <div class="summary-section-title-wrap">
-          <span class="summary-section-title">키워드 분석</span>
-          <span class="summary-section-subtitle">월별 검색량 추이와 함께 검색되는 연관 키워드를 확인하세요.</span>
+    <div class="summary-mini-card app-card">
+      <div class="summary-section-title-row app-card-head">
+        <div class="summary-section-title-wrap app-card-title-wrap">
+          <span class="summary-section-title app-card-title">키워드 분석</span>
+          <span class="summary-section-subtitle app-card-subtitle">월별 검색량 추이와 함께 검색되는 연관 키워드를 확인하세요.</span>
         </div>
       </div>
       <div class="summary-divider"></div>
-      <div class="summary-section-body">
+      <div class="summary-section-body app-card-body">
         <div class="vol-rel-row">
           <div class="vol-rel-chart">
             <div class="store-sub-title">검색량 추이</div>
@@ -735,15 +667,15 @@
 
   <!-- 스토어 순위 (내 스토어 + TOP10) -->
   <div class="sec open" id="secStore">
-    <div class="summary-mini-card">
-      <div class="summary-section-title-row">
-        <div class="summary-section-title-wrap">
-          <span class="summary-section-title">스토어 순위</span>
-          <span class="summary-section-subtitle">내 스토어와 TOP10 상품의 검색 노출 순위를 확인하세요.</span>
+    <div class="summary-mini-card app-card">
+      <div class="summary-section-title-row app-card-head">
+        <div class="summary-section-title-wrap app-card-title-wrap">
+          <span class="summary-section-title app-card-title">스토어 순위</span>
+          <span class="summary-section-subtitle app-card-subtitle">내 스토어와 TOP10 상품의 검색 노출 순위를 확인하세요.</span>
         </div>
       </div>
       <div class="summary-divider"></div>
-      <div class="summary-section-body">
+      <div class="summary-section-body app-card-body">
         <div class="vol-rel-row">
           <div class="vol-rel-table">
             <div class="store-sub-title">내 스토어</div>
@@ -761,15 +693,15 @@
 
   <!-- 판매자 점유율 -->
   <div class="sec open" id="secSellers">
-    <div class="summary-mini-card">
-      <div class="summary-section-title-row">
-        <div class="summary-section-title-wrap">
-          <span class="summary-section-title">검색 노출 분석</span>
-          <span class="summary-section-subtitle">검색 결과의 판매자 구성과 노출 경쟁 강도를 확인하세요.</span>
+    <div class="summary-mini-card app-card">
+      <div class="summary-section-title-row app-card-head">
+        <div class="summary-section-title-wrap app-card-title-wrap">
+          <span class="summary-section-title app-card-title">검색 노출 분석</span>
+          <span class="summary-section-subtitle app-card-subtitle">검색 결과의 판매자 구성과 노출 경쟁 강도를 확인하세요.</span>
         </div>
       </div>
       <div class="summary-divider"></div>
-      <div class="summary-section-body">
+      <div class="summary-section-body app-card-body">
         <div class="visit-list" id="sellersBody"></div>
       </div>
     </div>

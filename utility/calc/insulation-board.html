@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
@@ -8,8 +8,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="calc.css?v=20260721-relatedair" />
-  <link rel="stylesheet" href="../../common.css?v=20260721-align2" />
+  <link rel="stylesheet" href="calc.css?v=20260727-calc-common1" />
+  <link rel="stylesheet" href="../../common.css?v=20260727-utility-common1" />
 </head>
 <body class="utility-page">
   <header class="topbar" data-topbar>
@@ -33,25 +33,25 @@
       </div>
     </div>
   </header>
-<main class="main-content">
+<main class="main-content app-shell">
   <div class="calc-tool-page calc-tool-insulation-board">
 
       <!-- 페이지 헤더 -->
-      <div class="page-header">
-        <h1 class="page-title">
-          <span class="calc-title-label">판상형 단열재 수량 계산기</span>
-          <span class="calc-title-help" title="벽체와 판상형 단열재 규격을 기준으로 필요한 수량을 계산합니다.">?</span>
+      <div class="page-header app-page-head">
+        <h1 class="page-title app-title-single">
+          <span class="calc-title-label app-title-label active">판상형 단열재 수량 계산기</span>
+          <span class="calc-title-help app-title-help" title="벽체와 판상형 단열재 규격을 기준으로 필요한 수량을 계산합니다.">?</span>
         </h1>
       </div>
 
       <!-- 계산기 카드 -->
-      <div class="calc-wrapper">
+      <div class="calc-wrapper app-section">
 
         <!-- ── 회색 묶음: 입력 + 결과 + 확인 + 관련 ── -->
         <div class="calc-main-wrap">
 
         <!-- 입력 섹션 -->
-        <div class="calc-card-main" id="calcForm">
+        <div class="calc-card-main app-card" id="calcForm">
 
           <!-- Row 1: 벽체 가로 / 벽체 높이 -->
           <div class="field-row">
@@ -166,7 +166,7 @@
 
         <!-- 결과 패널 (계산 전 숨김) -->
         <div class="calc-right-col">
-        <div class="result-panel" id="resultPanel" style="display:none;">
+        <div class="result-panel app-card" id="resultPanel" style="display:none;">
           <div class="result-main-row">
 
             <!-- 왼쪽: 메인 수량 카드 -->
@@ -211,7 +211,7 @@
         </div>
 
         <!-- 확인해주세요 + 관련 계산기 묶음 -->
-        <div class="tip-related-wrap">
+        <div class="tip-related-wrap app-section">
         <div class="tip-box">
           <div class="tip-title">확인해주세요</div>
           <ul class="tip-list">
@@ -238,7 +238,7 @@
         </div><!-- /calc-main-wrap -->
 
         <!-- ── SEO 콘텐츠 블록 ── -->
-        <div class="seo-wrap">
+        <div class="seo-wrap app-card">
         <div class="seo-section">
           <h2 class="seo-title">단열재 수량 계산기, 아이소핑크·스티로폼·경질우레탄보드·PF보드 물량 산출 가이드</h2>
           <p class="seo-body">시공 면적과 자재 규격으로 필요한 단열재 수량을 계산합니다.</p>

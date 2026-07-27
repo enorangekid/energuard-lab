@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="common.css?v=20260721-align2">
+<link rel="stylesheet" href="common.css?v=20260727-rank-common2">
 <style>
   :root {
     --bg: #f8f9fb; --card: #fff; --ink: #1a1f2e; --sub: #5a6378;
@@ -25,63 +25,6 @@
     font-family: var(--font-main);
     background: var(--bg); color: var(--ink); font-size: 15px; line-height: 1.55;
   }
-  .wrap { max-width: 1180px; margin: 0 auto; padding: 64px 0 80px; }
-  .wrap > header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 20px; }
-  .wrap > header h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; }
-  .wrap > header .tag { font-size: 12px; font-weight: 600; color: var(--dark); background: var(--dark-tint); padding: 2px 8px; border-radius: 20px; }
-
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }
-  .store-label { font-size: 15px; font-weight: 800; margin-bottom: 6px; }
-  .store-chips { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
-  .store-chip {
-    padding: 7px 10px; border: 1.5px solid var(--line); border-radius: 4px;
-    background: #fff; font-size: 13px; font-weight: 600; color: var(--sub); cursor: pointer;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; transition: all .12s;
-    font-family: inherit;
-  }
-  .store-chip:hover { border-color: #c8cdd4; }
-  .store-chip.active { border-color: var(--dark); background: var(--dark); color: #fff; }
-
-  .summary { margin-top: 16px; font-size: 13px; color: var(--sub); }
-  .summary a { color: var(--accent); font-weight: 700; }
-
-  .category-tabs {
-    margin-top: 24px;
-    display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: 8px;
-  }
-  .category-tab {
-    height: 42px;
-    border: 1.5px solid var(--line);
-    border-radius: var(--radius);
-    background: #fff;
-    color: var(--sub);
-    font-family: inherit;
-    font-size: 13px;
-    font-weight: 800;
-    cursor: pointer;
-    box-shadow: 0 2px 6px rgba(5, 7, 11, .04);
-    transition: all .15s;
-  }
-  /* 호버는 사이트 전반에서 쓰는 따뜻한 오렌지 틴트와 같은 톤 (sales-analysis.html .sec-nav-btn과 통일) */
-  .category-tab:hover { border-color: #f0b79d; color: var(--ink); background: #fffaf7; }
-  /* 활성 탭은 검정 대신 브랜드 액센트(오렌지)로 채우고, 그 색으로 은은한 글로우 그림자를 준다 */
-  .category-tab.active {
-    background: var(--accent); border-color: var(--accent); color: #fff;
-    box-shadow: 0 10px 24px rgba(232, 93, 47, .28);
-  }
-  .category-tab-count { margin-left: 4px; font-size: 11px; font-weight: 700; opacity: .72; }
-  /* 카테고리 안에서 재질별로 한 번 더 나누는 하위탭 — 메인 탭보다 한 톤 가벼운 알약형으로 */
-  .subcategory-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 18px; }
-  .subcategory-tab {
-    height: 34px; padding: 0 14px; border: 1px solid var(--line); border-radius: 20px;
-    background: #fff; color: var(--sub); font-family: inherit; font-size: 12.5px; font-weight: 800;
-    cursor: pointer; transition: all .12s;
-  }
-  .subcategory-tab:hover { border-color: #d7dde7; color: var(--ink); background: #fafbfc; }
-  .subcategory-tab.active { background: var(--accent-tint); border-color: var(--accent); color: var(--accent-dark); }
-  .subcategory-tab-count { margin-left: 4px; font-size: 11px; font-weight: 700; opacity: .72; }
   .category-panels {
     display: grid;
     align-items: start;
@@ -102,36 +45,6 @@
     max-height: none;
     overflow: visible;
   }
-  .category-section { margin-top: 24px; }
-  .category-title-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin: 0 -10px;
-    padding: 13px 20px;
-    border-bottom: 1px solid var(--line);
-    background: #fff;
-  }
-  .category-title { font-size: 16px; font-weight: 900; color: var(--ink); }
-  .category-meta { font-size: 12px; color: var(--sub); }
-  .category-title-spacer { flex: 1; }
-  .expand-all-btn {
-    flex: 0 0 auto;
-    height: 28px;
-    padding: 0 10px;
-    border: 1px solid #dfe4ec;
-    border-radius: 4px;
-    background: #fff;
-    color: var(--sub);
-    font-family: inherit;
-    font-size: 12px;
-    font-weight: 800;
-    cursor: pointer;
-    transition: background .12s, border-color .12s, color .12s;
-  }
-  .expand-all-btn:hover,
-  .expand-all-btn.is-open { border-color: #c8cdd4; color: var(--ink); background: #fafbfc; }
-
   /* ── 카테고리 요약 대시보드 ── */
   .rank-dash {
     border: 1px solid var(--line);
@@ -210,31 +123,6 @@
   }
   .summary-top3-more:hover { color: var(--accent); }
 
-  .product-table {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 0 10px 10px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    background: #fff;
-    overflow: hidden;
-    box-shadow: 0 14px 34px rgba(5, 7, 11, 0.05);
-  }
-  .product-table-head {
-    display: grid;
-    grid-template-columns: 38px 86px minmax(280px, 1fr) 120px 88px 64px 76px 112px;
-    align-items: center;
-    margin: 10px 10px 0;
-    padding: 9px 14px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    background: #fafbfc;
-    color: #8a93a5;
-    font-size: 11.5px;
-    font-weight: 800;
-    text-align: center;
-  }
   .product-group {
     background: #fff;
     border: 1px solid var(--line);
@@ -247,7 +135,6 @@
     border-color: #d9dee8;
     box-shadow: 0 10px 24px rgba(5, 7, 11, 0.06);
   }
-  .product-table .product-group:last-child { margin-bottom: 10px; }
   .product-group.open { border-color: #f0b79d; box-shadow: 0 12px 28px rgba(232, 93, 47, 0.08); }
   .product-group.checked {
     border-color: #f0b79d;
@@ -575,73 +462,6 @@
   }
 
   /* ── 상단 전환 / 필터 ── */
-  .wrap > header { display: flex; align-items: flex-end; gap: 0; margin-bottom: 30px; }
-  .mode-title-tabs { display: inline-flex; align-items: center; gap: 28px; }
-  .mode-title-tab {
-    position: relative; height: 34px; padding: 0 0 8px; border: 0; background: transparent;
-    color: #aeb6c4; font-family: inherit; font-size: 21px; font-weight: 900; cursor: pointer;
-  }
-  .mode-title-tab:not(.active):hover { color: #7f8795; }
-  .mode-title-tab + .mode-title-tab::before {
-    content: "";
-    position: absolute;
-    left: -15px;
-    top: 4px;
-    width: 1px;
-    height: 18px;
-    background: #d8dde6;
-  }
-  .mode-title-text { display: inline-flex; align-items: center; gap: 12px; }
-  .mode-label { position: relative; display: inline-flex; align-items: center; }
-  .mode-title-tab.active { color: #07111f; }
-  .mode-title-tab.active .mode-label::after {
-    content: ""; position: absolute; left: 0; right: 0; bottom: -13px; height: 3px;
-    background: var(--accent); border-radius: 999px;
-  }
-  .mode-help {
-    width: 18px; height: 18px; border: 1px solid #cfd5df; border-radius: 50%;
-    background: #f4f6f9; color: #8a93a5; font-size: 12px; font-weight: 900;
-    display: inline-flex; align-items: center; justify-content: center; line-height: 1;
-  }
-  .rank-filterbar {
-    display: flex; align-items: center; gap: 16px; padding-bottom: 22px;
-    border-bottom: 1px solid var(--line);
-  }
-  #rankView,
-  #itemView,
-  #productGroups,
-  #trackedItemList { width: 100%; }
-  .store-chips { position: relative; display: block; flex: 0 0 auto; }
-  .store-select {
-    height: 42px; min-width: 190px; padding: 0 14px 0 18px; border: 1px solid #dfe4ec;
-    border-radius: var(--radius); background: #fff; color: var(--sub); font-family: inherit;
-    font-size: 14px; font-weight: 800; cursor: pointer; display: inline-flex;
-    align-items: center; justify-content: space-between; gap: 18px;
-  }
-  .store-select:hover, .store-chips.open .store-select { border-color: #c8cdd4; background: #fafbfc; }
-  .store-caret { display: inline-flex; align-items: center; justify-content: center; color: #8a93a5; line-height: 1; }
-  .store-caret svg { width: 14px; height: 14px; }
-  .store-menu {
-    position: absolute; z-index: 50; top: calc(100% + 6px); left: 0; min-width: 100%;
-    padding: 6px; border: 1px solid var(--line); border-radius: var(--radius);
-    background: #fff; box-shadow: 0 16px 34px rgba(5, 7, 11, 0.12); display: none;
-  }
-  .store-chips.open .store-menu { display: flex; flex-direction: column; gap: 4px; }
-  .store-chip {
-    height: 34px; padding: 0 12px; border: 0; border-radius: 4px; background: transparent;
-    color: var(--sub); font-family: inherit; font-size: 12.5px; font-weight: 800; text-align: left; cursor: pointer;
-  }
-  .store-chip:hover { background: #f4f6f9; color: var(--ink); }
-  .store-chip.active { background: var(--ink); color: #fff; }
-  .summary {
-    margin-top: 0;
-    margin-left: auto;
-    color: var(--sub);
-    font-size: 12px;
-    text-align: right;
-    white-space: nowrap;
-    flex: 0 0 auto;
-  }
   .rank-loading { display: inline-flex; align-items: center; gap: 8px; }
   .spinner {
     width: 14px; height: 14px; border: 2px solid #f1c9ba; border-top-color: var(--accent);
@@ -768,12 +588,6 @@
   .item-field-hint.ok { color: #16a34a; }
   .item-check { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 700; color: var(--ink); cursor: pointer; }
   .item-save-btn { width: 100%; height: 40px; }
-
-  @media (max-width: 980px) {
-    .product-table { overflow-x: auto; padding-bottom: 4px; }
-    .product-table-head, .product-main-row { min-width: 900px; }
-  }
-
   footer { margin-top: 36px; font-size: 12px; color: var(--sub); text-align: center; }
 </style>
 </head>
@@ -799,35 +613,35 @@
     </div>
   </div>
 </header>
-<div class="wrap">
-  <header>
-    <div class="mode-title-tabs">
-      <button type="button" class="mode-title-tab view-tab active" data-view="rank">
-        <span class="mode-title-text">
-          <span class="mode-label">키워드 랭킹</span>
-          <span class="mode-help" title="내 스토어 상품이 주요 키워드에서 몇 위에 노출되는지 상품 기준으로 확인합니다.">?</span>
+<div class="wrap app-shell">
+  <header class="app-page-head">
+    <div class="mode-title-tabs app-title-tabs">
+      <button type="button" class="mode-title-tab app-title-tab view-tab active" data-view="rank">
+        <span class="mode-title-text app-title-text">
+          <span class="mode-label app-title-label">키워드 랭킹</span>
+          <span class="mode-help app-title-help" title="내 스토어 상품이 주요 키워드에서 몇 위에 노출되는지 상품 기준으로 확인합니다.">?</span>
         </span>
       </button>
-      <button type="button" class="mode-title-tab view-tab" data-view="items">
-        <span class="mode-title-text">
-          <span class="mode-label">아이템 추적</span>
-          <span class="mode-help" title="내 상품과 경쟁사 상품을 등록해 키워드 순위와 판매가 변동을 추적합니다.">?</span>
+      <button type="button" class="mode-title-tab app-title-tab view-tab" data-view="items">
+        <span class="mode-title-text app-title-text">
+          <span class="mode-label app-title-label">아이템 추적</span>
+          <span class="mode-help app-title-help" title="내 상품과 경쟁사 상품을 등록해 키워드 순위와 판매가 변동을 추적합니다.">?</span>
         </span>
       </button>
     </div>
   </header>
 
   <div id="rankView">
-    <div class="rank-filterbar">
+    <div class="rank-filterbar app-filterbar">
       <div class="store-chips" id="storeChips"></div>
-      <div class="summary" id="summary">불러오는 중...</div>
+      <div class="summary app-filter-summary" id="summary">불러오는 중...</div>
     </div>
 
     <div id="productGroups"></div>
   </div>
 
   <div id="itemView" style="display:none;">
-    <div class="item-toolbar">
+    <div class="item-toolbar app-filterbar">
       <div class="store-chips item-group-filter" id="itemGroupFilter"></div>
       <button type="button" class="item-btn item-icon-btn collect" id="itemCollectBtn" onclick="collectTrackedItems()" aria-label="순위·가격 수집" title="순위·가격 수집">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
@@ -2080,9 +1894,9 @@ function renderProducts(products) {
         ${section.products.length
           ? (() => {
             const displayProducts = filterBySubgroup(section);
-            return `<div class="product-table">
-            <div class="category-title-row">
-              <h2 class="category-title">${esc(section.name)}</h2>
+            return `<div class="product-table app-card">
+            <div class="category-title-row app-card-head">
+              <h2 class="category-title app-card-title">${esc(section.name)}</h2>
               <span class="category-meta">상품 ${displayProducts.length}개 · 키워드 ${section.keywordCount}개</span>
               <span class="category-title-spacer"></span>
               <button type="button" class="expand-all-btn${isAllExpanded ? " is-open" : ""}" data-action="toggle-all-keywords">
@@ -2872,9 +2686,9 @@ function renderTrackedItems() {
   const items = trackedGroupItems(group.key);
   const allExpanded = items.length && items.every(i => expandedTrackedItems.has(i.product_code));
   target.innerHTML = `
-    <div class="product-table">
-      <div class="category-title-row">
-        <h2 class="category-title">${esc(group.label)}</h2>
+    <div class="product-table app-card">
+      <div class="category-title-row app-card-head">
+        <h2 class="category-title app-card-title">${esc(group.label)}</h2>
         <span class="category-meta">상품 ${items.length}개</span>
         <span class="category-title-spacer"></span>
         ${items.length ? `<button type="button" class="expand-all-btn${allExpanded ? " is-open" : ""}" onclick="toggleTrackedGroup('${group.key}')">

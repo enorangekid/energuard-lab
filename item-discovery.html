@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="common.css?v=20260722-actionbtn1">
+<link rel="stylesheet" href="common.css?v=20260727-item-common1">
 <style>
   :root {
     --bg: #f8f9fb; --card: #fff; --ink: #07111f; --sub: #5a6378;
@@ -24,41 +24,8 @@
     margin: 0; font-family: "Pretendard Variable", Pretendard, -apple-system, sans-serif;
     background: var(--bg); color: var(--ink); font-size: 15px; line-height: 1.55;
   }
-  .wrap { width: 100%; max-width: 1180px; margin: 0 auto; padding: 64px 0 80px; }
-  .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; margin-bottom: 30px; padding-bottom: 0; border-bottom: 0; }
-  .page-title-row { display: flex; align-items: center; gap: 12px; }
-  .page-title { position: relative; margin: 0; padding-bottom: 12px; font-size: 28px; font-weight: 900; letter-spacing: -0.03em; line-height: 1.1; }
-  .page-title::after { content: ""; position: absolute; left: 0; bottom: 0; width: 100%; height: 3px; border-radius: 999px; background: var(--accent); }
-  .page-help {
-    display: inline-flex; align-items: center; justify-content: center;
-    width: 18px; height: 18px; margin-bottom: 14px; border: 1px solid #cfd6e2; border-radius: 50%;
-    background: #eef2f7; color: #8b95a7; font-size: 12px; font-weight: 900; cursor: help;
-  }
   .page-meta { color: var(--sub); font-size: 12px; font-weight: 600; text-align: right; }
   .page-head > .page-meta { display: none; }
-  .mode-title-tabs { display: inline-flex; align-items: center; gap: 28px; }
-  .mode-title-tab {
-    position: relative; height: 34px; padding: 0 0 8px; border: 0; background: transparent;
-    color: #aeb6c4; font-family: inherit; font-size: 21px; font-weight: 900;
-    cursor: pointer; transition: color .15s;
-  }
-  .mode-title-tab:not(.active):hover { color: #7f8795; }
-  .mode-title-tab + .mode-title-tab::before {
-    content: ""; position: absolute; left: -15px; top: 4px; width: 1px; height: 18px;
-    background: #d8dde6;
-  }
-  .mode-title-tab.active { color: #07111f; }
-  .mode-title-text { display: inline-flex; align-items: center; gap: 12px; }
-  .mode-label { position: relative; display: inline-flex; align-items: center; }
-  .mode-title-tab.active .mode-label::after {
-    content: ""; position: absolute; left: 0; right: 0; bottom: -13px; height: 3px;
-    background: var(--accent); border-radius: 999px;
-  }
-  .mode-help {
-    width: 18px; height: 18px; border: 1px solid #cfd5df; border-radius: 50%;
-    background: #f4f6f9; color: #8a93a5; font-size: 12px; font-weight: 900;
-    display: inline-flex; align-items: center; justify-content: center; line-height: 1;
-  }
   .control-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 22px; }
   .control-left, .control-right { display: flex; align-items: center; gap: 8px; min-width: 0; }
   .select-btn, .input-control {
@@ -88,37 +55,15 @@
   }
   .icon-btn:hover::after { opacity: 1; }
 
-  .category-tabs { display: flex; gap: 8px; margin-bottom: 18px; }
-  .category-tab {
-    flex: 1 1 0; min-width: 0; height: 42px;
-    border: 1.5px solid var(--line); border-radius: var(--radius);
-    background: #fff; color: var(--sub);
-    font-family: inherit; font-size: 13px; font-weight: 800; cursor: pointer;
-    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-    white-space: nowrap;
-    box-shadow: 0 2px 6px rgba(5, 7, 11, .04);
-    transition: all .15s;
-  }
-  .category-tab:hover { border-color: #f0b79d; color: var(--ink); background: #fffaf7; }
-  .category-tab.active {
-    background: var(--accent); border-color: var(--accent); color: #fff;
-    box-shadow: 0 10px 24px rgba(232, 93, 47, .28);
-  }
-  .category-tab-count { opacity: .7; }
+  .category-tabs { margin-bottom: 18px; }
 
   .content-grid { display: flex; flex-direction: column; gap: 22px; align-items: stretch; }
-  .card {
-    background: #fff; border: 1px solid var(--line); border-radius: var(--radius);
-    box-shadow: 0 14px 34px rgba(5, 7, 11, 0.05); overflow: hidden;
-  }
+  .card { padding: 0; overflow: hidden; }
   .content-grid > .card { overflow: visible; }
-  .card-head {
-    display: flex; align-items: center; justify-content: space-between; gap: 12px;
-    padding: 20px 20px 16px; border-bottom: 1px solid var(--line);
-  }
-  .card-title-wrap { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-  .card-title { font-size: 15px; font-weight: 900; color: var(--ink); }
-  .card-subtitle { max-width: 100%; color: var(--sub); font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .card-head { padding: 20px 20px 16px; border-bottom: 1px solid var(--line); }
+  .card-title-wrap { display: flex; flex-direction: column; gap: 4px; }
+  .card-title { font-size: 15px; }
+  .card-subtitle { max-width: 100%; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .card-body { padding: 10px 10px 12px; }
 
   .idea-list { display: flex; flex-direction: column; gap: 8px; }
@@ -204,10 +149,6 @@
   #itemPage[data-view="trend"] > .content-grid,
   #itemPage[data-view="discover"] > .trend-view { display: none; }
   .trend-view { display: flex; flex-direction: column; gap: 24px; }
-  .trend-filterbar {
-    display: flex; align-items: center; gap: 16px; padding-bottom: 22px;
-    border-bottom: 1px solid var(--line);
-  }
   .trend-section-select { position: relative; display: block; flex: 0 0 auto; }
   .trend-section-btn {
     height: 42px; min-width: 230px; padding: 0 14px 0 18px; border: 1px solid var(--line);
@@ -365,7 +306,6 @@
   .toast.show { opacity: 1; }
 
   @media (max-width: 900px) {
-    .wrap { padding: 36px 16px 64px; }
     .page-head, .control-row { flex-direction: column; align-items: flex-start; }
     .control-right, .input-control { width: 100%; }
     .content-grid { grid-template-columns: 1fr; }
@@ -378,25 +318,25 @@
 <body>
 <header class="topbar" data-topbar></header>
 
-<main class="wrap" id="itemPage" data-view="trend" data-trend-section="realtime">
-  <header class="page-head">
-    <div class="page-title-row">
-      <h1 class="page-title">아이템 발굴</h1>
-      <span class="page-help" title="저장한 키워드 후보와 AI 블로그 초안을 검토하는 화면입니다.">?</span>
+<main class="wrap app-shell" id="itemPage" data-view="trend" data-trend-section="realtime">
+  <header class="page-head app-page-head">
+    <div class="page-title-row app-title-row">
+      <h1 class="page-title app-title-single">아이템 발굴</h1>
+      <span class="page-help app-title-single-help" title="저장한 키워드 후보와 AI 블로그 초안을 검토하는 화면입니다.">?</span>
     </div>
     <div class="page-meta" id="pageMeta">초안 자동 생성 준비됨</div>
   </header>
 
   <section class="trend-view">
-    <div class="trend-filterbar">
+    <div class="trend-filterbar app-filterbar">
       <div class="trend-section-select" id="trendSectionSelect"></div>
     </div>
 
-    <section class="card realtime-trend-card">
-      <div class="card-head">
-        <div class="card-title-wrap">
-          <span class="card-title">실시간 급상승 키워드</span>
-          <span class="card-subtitle">실시간 검색 순위, 트렌드 순위, 뉴스 이슈를 한 화면에서 확인합니다.</span>
+    <section class="card app-card realtime-trend-card">
+      <div class="card-head app-card-head">
+        <div class="card-title-wrap app-card-title-wrap">
+          <span class="card-title app-card-title">실시간 급상승 키워드</span>
+          <span class="card-subtitle app-card-subtitle">실시간 검색 순위, 트렌드 순위, 뉴스 이슈를 한 화면에서 확인합니다.</span>
         </div>
         <div class="trend-card-actions">
           <span class="page-meta" id="trendMeta"></span>
@@ -415,11 +355,11 @@
       </div>
     </section>
 
-    <section class="card category-trend-card">
-      <div class="card-head">
-        <div class="card-title-wrap">
-          <span class="card-title">카테고리별 키워드 순위</span>
-          <span class="card-subtitle">쇼핑인사이트 기준 카테고리 인기 키워드와 경쟁도를 확인합니다.</span>
+    <section class="card app-card category-trend-card">
+      <div class="card-head app-card-head">
+        <div class="card-title-wrap app-card-title-wrap">
+          <span class="card-title app-card-title">카테고리별 키워드 순위</span>
+          <span class="card-subtitle app-card-subtitle">쇼핑인사이트 기준 카테고리 인기 키워드와 경쟁도를 확인합니다.</span>
         </div>
         <span class="page-meta" id="catMeta"></span>
       </div>
@@ -441,24 +381,24 @@
   <nav class="category-tabs" id="categoryTabs" aria-label="상품군 필터"></nav>
 
   <section class="content-grid">
-    <article class="card">
-      <div class="card-head">
-        <div class="card-title-wrap">
-          <span class="card-title">키워드 후보</span>
-          <span class="card-subtitle">트렌드와 검색에서 저장한 콘텐츠 후보입니다.</span>
+    <article class="card app-card">
+      <div class="card-head app-card-head">
+        <div class="card-title-wrap app-card-title-wrap">
+          <span class="card-title app-card-title">키워드 후보</span>
+          <span class="card-subtitle app-card-subtitle">트렌드와 검색에서 저장한 콘텐츠 후보입니다.</span>
         </div>
         <span class="pill gray" id="ideaCount">0개</span>
       </div>
-      <div class="card-body">
+      <div class="card-body app-card-body">
         <div class="idea-list" id="ideaList"></div>
       </div>
     </article>
 
-    <article class="card" id="draftCard">
-      <div class="card-head">
-        <div class="card-title-wrap">
-          <span class="card-title" id="draftCardTitle">AI 블로그 초안</span>
-          <span class="card-subtitle" id="draftCardSubtitle">선택한 후보의 제목·목차·본문 초안을 검토합니다.</span>
+    <article class="card app-card" id="draftCard">
+      <div class="card-head app-card-head">
+        <div class="card-title-wrap app-card-title-wrap">
+          <span class="card-title app-card-title" id="draftCardTitle">AI 블로그 초안</span>
+          <span class="card-subtitle app-card-subtitle" id="draftCardSubtitle">선택한 후보의 제목·목차·본문 초안을 검토합니다.</span>
         </div>
         <div class="control-right">
           <span id="draftTypeSwitch"></span>
@@ -539,17 +479,17 @@ function renderModeTabs() {
   const row = document.querySelector(".page-title-row");
   if (!row) return;
   row.innerHTML = `
-    <div class="mode-title-tabs" id="modeTabs" aria-label="아이템 발굴 화면 선택">
-      <button type="button" class="mode-title-tab${activeView === "trend" ? " active" : ""}" data-view="trend">
-        <span class="mode-title-text">
-          <span class="mode-label">트렌드 분석</span>
-          <span class="mode-help" title="실시간 검색 순위, 트렌드 순위, 뉴스 이슈와 카테고리별 키워드 순위를 확인합니다.">?</span>
+    <div class="mode-title-tabs app-title-tabs" id="modeTabs" aria-label="아이템 발굴 화면 선택">
+      <button type="button" class="mode-title-tab app-title-tab${activeView === "trend" ? " active" : ""}" data-view="trend">
+        <span class="mode-title-text app-title-text">
+          <span class="mode-label app-title-label">트렌드 분석</span>
+          <span class="mode-help app-title-help" title="실시간 검색 순위, 트렌드 순위, 뉴스 이슈와 카테고리별 키워드 순위를 확인합니다.">?</span>
         </span>
       </button>
-      <button type="button" class="mode-title-tab${activeView === "discover" ? " active" : ""}" data-view="discover">
-        <span class="mode-title-text">
-          <span class="mode-label">아이템 발굴</span>
-          <span class="mode-help" title="선택한 후보로 AI 블로그 초안을 생성하고 검토합니다.">?</span>
+      <button type="button" class="mode-title-tab app-title-tab${activeView === "discover" ? " active" : ""}" data-view="discover">
+        <span class="mode-title-text app-title-text">
+          <span class="mode-label app-title-label">아이템 발굴</span>
+          <span class="mode-help app-title-help" title="선택한 후보로 AI 블로그 초안을 생성하고 검토합니다.">?</span>
         </span>
       </button>
     </div>`;

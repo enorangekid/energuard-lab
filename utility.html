@@ -10,8 +10,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css?v=20260706-topbar2" />
-  <link rel="stylesheet" href="calc/calc.css?v=20260721-relatedair" />
-  <link rel="stylesheet" href="../common.css?v=20260721-align2" />
+  <link rel="stylesheet" href="calc/calc.css?v=20260727-calc-common1" />
+  <link rel="stylesheet" href="../common.css?v=20260727-utility-common1" />
   <script>
     if (new URLSearchParams(location.search).has("openCalc")) {
       document.documentElement.classList.add("is-direct-calc");
@@ -50,97 +50,15 @@
     /* 상단바(.topbar 계열)는 ../common.css 공용 스타일을 그대로 사용합니다. 이 페이지 전용 중복 정의는 제거했습니다. */
 
     .main-content {
-      max-width: 1180px;
-      margin: 0 auto;
-      padding: 64px 0 80px;
       background: transparent;
       overflow-x: visible;
-    }
-
-    .page-header,
-    .calc-wrapper {
-      width: 100%;
-      max-width: 1180px;
-      margin-left: auto;
-      margin-right: auto;
-      padding-left: 0 !important;
-      padding-right: 0 !important;
     }
 
     /* 랭킹추적·키워드분석·매출분석과 동일한 시작 헤드(.mode-title-tabs) 스타일.
        유틸리티는 하위 탭이 없는 단일 페이지라 키워드분석과 같은 방식(탭 1개, 항상 active)으로 쓴다. */
     .main-content > header {
-      display: flex;
-      align-items: flex-end;
-      gap: 0;
-      width: 100%;
-      margin-bottom: 18px;
-      padding: 0 0 12px;
+      padding-bottom: 12px;
       box-sizing: border-box;
-    }
-    .mode-title-tabs { display: inline-flex; align-items: center; gap: 28px; }
-    .mode-title-tab {
-      position: relative; height: 34px; padding: 0 0 8px; border: 0; background: transparent;
-      color: #07111f; font-family: inherit; font-size: 21px; font-weight: 900; cursor: default;
-    }
-    .mode-title-text { display: inline-flex; align-items: center; gap: 12px; }
-    .mode-label { position: relative; display: inline-flex; align-items: center; }
-    .mode-title-tab.active .mode-label::after {
-      content: ""; position: absolute; left: 0; right: 0; bottom: -13px; height: 3px;
-      background: var(--accent); border-radius: 999px;
-    }
-    .mode-help {
-      width: 18px; height: 18px; border: 1px solid #cfd5df; border-radius: 50%;
-      background: #f4f6f9; color: #8a93a5; font-size: 12px; font-weight: 900;
-      display: inline-flex; align-items: center; justify-content: center; line-height: 1;
-    }
-
-    .main-content > header .page-title {
-      position: relative;
-      display: inline-flex;
-      align-items: center;
-      gap: 12px;
-      height: 34px;
-      margin: 0;
-      padding: 0 0 8px;
-      font-size: 21px;
-      line-height: normal;
-      font-weight: 900;
-      letter-spacing: 0;
-      color: #07111f;
-    }
-
-    .main-content > header .calc-title-label {
-      position: relative;
-      display: inline-flex;
-      align-items: center;
-      line-height: normal;
-    }
-
-    .main-content > header .calc-title-label::after {
-      content: "";
-      position: absolute;
-      left: 0;
-      right: 0;
-      bottom: -13px;
-      height: 3px;
-      border-radius: 999px;
-      background: var(--accent);
-    }
-
-    .main-content > header .calc-title-help {
-      width: 18px;
-      height: 18px;
-      border: 1px solid #cfd5df;
-      border-radius: 50%;
-      background: #f4f6f9;
-      color: #8a93a5;
-      font-size: 12px;
-      font-weight: 900;
-      line-height: 1;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
     }
 
     .utility-grid {
@@ -234,38 +152,38 @@
     </div>
   </header>
 
-  <main class="main-content">
-    <header>
-      <h1 class="page-title">
-        <span class="calc-title-label">유틸리티</span>
-        <span class="calc-title-help" title="단열/보온, 목공/보드, 마감/인테리어 등 실무에 필요한 계산기 도구를 모아뒀습니다.">?</span>
+  <main class="main-content app-shell">
+    <header class="app-page-head">
+      <h1 class="page-title app-title-single">
+        <span class="calc-title-label app-title-label active">유틸리티</span>
+        <span class="calc-title-help app-title-help" title="단열/보온, 목공/보드, 마감/인테리어 등 실무에 필요한 계산기 도구를 모아뒀습니다.">?</span>
       </h1>
     </header>
 
-    <section class="utility-grid" aria-label="계산기 목록">
-      <a class="utility-card" href="calc/insulation-board.html" data-no-router><small>단열/보온</small><strong>판상형 단열재 수량 계산기</strong><span class="utility-arrow">→</span></a>
-      <a class="utility-card" href="calc/reflective-insulation.html" data-no-router><small>단열/보온</small><strong>열반사 단열재 소요량 계산기</strong><span class="utility-arrow">→</span></a>
-      <a class="utility-card" href="calc/insulation-board-camp.html" data-no-router><small>단열/보온</small><strong>캠핑 단열재 소요량 계산기</strong><span class="utility-arrow">→</span></a>
-      <a class="utility-card" href="calc/ice-fishing-mat.html" data-no-router><small>단열/보온</small><strong>빙어낚시 매트 소요량 계산기</strong><span class="utility-arrow">→</span></a>
-      <a class="utility-card" href="calc/insulation-thickness.html" data-no-router><small>단열/보온</small><strong>단열재 두께 계산기</strong><span class="utility-arrow">→</span></a>
-      <a class="utility-card" href="calc/heating-film-insulation.html" data-no-router><small>단열/보온</small><strong>전기난방필름 소요량 계산기</strong><span class="utility-arrow">→</span></a>
-      <a class="utility-card" href="calc/window-insulation.html" data-no-router><small>단열/보온</small><strong>창문 단열재 견적 계산기</strong><span class="utility-arrow">→</span></a>
-      <a class="utility-card" href="calc/gypsum.html" data-no-router><small>목공/보드</small><strong>석고보드 수량 계산기</strong><span class="utility-arrow">→</span></a>
-      <a class="utility-card" href="calc/tex.html" data-no-router><small>목공/보드</small><strong>천장재[텍스] 수량 계산기</strong><span class="utility-arrow">→</span></a>
-      <a class="utility-card" href="calc/acoustic.html" data-no-router><small>목공/보드</small><strong>방음/흡음재 수량 계산기</strong><span class="utility-arrow">→</span></a>
-      <a class="utility-card" href="calc/thermal-wallpaper.html" data-no-router><small>마감/인테리어</small><strong>단열벽지 소요량 계산기</strong><span class="utility-arrow">→</span></a>
-      <a class="utility-card" href="calc/thermal-base-wallpaper.html" data-no-router><small>마감/인테리어</small><strong>단열초배지 소요량 계산기</strong><span class="utility-arrow">→</span></a>
-      <a class="utility-card" href="calc/interior-film.html" data-no-router><small>마감/인테리어</small><strong>인테리어필름/시트지 소요량 계산기</strong><span class="utility-arrow">→</span></a>
-      <a class="utility-card" href="calc/flooring.html" data-no-router><small>마감/인테리어</small><strong>장판 소요량 계산기</strong><span class="utility-arrow">→</span></a>
-      <a class="utility-card" href="calc/sealant.html" data-no-router><small>마감/인테리어</small><strong>실리콘/줄눈 소요량 계산기</strong><span class="utility-arrow">→</span></a>
-      <a class="utility-card" href="calc/blind.html" data-no-router><small>마감/인테리어</small><strong>블라인드 사이즈 계산기</strong><span class="utility-arrow">→</span></a>
-      <a class="utility-card" href="calc/foam-2k.html" data-no-router><small>시공 보조</small><strong>우레탄폼 이액형[대용량] 소요량 계산기</strong><span class="utility-arrow">→</span></a>
-      <a class="utility-card" href="calc/foam-spray.html" data-no-router><small>시공 보조</small><strong>우레탄폼 스프레이형[소량] 소요량 계산기</strong><span class="utility-arrow">→</span></a>
-      <a class="utility-card" href="calc/foam-bond.html" data-no-router><small>시공 보조</small><strong>우레탄폼 폼본드 소요량 계산기</strong><span class="utility-arrow">→</span></a>
-      <a class="utility-card" href="calc/freight.html" data-no-router><small>시공 보조</small><strong>단열재 적재·운임 계산기</strong><span class="utility-arrow">→</span></a>
-      <a class="utility-card" href="calc/freight-load.html" data-no-router><small>시공 보조</small><strong>단열재 차량별 적재량 확인</strong><span class="utility-arrow">→</span></a>
-      <a class="utility-card" href="calc/thermal-conductivity.html" data-no-router><small>참고 자료</small><strong>재료별 열전도율 표</strong><span class="utility-arrow">→</span></a>
-      <a class="utility-card" href="calc/u-value-table.html" data-no-router><small>참고 자료</small><strong>지역별 부위별 허용 열관류율</strong><span class="utility-arrow">→</span></a>
+    <section class="utility-grid app-section" aria-label="계산기 목록">
+      <a class="utility-card app-card" href="calc/insulation-board.html" data-no-router><small>단열/보온</small><strong>판상형 단열재 수량 계산기</strong><span class="utility-arrow">→</span></a>
+      <a class="utility-card app-card" href="calc/reflective-insulation.html" data-no-router><small>단열/보온</small><strong>열반사 단열재 소요량 계산기</strong><span class="utility-arrow">→</span></a>
+      <a class="utility-card app-card" href="calc/insulation-board-camp.html" data-no-router><small>단열/보온</small><strong>캠핑 단열재 소요량 계산기</strong><span class="utility-arrow">→</span></a>
+      <a class="utility-card app-card" href="calc/ice-fishing-mat.html" data-no-router><small>단열/보온</small><strong>빙어낚시 매트 소요량 계산기</strong><span class="utility-arrow">→</span></a>
+      <a class="utility-card app-card" href="calc/insulation-thickness.html" data-no-router><small>단열/보온</small><strong>단열재 두께 계산기</strong><span class="utility-arrow">→</span></a>
+      <a class="utility-card app-card" href="calc/heating-film-insulation.html" data-no-router><small>단열/보온</small><strong>전기난방필름 소요량 계산기</strong><span class="utility-arrow">→</span></a>
+      <a class="utility-card app-card" href="calc/window-insulation.html" data-no-router><small>단열/보온</small><strong>창문 단열재 견적 계산기</strong><span class="utility-arrow">→</span></a>
+      <a class="utility-card app-card" href="calc/gypsum.html" data-no-router><small>목공/보드</small><strong>석고보드 수량 계산기</strong><span class="utility-arrow">→</span></a>
+      <a class="utility-card app-card" href="calc/tex.html" data-no-router><small>목공/보드</small><strong>천장재[텍스] 수량 계산기</strong><span class="utility-arrow">→</span></a>
+      <a class="utility-card app-card" href="calc/acoustic.html" data-no-router><small>목공/보드</small><strong>방음/흡음재 수량 계산기</strong><span class="utility-arrow">→</span></a>
+      <a class="utility-card app-card" href="calc/thermal-wallpaper.html" data-no-router><small>마감/인테리어</small><strong>단열벽지 소요량 계산기</strong><span class="utility-arrow">→</span></a>
+      <a class="utility-card app-card" href="calc/thermal-base-wallpaper.html" data-no-router><small>마감/인테리어</small><strong>단열초배지 소요량 계산기</strong><span class="utility-arrow">→</span></a>
+      <a class="utility-card app-card" href="calc/interior-film.html" data-no-router><small>마감/인테리어</small><strong>인테리어필름/시트지 소요량 계산기</strong><span class="utility-arrow">→</span></a>
+      <a class="utility-card app-card" href="calc/flooring.html" data-no-router><small>마감/인테리어</small><strong>장판 소요량 계산기</strong><span class="utility-arrow">→</span></a>
+      <a class="utility-card app-card" href="calc/sealant.html" data-no-router><small>마감/인테리어</small><strong>실리콘/줄눈 소요량 계산기</strong><span class="utility-arrow">→</span></a>
+      <a class="utility-card app-card" href="calc/blind.html" data-no-router><small>마감/인테리어</small><strong>블라인드 사이즈 계산기</strong><span class="utility-arrow">→</span></a>
+      <a class="utility-card app-card" href="calc/foam-2k.html" data-no-router><small>시공 보조</small><strong>우레탄폼 이액형[대용량] 소요량 계산기</strong><span class="utility-arrow">→</span></a>
+      <a class="utility-card app-card" href="calc/foam-spray.html" data-no-router><small>시공 보조</small><strong>우레탄폼 스프레이형[소량] 소요량 계산기</strong><span class="utility-arrow">→</span></a>
+      <a class="utility-card app-card" href="calc/foam-bond.html" data-no-router><small>시공 보조</small><strong>우레탄폼 폼본드 소요량 계산기</strong><span class="utility-arrow">→</span></a>
+      <a class="utility-card app-card" href="calc/freight.html" data-no-router><small>시공 보조</small><strong>단열재 적재·운임 계산기</strong><span class="utility-arrow">→</span></a>
+      <a class="utility-card app-card" href="calc/freight-load.html" data-no-router><small>시공 보조</small><strong>단열재 차량별 적재량 확인</strong><span class="utility-arrow">→</span></a>
+      <a class="utility-card app-card" href="calc/thermal-conductivity.html" data-no-router><small>참고 자료</small><strong>재료별 열전도율 표</strong><span class="utility-arrow">→</span></a>
+      <a class="utility-card app-card" href="calc/u-value-table.html" data-no-router><small>참고 자료</small><strong>지역별 부위별 허용 열관류율</strong><span class="utility-arrow">→</span></a>
     </section>
   </main>
 
