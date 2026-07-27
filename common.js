@@ -7,6 +7,7 @@
 const TOPBAR_MENU = [
   { label: "랭킹추적",   href: "rank-tracker.html" },
   { label: "키워드분석", href: "naver-rank.html" },
+  { label: "블로그분석", href: "blog-rank.html" },
   { label: "매출분석",   href: "sales-analysis.html" },
   { label: "아이템발굴", href: "item-discovery.html" },
   { label: "유틸리티",   href: "utility.html" },
@@ -38,6 +39,14 @@ function initTopbar() {
   //   innerHTML로 재구축하면 첫 페인트(빈 바) → JS 후(내용 등장)의 두 단계가 생겨
   //   페이지를 이동할 때마다 상단바가 깜빡인다. active 표시만 동기화하고 끝낸다.
   if (bar.querySelector(".topbar-inner")) {
+    const nav = bar.querySelector(".topbar-nav");
+    if (nav && !nav.querySelector('a[href$="blog-rank.html"]')) {
+      const keywordLink = nav.querySelector('a[href$="naver-rank.html"]');
+      const blogLink = document.createElement("a");
+      blogLink.href = `${prefix}blog-rank.html`;
+      blogLink.textContent = "블로그분석";
+      keywordLink?.after(blogLink);
+    }
     bar.querySelectorAll(".topbar-nav a").forEach((a) => {
       const href = (a.getAttribute("href") || "").split("/").pop().toLowerCase();
       a.classList.toggle("active", href === activePage);

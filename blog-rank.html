@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>블로그 순위 | ENERGUARD LAB</title>
+  <title>블로그 분석 | ENERGUARD LAB</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800;900&family=Roboto+Mono:wght@500;600;700&display=swap" rel="stylesheet">
@@ -586,8 +586,9 @@
   <div class="topbar-inner">
     <a href="index.html" class="topbar-logo"><span>ENERGUARD</span><span>LAB</span></a>
     <nav class="topbar-nav">
-      <a href="rank-tracker.html" class="active">랭킹추적</a>
+      <a href="rank-tracker.html">랭킹추적</a>
       <a href="naver-rank.html">키워드분석</a>
+      <a href="blog-rank.html" class="active">블로그분석</a>
       <a href="sales-analysis.html">매출분석</a>
       <a href="item-discovery.html">아이템발굴</a>
       <a href="utility.html">유틸리티</a>
@@ -605,19 +606,13 @@
 
 <main class="wrap">
   <header class="page-head">
-    <div class="mode-title-tabs" aria-label="랭킹추적 화면 선택">
-      <a href="rank-tracker.html" class="mode-title-tab">
-        <span class="mode-title-text"><span class="mode-label">키워드 랭킹</span></span>
-      </a>
-      <a href="rank-tracker.html#items" class="mode-title-tab">
-        <span class="mode-title-text"><span class="mode-label">아이템 추적</span></span>
-      </a>
-      <a href="blog-rank.html" class="mode-title-tab active">
+    <div class="mode-title-tabs" aria-label="블로그 분석">
+      <div class="mode-title-tab active">
         <span class="mode-title-text">
-          <span class="mode-label">블로그 순위</span>
+          <span class="mode-label">블로그 분석</span>
           <span class="mode-help" title="블로그 포스팅이 검색 키워드에서 몇 위에 노출되는지 추적합니다.">?</span>
         </span>
-      </a>
+      </div>
     </div>
     <div class="head-actions">
       <button class="icon-btn collect" type="button" data-tip="전체 순위 수집" onclick="collectRanks()">
