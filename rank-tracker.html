@@ -886,7 +886,14 @@ function getDisplayKeywords(categoryName) {
 }
 
 function getDetailKeywords(categoryName) {
-  return STORE_CATEGORY_DETAIL_KEYWORDS[selectedStore]?.[categoryName] || getDisplayKeywords(categoryName);
+  const override = STORE_CATEGORY_DETAIL_KEYWORDS[selectedStore]?.[categoryName] || getDisplayKeywords(categoryName);
+  if (override) return override;
+  // "스티로폼"만 스토어별 우선순위 목록이 아예 없어서, 이 카테고리에 한해서만 카테고리 판별에
+  // 쓰던 CATEGORY_KEYWORD_GROUPS를 대표 키워드 우선순위로 재활용한다. 다른 카테고리는 원래
+  // 폴백(첫 메인급 키워드)을 그대로 둔다 — 여기서 전체 카테고리로 넓혔다가 아이소핑크/
+  // 열반사단열재 카테고리의 대표 키워드가 엉뚱하게 바뀌는 회귀가 있었다.
+  if (categoryName === "스티로폼") return CATEGORY_KEYWORD_GROUPS["스티로폼"];
+  return null;
 }
 
 function getVisibleKeywords(product, categoryName) {
@@ -1423,9 +1430,8 @@ function categorySortIndex(categoryName) {
 }
 
 function getCategoryLeadKeyword(product, categoryName) {
-  const displayKeywords = getDisplayKeywords(categoryName);
-  if (displayKeywords) {
-    const detailKeywords = getDetailKeywords(categoryName) || displayKeywords;
+  const detailKeywords = getDetailKeywords(categoryName);
+  if (detailKeywords) {
     // 대표 키워드(예: 아이소핑크)가 오늘 이탈/미수집이라고 해서 순위가 있는 보조 키워드(예:
     // XPS단열재)를 "메인 키워드"로 대신 보여주면 안 된다 — 대표 키워드 우선순위(detailKeywords
     // 순서)를 항상 먼저 따지고, 순위 유무는 같은 순서 안에서만 부차적으로 쓴다.
