@@ -670,8 +670,8 @@
     <div class="table-head">
       <span>포스팅</span>
       <span>검색 키워드</span>
-      <span>통합검색 VIEW</span>
-      <span>블로그 API</span>
+      <span>실제 블로그 탭</span>
+      <span>공식 API</span>
       <span>변동</span>
       <span>최근 흐름</span>
       <span>관리</span>
@@ -815,15 +815,14 @@ function rankBadge(row, providerReady = true) {
   if (!row.found || row.rank == null) {
     const label = row.provider === "naver_blog_api"
       ? `${Number(row.checked_count || 0).toLocaleString()}위 밖`
-      : "VIEW 미노출";
+      : `${Number(row.checked_count || 0).toLocaleString()}위까지 미노출`;
     return `<span class="rank-badge missing">미노출<span>${esc(label)}</span></span>`;
   }
-  const sub = row.provider === "naver_blog_api" ? `${row.page || Math.ceil(row.rank / 10)}페이지` : "VIEW 영역";
+  const sub = row.provider === "naver_blog_api" ? `${row.page || Math.ceil(row.rank / 10)}페이지` : "실제 화면";
   return `<span class="rank-badge">${Number(row.rank).toLocaleString()}위<span>${esc(sub)}</span></span>`;
 }
-
 function sparkline(targetId) {
-  const rows = histories(targetId, "naver_blog_api")
+  const rows = histories(targetId, "naver_blog_screen")
     .filter(row => row.rank != null)
     .slice(0, 7)
     .reverse();
@@ -858,10 +857,10 @@ function formatTime(value) {
 }
 
 function renderSummary() {
-  const latestRows = state.targets.map(target => latestPair(target.id, "naver_blog_api")[0]).filter(Boolean);
+  const latestRows = state.targets.map(target => latestPair(target.id, "naver_blog_screen")[0]).filter(Boolean);
   const found = latestRows.filter(row => row.found).length;
   const deltas = state.targets.map(target => {
-    const [current, previous] = latestPair(target.id, "naver_blog_api");
+    const [current, previous] = latestPair(target.id, "naver_blog_screen");
     return deltaInfo(current, previous).amount;
   });
   const newest = state.history
@@ -876,7 +875,7 @@ function renderSummary() {
   document.getElementById("summaryDown").textContent = `▼${deltas.filter(value => value < 0).length}`;
   document.getElementById("summaryTime").textContent = formatTime(newest);
   document.getElementById("targetCount").textContent = `${state.targets.length}개`;
-  document.getElementById("setupNote").classList.toggle("show", !state.capabilities?.serpApiNexearch);
+  document.getElementById("setupNote").classList.remove("show");
 }
 
 function renderRows() {
@@ -891,9 +890,9 @@ function renderRows() {
   }
 
   list.innerHTML = state.targets.map(target => {
-    const [actual] = latestPair(target.id, "serpapi_nexearch");
-    const [official, previous] = latestPair(target.id, "naver_blog_api");
-    const delta = deltaInfo(official, previous);
+    const [actual, previous] = latestPair(target.id, "naver_blog_screen");
+    const [official] = latestPair(target.id, "naver_blog_api");
+    const delta = deltaInfo(actual, previous);
     const searchUrl = `https://search.naver.com/search.naver?ssc=tab.blog.all&query=${encodeURIComponent(target.keyword)}`;
     const title = target.post_title || `${target.blog_id} 블로그 포스팅`;
     return `
@@ -906,7 +905,7 @@ function renderRows() {
           <a class="keyword-link" href="${searchUrl}" target="_blank" rel="noopener">${esc(target.keyword)}</a>
           <div><span class="device-pill">${target.device === "mobile" ? "모바일" : "PC"} · ${Number(target.max_rank).toLocaleString()}위 확인</span></div>
         </div>
-        <div class="rank-cell">${rankBadge(actual, !!state.capabilities?.serpApiNexearch)}</div>
+        <div class="rank-cell">${rankBadge(actual, !!state.capabilities?.naverBlogScreen)}</div>
         <div class="rank-cell">${rankBadge(official, !!state.capabilities?.naverBlogApi)}</div>
         <div class="delta ${delta.cls}">${esc(delta.text)}</div>
         <div>${sparkline(target.id)}</div>

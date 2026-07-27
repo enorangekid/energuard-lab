@@ -5,7 +5,7 @@ const corsHeaders = {
 };
 
 type Device = "desktop" | "mobile";
-type Provider = "naver_blog_api" | "serpapi_nexearch";
+type Provider = "naver_blog_screen" | "naver_blog_api" | "serpapi_nexearch";
 
 interface BlogTarget {
   id: string;
@@ -71,6 +71,127 @@ function cleanText(value: unknown) {
 function stripTags(value: unknown) {
   return cleanText(value).replace(/<[^>]+>/g, "").replace(/&quot;/g, "\"")
     .replace(/&amp;/g, "&").replace(/&#39;/g, "'");
+}
+
+function decodeHtml(value: unknown) {
+  return cleanText(value)
+    .replace(/\\\//g, "/")
+    .replace(/\\u002F/gi, "/")
+    .replace(/\\u003A/gi, ":")
+    .replace(/\\u0026/gi, "&")
+    .replace(/&quot;/g, "\"")
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
+}
+
+function normalizeBlogUrl(value: unknown) {
+  const decoded = decodeHtml(value);
+  try {
+    const url = new URL(decoded.startsWith("http") ? decoded : `https://${decoded}`);
+    const host = url.hostname.toLowerCase();
+    if (host === "m.blog.naver.com") {
+      const parts = url.pathname.split("/").filter(Boolean);
+      if (parts.length >= 2 && /^\d+$/.test(parts[1])) {
+        return `https://blog.naver.com/${parts[0]}/${parts[1]}`;
+      }
+    }
+    if (host === "blog.naver.com") {
+      const parts = url.pathname.split("/").filter(Boolean);
+      if (parts.length >= 2 && /^\d+$/.test(parts[1])) {
+        return `https://blog.naver.com/${parts[0]}/${parts[1]}`;
+      }
+      const blogId = url.searchParams.get("blogId") || url.searchParams.get("blogid") || "";
+      const logNo = url.searchParams.get("logNo") || url.searchParams.get("logno") || "";
+      if (blogId && /^\d+$/.test(logNo)) return `https://blog.naver.com/${blogId}/${logNo}`;
+    }
+  } catch {
+    // Fall through to the raw value; non-Naver blog cards still need a stable key.
+  }
+  return decoded.split(/[?#]/)[0];
+}
+
+function simpleHash(value: string) {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = ((hash << 5) - hash + value.charCodeAt(index)) | 0;
+  }
+  return String(hash >>> 0);
+}
+
+function targetNeedle(target: BlogTarget) {
+  return `https://blog.naver.com/${target.blog_id}/${target.log_no}`.toLowerCase();
+}
+
+function cardContainsTarget(card: string, target: BlogTarget) {
+  const normalized = decodeHtml(card).toLowerCase();
+  return normalized.includes(targetNeedle(target)) ||
+    normalized.includes(`m.blog.naver.com/${target.blog_id.toLowerCase()}/${target.log_no}`);
+}
+
+function extractTitleFromCard(card: string) {
+  const anchor = card.match(/<a[^>]+class=["'][^"']*(?:title|link_tit|name)[^"']*["'][^>]*>([\s\S]*?)<\/a>/i);
+  if (anchor) return stripTags(decodeHtml(anchor[1]));
+  const firstAnchor = card.match(/<a[^>]*>([\s\S]{1,300}?)<\/a>/i);
+  return firstAnchor ? stripTags(decodeHtml(firstAnchor[1])) : "";
+}
+
+function extractMainUrlFromCard(card: string) {
+  const normalized = decodeHtml(card);
+  const canonical = normalized.match(/https?:\/\/m?\.?blog\.naver\.com\/[A-Za-z0-9_.-]+\/\d+/i);
+  if (canonical) return normalizeBlogUrl(canonical[0]);
+
+  const postView = normalized.match(/https?:\/\/blog\.naver\.com\/PostView\.naver\?[^"'<>\s]+/i);
+  if (postView) return normalizeBlogUrl(postView[0]);
+
+  const hrefs = [...normalized.matchAll(/href=["']([^"']+)["']/gi)]
+    .map(match => decodeHtml(match[1]))
+    .filter(url => /^https?:\/\//i.test(url))
+    .filter(url => !/search\.naver\.com|ssl\.pstatic\.net|static\.naver\./i.test(url));
+  return hrefs[0] ? normalizeBlogUrl(hrefs[0]) : "";
+}
+
+function extractBlogCards(html: string) {
+  const normalized = decodeHtml(html);
+  return normalized
+    .split(/data-template-id=["']ugcItem["']/i)
+    .slice(1)
+    .map(card => card.slice(0, 24000));
+}
+
+function extractNextRequest(html: string) {
+  const normalized = decodeHtml(html);
+  const request = normalized.match(/url:"(https:\/\/s\.search\.naver\.com\/p\/review\/50\/search\.naver[^"]+)"[\s\S]{0,500}?X-Prs-Query-Info":"([^"]+)"/);
+  if (request) {
+    return { url: decodeHtml(request[1]), queryInfo: decodeHtml(request[2]) };
+  }
+  const nextUrl = normalized.match(/"url"\s*:\s*"(https:\/\/s\.search\.naver\.com\/p\/review\/50\/search\.naver[^"]+)"/);
+  return nextUrl ? { url: decodeHtml(nextUrl[1]), queryInfo: "" } : null;
+}
+
+function uaFor(device: Device) {
+  if (device === "mobile") {
+    return "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
+  }
+  return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
+}
+
+async function fetchNaverText(url: string, device: Device, queryInfo = "") {
+  const response = await fetch(url, {
+    headers: {
+      "User-Agent": uaFor(device),
+      "Accept": "text/html,application/json;q=0.9,*/*;q=0.8",
+      "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.7,en;q=0.6",
+      "Referer": "https://search.naver.com/",
+      ...(queryInfo ? { "X-Prs-Query-Info": queryInfo } : {}),
+    },
+  });
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(`Naver blog screen ${response.status}: ${text.slice(0, 300)}`);
+  }
+  return text;
 }
 
 function parsePostUrl(value: unknown) {
@@ -181,49 +302,61 @@ async function fetchNaverBlogApi(target: BlogTarget): Promise<RankResult> {
   };
 }
 
-async function fetchSerpApiNexearch(target: BlogTarget): Promise<RankResult | null> {
-  const apiKey = env("SERPAPI_API_KEY");
-  if (!apiKey) return null;
+async function fetchNaverBlogScreen(target: BlogTarget): Promise<RankResult> {
+  const limit = Math.min(1000, Math.max(30, target.max_rank || 300));
+  const firstUrl = new URL("https://search.naver.com/search.naver");
+  firstUrl.searchParams.set("ssc", "tab.blog.all");
+  firstUrl.searchParams.set("sm", "tab_jum");
+  firstUrl.searchParams.set("query", target.keyword);
 
-  const url = new URL("https://serpapi.com/search.json");
-  url.searchParams.set("engine", "naver");
-  url.searchParams.set("query", target.keyword);
-  url.searchParams.set("where", "nexearch");
-  url.searchParams.set("device", target.device);
-  url.searchParams.set("no_cache", "true");
-  url.searchParams.set("api_key", apiKey);
+  let html = await fetchNaverText(firstUrl.toString(), target.device);
+  let next = extractNextRequest(html);
+  const seen = new Set<string>();
+  let checked = 0;
 
-  const response = await fetch(url);
-  const text = await response.text();
-  if (!response.ok) {
-    throw new Error(`실제 통합검색 API ${response.status}: ${text.slice(0, 300)}`);
-  }
-  const data = JSON.parse(text);
-  if (data.error) throw new Error(`실제 통합검색 API: ${data.error}`);
+  for (let pageLoop = 0; pageLoop < 40 && checked < limit; pageLoop += 1) {
+    const cards = extractBlogCards(html);
 
-  const items = Array.isArray(data.view_results) ? data.view_results : [];
-  for (let index = 0; index < items.length; index += 1) {
-    if (samePost(items[index]?.link, target)) {
-      const rank = Number(items[index]?.position) || index + 1;
-      return {
-        provider: "serpapi_nexearch",
-        rank,
-        page: 1,
-        found: true,
-        checked_count: items.length,
-        result_title: stripTags(items[index]?.title),
-        result_url: cleanText(items[index]?.link),
-        collected_at: new Date().toISOString(),
-      };
+    for (const card of cards) {
+      const mainUrl = extractMainUrlFromCard(card);
+      const key = mainUrl || `card:${simpleHash(stripTags(card).slice(0, 800))}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      checked += 1;
+
+      if (cardContainsTarget(card, target)) {
+        return {
+          provider: "naver_blog_screen",
+          rank: checked,
+          page: Math.ceil(checked / 30),
+          found: true,
+          checked_count: checked,
+          result_title: extractTitleFromCard(card),
+          result_url: target.post_url,
+          collected_at: new Date().toISOString(),
+        };
+      }
+
+      if (checked >= limit) break;
     }
+
+    if (checked >= limit || !next?.url) break;
+
+    const jsonText = await fetchNaverText(next.url, target.device, next.queryInfo);
+    const data = JSON.parse(jsonText);
+    html = Array.isArray(data.collection)
+      ? data.collection.map((item: Record<string, unknown>) => cleanText(item.html)).join("\n")
+      : "";
+    next = data.url ? { url: decodeHtml(data.url), queryInfo: next.queryInfo } : null;
+    if (!html) break;
   }
 
   return {
-    provider: "serpapi_nexearch",
+    provider: "naver_blog_screen",
     rank: null,
     page: null,
     found: false,
-    checked_count: items.length,
+    checked_count: checked,
     result_title: "",
     result_url: "",
     collected_at: new Date().toISOString(),
@@ -260,8 +393,8 @@ async function listData() {
     targets: targets || [],
     history: history || [],
     capabilities: {
+      naverBlogScreen: true,
       naverBlogApi: !!env("NAVER_CLIENT_ID") && !!env("NAVER_CLIENT_SECRET"),
-      serpApiNexearch: !!env("SERPAPI_API_KEY"),
     },
   };
 }
@@ -326,6 +459,18 @@ async function collect(body: Record<string, unknown>) {
 
   for (const target of targets.slice(0, 50)) {
     try {
+      const actual = await fetchNaverBlogScreen(target);
+      await saveHistory(target.id, actual);
+      collected += 1;
+    } catch (error) {
+      errors.push({
+        targetId: target.id,
+        provider: "naver_blog_screen",
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    try {
       const official = await fetchNaverBlogApi(target);
       await saveHistory(target.id, official);
       collected += 1;
@@ -333,20 +478,6 @@ async function collect(body: Record<string, unknown>) {
       errors.push({
         targetId: target.id,
         provider: "naver_blog_api",
-        message: error instanceof Error ? error.message : String(error),
-      });
-    }
-
-    try {
-      const actual = await fetchSerpApiNexearch(target);
-      if (actual) {
-        await saveHistory(target.id, actual);
-        collected += 1;
-      }
-    } catch (error) {
-      errors.push({
-        targetId: target.id,
-        provider: "serpapi_nexearch",
         message: error instanceof Error ? error.message : String(error),
       });
     }
