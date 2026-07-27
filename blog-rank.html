@@ -632,10 +632,6 @@
     </div>
   </header>
 
-  <div class="setup-note" id="setupNote">
-    <span><strong>실제 통합검색 순위 연결 대기</strong> · 현재는 네이버 공식 블로그 API 순위를 수집합니다. SerpApi 키를 연결하면 비로그인 통합검색 VIEW 노출도 함께 확인합니다.</span>
-  </div>
-
   <section class="summary-grid" aria-label="블로그 순위 요약">
     <div class="summary-item">
       <span class="summary-label">추적 키워드</span>
@@ -663,7 +659,7 @@
     <div class="card-head">
       <div>
         <div class="card-title">블로그 포스팅 순위</div>
-        <div class="card-sub">실제 통합검색 노출과 네이버 공식 블로그 API 순위를 분리해 확인합니다.</div>
+        <div class="card-sub">네이버 블로그 탭 실제 화면 순위와 공식 블로그 API 순위를 분리해 확인합니다.</div>
       </div>
       <span class="card-count" id="targetCount">0개</span>
     </div>
@@ -875,7 +871,6 @@ function renderSummary() {
   document.getElementById("summaryDown").textContent = `▼${deltas.filter(value => value < 0).length}`;
   document.getElementById("summaryTime").textContent = formatTime(newest);
   document.getElementById("targetCount").textContent = `${state.targets.length}개`;
-  document.getElementById("setupNote").classList.remove("show");
 }
 
 function renderRows() {
