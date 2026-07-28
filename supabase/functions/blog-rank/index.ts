@@ -131,6 +131,16 @@ function cleanText(value: unknown) {
   return String(value ?? "").trim();
 }
 
+/* whereispost/블로그차트 등 스크래핑 대상이 전부 한국 사이트라 "오늘"이 KST 기준인데,
+   new Date().toISOString()은 UTC라서 KST 00~09시 사이(=UTC 전날 15~23시)에 수집하면
+   방금 시작한 KST "오늘"의 방문자 몇 명짜리 스냅샷이 UTC 기준 "어제" 날짜로 저장돼버린다
+   (예: 한국 시각 새벽에 수집하면 "오늘 방문자 1명"이 전날 값으로 잘못 찍힘).
+   naver-rank/index.ts에서 이미 쓰던 KST 계산 방식을 그대로 가져와 날짜 라벨을 맞춘다. */
+function kstDateString() {
+  const kst = new Date(Date.now() + 9 * 3600 * 1000);
+  return kst.toISOString().slice(0, 10);
+}
+
 function stripTags(value: unknown) {
   return cleanText(value).replace(/<[^>]+>/g, "").replace(/&quot;/g, "\"")
     .replace(/&amp;/g, "&").replace(/&#39;/g, "'");
@@ -720,7 +730,7 @@ async function fetchNaverBlogApiForKeyword(keyword: string, blogId: string, maxR
 }
 
 async function saveHistory(blogId: string, logNo: string, keyword: string, device: Device, result: RankResult) {
-  const collectedDate = new Date().toISOString().slice(0, 10);
+  const collectedDate = kstDateString();
   await db("blog_rank_history?on_conflict=blog_id,log_no,keyword,provider,device,collected_date", {
     method: "POST",
     headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
@@ -801,7 +811,7 @@ async function fetchPostContentAnalysis(blogId: string, logNo: string): Promise<
 }
 
 async function saveExposureHistory(blogId: string, keyword: string, device: Device, result: ExposureResult) {
-  const collectedDate = new Date().toISOString().slice(0, 10);
+  const collectedDate = kstDateString();
   let resultTitle: string | null = null;
   if (result.resultLogNo) {
     const rows = await db(
@@ -1159,7 +1169,7 @@ async function collectDiagnosis(body: Record<string, unknown>) {
   const blogs = await db(path) as Array<{ blog_id: string }>;
   if (!blogs?.length) throw new Error("진단할 블로그가 없습니다.");
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = kstDateString();
   const errors: Array<{ blogId: string; message: string }> = [];
   let collected = 0;
 
