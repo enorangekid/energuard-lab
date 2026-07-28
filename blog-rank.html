@@ -1464,16 +1464,20 @@ function exposurePageDistribution(blogId) {
   return { page1, page23, page4plus };
 }
 
+// 랭킹추적 대시보드의 "급상승 상품" 카드와 같은 형태 — 포스팅 제목이 메인 행(+순위 등락),
+// 키워드·이전순위→현재순위가 상세 행. 거기서는 상품이 주인공이고 키워드가 상세였듯,
+// 여기서는 포스팅이 주인공이고 키워드가 상세다.
 function moverKeywordRowHtml(m, rank) {
   const up = m.delta > 0;
-  const searchUrl = `https://search.naver.com/search.naver?ssc=tab.blog.all&query=${encodeURIComponent(m.kw.keyword)}`;
+  const postTitle = m.current.result_title || m.current.result_log_no || "포스팅 확인 필요";
+  const postUrl = m.current.result_url || "#";
   return `<div class="summary-mover-row">
     <div class="summary-mover-row-main">
       <span class="summary-top3-rank">${rank}</span>
-      <a class="summary-top3-name" href="${esc(searchUrl)}" target="_blank" rel="noopener" title="${esc(m.kw.keyword)}">${esc(m.kw.keyword)}</a>
+      <a class="summary-top3-name" href="${esc(postUrl)}" target="_blank" rel="noopener" title="${esc(postTitle)}">${esc(postTitle)}</a>
       <span class="summary-mover-delta ${up ? "up" : "down"}">${up ? "▲" : "▼"}${Math.abs(m.delta)}</span>
     </div>
-    <div class="summary-mover-row-detail">${m.previous.rank}위 → ${m.current.rank}위</div>
+    <div class="summary-mover-row-detail">${esc(m.kw.keyword)} · ${m.previous.rank}위 → ${m.current.rank}위</div>
   </div>`;
 }
 
