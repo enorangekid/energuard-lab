@@ -77,9 +77,22 @@ interface PostContentAnalysis {
   thumbnail_url: string | null;
   char_count: number | null;
   image_count: number | null;
+  video_count: number | null;
   comment_count: number | null;
   quote_count: number | null;
   external_link_count: number | null;
+  has_list: boolean;
+  has_table: boolean;
+}
+
+interface PostAiJudgment {
+  conclusion_first: boolean | null;
+  structured_flow: boolean | null;
+  niche_topic: boolean | null;
+  ai_generated: boolean | null;
+  excessive_promo: boolean | null;
+  channel_consistent: boolean | null;
+  reasoning: string | null;
 }
 
 /* 노출 현황 진단(블로그 전체 기준 키워드 검색)은 특정 포스팅에 미리 연결하지 않으므로
@@ -165,6 +178,24 @@ function decodeHtml(value: unknown) {
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&amp;/g, "&");
+}
+
+function htmlAttr(tag: string, name: string) {
+  const match = tag.match(new RegExp(`\\s${name}=["']([^"']*)["']`, "i"));
+  return match ? decodeHtml(match[1]) : "";
+}
+
+function extractThumbnailFromHtml(text: string) {
+  const imageResourceTags = [...text.matchAll(/<img\b[^>]*class=["'][^"']*\bse-image-resource\b[^"']*["'][^>]*>/gi)]
+    .map((match) => match[0]);
+  if (imageResourceTags.length) {
+    const first = imageResourceTags[0];
+    const imageUrl = htmlAttr(first, "data-lazy-src") || htmlAttr(first, "src");
+    if (imageUrl) return imageUrl;
+  }
+
+  const ogImageMatch = text.match(/<meta\b[^>]*(?:property|name)=["']og:image["'][^>]*>/i);
+  return ogImageMatch ? htmlAttr(ogImageMatch[0], "content") || null : null;
 }
 
 function simpleHash(value: string) {
@@ -663,6 +694,19 @@ async function fetchPostTitleFallback(blogId: string, logNo: string): Promise<st
   }
 }
 
+/* 사진 캡션(se-caption)과 인용구 출처(se-cite)도 본문과 똑같은 <p class="se-text-paragraph">를
+   재사용해서, 이 두 래퍼를 먼저 통째로 잘라내지 않으면 본문이 아닌 텍스트까지 섞여 들어간다.
+   char_count 집계와 AI 판정용 본문 텍스트 추출이 이 로직을 그대로 공유한다. */
+function extractBodyParagraphs(rawHtml: string): string[] {
+  const bodyOnlyHtml = rawHtml
+    .replace(/<div class="se-module se-module-text se-caption">[\s\S]*?<\/div>/g, "")
+    .replace(/<div class="se-module se-module-text se-cite">[\s\S]*?<\/div>/g, "");
+  const zeroWidthSpace = String.fromCharCode(0x200b);
+  return [...bodyOnlyHtml.matchAll(/<p class="se-text-paragraph[^>]*>([\s\S]*?)<\/p>/g)]
+    .map((m) => stripTags(decodeHtml(m[1])).split(zeroWidthSpace).join("").trim())
+    .filter(Boolean);
+}
+
 /* 게시글 진단 모달용 — 모바일 페이지(m.blog.naver.com)를 열어 본문 분석 지표를 뽑는다.
    공감(좋아요) 수는 이 정적 페이지 안에 없어서(별도 API로 로드되는 것으로 보임) 제외했다. */
 async function fetchPostContentAnalysis(blogId: string, logNo: string): Promise<PostContentAnalysis> {
@@ -674,36 +718,171 @@ async function fetchPostContentAnalysis(blogId: string, logNo: string): Promise<
 
   const commentMatch = text.match(/commentCount="(\d+)"/);
 
+  // attachImagePathAndIdInfo는 실제로 삽입된 사진 중 일부만 담는다 — 2장 이상을 붙인
+  // "이미지 스트립"(콜라주) 사진은 통째로 빠지고, 단일 사진도 위치에 따라 누락되는 경우가 있다.
+  // path에 CDN 호스트가 없어 blogfiles.pstatic.net으로 고정 조립하면 실제 호스트(사진마다
+  // mblogthumb-phinf/postfiles/blogfiles로 제각각)와 어긋나 썸네일이 깨지기도 한다.
+  // 본문에 실제로 박힌 <img class="se-image-resource">를 직접 세는 게 더 정확하다 — data-lazy-src가
+  // 있으면 그게 실제 로드되는 원본(예: w800)이고, 없으면 src를 그대로 쓴다.
   let imageCount: number | null = null;
   let thumbnailUrl: string | null = null;
-  const imageInfoMatch = text.match(/attachImagePathAndIdInfo\s*=\s*'([^']*)'/);
-  if (imageInfoMatch) {
+  const imageResourceTags = [...text.matchAll(/<img\b[^>]*class=["'][^"']*\bse-image-resource\b[^"']*["'][^>]*>/gi)]
+    .map((match) => match[0]);
+  if (imageResourceTags.length) {
+    imageCount = imageResourceTags.length;
+    thumbnailUrl = extractThumbnailFromHtml(text);
+  }
+
+  if (!thumbnailUrl) {
+    thumbnailUrl = extractThumbnailFromHtml(text);
+  }
+
+  // attachImagePathAndIdInfo와 같은 패턴의 메타 변수 — 동영상 개수를 그대로 담고 있다.
+  let videoCount: number | null = null;
+  const videoInfoMatch = text.match(/attachVideoInfo\s*=\s*'([^']*)'/);
+  if (videoInfoMatch) {
     try {
-      const decoded = imageInfoMatch[1].replace(/&#034;/g, "\"").replace(/&#039;/g, "'").replace(/&amp;/g, "&");
-      const images = JSON.parse(decoded) as Array<{ path?: string }>;
-      imageCount = images.length;
-      if (images[0]?.path) thumbnailUrl = `https://blogfiles.pstatic.net${images[0].path}`;
+      const decoded = videoInfoMatch[1].replace(/&#034;/g, "\"").replace(/&#039;/g, "'").replace(/&amp;/g, "&");
+      videoCount = (JSON.parse(decoded) as unknown[]).length;
     } catch {
-      // 이미지 정보 파싱 실패 시 무시하고 null로 둔다
+      // 동영상 정보 파싱 실패 시 무시하고 null로 둔다
     }
   }
 
-  const paragraphMatches = [...text.matchAll(/<p class="se-text-paragraph[^>]*>([\s\S]*?)<\/p>/g)];
-  const charCount = paragraphMatches.length
-    ? paragraphMatches.map((m) => stripTags(decodeHtml(m[1]))).join("").length
-    : null;
+  const bodyParagraphs = extractBodyParagraphs(text);
+  const charCount = bodyParagraphs.length ? bodyParagraphs.join("").length : null;
 
-  const quoteCount = (text.match(/class="se-quotation"/g) || []).length;
-  const externalLinkCount = (text.match(/se-oglink/g) || []).length;
+  // 실제 마크업은 class="se-component se-quotation se-l-..."라 class="se-quotation"(값이 그것만
+  // 있어야 매칭)은 절대 안 걸린다 — 컴포넌트 래퍼 자체를 세도록 좁힌다.
+  const quoteCount = (text.match(/class="se-component se-quotation/g) || []).length;
+
+  // 링크 미리보기(se-oglink)는 naver.com 도메인(스마트스토어 등)으로 거는 경우가 많아 "외부링크"로
+  // 볼 수 없다 — 각 oglink 블록의 실제 href를 뽑아 naver.com이 아닌 것만 센다.
+  const externalLinkCount = [...text.matchAll(/<a href="([^"]+)" class="se-oglink-thumbnail/g)]
+    .filter((m) => !/^https?:\/\/([a-z0-9-]+\.)*naver\.com(\/|$|\?)/i.test(decodeHtml(m[1])))
+    .length;
+
+  // AI 인용 최적화 점수의 "목록화"/"비교표 배치" 판정용 — 다른 컴포넌트와 같은
+  // class="se-component se-{type}" 명명 규칙을 따른다.
+  const hasList = /<ul class="se-text-list|<ol class="se-text-list/.test(text);
+  const hasTable = /class="se-component se-table/.test(text);
 
   return {
     thumbnail_url: thumbnailUrl,
     char_count: charCount,
     image_count: imageCount,
+    video_count: videoCount,
     comment_count: commentMatch ? Number(commentMatch[1]) : null,
     quote_count: quoteCount,
     external_link_count: externalLinkCount,
+    has_list: hasList,
+    has_table: hasTable,
   };
+}
+
+/* AI 인용 최적화 점수 중 스크래핑으로는 절대 판정 불가능한 항목(결론 우선 배치/본문 구조화/
+   니치 소재/AI 기계생성 여부/과도한 홍보문구/채널 주제 일관성)을 LLM에게 맡긴다.
+   item-draft-openai 함수와 같은 OPENAI_API_KEY Secret을 그대로 재사용한다 — 비용이 드는
+   호출이라 자동 새로고침에는 절대 얹지 않고, 프론트의 수동 버튼에서만 호출된다. */
+async function fetchPostAiJudgment(title: string, bodyText: string, siblingTitles: string[]): Promise<PostAiJudgment> {
+  const apiKey = env("OPENAI_API_KEY");
+  const model = env("OPENAI_MODEL") || "gpt-4o-mini";
+  if (!apiKey) throw new Error("OPENAI_API_KEY Supabase Secret이 필요합니다.");
+
+  const prompt = `다음은 네이버 블로그 포스팅이다. 생성형 AI 답변엔진(챗GPT/네이버 큐 등)이 이 글을 인용할 가능성을 판정하는 6가지 항목에 대해 각각 true/false로 답하라.
+
+[제목]
+${title}
+
+[같은 블로그의 다른 포스팅 제목들 — 주제 일관성 판단용]
+${siblingTitles.length ? siblingTitles.map((t) => `- ${t}`).join("\n") : "(없음)"}
+
+[본문 일부]
+${bodyText.slice(0, 6000)}
+
+판정 항목:
+1. conclusion_first: 서론 없이 글 초반에 핵심 결론/답을 바로 제시하는가
+2. structured_flow: 결론 → 표/근거 → 목록 정리 → 상황별 가이드 순서로 구조화되어 있는가
+3. niche_topic: 흔한 일반론이 아니라 경쟁 콘텐츠가 적을 법한 실무형·구체적 질문을 다루는가
+4. ai_generated: 편집 없이 그대로 발행한 AI 기계생성 글처럼 보이는가(반복적 구조, 상투적 문구, 개인 경험·구체 수치 부재)
+5. excessive_promo: 홍보·판매 문구가 1줄을 넘게 과도한가
+6. channel_consistent: 이 글이 다른 포스팅들과 같은 전문 주제로 일관된 채널의 글로 보이는가
+
+반드시 아래 JSON 형식으로만 답하라:
+{"conclusion_first": boolean, "structured_flow": boolean, "niche_topic": boolean, "ai_generated": boolean, "excessive_promo": boolean, "channel_consistent": boolean, "reasoning": "6항목 판정 근거를 한국어 한두 문장으로 요약"}`;
+
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      temperature: 0.2,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content: "너는 블로그 글이 생성형 AI 답변엔진에 인용되기 좋은 형태인지 냉정하게 판정하는 콘텐츠 심사자다. 반드시 유효한 JSON만 반환한다.",
+        },
+        { role: "user", content: prompt },
+      ],
+    }),
+  });
+
+  const data = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(`OpenAI ${response.status}: ${JSON.stringify(data).slice(0, 400)}`);
+
+  let parsed: Record<string, unknown> = {};
+  try {
+    parsed = JSON.parse(data?.choices?.[0]?.message?.content || "{}");
+  } catch {
+    throw new Error("OpenAI 응답을 해석하지 못했습니다.");
+  }
+
+  const toBool = (v: unknown): boolean | null => typeof v === "boolean" ? v : null;
+  return {
+    conclusion_first: toBool(parsed.conclusion_first),
+    structured_flow: toBool(parsed.structured_flow),
+    niche_topic: toBool(parsed.niche_topic),
+    ai_generated: toBool(parsed.ai_generated),
+    excessive_promo: toBool(parsed.excessive_promo),
+    channel_consistent: toBool(parsed.channel_consistent),
+    reasoning: typeof parsed.reasoning === "string" ? parsed.reasoning.slice(0, 2000) : null,
+  };
+}
+
+async function savePostAiCheck(blogId: string, logNo: string) {
+  const postRows = await db(
+    `blog_rank_posts?select=title&blog_id=eq.${encodeURIComponent(blogId)}&log_no=eq.${encodeURIComponent(logNo)}`,
+  ) as Array<{ title: string }>;
+  const title = postRows?.[0]?.title || logNo;
+
+  const siblingRows = await db(
+    `blog_rank_posts?select=title&blog_id=eq.${encodeURIComponent(blogId)}&log_no=neq.${encodeURIComponent(logNo)}&order=published_at.desc.nullslast&limit=15`,
+  ) as Array<{ title: string }>;
+  const siblingTitles = (siblingRows || []).map((r) => r.title).filter(Boolean);
+
+  const response = await fetch(`https://m.blog.naver.com/${encodeURIComponent(blogId)}/${encodeURIComponent(logNo)}`, {
+    headers: { "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1" },
+  });
+  const html = await response.text();
+  if (!response.ok) throw new Error(`포스팅 페이지 조회 실패 (${response.status})`);
+  const bodyText = extractBodyParagraphs(html).join("\n");
+
+  const judgment = await fetchPostAiJudgment(title, bodyText, siblingTitles);
+
+  await db("blog_rank_post_ai_check?on_conflict=blog_id,log_no", {
+    method: "POST",
+    headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+    body: JSON.stringify([{
+      blog_id: blogId,
+      log_no: logNo,
+      ...judgment,
+      checked_at: new Date().toISOString(),
+    }]),
+  });
 }
 
 async function saveExposureHistory(blogId: string, keyword: string, device: Device, result: ExposureResult) {
@@ -847,6 +1026,30 @@ async function savePostContentAnalysis(blogId: string, logNo: string) {
   });
 }
 
+async function fetchPostThumbnail(blogId: string, logNo: string): Promise<string | null> {
+  const response = await fetch(`https://m.blog.naver.com/${encodeURIComponent(blogId)}/${encodeURIComponent(logNo)}`, {
+    headers: { "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1" },
+  });
+  const text = await response.text();
+  if (!response.ok) throw new Error(`포스팅 페이지 조회 실패 (${response.status})`);
+  return extractThumbnailFromHtml(text);
+}
+
+async function savePostThumbnail(blogId: string, logNo: string) {
+  const thumbnailUrl = await fetchPostThumbnail(blogId, logNo);
+  if (!thumbnailUrl) return;
+  await db("blog_rank_post_content_check?on_conflict=blog_id,log_no", {
+    method: "POST",
+    headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+    body: JSON.stringify([{
+      blog_id: blogId,
+      log_no: logNo,
+      thumbnail_url: thumbnailUrl,
+      checked_at: new Date().toISOString(),
+    }]),
+  });
+}
+
 async function collectPostContentCheck(body: Record<string, unknown>) {
   const blogId = cleanText(body.blogId);
   if (!blogId) throw new Error("블로그를 확인할 수 없습니다.");
@@ -872,8 +1075,20 @@ async function collectPostContentCheck(body: Record<string, unknown>) {
   return { ...(await listData()), collected, errors };
 }
 
+/* AI 인용 진단 — OpenAI 호출 비용이 들어서 collectPostContentCheck와 달리 "최근 10개 일괄"을
+   기본으로 두지 않는다. logNo 없이 부르면 에러를 내서, 프론트가 항상 포스팅 하나를 골라 보내게 한다. */
+async function collectPostAiCheck(body: Record<string, unknown>) {
+  const blogId = cleanText(body.blogId);
+  const logNo = cleanText(body.logNo);
+  if (!blogId || !logNo) throw new Error("진단할 포스팅을 확인할 수 없습니다.");
+
+  await savePostContentAnalysis(blogId, logNo);
+  await savePostAiCheck(blogId, logNo);
+  return listData();
+}
+
 async function listData() {
-  const [blogs, posts, postKeywords, history, diagnosis, targetKeywords, exposureHistory, postTitleChecks, postContentChecks] = await Promise.all([
+  const [blogs, posts, postKeywords, history, diagnosis, targetKeywords, exposureHistory, postTitleChecks, postContentChecks, postAiChecks] = await Promise.all([
     db("blog_rank_blogs?select=*&order=created_at.desc") as Promise<BlogRow[]>,
     db("blog_rank_posts?select=*&order=published_at.desc.nullslast&limit=500") as Promise<PostRow[]>,
     db("blog_rank_post_keywords?select=*&order=created_at.asc") as Promise<PostKeywordRow[]>,
@@ -883,6 +1098,7 @@ async function listData() {
     db("blog_rank_exposure_history?select=*&order=collected_at.desc&limit=2000") as Promise<Array<Record<string, unknown>>>,
     db("blog_rank_post_title_check?select=*") as Promise<Array<Record<string, unknown>>>,
     db("blog_rank_post_content_check?select=*") as Promise<Array<Record<string, unknown>>>,
+    db("blog_rank_post_ai_check?select=*") as Promise<Array<Record<string, unknown>>>,
   ]);
 
   return {
@@ -895,10 +1111,12 @@ async function listData() {
     exposureHistory: exposureHistory || [],
     postTitleChecks: postTitleChecks || [],
     postContentChecks: postContentChecks || [],
+    postAiChecks: postAiChecks || [],
     capabilities: {
       naverBlogScreen: true,
       naverBlogApi: !!env("NAVER_CLIENT_ID") && !!env("NAVER_CLIENT_SECRET"),
       searchVolume: !!env("NAVER_AD_CUSTOMER_ID") && !!env("NAVER_AD_ACCESS_LICENSE") && !!env("NAVER_AD_SECRET_KEY"),
+      postAiCheck: !!env("OPENAI_API_KEY"),
     },
   };
 }
@@ -1122,8 +1340,23 @@ async function backfillContentForLogNos(blogId: string, logNos: string[], deadli
   return analyzeContentIfStale(blogId, logNos, deadline, 24);
 }
 
-/* 노출 진단(collectExposure)이나 페이지 진입 시 자동 호출용 — 무거운 키워드 순위 수집 없이
-   포스팅 목록(RSS)과 최근 글 콘텐츠 분석(썸네일 등)만 가볍게 새로고침한다. */
+async function backfillThumbnailsForLogNos(blogId: string, logNos: string[], deadline: number): Promise<RefreshError[]> {
+  const errors: RefreshError[] = [];
+  if (!logNos.length) return errors;
+  await ensurePostRowsExist(blogId, logNos);
+  for (const logNo of [...new Set(logNos)]) {
+    if (Date.now() > deadline) break;
+    try {
+      await savePostThumbnail(blogId, logNo);
+    } catch (error) {
+      errors.push({ blogId, logNo, keyword: "-", provider: "postThumbnail", message: error instanceof Error ? error.message : String(error) });
+    }
+  }
+  return errors;
+}
+
+/* 신규 포스팅 수집 — 등록된 내 블로그 RSS만 확인해서 새 글 목록을 추가한다.
+   순위/썸네일/본문/AI 분석은 각각 카드 관리 아이콘에서 분리해서 실행한다. */
 async function refreshRecent(body: Record<string, unknown>) {
   const blogId = cleanText(body.blogId);
   const refreshTargets = blogId
@@ -1132,21 +1365,66 @@ async function refreshRecent(body: Record<string, unknown>) {
   if (!refreshTargets.length) throw new Error("새로고침할 블로그가 없습니다.");
 
   const deadline = Date.now() + 60_000;
-  const errors = [
-    ...(await refreshRssForBlogs(refreshTargets, deadline)),
-    ...(await refreshContentForBlogs(refreshTargets, deadline)),
-  ];
-
-  for (const bid of refreshTargets) {
-    if (Date.now() > deadline) break;
-    const exposureRows = await db(
-      `blog_rank_exposure_history?select=result_log_no&blog_id=eq.${encodeURIComponent(bid)}&provider=eq.naver_blog_screen&found=eq.true&result_log_no=not.is.null&order=collected_at.desc&limit=300`,
-    ) as Array<{ result_log_no: string }>;
-    const logNos = [...new Set((exposureRows || []).map((r) => r.result_log_no).filter(Boolean))].slice(0, 40);
-    errors.push(...(await backfillContentForLogNos(bid, logNos, deadline)));
-  }
+  const errors = await refreshRssForBlogs(refreshTargets, deadline);
 
   return { ...(await listData()), collected: refreshTargets.length, errors };
+}
+
+async function collectPostRank(body: Record<string, unknown>) {
+  const blogId = cleanText(body.blogId);
+  const logNo = cleanText(body.logNo);
+  if (!blogId || !logNo) throw new Error("수집할 포스팅을 확인할 수 없습니다.");
+
+  const deadline = Date.now() + 70_000;
+  const errors: RefreshError[] = [];
+  let collected = 0;
+
+  const rows = await db(
+    `blog_rank_post_keywords?select=*&blog_id=eq.${encodeURIComponent(blogId)}&log_no=eq.${encodeURIComponent(logNo)}&active=eq.true&order=updated_at.asc`,
+  ) as PostKeywordRow[];
+  if (!rows?.length) throw new Error("이 포스팅에 등록된 추적 키워드가 없습니다.");
+
+  for (const row of rows.slice(0, 20)) {
+    if (Date.now() > deadline) break;
+    try {
+      const rankLimit = Number(row.max_rank) || 300;
+      const actual = await fetchNaverBlogScreenForPost(row.keyword, row.blog_id, row.log_no, row.device, rankLimit);
+      await saveHistory(row.blog_id, row.log_no, row.keyword, row.device, actual);
+      collected += 1;
+    } catch (error) {
+      errors.push({
+        blogId: row.blog_id,
+        logNo: row.log_no,
+        keyword: row.keyword,
+        provider: "naver_blog_screen",
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    try {
+      const rankLimit = Number(row.max_rank) || 300;
+      const official = await fetchNaverBlogApiForPost(row.keyword, row.blog_id, row.log_no, rankLimit);
+      await saveHistory(row.blog_id, row.log_no, row.keyword, row.device, official);
+      collected += 1;
+    } catch (error) {
+      errors.push({
+        blogId: row.blog_id,
+        logNo: row.log_no,
+        keyword: row.keyword,
+        provider: "naver_blog_api",
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    await db(`blog_rank_post_keywords?id=eq.${row.id}`, {
+      method: "PATCH",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify({ updated_at: new Date().toISOString() }),
+    });
+  }
+
+  errors.push(...(await backfillThumbnailsForLogNos(blogId, [logNo], deadline)));
+  return { ...(await listData()), collected, errors };
 }
 
 async function collect(body: Record<string, unknown>) {
@@ -1202,12 +1480,6 @@ async function collect(body: Record<string, unknown>) {
       body: JSON.stringify({ updated_at: new Date().toISOString() }),
     });
   }
-
-  // "최근 게시글 진단"(썸네일/글자수/사진/댓글 등)도 순위 수집할 때 같이 채운다 — 모달에서
-  // 포스팅 하나씩 "분석 새로고침"을 눌러야만 채워지던 걸, 이 블로그별 최근 10개 포스팅에 한해
-  // 자동으로 같이 돌게 한다.
-  const touchedBlogIds = [...new Set([...refreshTargets, ...rows.slice(0, 50).map((r) => r.blog_id)])];
-  errors.push(...(await refreshContentForBlogs(touchedBlogIds, deadline)));
 
   return { ...(await listData()), collected, errors };
 }
@@ -1270,6 +1542,7 @@ Deno.serve(async (request) => {
     if (action === "addPostKeyword") return json(await addPostKeyword(body));
     if (action === "removePostKeyword") return json(await removePostKeyword(Number(body.id)));
     if (action === "collect") return json(await collect(body));
+    if (action === "collectPostRank") return json(await collectPostRank(body));
     if (action === "refreshRecent") return json(await refreshRecent(body));
     if (action === "collectDiagnosis") return json(await collectDiagnosis(body));
     if (action === "addTargetKeywords") return json(await addTargetKeywords(body));
@@ -1277,6 +1550,7 @@ Deno.serve(async (request) => {
     if (action === "collectExposure") return json(await collectExposure(body));
     if (action === "collectPostTitleCheck") return json(await collectPostTitleCheck(body));
     if (action === "collectPostContentCheck") return json(await collectPostContentCheck(body));
+    if (action === "collectPostAiCheck") return json(await collectPostAiCheck(body));
     return json({ error: "지원하지 않는 작업입니다." }, 400);
   } catch (error) {
     console.error(error);
