@@ -1121,16 +1121,14 @@ async function removePostKeyword(id: number) {
   return listData();
 }
 
-async function collect(body: Record<string, unknown>) {
-  const blogId = cleanText(body.blogId);
+type RefreshError = { blogId: string; logNo: string; keyword: string; provider: string; message: string };
 
-  // 순위/콘텐츠 수집 전에 RSS로 포스팅 목록부터 최신화한다 — 안 그러면 오늘 새로 쓴 글은
-  // blog_rank_posts에 아예 없어서 "최근 게시글 진단"에 안 잡힌다(키워드 수집만으론 새 글이
-  // 저절로 안 생김). 경쟁사 블로그까지 매번 RSS를 도는 건 과하니 내 블로그로만 한정한다.
-  const refreshTargets = blogId
-    ? [blogId]
-    : ((await db("blog_rank_blogs?select=blog_id&is_mine=eq.true&active=eq.true")) as Array<{ blog_id: string }> || []).map((b) => b.blog_id);
-  for (const target of refreshTargets) {
+/* RSS 새로고침 — 네이버 "검색"이 아니라 블로그 자체 RSS 피드를 직접 열어보는 가벼운 요청이라
+   collect()의 무거운 키워드 순위 루프와 분리해서 페이지 진입 시마다 자동으로 돌려도 부담이 없다. */
+async function refreshRssForBlogs(targets: string[], deadline: number): Promise<RefreshError[]> {
+  const errors: RefreshError[] = [];
+  for (const target of targets) {
+    if (Date.now() > deadline) break;
     try {
       const { blogName, posts } = await fetchBlogRss(target);
       await db(`blog_rank_blogs?blog_id=eq.${encodeURIComponent(target)}`, {
@@ -1145,23 +1143,73 @@ async function collect(body: Record<string, unknown>) {
           body: JSON.stringify(posts),
         });
       }
-    } catch {
-      // RSS 새로고침 실패는 조용히 넘어간다 — 순위 수집 자체는 계속 진행
+    } catch (error) {
+      errors.push({ blogId: target, logNo: "-", keyword: "-", provider: "rss", message: error instanceof Error ? error.message : String(error) });
     }
   }
+  return errors;
+}
+
+/* 최근 포스팅 콘텐츠 분석(썸네일/글자수 등) — 모바일 글 페이지를 직접 열어보는 것도 검색이 아니라
+   가벼운 요청이라 마찬가지로 자동 새로고침 대상이다. */
+async function refreshContentForBlogs(targets: string[], deadline: number): Promise<RefreshError[]> {
+  const errors: RefreshError[] = [];
+  for (const bid of targets) {
+    if (Date.now() > deadline) break;
+    const posts = await db(
+      `blog_rank_posts?select=log_no&blog_id=eq.${encodeURIComponent(bid)}&order=published_at.desc.nullslast&limit=10`,
+    ) as Array<{ log_no: string }>;
+    for (const post of posts || []) {
+      if (Date.now() > deadline) break;
+      try {
+        await savePostContentAnalysis(bid, post.log_no);
+      } catch (error) {
+        errors.push({ blogId: bid, logNo: post.log_no, keyword: "-", provider: "postContent", message: error instanceof Error ? error.message : String(error) });
+      }
+    }
+  }
+  return errors;
+}
+
+/* 노출 진단(collectExposure)이나 페이지 진입 시 자동 호출용 — 무거운 키워드 순위 수집 없이
+   포스팅 목록(RSS)과 최근 글 콘텐츠 분석(썸네일 등)만 가볍게 새로고침한다. */
+async function refreshRecent(body: Record<string, unknown>) {
+  const blogId = cleanText(body.blogId);
+  const refreshTargets = blogId
+    ? [blogId]
+    : ((await db("blog_rank_blogs?select=blog_id&is_mine=eq.true&active=eq.true")) as Array<{ blog_id: string }> || []).map((b) => b.blog_id);
+  if (!refreshTargets.length) throw new Error("새로고침할 블로그가 없습니다.");
+
+  const deadline = Date.now() + 60_000;
+  const errors = [
+    ...(await refreshRssForBlogs(refreshTargets, deadline)),
+    ...(await refreshContentForBlogs(refreshTargets, deadline)),
+  ];
+  return { ...(await listData()), collected: refreshTargets.length, errors };
+}
+
+async function collect(body: Record<string, unknown>) {
+  const blogId = cleanText(body.blogId);
+
+  // 순위/콘텐츠 수집 전에 RSS로 포스팅 목록부터 최신화한다 — 안 그러면 오늘 새로 쓴 글은
+  // blog_rank_posts에 아예 없어서 "최근 게시글 진단"에 안 잡힌다(키워드 수집만으론 새 글이
+  // 저절로 안 생김). 경쟁사 블로그까지 매번 RSS를 도는 건 과하니 내 블로그로만 한정한다.
+  const refreshTargets = blogId
+    ? [blogId]
+    : ((await db("blog_rank_blogs?select=blog_id&is_mine=eq.true&active=eq.true")) as Array<{ blog_id: string }> || []).map((b) => b.blog_id);
+
+  // Supabase Edge Function의 request idle timeout(150초, 넘기면 504) 대비 20초 여유 —
+  // naver-rank/index.ts에서 쓰는 것과 동일한 예산. blogId 없이 부를 땐 updated_at 오래된
+  // 순으로 이미 정렬돼 있어서, 예산 초과로 잘려도 매번 같은 키워드만 밀리진 않는다.
+  const deadline = Date.now() + 130_000;
+  const errors: RefreshError[] = await refreshRssForBlogs(refreshTargets, deadline);
+  let collected = 0;
 
   const path = blogId
     ? `blog_rank_post_keywords?select=*&blog_id=eq.${encodeURIComponent(blogId)}&active=eq.true`
     : "blog_rank_post_keywords?select=*&active=eq.true&order=updated_at.asc";
   const rows = await db(path) as PostKeywordRow[];
   if (!rows?.length) throw new Error("수집할 키워드가 없습니다.");
-
-  // Supabase Edge Function의 request idle timeout(150초, 넘기면 504) 대비 20초 여유 —
-  // naver-rank/index.ts에서 쓰는 것과 동일한 예산. blogId 없이 부를 땐 updated_at 오래된
-  // 순으로 이미 정렬돼 있어서, 예산 초과로 잘려도 매번 같은 키워드만 밀리진 않는다.
-  const deadline = Date.now() + 130_000;
-  const errors: Array<{ blogId: string; logNo: string; keyword: string; provider: string; message: string }> = [];
-  let collected = 0;
 
   for (const row of rows.slice(0, 50)) {
     if (Date.now() > deadline) break;
@@ -1198,23 +1246,7 @@ async function collect(body: Record<string, unknown>) {
   // 포스팅 하나씩 "분석 새로고침"을 눌러야만 채워지던 걸, 이 블로그별 최근 10개 포스팅에 한해
   // 자동으로 같이 돌게 한다.
   const touchedBlogIds = [...new Set([...refreshTargets, ...rows.slice(0, 50).map((r) => r.blog_id)])];
-  for (const bid of touchedBlogIds) {
-    if (Date.now() > deadline) break;
-    const posts = await db(
-      `blog_rank_posts?select=log_no&blog_id=eq.${encodeURIComponent(bid)}&order=published_at.desc.nullslast&limit=10`,
-    ) as Array<{ log_no: string }>;
-    for (const post of posts || []) {
-      if (Date.now() > deadline) break;
-      try {
-        await savePostContentAnalysis(bid, post.log_no);
-      } catch (error) {
-        errors.push({
-          blogId: bid, logNo: post.log_no, keyword: "-", provider: "postContent",
-          message: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }
-  }
+  errors.push(...(await refreshContentForBlogs(touchedBlogIds, deadline)));
 
   return { ...(await listData()), collected, errors };
 }
@@ -1277,6 +1309,7 @@ Deno.serve(async (request) => {
     if (action === "addPostKeyword") return json(await addPostKeyword(body));
     if (action === "removePostKeyword") return json(await removePostKeyword(Number(body.id)));
     if (action === "collect") return json(await collect(body));
+    if (action === "refreshRecent") return json(await refreshRecent(body));
     if (action === "collectDiagnosis") return json(await collectDiagnosis(body));
     if (action === "addTargetKeywords") return json(await addTargetKeywords(body));
     if (action === "removeTargetKeyword") return json(await removeTargetKeyword(Number(body.id)));

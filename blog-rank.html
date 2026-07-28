@@ -1752,8 +1752,9 @@ async function loadData() {
   autoRefreshDiagnosis();
 }
 
-// 블로그차트/웨어이즈포스트는 네이버 검색과 무관한 가벼운 API(요청 1~2건)라 포스팅 순위 수집과 달리
-// 페이지 진입마다 실시간으로 새로 조회해도 부담이 없다 — 캐시된 값을 먼저 보여준 뒤 조용히 갱신한다.
+// 블로그차트/웨어이즈포스트(진단)와 RSS/모바일 글 페이지(포스팅 목록·썸네일)는 전부 네이버 "검색"이
+// 아니라 가벼운 직접 조회라, 무거운 키워드 순위 수집과 달리 페이지 진입마다 자동으로 새로 조회해도
+// 부담이 없다 — 캐시된 값을 먼저 보여준 뒤 조용히 갱신한다.
 async function autoRefreshDiagnosis() {
   const mine = state.blogs.filter(blog => blog.is_mine && blog.active);
   if (!mine.length) return;
@@ -1762,6 +1763,12 @@ async function autoRefreshDiagnosis() {
     renderAll();
   } catch {
     // 진입 시 자동 새로고침 실패는 조용히 무시 — 화면엔 이미 캐시된 값이 떠 있고, 수동 버튼으로 재시도 가능
+  }
+  try {
+    state = await callApi("refreshRecent", {});
+    renderAll();
+  } catch {
+    // 위와 동일하게 조용히 무시
   }
 }
 
@@ -1997,6 +2004,13 @@ async function collectExposureHandler(blogId) {
     } catch (error) {
       errors.push({ keyword: kw.keyword, message: error.message });
     }
+  }
+  setLoadingMessage("포스팅 목록·썸네일을 새로고침하는 중...");
+  try {
+    state = await callApi("refreshRecent", { blogId });
+    renderAll();
+  } catch (error) {
+    console.warn("포스팅 새로고침 실패", error);
   }
   hideLoading();
   if (errors.length) {
