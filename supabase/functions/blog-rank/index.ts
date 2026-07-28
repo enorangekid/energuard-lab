@@ -1171,6 +1171,39 @@ async function refreshContentForBlogs(targets: string[], deadline: number): Prom
   return errors;
 }
 
+/* blog_rank_post_content_check은 blog_rank_posts에 대한 외래키가 걸려 있는데, RSS는 최신 50개
+   글만 주기 때문에 노출 결과가 가리키는 오래된 글은 blog_rank_posts에 행 자체가 없어 FK 위반(409)으로
+   저장이 통째로 실패한다 — 제목을 못 구했을 때 쓰는 fetchPostTitleFallback으로 스텁 행을 먼저
+   채워서 이 실패를 없앤다. */
+async function ensurePostRowsExist(blogId: string, logNos: string[]): Promise<void> {
+  if (!logNos.length) return;
+  const existing = await db(
+    `blog_rank_posts?select=log_no&blog_id=eq.${encodeURIComponent(blogId)}&log_no=in.(${logNos.map(encodeURIComponent).join(",")})`,
+  ) as Array<{ log_no: string }>;
+  const existingSet = new Set((existing || []).map((r) => r.log_no));
+  const missing = logNos.filter((logNo) => !existingSet.has(logNo));
+  if (!missing.length) return;
+
+  const now = new Date().toISOString();
+  const rows: PostRow[] = [];
+  for (const logNo of missing) {
+    const title = (await fetchPostTitleFallback(blogId, logNo)) || logNo;
+    rows.push({
+      blog_id: blogId,
+      log_no: logNo,
+      title,
+      post_url: `https://blog.naver.com/${blogId}/${logNo}`,
+      published_at: null,
+      first_seen_at: now,
+    });
+  }
+  await db("blog_rank_posts?on_conflict=blog_id,log_no", {
+    method: "POST",
+    headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+    body: JSON.stringify(rows),
+  });
+}
+
 /* 노출 진단 카드의 급상승/급하락 키워드가 가리키는 포스팅은 "최근 발행 10개"가 아닌 경우가 흔하다
    (오래된 글이 특정 키워드에서 여전히 잘 노출되는 경우) — 그런 글은 refreshContentForBlogs가 절대
    못 건드려서 썸네일이 영영 안 채워진다. 이미 분석된 글은 건너뛰고(캐시), 노출 결과가 가리키는
@@ -1178,6 +1211,7 @@ async function refreshContentForBlogs(targets: string[], deadline: number): Prom
 async function backfillContentForLogNos(blogId: string, logNos: string[], deadline: number): Promise<RefreshError[]> {
   const errors: RefreshError[] = [];
   if (!logNos.length) return errors;
+  await ensurePostRowsExist(blogId, logNos);
   const existing = await db(
     `blog_rank_post_content_check?select=log_no&blog_id=eq.${encodeURIComponent(blogId)}&log_no=in.(${logNos.map(encodeURIComponent).join(",")})`,
   ) as Array<{ log_no: string }>;
