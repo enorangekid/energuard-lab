@@ -1776,6 +1776,7 @@ function renderAll() {
 }
 
 async function loadData() {
+  setLoading(true, "블로그 데이터를 불러오는 중입니다...");
   try {
     const data = await callApi("list");
     state = data;
@@ -1786,6 +1787,8 @@ async function loadData() {
         <div class="empty-state"><strong>블로그 데이터를 불러오지 못했습니다.</strong>${esc(error.message)}</div>
       </div>`;
     showToast(error.message);
+  } finally {
+    setLoading(false);
   }
 }
 

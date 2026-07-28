@@ -1129,10 +1129,15 @@ async function collect(body: Record<string, unknown>) {
   const rows = await db(path) as PostKeywordRow[];
   if (!rows?.length) throw new Error("수집할 키워드가 없습니다.");
 
+  // Supabase Edge Function의 request idle timeout(150초, 넘기면 504) 대비 20초 여유 —
+  // naver-rank/index.ts에서 쓰는 것과 동일한 예산. blogId 없이 부를 땐 updated_at 오래된
+  // 순으로 이미 정렬돼 있어서, 예산 초과로 잘려도 매번 같은 키워드만 밀리진 않는다.
+  const deadline = Date.now() + 130_000;
   const errors: Array<{ blogId: string; logNo: string; keyword: string; provider: string; message: string }> = [];
   let collected = 0;
 
   for (const row of rows.slice(0, 50)) {
+    if (Date.now() > deadline) break;
     try {
       const actual = await fetchNaverBlogScreenForPost(row.keyword, row.blog_id, row.log_no, row.device, row.max_rank);
       await saveHistory(row.blog_id, row.log_no, row.keyword, row.device, actual);
@@ -1167,10 +1172,12 @@ async function collect(body: Record<string, unknown>) {
   // 자동으로 같이 돌게 한다.
   const touchedBlogIds = blogId ? [blogId] : [...new Set(rows.slice(0, 50).map((r) => r.blog_id))];
   for (const bid of touchedBlogIds) {
+    if (Date.now() > deadline) break;
     const posts = await db(
       `blog_rank_posts?select=log_no&blog_id=eq.${encodeURIComponent(bid)}&order=published_at.desc.nullslast&limit=10`,
     ) as Array<{ log_no: string }>;
     for (const post of posts || []) {
+      if (Date.now() > deadline) break;
       try {
         await savePostContentAnalysis(bid, post.log_no);
       } catch (error) {
