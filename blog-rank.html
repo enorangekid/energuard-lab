@@ -1442,9 +1442,11 @@ function moverKeywordRowHtml(m, rank) {
   const up = m.delta > 0;
   const postTitle = m.current.result_title || m.current.result_log_no || "포스팅 확인 필요";
   const postUrl = m.current.result_url || "#";
+  const thumbHtml = postThumbHtml({ blog_id: m.current.blog_id, log_no: m.current.result_log_no, post_url: postUrl });
   return `<div class="summary-mover-row">
     <div class="summary-mover-row-main">
       <span class="summary-top3-rank">${rank}</span>
+      ${thumbHtml}
       <a class="summary-top3-name" href="${esc(postUrl)}" target="_blank" rel="noopener" title="${esc(postTitle)}">${esc(postTitle)}</a>
       <span class="summary-mover-delta ${up ? "up" : "down"}">${up ? "▲" : "▼"}${Math.abs(m.delta)}</span>
     </div>
