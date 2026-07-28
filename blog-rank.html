@@ -1620,7 +1620,7 @@ function postContentCheckFor(blogId, logNo) {
 function postThumbHtml(post) {
   const url = postContentCheckFor(post.blog_id, post.log_no)?.thumbnail_url;
   if (!url) return `<span class="post-thumb empty">IMG</span>`;
-  return `<a class="post-thumb-link" href="${esc(post.post_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" aria-label="포스팅 보기"><img class="post-thumb" src="${esc(url)}" loading="lazy" alt=""></a>`;
+  return `<a class="post-thumb-link" href="${esc(post.post_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" aria-label="포스팅 보기"><img class="post-thumb" src="${esc(url)}" loading="lazy" alt="" referrerpolicy="no-referrer"></a>`;
 }
 
 // 우리가 정하는 자체 종합분석 점수 — 글자수(30) + 사진수(25) + 인용구 유무(15) + 외부링크 유무(15) + 댓글수(15).
@@ -1814,7 +1814,7 @@ function renderPostDetailModal() {
   document.getElementById("postDetailModalBody").innerHTML = `
     <div class="post-detail-layout">
       <div class="post-detail-thumb">
-        ${content?.thumbnail_url ? `<img src="${esc(content.thumbnail_url)}" alt="">` : `<div class="post-detail-thumb-empty">썸네일 없음</div>`}
+        ${content?.thumbnail_url ? `<img src="${esc(content.thumbnail_url)}" alt="" referrerpolicy="no-referrer">` : `<div class="post-detail-thumb-empty">썸네일 없음</div>`}
       </div>
       <div class="post-detail-meta">
         <div class="post-detail-title"><a href="${esc(post.post_url)}" target="_blank" rel="noopener">${esc(post.title || post.log_no)}</a></div>
