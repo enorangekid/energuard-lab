@@ -473,13 +473,15 @@ function extractNextRequest(html: string) {
   return nextUrl ? { url: decodeHtml(nextUrl[1]), queryInfo: "" } : null;
 }
 
-async function fetchNaverBlogScreenForPost(
+/* fetchNaverBlogScreenForPost/ForKeyword가 검색결과 페이지네이션·카드추출 로직을 그대로 복붙하던 걸
+   공통 코어로 뺐다 — 매칭 조건(isMatch)만 다르게 넣어주면 "특정 포스팅 찾기"/"이 블로그 아무 글이나
+   찾기" 둘 다 처리된다. */
+async function searchNaverBlogCards(
   keyword: string,
-  blogId: string,
-  logNo: string,
   device: Device,
   maxRank: number,
-): Promise<RankResult> {
+  isMatch: (url: string) => boolean,
+): Promise<{ matchedUrl: string | null; rank: number | null; page: number | null; checked: number }> {
   const limit = Math.min(1000, Math.max(30, maxRank || 300));
   const firstUrl = new URL("https://search.naver.com/search.naver");
   firstUrl.searchParams.set("ssc", "tab.blog.all");
@@ -503,15 +505,8 @@ async function fetchNaverBlogScreenForPost(
       seen.add(key);
       checked += 1;
 
-      if (mainUrl && isSamePost(mainUrl, blogId, logNo)) {
-        return {
-          provider: "naver_blog_screen",
-          rank: checked,
-          page: Math.ceil(checked / 30),
-          found: true,
-          checked_count: checked,
-          collected_at: new Date().toISOString(),
-        };
+      if (mainUrl && isMatch(mainUrl)) {
+        return { matchedUrl: mainUrl, rank: checked, page: Math.ceil(checked / 30), checked };
       }
 
       if (checked >= limit) break;
@@ -528,12 +523,23 @@ async function fetchNaverBlogScreenForPost(
     if (!html) break;
   }
 
+  return { matchedUrl: null, rank: null, page: null, checked };
+}
+
+async function fetchNaverBlogScreenForPost(
+  keyword: string,
+  blogId: string,
+  logNo: string,
+  device: Device,
+  maxRank: number,
+): Promise<RankResult> {
+  const result = await searchNaverBlogCards(keyword, device, maxRank, (url) => isSamePost(url, blogId, logNo));
   return {
     provider: "naver_blog_screen",
-    rank: null,
-    page: null,
-    found: false,
-    checked_count: checked,
+    rank: result.rank,
+    page: result.page,
+    found: result.matchedUrl != null,
+    checked_count: result.checked,
     collected_at: new Date().toISOString(),
   };
 }
@@ -606,125 +612,15 @@ async function fetchNaverBlogScreenForKeyword(
   device: Device,
   maxRank: number,
 ): Promise<ExposureResult> {
-  const limit = Math.min(1000, Math.max(30, maxRank || 300));
-  const firstUrl = new URL("https://search.naver.com/search.naver");
-  firstUrl.searchParams.set("ssc", "tab.blog.all");
-  firstUrl.searchParams.set("sm", "tab_jum");
-  firstUrl.searchParams.set("query", keyword);
-
-  let html = await fetchNaverText(firstUrl.toString(), device);
-  let next = extractNextRequest(html);
-  const seen = new Set<string>();
-  let checked = 0;
-
-  for (let pageLoop = 0; pageLoop < 40 && checked < limit; pageLoop += 1) {
-    const cards = extractBlogCards(html);
-
-    for (const card of cards) {
-      if (isAdCard(card)) continue;
-
-      const mainUrl = extractMainUrlFromCard(card);
-      const key = mainUrl || `card:${simpleHash(stripTags(card).slice(0, 800))}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      checked += 1;
-
-      if (mainUrl && linkBelongsToBlog(mainUrl, blogId)) {
-        return {
-          provider: "naver_blog_screen",
-          found: true,
-          rank: checked,
-          page: Math.ceil(checked / 30),
-          resultLogNo: extractLogNoFromUrl(mainUrl),
-          resultUrl: mainUrl,
-          checked_count: checked,
-          collected_at: new Date().toISOString(),
-        };
-      }
-
-      if (checked >= limit) break;
-    }
-
-    if (checked >= limit || !next?.url) break;
-
-    const jsonText = await fetchNaverText(next.url, device, next.queryInfo);
-    const data = JSON.parse(jsonText);
-    html = Array.isArray(data.collection)
-      ? data.collection.map((item: Record<string, unknown>) => cleanText(item.html)).join("\n")
-      : "";
-    next = data.url ? { url: decodeHtml(data.url), queryInfo: next.queryInfo } : null;
-    if (!html) break;
-  }
-
+  const result = await searchNaverBlogCards(keyword, device, maxRank, (url) => linkBelongsToBlog(url, blogId));
   return {
     provider: "naver_blog_screen",
-    found: false,
-    rank: null,
-    page: null,
-    resultLogNo: null,
-    resultUrl: null,
-    checked_count: checked,
-    collected_at: new Date().toISOString(),
-  };
-}
-
-async function fetchNaverBlogApiForKeyword(keyword: string, blogId: string, maxRank: number): Promise<ExposureResult> {
-  const clientId = env("NAVER_CLIENT_ID");
-  const clientSecret = env("NAVER_CLIENT_SECRET");
-  if (!clientId || !clientSecret) throw new Error("네이버 검색 API 키가 없습니다.");
-
-  const limit = Math.min(1000, Math.max(100, maxRank || 300));
-  let checked = 0;
-
-  for (let start = 1; start <= limit; start += 100) {
-    const url = new URL("https://openapi.naver.com/v1/search/blog.json");
-    url.searchParams.set("query", keyword);
-    url.searchParams.set("display", String(Math.min(100, limit - start + 1)));
-    url.searchParams.set("start", String(start));
-    url.searchParams.set("sort", "sim");
-
-    const response = await fetch(url, {
-      headers: {
-        "X-Naver-Client-Id": clientId,
-        "X-Naver-Client-Secret": clientSecret,
-      },
-    });
-    const text = await response.text();
-    if (!response.ok) {
-      throw new Error(`네이버 블로그 API ${response.status}: ${text.slice(0, 300)}`);
-    }
-    const data = JSON.parse(text);
-    const items = Array.isArray(data.items) ? data.items : [];
-
-    for (let index = 0; index < items.length; index += 1) {
-      checked += 1;
-      const link = cleanText(items[index]?.link);
-      if (link && linkBelongsToBlog(link, blogId)) {
-        const rank = start + index;
-        return {
-          provider: "naver_blog_api",
-          found: true,
-          rank,
-          page: Math.ceil(rank / 10),
-          resultLogNo: extractLogNoFromUrl(link),
-          resultUrl: link,
-          checked_count: checked,
-          collected_at: new Date().toISOString(),
-        };
-      }
-    }
-
-    if (items.length < 100) break;
-  }
-
-  return {
-    provider: "naver_blog_api",
-    found: false,
-    rank: null,
-    page: null,
-    resultLogNo: null,
-    resultUrl: null,
-    checked_count: checked,
+    found: result.matchedUrl != null,
+    rank: result.rank,
+    page: result.page,
+    resultLogNo: result.matchedUrl ? extractLogNoFromUrl(result.matchedUrl) : null,
+    resultUrl: result.matchedUrl,
+    checked_count: result.checked,
     collected_at: new Date().toISOString(),
   };
 }
@@ -882,6 +778,8 @@ async function collectExposure(body: Record<string, unknown>) {
   const errors: Array<{ keyword: string; provider: string; message: string }> = [];
   let collected = 0;
 
+  // naver_blog_api provider는 노출 진단 화면 어디서도 읽지 않는다(전부 naver_blog_screen만 조회) —
+  // 예전엔 여기서도 둘 다 수집해서 매 키워드마다 요청이 2배였다. 화면 스크래핑 하나만 돈다.
   for (const row of (keyword ? rows : rows.slice(0, 60))) {
     try {
       const screen = await fetchNaverBlogScreenForKeyword(row.keyword, blogId, row.device, row.max_rank);
@@ -889,12 +787,6 @@ async function collectExposure(body: Record<string, unknown>) {
       collected += 1;
     } catch (error) {
       errors.push({ keyword: row.keyword, provider: "naver_blog_screen", message: error instanceof Error ? error.message : String(error) });
-    }
-    try {
-      const official = await fetchNaverBlogApiForKeyword(row.keyword, blogId, row.max_rank);
-      await saveExposureHistory(blogId, row.keyword, row.device, official);
-    } catch (error) {
-      errors.push({ keyword: row.keyword, provider: "naver_blog_api", message: error instanceof Error ? error.message : String(error) });
     }
     await db(`blog_rank_target_keywords?id=eq.${row.id}`, {
       method: "PATCH",
@@ -1150,27 +1042,6 @@ async function refreshRssForBlogs(targets: string[], deadline: number): Promise<
   return errors;
 }
 
-/* 최근 포스팅 콘텐츠 분석(썸네일/글자수 등) — 모바일 글 페이지를 직접 열어보는 것도 검색이 아니라
-   가벼운 요청이라 마찬가지로 자동 새로고침 대상이다. */
-async function refreshContentForBlogs(targets: string[], deadline: number): Promise<RefreshError[]> {
-  const errors: RefreshError[] = [];
-  for (const bid of targets) {
-    if (Date.now() > deadline) break;
-    const posts = await db(
-      `blog_rank_posts?select=log_no&blog_id=eq.${encodeURIComponent(bid)}&order=published_at.desc.nullslast&limit=10`,
-    ) as Array<{ log_no: string }>;
-    for (const post of posts || []) {
-      if (Date.now() > deadline) break;
-      try {
-        await savePostContentAnalysis(bid, post.log_no);
-      } catch (error) {
-        errors.push({ blogId: bid, logNo: post.log_no, keyword: "-", provider: "postContent", message: error instanceof Error ? error.message : String(error) });
-      }
-    }
-  }
-  return errors;
-}
-
 /* blog_rank_post_content_check은 blog_rank_posts에 대한 외래키가 걸려 있는데, RSS는 최신 50개
    글만 주기 때문에 노출 결과가 가리키는 오래된 글은 blog_rank_posts에 행 자체가 없어 FK 위반(409)으로
    저장이 통째로 실패한다 — 제목을 못 구했을 때 쓰는 fetchPostTitleFallback으로 스텁 행을 먼저
@@ -1204,21 +1075,23 @@ async function ensurePostRowsExist(blogId: string, logNos: string[]): Promise<vo
   });
 }
 
-/* 노출 진단 카드의 급상승/급하락 키워드가 가리키는 포스팅은 "최근 발행 10개"가 아닌 경우가 흔하다
-   (오래된 글이 특정 키워드에서 여전히 잘 노출되는 경우) — 그런 글은 refreshContentForBlogs가 절대
-   못 건드려서 썸네일이 영영 안 채워진다. 이미 분석된 글은 건너뛰고(캐시), 노출 결과가 가리키는
-   글만 골라 채운다. */
-async function backfillContentForLogNos(blogId: string, logNos: string[], deadline: number): Promise<RefreshError[]> {
+/* 최근 포스팅 콘텐츠 분석(썸네일/글자수 등) — 모바일 글 페이지를 직접 열어보는 것도 검색이 아니라
+   가벼운 요청이라 자동 새로고침 대상이다. staleHours 안에 이미 분석된 글은 건너뛴다 — 예전엔
+   "최근 10개"는 열 때마다 무조건 재분석하고 "노출 결과가 가리키는 글"은 한 번 분석되면 영원히
+   재분석 안 하는 식으로 둘이 따로 놀았는데, 하나로 합쳐서 둘 다 같은 신선도 기준을 쓰게 한다. */
+async function analyzeContentIfStale(blogId: string, logNos: string[], deadline: number, staleHours: number): Promise<RefreshError[]> {
   const errors: RefreshError[] = [];
   if (!logNos.length) return errors;
-  await ensurePostRowsExist(blogId, logNos);
   const existing = await db(
-    `blog_rank_post_content_check?select=log_no&blog_id=eq.${encodeURIComponent(blogId)}&log_no=in.(${logNos.map(encodeURIComponent).join(",")})`,
-  ) as Array<{ log_no: string }>;
-  const existingSet = new Set((existing || []).map((r) => r.log_no));
+    `blog_rank_post_content_check?select=log_no,checked_at&blog_id=eq.${encodeURIComponent(blogId)}&log_no=in.(${logNos.map(encodeURIComponent).join(",")})`,
+  ) as Array<{ log_no: string; checked_at: string }>;
+  const freshCutoff = Date.now() - staleHours * 3600_000;
+  const freshSet = new Set(
+    (existing || []).filter((r) => new Date(r.checked_at).getTime() > freshCutoff).map((r) => r.log_no),
+  );
   for (const logNo of logNos) {
     if (Date.now() > deadline) break;
-    if (existingSet.has(logNo)) continue;
+    if (freshSet.has(logNo)) continue;
     try {
       await savePostContentAnalysis(blogId, logNo);
     } catch (error) {
@@ -1226,6 +1099,27 @@ async function backfillContentForLogNos(blogId: string, logNos: string[], deadli
     }
   }
   return errors;
+}
+
+async function refreshContentForBlogs(targets: string[], deadline: number): Promise<RefreshError[]> {
+  const errors: RefreshError[] = [];
+  for (const bid of targets) {
+    if (Date.now() > deadline) break;
+    const posts = await db(
+      `blog_rank_posts?select=log_no&blog_id=eq.${encodeURIComponent(bid)}&order=published_at.desc.nullslast&limit=10`,
+    ) as Array<{ log_no: string }>;
+    errors.push(...(await analyzeContentIfStale(bid, (posts || []).map((p) => p.log_no), deadline, 24)));
+  }
+  return errors;
+}
+
+/* 노출 진단 카드의 급상승/급하락 키워드가 가리키는 포스팅은 "최근 발행 10개"가 아닌 경우가 흔하다
+   (오래된 글이 특정 키워드에서 여전히 잘 노출되는 경우) — 그런 글은 refreshContentForBlogs가 절대
+   못 건드려서 썸네일이 영영 안 채워진다. 노출 결과가 가리키는 글만 골라 채운다. */
+async function backfillContentForLogNos(blogId: string, logNos: string[], deadline: number): Promise<RefreshError[]> {
+  if (!logNos.length) return [];
+  await ensurePostRowsExist(blogId, logNos);
+  return analyzeContentIfStale(blogId, logNos, deadline, 24);
 }
 
 /* 노출 진단(collectExposure)이나 페이지 진입 시 자동 호출용 — 무거운 키워드 순위 수집 없이
