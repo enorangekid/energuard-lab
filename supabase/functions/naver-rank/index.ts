@@ -342,11 +342,14 @@ async function collectTrackedItems() {
   const allCodes = new Set(codeToCanonical.keys()); // 기준 코드 + alt_codes 전부 감시 대상
   const kst = new Date(Date.now() + 9 * 3600 * 1000);
   const collectedDate = kst.toISOString().slice(0, 10);
-  const deadline = Date.now() + 100_000; // Edge Function 실행시간 한도 대비 100초 예산
+  // Supabase Edge Function의 request idle timeout이 150초(유료/무료 동일, 넘기면 504)라
+  // 그 아래로 20초 여유를 두고 130초까지 쓴다. 한 번에 더 많은 키워드를 처리해서 "미수집"으로
+  // 남는 키워드를 줄인다.
+  const deadline = Date.now() + 130_000;
   let keywordsDone = 0;
   let rowsSaved = 0;
 
-  // 키워드 수가 늘어나 전체가 100초 예산 안에 다 안 돌면, 고정된 순서 그대로는 뒤쪽 키워드가
+  // 키워드 수가 늘어나 전체가 130초 예산 안에 다 안 돌면, 고정된 순서 그대로는 뒤쪽 키워드가
   // 매일 잘리기만 하고 영영 수집되지 않는다. 키워드별 마지막 수집일을 확인해 오래전에
   // 수집됐거나(또는 한 번도 안 된) 키워드부터 처리하도록 순서를 매일 회전시킨다.
   const historyRows: Array<Record<string, unknown>> = await supabaseRequest(
@@ -582,7 +585,7 @@ async function collectStoreKeywords(storeName: string) {
 
   const kst = new Date(Date.now() + 9 * 3600 * 1000);
   const collectedDate = kst.toISOString().slice(0, 10);
-  const deadline = Date.now() + 100_000; // Edge Function 실행시간 한도 대비 100초 예산 (collectTrackedItems와 동일)
+  const deadline = Date.now() + 130_000; // request idle timeout(150초) 대비 20초 여유 (collectTrackedItems와 동일)
   let keywordsDone = 0;
   let rowsSaved = 0;
 
