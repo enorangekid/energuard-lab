@@ -941,6 +941,20 @@ async function collectPostTitleCheck(body: Record<string, unknown>) {
   return { ...(await listData()), collected, errors };
 }
 
+async function savePostContentAnalysis(blogId: string, logNo: string) {
+  const analysis = await fetchPostContentAnalysis(blogId, logNo);
+  await db("blog_rank_post_content_check?on_conflict=blog_id,log_no", {
+    method: "POST",
+    headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+    body: JSON.stringify([{
+      blog_id: blogId,
+      log_no: logNo,
+      ...analysis,
+      checked_at: new Date().toISOString(),
+    }]),
+  });
+}
+
 async function collectPostContentCheck(body: Record<string, unknown>) {
   const blogId = cleanText(body.blogId);
   if (!blogId) throw new Error("블로그를 확인할 수 없습니다.");
@@ -956,17 +970,7 @@ async function collectPostContentCheck(body: Record<string, unknown>) {
 
   for (const post of posts) {
     try {
-      const analysis = await fetchPostContentAnalysis(blogId, post.log_no);
-      await db("blog_rank_post_content_check?on_conflict=blog_id,log_no", {
-        method: "POST",
-        headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
-        body: JSON.stringify([{
-          blog_id: blogId,
-          log_no: post.log_no,
-          ...analysis,
-          checked_at: new Date().toISOString(),
-        }]),
-      });
+      await savePostContentAnalysis(blogId, post.log_no);
       collected += 1;
     } catch (error) {
       errors.push({ logNo: post.log_no, message: error instanceof Error ? error.message : String(error) });
@@ -1156,6 +1160,26 @@ async function collect(body: Record<string, unknown>) {
       headers: { Prefer: "return=minimal" },
       body: JSON.stringify({ updated_at: new Date().toISOString() }),
     });
+  }
+
+  // "최근 게시글 진단"(썸네일/글자수/사진/댓글 등)도 순위 수집할 때 같이 채운다 — 모달에서
+  // 포스팅 하나씩 "분석 새로고침"을 눌러야만 채워지던 걸, 이 블로그별 최근 10개 포스팅에 한해
+  // 자동으로 같이 돌게 한다.
+  const touchedBlogIds = blogId ? [blogId] : [...new Set(rows.slice(0, 50).map((r) => r.blog_id))];
+  for (const bid of touchedBlogIds) {
+    const posts = await db(
+      `blog_rank_posts?select=log_no&blog_id=eq.${encodeURIComponent(bid)}&order=published_at.desc.nullslast&limit=10`,
+    ) as Array<{ log_no: string }>;
+    for (const post of posts || []) {
+      try {
+        await savePostContentAnalysis(bid, post.log_no);
+      } catch (error) {
+        errors.push({
+          blogId: bid, logNo: post.log_no, keyword: "-", provider: "postContent",
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
   }
 
   return { ...(await listData()), collected, errors };
