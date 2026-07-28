@@ -1123,6 +1123,33 @@ async function removePostKeyword(id: number) {
 
 async function collect(body: Record<string, unknown>) {
   const blogId = cleanText(body.blogId);
+
+  // 순위/콘텐츠 수집 전에 RSS로 포스팅 목록부터 최신화한다 — 안 그러면 오늘 새로 쓴 글은
+  // blog_rank_posts에 아예 없어서 "최근 게시글 진단"에 안 잡힌다(키워드 수집만으론 새 글이
+  // 저절로 안 생김). 경쟁사 블로그까지 매번 RSS를 도는 건 과하니 내 블로그로만 한정한다.
+  const refreshTargets = blogId
+    ? [blogId]
+    : ((await db("blog_rank_blogs?select=blog_id&is_mine=eq.true&active=eq.true")) as Array<{ blog_id: string }> || []).map((b) => b.blog_id);
+  for (const target of refreshTargets) {
+    try {
+      const { blogName, posts } = await fetchBlogRss(target);
+      await db(`blog_rank_blogs?blog_id=eq.${encodeURIComponent(target)}`, {
+        method: "PATCH",
+        headers: { Prefer: "return=minimal" },
+        body: JSON.stringify({ blog_name: blogName, updated_at: new Date().toISOString() }),
+      });
+      if (posts.length) {
+        await db("blog_rank_posts?on_conflict=blog_id,log_no", {
+          method: "POST",
+          headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+          body: JSON.stringify(posts),
+        });
+      }
+    } catch {
+      // RSS 새로고침 실패는 조용히 넘어간다 — 순위 수집 자체는 계속 진행
+    }
+  }
+
   const path = blogId
     ? `blog_rank_post_keywords?select=*&blog_id=eq.${encodeURIComponent(blogId)}&active=eq.true`
     : "blog_rank_post_keywords?select=*&active=eq.true&order=updated_at.asc";
@@ -1170,7 +1197,7 @@ async function collect(body: Record<string, unknown>) {
   // "최근 게시글 진단"(썸네일/글자수/사진/댓글 등)도 순위 수집할 때 같이 채운다 — 모달에서
   // 포스팅 하나씩 "분석 새로고침"을 눌러야만 채워지던 걸, 이 블로그별 최근 10개 포스팅에 한해
   // 자동으로 같이 돌게 한다.
-  const touchedBlogIds = blogId ? [blogId] : [...new Set(rows.slice(0, 50).map((r) => r.blog_id))];
+  const touchedBlogIds = [...new Set([...refreshTargets, ...rows.slice(0, 50).map((r) => r.blog_id)])];
   for (const bid of touchedBlogIds) {
     if (Date.now() > deadline) break;
     const posts = await db(

@@ -724,38 +724,6 @@
       font-size: 15px;
     }
 
-    .loading-overlay {
-      position: fixed;
-      inset: 0;
-      z-index: 500;
-      background: rgba(245, 247, 250, .76);
-      backdrop-filter: blur(2px);
-      display: none;
-      align-items: center;
-      justify-content: center;
-    }
-    .loading-overlay.show { display: flex; }
-    .loading-box {
-      min-width: 220px;
-      padding: 22px 26px;
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      background: #fff;
-      box-shadow: 0 18px 44px rgba(20, 27, 40, .12);
-      text-align: center;
-    }
-    .spinner {
-      width: 22px;
-      height: 22px;
-      margin: 0 auto 10px;
-      border: 3px solid #ffe1d4;
-      border-top-color: var(--accent);
-      border-radius: 50%;
-      animation: spin .7s linear infinite;
-    }
-    .loading-text { color: #566176; font-size: 12px; font-weight: 700; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
     .modal-backdrop {
       position: fixed;
       inset: 0;
@@ -1035,12 +1003,6 @@
   </div>
 </div>
 
-<div class="loading-overlay" id="loadingOverlay">
-  <div class="loading-box">
-    <div class="spinner"></div>
-    <div class="loading-text" id="loadingText">블로그 순위를 확인하는 중입니다.</div>
-  </div>
-</div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -1064,11 +1026,6 @@ function showToast(message) {
   toast.classList.add("show");
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => toast.classList.remove("show"), 2400);
-}
-
-function setLoading(show, message = "블로그 순위를 확인하는 중입니다.") {
-  document.getElementById("loadingText").textContent = message;
-  document.getElementById("loadingOverlay").classList.toggle("show", show);
 }
 
 async function callApi(action, payload = {}) {
@@ -1387,8 +1344,9 @@ function renderDiagnosisCard(blog) {
       <div class="summary-section-title-row app-card-head">
         <div class="summary-section-title-wrap app-card-title-wrap">
           <span class="summary-section-title app-card-title">${esc(blog.blog_name || blog.blog_id)}</span>
-          <span class="summary-section-subtitle app-card-subtitle">${esc(snapshotLabel)}</span>
+          <span class="summary-section-subtitle app-card-subtitle">${esc(snapshotLabel)} · 매일 밤 KST 23:50 자동 수집</span>
         </div>
+        <button class="diagnosis-refresh-btn" type="button" onclick="refreshDiagnosis('${esc(blog.blog_id)}')">지금 새로고침</button>
       </div>
       <div class="summary-divider"></div>
       <div class="summary-section-body app-card-body">
@@ -1776,7 +1734,7 @@ function renderAll() {
 }
 
 async function loadData() {
-  setLoading(true, "블로그 데이터를 불러오는 중입니다...");
+  showLoading("블로그 데이터를 불러오는 중입니다...");
   try {
     const data = await callApi("list");
     state = data;
@@ -1788,7 +1746,7 @@ async function loadData() {
       </div>`;
     showToast(error.message);
   } finally {
-    setLoading(false);
+    hideLoading();
   }
 }
 
@@ -1861,8 +1819,21 @@ function renderPostDetailModal() {
   document.getElementById("postDetailRefreshBtn").onclick = () => refreshPostContentCheck(blogId, logNo);
 }
 
+async function refreshDiagnosis(blogId) {
+  showLoading("블로그 지수와 방문자 현황을 조회하는 중입니다.");
+  try {
+    state = await callApi("collectDiagnosis", { blogId });
+    renderAll();
+    showToast("블로그 진단을 새로고침했습니다.");
+  } catch (error) {
+    showToast(error.message);
+  } finally {
+    hideLoading();
+  }
+}
+
 async function refreshPostContentCheck(blogId, logNo) {
-  setLoading(true, "게시글 본문을 분석하는 중입니다.");
+  showLoading("게시글 본문을 분석하는 중입니다.");
   try {
     state = await callApi("collectPostContentCheck", { blogId, logNo });
     renderAll();
@@ -1871,7 +1842,7 @@ async function refreshPostContentCheck(blogId, logNo) {
   } catch (error) {
     showToast(error.message);
   } finally {
-    setLoading(false);
+    hideLoading();
   }
 }
 
@@ -1882,7 +1853,7 @@ async function saveTarget() {
     return;
   }
 
-  setLoading(true, "블로그를 등록하는 중입니다 (포스팅 자동 수집)...");
+  showLoading("블로그를 등록하는 중입니다 (포스팅 자동 수집)...");
   try {
     const data = await callApi("addBlog", {
       blogUrl,
@@ -1897,7 +1868,7 @@ async function saveTarget() {
   } catch (error) {
     showToast(error.message);
   } finally {
-    setLoading(false);
+    hideLoading();
   }
 }
 
@@ -1905,7 +1876,7 @@ async function quickAddPostKeyword(blogId, logNo, inputEl) {
   const keywords = inputEl.value.split(",").map(v => v.trim()).filter(Boolean);
   if (!keywords.length) return showToast("키워드를 입력해 주세요.");
   inputEl.value = "";
-  setLoading(true, "키워드를 추가하는 중입니다.");
+  showLoading("키워드를 추가하는 중입니다.");
   try {
     state = await callApi("addPostKeyword", { blogId, logNo, keywords });
     renderAll();
@@ -1913,12 +1884,12 @@ async function quickAddPostKeyword(blogId, logNo, inputEl) {
   } catch (error) {
     showToast(error.message);
   } finally {
-    setLoading(false);
+    hideLoading();
   }
 }
 
 async function refreshPosts(blogId) {
-  setLoading(true, "포스팅 목록을 새로고침하는 중입니다.");
+  showLoading("포스팅 목록을 새로고침하는 중입니다.");
   try {
     state = await callApi("refreshPosts", { blogId });
     renderAll();
@@ -1926,7 +1897,7 @@ async function refreshPosts(blogId) {
   } catch (error) {
     showToast(error.message);
   } finally {
-    setLoading(false);
+    hideLoading();
   }
 }
 
@@ -1935,7 +1906,7 @@ async function collectRanks(blogId = "") {
     showToast("먼저 추적할 블로그를 추가해 주세요.");
     return;
   }
-  setLoading(true, blogId ? "선택한 블로그 순위를 확인하는 중입니다." : "전체 블로그 순위를 확인하는 중입니다.");
+  showLoading(blogId ? "선택한 블로그 순위를 확인하는 중입니다." : "전체 블로그 순위를 확인하는 중입니다.");
   try {
     const data = await callApi("collect", blogId ? { blogId } : {});
     state = data;
@@ -1949,13 +1920,13 @@ async function collectRanks(blogId = "") {
   } catch (error) {
     showToast(error.message);
   } finally {
-    setLoading(false);
+    hideLoading();
   }
 }
 
 async function deletePostKeyword(id, keyword) {
   if (!confirm(`"${keyword}" 키워드 추적을 삭제할까요?\n저장된 순위 이력도 함께 삭제됩니다.`)) return;
-  setLoading(true, "키워드를 삭제하는 중입니다.");
+  showLoading("키워드를 삭제하는 중입니다.");
   try {
     state = await callApi("removePostKeyword", { id });
     renderAll();
@@ -1963,7 +1934,7 @@ async function deletePostKeyword(id, keyword) {
   } catch (error) {
     showToast(error.message);
   } finally {
-    setLoading(false);
+    hideLoading();
   }
 }
 
@@ -1971,7 +1942,7 @@ async function addTargetKeywordsBulk(blogId, category, inputEl) {
   const keywords = inputEl.value.split(",").map(v => v.trim()).filter(Boolean);
   if (!keywords.length) return showToast("키워드를 입력해 주세요.");
   inputEl.value = "";
-  setLoading(true, "진단 키워드를 추가하는 중입니다.");
+  showLoading("진단 키워드를 추가하는 중입니다.");
   try {
     state = await callApi("addTargetKeywords", { blogId, keywords: keywords.map(keyword => ({ keyword, category })) });
     renderAll();
@@ -1979,13 +1950,13 @@ async function addTargetKeywordsBulk(blogId, category, inputEl) {
   } catch (error) {
     showToast(error.message);
   } finally {
-    setLoading(false);
+    hideLoading();
   }
 }
 
 async function removeTargetKeywordHandler(id, keyword) {
   if (!confirm(`"${keyword}" 진단 키워드를 삭제할까요?`)) return;
-  setLoading(true, "키워드를 삭제하는 중입니다.");
+  showLoading("키워드를 삭제하는 중입니다.");
   try {
     state = await callApi("removeTargetKeyword", { id });
     renderAll();
@@ -1993,7 +1964,7 @@ async function removeTargetKeywordHandler(id, keyword) {
   } catch (error) {
     showToast(error.message);
   } finally {
-    setLoading(false);
+    hideLoading();
   }
 }
 
@@ -2001,10 +1972,10 @@ async function collectExposureHandler(blogId) {
   const keywords = state.targetKeywords.filter(k => k.blog_id === blogId && k.active);
   if (!keywords.length) return showToast("등록된 진단 키워드가 없습니다.");
   const errors = [];
-  setLoading(true, `0/${keywords.length} 키워드 진단 중...`);
+  showLoading(`0/${keywords.length} 키워드 진단 중...`);
   for (let i = 0; i < keywords.length; i++) {
     const kw = keywords[i];
-    setLoading(true, `${i + 1}/${keywords.length} "${kw.keyword}" 확인 중...`);
+    setLoadingMessage(`${i + 1}/${keywords.length} "${kw.keyword}" 확인 중...`);
     try {
       state = await callApi("collectExposure", { blogId, keyword: kw.keyword });
       renderAll();
@@ -2012,7 +1983,7 @@ async function collectExposureHandler(blogId) {
       errors.push({ keyword: kw.keyword, message: error.message });
     }
   }
-  setLoading(false);
+  hideLoading();
   if (errors.length) {
     showToast(`진단 완료 · ${errors.length}건은 확인이 필요합니다.`);
     console.warn("노출 현황 진단 오류", errors);
@@ -2025,10 +1996,10 @@ async function collectPostTitleCheckHandler(blogId) {
   const posts = state.posts.filter(p => p.blog_id === blogId);
   if (!posts.length) return showToast("확인할 포스팅이 없습니다.");
   const errors = [];
-  setLoading(true, `0/${posts.length} 포스팅 제목 확인 중...`);
+  showLoading(`0/${posts.length} 포스팅 제목 확인 중...`);
   for (let i = 0; i < posts.length; i++) {
     const post = posts[i];
-    setLoading(true, `${i + 1}/${posts.length} 포스팅 제목 확인 중...`);
+    setLoadingMessage(`${i + 1}/${posts.length} 포스팅 제목 확인 중...`);
     try {
       state = await callApi("collectPostTitleCheck", { blogId, logNo: post.log_no });
       renderAll();
@@ -2036,7 +2007,7 @@ async function collectPostTitleCheckHandler(blogId) {
       errors.push({ logNo: post.log_no, message: error.message });
     }
   }
-  setLoading(false);
+  hideLoading();
   if (errors.length) {
     showToast(`자가진단 완료 · ${errors.length}건은 확인이 필요합니다.`);
     console.warn("포스팅 제목 자가진단 오류", errors);
@@ -2047,7 +2018,7 @@ async function collectPostTitleCheckHandler(blogId) {
 
 async function deleteBlog(blogId, blogName) {
   if (!confirm(`"${blogName}" 블로그 추적을 삭제할까요?\n등록된 키워드와 순위 이력이 모두 삭제됩니다.`)) return;
-  setLoading(true, "블로그를 삭제하는 중입니다.");
+  showLoading("블로그를 삭제하는 중입니다.");
   try {
     state = await callApi("removeBlog", { blogId });
     renderAll();
@@ -2055,7 +2026,7 @@ async function deleteBlog(blogId, blogName) {
   } catch (error) {
     showToast(error.message);
   } finally {
-    setLoading(false);
+    hideLoading();
   }
 }
 
