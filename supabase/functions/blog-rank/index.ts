@@ -1171,6 +1171,29 @@ async function refreshContentForBlogs(targets: string[], deadline: number): Prom
   return errors;
 }
 
+/* 노출 진단 카드의 급상승/급하락 키워드가 가리키는 포스팅은 "최근 발행 10개"가 아닌 경우가 흔하다
+   (오래된 글이 특정 키워드에서 여전히 잘 노출되는 경우) — 그런 글은 refreshContentForBlogs가 절대
+   못 건드려서 썸네일이 영영 안 채워진다. 이미 분석된 글은 건너뛰고(캐시), 노출 결과가 가리키는
+   글만 골라 채운다. */
+async function backfillContentForLogNos(blogId: string, logNos: string[], deadline: number): Promise<RefreshError[]> {
+  const errors: RefreshError[] = [];
+  if (!logNos.length) return errors;
+  const existing = await db(
+    `blog_rank_post_content_check?select=log_no&blog_id=eq.${encodeURIComponent(blogId)}&log_no=in.(${logNos.map(encodeURIComponent).join(",")})`,
+  ) as Array<{ log_no: string }>;
+  const existingSet = new Set((existing || []).map((r) => r.log_no));
+  for (const logNo of logNos) {
+    if (Date.now() > deadline) break;
+    if (existingSet.has(logNo)) continue;
+    try {
+      await savePostContentAnalysis(blogId, logNo);
+    } catch (error) {
+      errors.push({ blogId, logNo, keyword: "-", provider: "postContent", message: error instanceof Error ? error.message : String(error) });
+    }
+  }
+  return errors;
+}
+
 /* 노출 진단(collectExposure)이나 페이지 진입 시 자동 호출용 — 무거운 키워드 순위 수집 없이
    포스팅 목록(RSS)과 최근 글 콘텐츠 분석(썸네일 등)만 가볍게 새로고침한다. */
 async function refreshRecent(body: Record<string, unknown>) {
@@ -1185,6 +1208,16 @@ async function refreshRecent(body: Record<string, unknown>) {
     ...(await refreshRssForBlogs(refreshTargets, deadline)),
     ...(await refreshContentForBlogs(refreshTargets, deadline)),
   ];
+
+  for (const bid of refreshTargets) {
+    if (Date.now() > deadline) break;
+    const exposureRows = await db(
+      `blog_rank_exposure_history?select=result_log_no&blog_id=eq.${encodeURIComponent(bid)}&provider=eq.naver_blog_screen&found=eq.true&result_log_no=not.is.null&order=collected_at.desc&limit=300`,
+    ) as Array<{ result_log_no: string }>;
+    const logNos = [...new Set((exposureRows || []).map((r) => r.result_log_no).filter(Boolean))].slice(0, 40);
+    errors.push(...(await backfillContentForLogNos(bid, logNos, deadline)));
+  }
+
   return { ...(await listData()), collected: refreshTargets.length, errors };
 }
 

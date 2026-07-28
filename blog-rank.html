@@ -538,6 +538,8 @@
       display: inline-flex; align-items: center; justify-content: center;
       color: #c3c9d4; font-size: 9px; font-family: var(--font-mono); font-weight: 800;
     }
+    /* 랭킹추적 급상승 카드의 .chip-thumb과 같은 크기 — 목록형 썸네일(36px)보다 훨씬 작게, 압축된 행에 맞춘다 */
+    .chip-thumb { width: 18px; height: 18px; border-radius: 3px; object-fit: cover; flex-shrink: 0; }
     .post-block-title {
       min-width: 0;
       overflow: hidden;
@@ -1442,7 +1444,8 @@ function moverKeywordRowHtml(m, rank) {
   const up = m.delta > 0;
   const postTitle = m.current.result_title || m.current.result_log_no || "포스팅 확인 필요";
   const postUrl = m.current.result_url || "#";
-  const thumbHtml = postThumbHtml({ blog_id: m.current.blog_id, log_no: m.current.result_log_no, post_url: postUrl });
+  const thumbUrl = m.current.result_log_no ? postContentCheckFor(m.current.blog_id, m.current.result_log_no)?.thumbnail_url : null;
+  const thumbHtml = thumbUrl ? `<img class="chip-thumb" src="${esc(thumbUrl)}" loading="lazy" alt="" referrerpolicy="no-referrer">` : "";
   return `<div class="summary-mover-row">
     <div class="summary-mover-row-main">
       <span class="summary-top3-rank">${rank}</span>
