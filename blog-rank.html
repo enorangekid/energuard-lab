@@ -1345,7 +1345,7 @@ function renderDiagnosisCard(blog) {
       <div class="summary-section-title-row app-card-head">
         <div class="summary-section-title-wrap app-card-title-wrap">
           <span class="summary-section-title app-card-title">${esc(blog.blog_name || blog.blog_id)}</span>
-          <span class="summary-section-subtitle app-card-subtitle">${esc(snapshotLabel)} · 매일 밤 KST 23:50 자동 수집</span>
+          <span class="summary-section-subtitle app-card-subtitle">${esc(snapshotLabel)} · 페이지 진입 시 자동 새로고침</span>
         </div>
         <button class="diagnosis-refresh-btn" type="button" onclick="refreshDiagnosis('${esc(blog.blog_id)}')">지금 새로고침</button>
       </div>
@@ -1748,6 +1748,20 @@ async function loadData() {
     showToast(error.message);
   } finally {
     hideLoading();
+  }
+  autoRefreshDiagnosis();
+}
+
+// 블로그차트/웨어이즈포스트는 네이버 검색과 무관한 가벼운 API(요청 1~2건)라 포스팅 순위 수집과 달리
+// 페이지 진입마다 실시간으로 새로 조회해도 부담이 없다 — 캐시된 값을 먼저 보여준 뒤 조용히 갱신한다.
+async function autoRefreshDiagnosis() {
+  const mine = state.blogs.filter(blog => blog.is_mine && blog.active);
+  if (!mine.length) return;
+  try {
+    state = await callApi("collectDiagnosis", {});
+    renderAll();
+  } catch {
+    // 진입 시 자동 새로고침 실패는 조용히 무시 — 화면엔 이미 캐시된 값이 떠 있고, 수동 버튼으로 재시도 가능
   }
 }
 
