@@ -309,51 +309,67 @@
     }
     .summary-top3-more:hover { color: var(--accent); }
 
-    /* ── 최근 게시글 진단 — 랭킹추적의 .product-group/.expand-btn 카드+펼치기 패턴을 그대로 가져옴.
-       모달 대신 행을 눌러서 펼치면 그 안에 진단 상세(글자수/사진/댓글/상위노출 키워드)가 나온다. */
-    .post-card { border: 1px solid var(--line); border-radius: var(--radius); background: #fff; }
-    .post-card + .post-card { margin-top: 6px; }
-    .post-card:hover { border-color: #d9dee8; }
-    .post-card.open { border-color: var(--accent, #e85d2f); box-shadow: 0 10px 24px rgba(232, 93, 47, .08); }
+    /* ── 최근 게시글 진단 — 랭킹추적 "추적 상품" 카드(.product-group/.item-main-row/.item-detail/
+       .expand-btn)의 사이즈·색상·간격을 값 그대로 가져옴(공용 변수도 rank-tracker와 동일하게
+       --line/--accent/--accent-tint/--accent-dark/--dark-tint 재사용). 모달 대신 행을 펼치면
+       그 안에 진단 상세(글자수/사진/댓글/상위노출 키워드)가 나온다. */
+    .post-card {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      transition: border-color .14s, box-shadow .14s;
+    }
+    .post-card:hover { border-color: #d9dee8; box-shadow: 0 10px 24px rgba(5, 7, 11, 0.06); }
+    .post-card.open { border-color: #f0b79d; box-shadow: 0 12px 28px rgba(232, 93, 47, 0.08); }
+    .post-card + .post-card { margin-top: 10px; }
     .post-main-row {
       display: grid;
-      grid-template-columns: 24px 40px minmax(140px, 2fr) 70px 1.2fr 80px 90px 36px;
+      grid-template-columns: 38px 86px minmax(180px, 1fr) 70px 1.2fr 80px 90px 40px;
       align-items: center;
-      gap: 10px;
-      padding: 8px 10px;
+      min-height: 76px;
+      padding: 10px 14px;
+      border-radius: calc(var(--radius) - 1px);
       cursor: pointer;
     }
+    .post-main-row:hover { background: #fafbfc; }
+    .post-card.open .post-main-row { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
     .post-main-row.head-row {
       cursor: default;
-      background: var(--soft);
-      color: #7c8799;
-      font-size: 10.5px;
+      background: #fafbfc;
+      color: #8a93a5;
+      font-size: 11.5px;
       font-weight: 800;
       text-align: center;
       border: 1px solid var(--line);
-      border-radius: var(--radius);
-      margin-bottom: 6px;
+      margin-bottom: 10px;
     }
     .post-main-row.head-row span:nth-child(3) { text-align: left; }
-    .post-card.open .post-main-row { border-bottom: 1px solid var(--line); }
     .expand-btn {
-      flex-shrink: 0; width: 22px; height: 22px; padding: 0;
-      border: 1px solid var(--line); border-radius: 50%; background: #fff;
-      display: inline-flex; align-items: center; justify-content: center;
-      font-size: 14px; font-weight: 800; color: var(--sub); cursor: pointer; line-height: 1;
+      width: 24px;
+      height: 24px;
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      background: #fafbfc;
+      color: var(--sub);
+      font-size: 14px;
+      font-weight: 800;
+      line-height: 1;
+      cursor: pointer;
+      flex-shrink: 0;
     }
-    .expand-btn::before { content: "+"; }
-    .post-card.open .expand-btn::before { content: "\2212"; }
     .expand-btn:hover,
-    .post-card.open .expand-btn { border-color: var(--accent, #e85d2f); background: var(--accent-tint, #fdeee7); color: var(--accent-dark, #d04420); }
-    .post-detail { display: none; padding: 14px 16px 16px; background: var(--soft); border-radius: 0 0 var(--radius) var(--radius); }
+    .post-card.open .expand-btn { border-color: var(--accent); background: var(--accent-tint); color: var(--accent-dark); }
+    .post-card.open .expand-btn::before { content: "-"; }
+    .expand-btn::before { content: "+"; }
+    .post-thumb.lg, .post-thumb-link.lg { width: 56px; height: 56px; justify-self: center; }
+    .post-detail { display: none; border-top: 1px solid var(--line); background: #fffaf7; border-radius: 0 0 var(--radius) var(--radius); padding: 14px 16px 16px; }
     .post-card.open .post-detail { display: block; }
     .post-detail-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
     .recent-post-title {
       min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-      color: var(--ink); font-size: 12.5px; font-weight: 800; text-decoration: none;
+      color: var(--ink); font-size: 14px; font-weight: 800; text-decoration: none;
     }
-    .recent-post-title:hover { color: var(--accent); text-decoration: underline; }
+    .recent-post-title:hover { color: var(--accent-dark); text-decoration: underline; text-underline-offset: 3px; }
     .recent-post-cell { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; color: var(--sub); text-align: center; }
     .recent-post-cell.text-bad { color: var(--danger); font-weight: 800; }
 
@@ -1605,10 +1621,12 @@ function postContentCheckFor(blogId, logNo) {
 }
 
 // 랭킹추적의 productThumbHtml()과 같은 역할 — 포스팅을 상품처럼 취급해서 어디서든 이 함수로 통일한다.
-function postThumbHtml(post) {
+// large=true면 랭킹추적 "추적 상품" 카드와 같은 56px(.lg) — 최근 게시글 진단 카드 전용.
+function postThumbHtml(post, large = false) {
   const url = postContentCheckFor(post.blog_id, post.log_no)?.thumbnail_url;
-  if (!url) return `<span class="post-thumb empty">IMG</span>`;
-  return `<a class="post-thumb-link" href="${esc(post.post_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" aria-label="포스팅 보기"><img class="post-thumb" src="${esc(url)}" loading="lazy" alt="" referrerpolicy="no-referrer"></a>`;
+  const sizeClass = large ? " lg" : "";
+  if (!url) return `<span class="post-thumb empty${sizeClass}">IMG</span>`;
+  return `<a class="post-thumb-link${sizeClass}" href="${esc(post.post_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" aria-label="포스팅 보기"><img class="post-thumb${sizeClass}" src="${esc(url)}" loading="lazy" alt="" referrerpolicy="no-referrer"></a>`;
 }
 
 // 우리가 정하는 자체 종합분석 점수 — 글자수(30) + 사진수(25) + 인용구 유무(15) + 외부링크 유무(15) + 댓글수(15).
@@ -1682,7 +1700,7 @@ function renderRecentPostRow(blog, post) {
     <div class="post-card${isOpen ? " open" : ""}">
       <div class="post-main-row" onclick="togglePostCard('${esc(blog.blog_id)}', '${esc(post.log_no)}')">
         <button type="button" class="expand-btn" aria-label="게시글 상세 보기" onclick="event.stopPropagation(); togglePostCard('${esc(blog.blog_id)}', '${esc(post.log_no)}')"></button>
-        ${postThumbHtml(post)}
+        ${postThumbHtml(post, true)}
         <a class="recent-post-title" href="${esc(post.post_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${esc(post.title || post.log_no)}</a>
         <span class="recent-post-cell${check && !check.found ? " text-bad" : ""}">${esc(missingLabel)}</span>
         <span class="recent-post-cell">${best ? `${esc(best.keyword)} · ${best.rank}위` : "-"}</span>
