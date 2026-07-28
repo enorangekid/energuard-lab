@@ -312,7 +312,7 @@
     /* ── 최근 게시글 진단 표 ── */
     .recent-post-row {
       display: grid;
-      grid-template-columns: minmax(160px, 2fr) 70px 1.2fr 80px 90px 68px;
+      grid-template-columns: 40px minmax(140px, 2fr) 70px 1.2fr 80px 90px 68px;
       align-items: center;
       gap: 10px;
       padding: 8px 10px;
@@ -327,7 +327,7 @@
       font-weight: 800;
       text-align: center;
     }
-    .recent-post-row.head span:first-child { text-align: left; }
+    .recent-post-row.head span:nth-child(2) { text-align: left; }
     .recent-post-row + .recent-post-row { margin-top: 6px; }
     .recent-post-title {
       min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -521,10 +521,22 @@
     .post-block:first-child { border-top: 0; }
     .post-block-head {
       display: flex;
-      align-items: baseline;
+      align-items: center;
       justify-content: space-between;
       gap: 12px;
       margin-bottom: 10px;
+    }
+    /* 랭킹추적의 .product-thumb과 같은 틀 — 포스팅을 "상품"처럼 취급해 어디서든 같은 썸네일이 보이게 한다 */
+    .post-thumb, .post-thumb-link {
+      flex-shrink: 0;
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius);
+    }
+    .post-thumb { border: 1px solid var(--line); background: var(--soft); object-fit: cover; display: block; }
+    .post-thumb.empty {
+      display: inline-flex; align-items: center; justify-content: center;
+      color: #c3c9d4; font-size: 9px; font-family: var(--font-mono); font-weight: 800;
     }
     .post-block-title {
       min-width: 0;
@@ -1212,7 +1224,8 @@ function renderPostBlock(post) {
   return `
     <div class="post-block">
       <div class="post-block-head">
-        <a class="post-block-title" href="${esc(post.post_url)}" target="_blank" rel="noopener">${esc(post.title || post.log_no)}</a>
+        ${postThumbHtml(post)}
+        <a class="post-block-title" href="${esc(post.post_url)}" target="_blank" rel="noopener" style="flex:1;">${esc(post.title || post.log_no)}</a>
         <span class="post-block-date">${formatDate(post.published_at)}</span>
       </div>
       <div class="post-keyword-add-row">
@@ -1376,7 +1389,6 @@ function renderDiagnosisCard(blog) {
           <span class="summary-section-title app-card-title">${esc(blog.blog_name || blog.blog_id)}</span>
           <span class="summary-section-subtitle app-card-subtitle">${esc(snapshotLabel)}</span>
         </div>
-        <button class="diagnosis-refresh-btn" type="button" onclick="refreshDiagnosis('${esc(blog.blog_id)}')">진단 새로고침</button>
       </div>
       <div class="summary-divider"></div>
       <div class="summary-section-body app-card-body">
@@ -1645,6 +1657,13 @@ function postContentCheckFor(blogId, logNo) {
   return state.postContentChecks.find(row => row.blog_id === blogId && row.log_no === logNo) || null;
 }
 
+// 랭킹추적의 productThumbHtml()과 같은 역할 — 포스팅을 상품처럼 취급해서 어디서든 이 함수로 통일한다.
+function postThumbHtml(post) {
+  const url = postContentCheckFor(post.blog_id, post.log_no)?.thumbnail_url;
+  if (!url) return `<span class="post-thumb empty">IMG</span>`;
+  return `<a class="post-thumb-link" href="${esc(post.post_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" aria-label="포스팅 보기"><img class="post-thumb" src="${esc(url)}" loading="lazy" alt=""></a>`;
+}
+
 // 우리가 정하는 자체 종합분석 점수 — 글자수(30) + 사진수(25) + 인용구 유무(15) + 외부링크 유무(15) + 댓글수(15).
 // 제목 검색 자가진단에서 누락으로 뜬 포스팅은 0점 고정, 본문 분석을 아직 안 돌렸으면 채점하지 않는다(null).
 function postOptimizationScore(blogId, logNo) {
@@ -1670,6 +1689,7 @@ function renderRecentPostRow(blog, post) {
 
   return `
     <div class="recent-post-row">
+      ${postThumbHtml(post)}
       <a class="recent-post-title" href="${esc(post.post_url)}" target="_blank" rel="noopener">${esc(post.title || post.log_no)}</a>
       <span class="recent-post-cell${check && !check.found ? " text-bad" : ""}">${esc(missingLabel)}</span>
       <span class="recent-post-cell">${best ? `${esc(best.keyword)} · ${best.rank}위` : "-"}</span>
@@ -1694,7 +1714,7 @@ function renderRecentPostsCard(blog) {
 
   const headHtml = `
     <div class="recent-post-row head">
-      <span>제목</span><span>누락여부</span><span>상위노출 키워드</span><span>최적화 점수</span><span>발행일</span><span></span>
+      <span></span><span>제목</span><span>누락여부</span><span>상위노출 키워드</span><span>최적화 점수</span><span>발행일</span><span></span>
     </div>`;
 
   return `
@@ -1937,19 +1957,6 @@ async function deletePostKeyword(id, keyword) {
     state = await callApi("removePostKeyword", { id });
     renderAll();
     showToast("키워드를 삭제했습니다.");
-  } catch (error) {
-    showToast(error.message);
-  } finally {
-    setLoading(false);
-  }
-}
-
-async function refreshDiagnosis(blogId) {
-  setLoading(true, "블로그 지수와 방문자 현황을 조회하는 중입니다.");
-  try {
-    state = await callApi("collectDiagnosis", { blogId });
-    renderAll();
-    showToast("블로그 진단을 새로고침했습니다.");
   } catch (error) {
     showToast(error.message);
   } finally {
