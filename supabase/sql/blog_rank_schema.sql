@@ -27,6 +27,7 @@ create table if not exists public.blog_rank_posts (
   log_no text not null,
   title text not null default '',
   post_url text not null default '',
+  memo text not null default '',
   published_at timestamptz,
   first_seen_at timestamptz not null default now(),
   primary key (blog_id, log_no)

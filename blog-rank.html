@@ -15,8 +15,8 @@
       --ink: #07111f;
       --sub: #667085;
       --muted: #98a2b3;
-      --line: #e1e6ee;
-      --line-strong: #d4dae4;
+      --line: #e8ecf2;
+      --line-strong: #dfe4ec;
       --bg: #f5f7fa;
       --panel: #fff;
       --soft: #f8fafc;
@@ -117,7 +117,7 @@
     .mode-help {
       width: 18px;
       height: 18px;
-      border: 1px solid #cfd5df;
+      border: 1px solid var(--line-strong);
       border-radius: 50%;
       background: #f4f6f9;
       color: #8a93a5;
@@ -245,7 +245,7 @@
       position: relative;
       width: 14px; height: 14px; flex-shrink: 0;
       display: inline-flex; align-items: center; justify-content: center;
-      border: 1px solid #cfd5df; border-radius: 50%;
+      border: 1px solid var(--line-strong); border-radius: 50%;
       background: #f4f6f9; color: #8a93a5;
       font-size: 9.5px; font-weight: 900; cursor: default; line-height: 1;
     }
@@ -288,6 +288,21 @@
     .summary-mover-grid .summary-top3-card { flex: 1 1 260px; }
     .summary-top3-card { flex: 1 1 260px; min-width: 240px; border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; }
     .summary-top3-title { font-size: 12px; font-weight: 800; color: var(--sub); margin-bottom: 12px; }
+    /* "지표 추이" 차트 — sales-analysis.html 일별매출 그래프(.vol-chart-wrap/.vol-tip)와 동일 스타일 */
+    .vol-chart-wrap { position: relative; padding: 14px 16px 18px; border-bottom: 1px solid var(--line); }
+    .vol-chart-wrap svg { display: block; width: 100%; height: auto; }
+    [id^="metricTrendBody-"] .vol-chart-wrap { border-bottom: none; padding-bottom: 0; }
+    .vol-tip {
+      position: absolute; top: 6px; transform: translateX(-50%);
+      padding: 5px 10px; border-radius: 6px;
+      background: #161a22; color: #fff;
+      font-size: 12px; font-weight: 700; font-family: var(--font-mono, monospace);
+      white-space: nowrap; pointer-events: none; z-index: 10;
+    }
+    .period-select {
+      height: 32px; border: 1.5px solid var(--line); border-radius: 4px; padding: 0 8px;
+      font-family: inherit; font-size: 12px; font-weight: 700; color: var(--ink); background: #fff;
+    }
     .summary-top3-rank {
       flex: 0 0 auto; width: 20px; height: 20px; border-radius: 50%; background: var(--dark-tint);
       display: inline-flex; align-items: center; justify-content: center;
@@ -317,6 +332,13 @@
       color: var(--sub); font-family: inherit; font-size: 12px; font-weight: 800; cursor: pointer;
     }
     .summary-top3-more:hover { color: var(--accent); }
+    .recent-post-more-wrap {
+      display: flex;
+      justify-content: center;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #f4f5f7;
+    }
 
     /* ── 최근 게시글 진단 — 랭킹추적 "추적 상품" 카드(.product-group/.item-main-row/.item-detail/
        .expand-btn)의 사이즈·색상·간격을 값 그대로 가져옴(공용 변수도 rank-tracker와 동일하게
@@ -328,7 +350,7 @@
       border-radius: var(--radius);
       transition: border-color .14s, box-shadow .14s;
     }
-    .post-card:hover { border-color: #d9dee8; box-shadow: 0 10px 24px rgba(5, 7, 11, 0.06); }
+    .post-card:hover { border-color: var(--line-strong); box-shadow: 0 10px 24px rgba(5, 7, 11, 0.06); }
     .post-card.open { border-color: #f0b79d; box-shadow: 0 12px 28px rgba(232, 93, 47, 0.08); }
     /* 랭킹추적 .product-group.checked(중요 체크)와 동일한 외곽선 처리 — 자가진단에서 누락으로
        뜬 포스팅을 카드 자체로도 바로 눈에 띄게 한다. */
@@ -421,13 +443,27 @@
       font-family: var(--font-mono); font-size: 13px; font-weight: 800;
     }
     .post-rank-badge.empty { background: #f7f8fa; color: #b0b8c5; font-family: var(--font-main); font-size: 11.5px; font-weight: 700; }
-    .post-actions { display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
-    /* 누락 여부 아이콘 — 기존 .row-btn 스타일 그대로, 클릭 액션이 아니라 상태 표기라 cursor만 default.
-       누락(found=false)일 때만 랭킹추적 .action-btn.checked와 같은 톤으로 활성화 표기. */
-    .row-btn.status-icon { cursor: default; }
-    .row-btn.status-icon:hover { border-color: var(--line); background: #fff; color: #8490a3; }
-    .row-btn.status-icon.active,
-    .row-btn.status-icon.active:hover { border-color: var(--accent); background: var(--accent-tint); color: var(--accent-dark); }
+    .post-actions { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+    .missing-badge {
+      display: inline-flex;
+      align-items: center;
+      height: 22px;
+      margin-left: 7px;
+      padding: 0 8px;
+      border-radius: 999px;
+      background: var(--accent-tint);
+      color: var(--accent-dark);
+      font-size: 11px;
+      font-weight: 900;
+      vertical-align: 1px;
+      white-space: nowrap;
+    }
+    .row-btn.has-memo,
+    .row-btn.has-memo:hover {
+      border-color: #f0b79d;
+      background: var(--accent-tint);
+      color: var(--accent-dark);
+    }
 
     .diagnosis-refresh-btn {
       flex-shrink: 0;
@@ -501,7 +537,7 @@
       gap: 6px;
       height: 30px;
       padding: 0 11px;
-      border: 1px solid #e4e8ef;
+      border: 1px solid var(--line);
       border-radius: 999px;
       background: #f8fafc;
       color: var(--ink);
@@ -938,7 +974,7 @@
       background: #fff;
       transition: border-color .15s, background .15s;
     }
-    .rank-row:hover { border-color: #ccd3de; background: #fcfdff; }
+    .rank-row:hover { border-color: var(--line-strong); background: #fcfdff; }
     .keyword-volume { display: block; margin-top: 2px; color: var(--muted); font-size: 10.5px; font-family: var(--font-mono); }
     .keyword-link {
       overflow: hidden;
@@ -1083,6 +1119,9 @@
     .rank-trend-panel { display: none; height: 118px; padding: 4px 12px 12px; box-sizing: border-box; }
     .rank-trend-panel.active { display: block; }
     .rank-trend-stage { position: relative; height: 100%; }
+    .metric-trend-rank-body { padding: 20px; }
+    .metric-trend-rank-body .rank-trend-wrap { margin: 0; }
+    .metric-trend-rank-body .rank-trend-panel { height: 148px; padding: 8px 12px 14px; }
     .rank-trend-empty {
       height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
       color: #8a93a5; font-size: 12px; font-weight: 800; background: #fafbfc; border: 1px solid #eef1f5; border-radius: 6px;
@@ -1111,27 +1150,30 @@
       display: flex;
       align-items: center;
       justify-content: flex-end;
-      gap: 7px;
+      gap: 6px;
     }
     .row-btn {
-      width: 32px;
-      height: 32px;
+      width: 30px;
+      height: 30px;
       padding: 0;
       border: 1px solid var(--line);
       border-radius: 50%;
       background: #fff;
-      color: #8490a3;
+      color: #9aa3b3;
       display: inline-flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
       position: relative;
+      flex-shrink: 0;
+      transition: all .14s;
     }
     .row-btn svg { width: 15px; height: 15px; }
-    .row-btn:hover { border-color: #aeb6c4; background: #f3f5f8; color: #566176; }
+    .row-btn:hover { border-color: #d7dde7; background: #fafbfc; color: var(--ink); }
     .row-btn.collect-one:hover { border-color: #f1ad90; background: #fff4ef; color: var(--accent); }
     .row-btn.ai-check.active,
     .row-btn.ai-check.active:hover { border-color: var(--accent); background: var(--accent-tint); color: var(--accent-dark); }
+    .row-btn.has-memo[data-tip]:hover::after { opacity: 0; }
     .row-btn[data-tip]::after {
       content: attr(data-tip);
       position: absolute;
@@ -1149,6 +1191,102 @@
       pointer-events: none;
     }
     .row-btn[data-tip]:hover::after { opacity: 1; }
+    .post-memo-tip {
+      position: absolute;
+      right: 0;
+      bottom: 36px;
+      z-index: 45;
+      width: 280px;
+      padding: 12px;
+      border-radius: var(--radius);
+      background: #161a22;
+      color: #fff;
+      box-shadow: 0 14px 34px rgba(5, 7, 11, 0.22);
+      font-size: 12px;
+      line-height: 1.45;
+      text-align: left;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(4px);
+      transition: all .12s;
+      pointer-events: none;
+    }
+    .row-btn.has-memo:hover .post-memo-tip { opacity: 1; visibility: visible; transform: translateY(0); }
+    .post-memo-tip-item + .post-memo-tip-item { margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.12); }
+    .post-memo-tip-date { color: var(--accent); font-size: 11px; font-weight: 800; margin-bottom: 2px; }
+    .post-memo-tip-text { color: #fff; }
+    .memo-modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 9000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: rgba(5, 7, 11, 0.42);
+      overflow-y: auto;
+    }
+    .memo-modal-backdrop.open { display: flex; }
+    .memo-modal {
+      width: min(520px, 100%);
+      max-height: calc(100vh - 64px);
+      border: 1px solid rgba(5, 7, 11, 0.12);
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 24px 70px rgba(5, 7, 11, 0.24);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .memo-modal-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 18px 20px 14px;
+      border-bottom: 1px solid var(--line);
+    }
+    .memo-modal-title { font-size: 16px; font-weight: 900; color: var(--ink); }
+    .memo-modal-sub { margin-top: 3px; font-size: 12px; color: var(--sub); }
+    .memo-close {
+      width: 30px;
+      height: 30px;
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      background: #fff;
+      color: var(--sub);
+      font-size: 18px;
+      cursor: pointer;
+    }
+    .memo-modal-body { padding: 16px 20px 20px; overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
+    .memo-list { max-height: min(320px, calc(100vh - 280px)); overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+    .memo-item { display: flex; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius); background: #fafbfc; }
+    .memo-item-date { font-size: 11px; color: var(--accent); font-weight: 800; margin-bottom: 3px; }
+    .memo-item-text { font-size: 13px; color: var(--ink); line-height: 1.45; white-space: pre-wrap; }
+    .memo-delete { border: 0; background: transparent; color: var(--danger); font-size: 12px; font-weight: 800; cursor: pointer; }
+    .memo-input-row { display: flex; gap: 8px; }
+    .memo-input-row textarea {
+      flex: 1;
+      height: 76px;
+      resize: none;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      font-family: inherit;
+      font-size: 13px;
+      outline: none;
+    }
+    .memo-input-row textarea:focus { border-color: #f0b79d; box-shadow: 0 0 0 3px rgba(232, 93, 47, 0.1); }
+    .memo-add {
+      width: 76px;
+      border: 0;
+      border-radius: var(--radius);
+      background: var(--accent);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 900;
+      cursor: pointer;
+    }
     .empty-state {
       padding: 70px 24px 76px;
       color: #8994a6;
@@ -1534,6 +1672,25 @@
   </div>
 </div>
 
+<div class="memo-modal-backdrop" id="postMemoModal" aria-hidden="true">
+  <div class="memo-modal">
+    <div class="memo-modal-head">
+      <div>
+        <div class="memo-modal-title" id="postMemoModalTitle">포스팅 메모</div>
+        <div class="memo-modal-sub" id="postMemoModalSub"></div>
+      </div>
+      <button type="button" class="memo-close" onclick="closePostMemoModal()" aria-label="닫기">&times;</button>
+    </div>
+    <div class="memo-modal-body">
+      <div class="memo-list" id="postMemoList"></div>
+      <div class="memo-input-row">
+        <textarea id="postMemoInput" placeholder="순위 변동, 누락 확인, 수정할 내용을 남겨두세요."></textarea>
+        <button type="button" class="memo-add" onclick="addPostMemo()">추가</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script src="common.js?v=20260714-loading4"></script>
@@ -1546,6 +1703,7 @@ let state = { blogs: [], posts: [], postKeywords: [], history: [], diagnosis: []
 let toastTimer = 0;
 let rankSubView = "posts";
 const postRankProviderByKey = new Map();
+let postMemoTarget = null;
 
 function esc(value) {
   return String(value ?? "").replace(/[&<>"']/g, char => ({
@@ -1574,6 +1732,152 @@ async function callApi(action, payload = {}) {
   const data = await response.json().catch(() => ({}));
   if (!response.ok || data.error) throw new Error(data.error || `요청 실패 (${response.status})`);
   return data;
+}
+
+function sbHeaders(extra = {}) {
+  return {
+    apikey: SUPABASE_ANON_KEY,
+    Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+    "Content-Type": "application/json",
+    ...extra,
+  };
+}
+
+function nowMemoDate() {
+  const kst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  return kst.toISOString().slice(0, 16).replace("T", " ");
+}
+
+function parseMemos(value) {
+  if (Array.isArray(value)) return value;
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function postKey(blogId, logNo) {
+  return `${blogId}::${logNo}`;
+}
+
+function localPostMemoStorageKey(blogId, logNo) {
+  return `blog-rank-post-memo:${blogId}:${logNo}`;
+}
+
+function findPost(blogId, logNo) {
+  return state.posts.find(post => post.blog_id === blogId && post.log_no === logNo) || null;
+}
+
+function mergeLocalPostMemos() {
+  state.posts = (state.posts || []).map(post => {
+    if (post.memo) return post;
+    const localMemo = localStorage.getItem(localPostMemoStorageKey(post.blog_id, post.log_no));
+    return localMemo ? { ...post, memo: localMemo } : post;
+  });
+}
+
+function postMemoTipHtml(post) {
+  const memos = parseMemos(post?.memo);
+  if (!memos.length) return "";
+  return `<div class="post-memo-tip">${
+    [...memos].slice(-3).reverse().map(memo => `
+      <div class="post-memo-tip-item">
+        <div class="post-memo-tip-date">${esc(memo.date || "")}</div>
+        <div class="post-memo-tip-text">${esc(memo.text || "")}</div>
+      </div>`).join("")
+  }</div>`;
+}
+
+function renderPostMemoList(post) {
+  const list = document.getElementById("postMemoList");
+  const memos = parseMemos(post?.memo);
+  if (!memos.length) {
+    list.innerHTML = `<div class="empty-state" style="padding:12px 4px;font-size:12px;">아직 남긴 메모가 없습니다.</div>`;
+    return;
+  }
+  list.innerHTML = [...memos].reverse().map((memo, reverseIndex) => {
+    const originalIndex = memos.length - 1 - reverseIndex;
+    return `<div class="memo-item">
+      <div>
+        <div class="memo-item-date">${esc(memo.date || "")}</div>
+        <div class="memo-item-text">${esc(memo.text || "")}</div>
+      </div>
+      <button type="button" class="memo-delete" onclick="deletePostMemo(${originalIndex})">삭제</button>
+    </div>`;
+  }).join("");
+}
+
+function openPostMemoModal(event, blogId, logNo) {
+  event.stopPropagation();
+  const post = findPost(blogId, logNo);
+  if (!post) return;
+  postMemoTarget = { blogId, logNo };
+  document.getElementById("postMemoModalSub").textContent = post.title || logNo;
+  document.getElementById("postMemoInput").value = "";
+  renderPostMemoList(post);
+  document.getElementById("postMemoModal").classList.add("open");
+  document.getElementById("postMemoModal").setAttribute("aria-hidden", "false");
+}
+
+function closePostMemoModal() {
+  postMemoTarget = null;
+  document.getElementById("postMemoModal").classList.remove("open");
+  document.getElementById("postMemoModal").setAttribute("aria-hidden", "true");
+}
+
+async function savePostMemo(post, memos) {
+  const memoJson = JSON.stringify(memos);
+  localStorage.setItem(localPostMemoStorageKey(post.blog_id, post.log_no), memoJson);
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/blog_rank_posts?blog_id=eq.${encodeURIComponent(post.blog_id)}&log_no=eq.${encodeURIComponent(post.log_no)}`, {
+    method: "PATCH",
+    headers: sbHeaders({ Prefer: "return=minimal" }),
+    body: JSON.stringify({ memo: memoJson }),
+  });
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(text || "메모 저장에 실패했습니다.");
+  }
+}
+
+async function addPostMemo() {
+  const target = postMemoTarget;
+  const input = document.getElementById("postMemoInput");
+  const text = input.value.trim();
+  if (!target || !text) return;
+  const post = findPost(target.blogId, target.logNo);
+  if (!post) return;
+  const memos = [...parseMemos(post.memo), { date: nowMemoDate(), text }];
+  post.memo = JSON.stringify(memos);
+  input.value = "";
+  renderPostMemoList(post);
+  renderDiagnosis();
+  renderRankList();
+  try {
+    await savePostMemo(post, memos);
+  } catch (error) {
+    showToast("메모는 이 브라우저에 저장했습니다. Supabase 컬럼 반영 후 서버 저장됩니다.");
+  }
+}
+
+async function deletePostMemo(index) {
+  const target = postMemoTarget;
+  if (!target) return;
+  const post = findPost(target.blogId, target.logNo);
+  if (!post) return;
+  const memos = parseMemos(post.memo);
+  memos.splice(index, 1);
+  post.memo = JSON.stringify(memos);
+  renderPostMemoList(post);
+  renderDiagnosis();
+  renderRankList();
+  try {
+    await savePostMemo(post, memos);
+  } catch (error) {
+    showToast("메모는 이 브라우저에서 삭제했습니다. Supabase 컬럼 반영 후 서버 저장됩니다.");
+  }
 }
 
 function histories(blogId, logNo, keyword, provider) {
@@ -1652,6 +1956,12 @@ function filterTrendRows(rows, range, valueKey) {
   const clean = rows.filter(row => row[valueKey] != null).sort((a, b) => a.date.localeCompare(b.date));
   if (!clean.length) return [];
   if (range === "week") return clean.slice(-7);
+  if (range === "month1") {
+    const last = new Date(clean[clean.length - 1].date);
+    const from = new Date(last);
+    from.setMonth(from.getMonth() - 1);
+    return clean.filter(row => new Date(row.date) >= from);
+  }
   if (range === "month6") {
     const last = new Date(clean[clean.length - 1].date);
     const from = new Date(last);
@@ -1664,15 +1974,17 @@ function filterTrendRows(rows, range, valueKey) {
     from.setFullYear(from.getFullYear() - 1);
     return clean.filter(row => new Date(row.date) >= from);
   }
+  // "all" 등 나머지는 전체 그대로.
   return clean;
 }
 
 function hasEnoughTrendRange(rows, range) {
-  if (range === "week") return rows.length >= 2;
+  if (range === "week" || range === "all") return rows.length >= 2;
   if (rows.length < 2) return false;
   const first = new Date(rows[0].date);
   const last = new Date(rows[rows.length - 1].date);
   const days = Math.round((last - first) / 86400000);
+  if (range === "month1") return days >= 20;
   if (range === "month6") return days >= 150;
   if (range === "year") return days >= 330;
   return true;
@@ -1693,7 +2005,16 @@ function renderMiniTrendSvg(rows, valueKey, formatter, invert = false, dropMarke
   let max = Math.max(...values);
   if (min === max) { min -= 1; max += 1; }
   const w = 760, h = 102, padX = 22, padY = 15;
-  const x = i => slots === 1 ? padX : padX + (i * (w - padX * 2)) / (slots - 1);
+  // x축은 인덱스가 아니라 실제 날짜에 비례해야 한다 — 안 그러면 (예: 예전엔 주 1회, 최근엔
+  // 매일) 수집 간격이 들쭉날쭉할 때 실제로는 며칠 차이인 점들이 몇 주 차이인 점들과 같은
+  // 폭으로 그려져서 그래프가 왜곡돼 보인다.
+  const firstTime = new Date(rows[0].date).getTime();
+  const lastTime = new Date(showDrop ? dropMarker.date : rows[rows.length - 1].date).getTime();
+  const span = Math.max(1, lastTime - firstTime);
+  const x = i => {
+    const t = i < rows.length ? new Date(rows[i].date).getTime() : lastTime;
+    return padX + (t - firstTime) / span * (w - padX * 2);
+  };
   const y = v => {
     const t = (v - min) / (max - min);
     return invert ? padY + t * (h - padY * 2 - 14) : h - padY - 14 - t * (h - padY * 2 - 14);
@@ -1703,9 +2024,17 @@ function renderMiniTrendSvg(rows, valueKey, formatter, invert = false, dropMarke
   const area = `${padX},${areaBase} ${points} ${w - padX},${areaBase}`;
   const labelSlots = rows.map((row, i) => ({ i, date: row.date }));
   if (showDrop) labelSlots.push({ i: rows.length, date: dropMarker.date, isDrop: true });
-  const labels = labelSlots.map(({ i, date, isDrop }) => {
-    const isEdge = i === 0 || i === slots - 1;
-    if (!isEdge && slots > 5 && i % Math.ceil(slots / 5) !== 0) return "";
+  // 항상 마지막 점을 강제로 라벨링 + 별도로 step 간격마다 라벨링하는 예전 방식은, 마지막 점이
+  // 하필 step 간격 바로 옆(예: 24번째가 step으로 찍히고 25번째가 마지막이라 강제로 또 찍힘)일 때
+  // 두 라벨이 거의 같은 x좌표에 겹쳐 보이는 문제가 있었다 — 그래서 "몇 개를 보여줄지"를 먼저
+  // 정하고 그 개수만큼 인덱스 전체 구간에 고르게 분산시키는 방식으로 바꿨다(첫점·끝점은 항상 포함).
+  const labelTarget = Math.min(6, labelSlots.length);
+  const labelIndexSet = new Set();
+  for (let k = 0; k < labelTarget; k++) {
+    labelIndexSet.add(Math.round(k * (labelSlots.length - 1) / Math.max(1, labelTarget - 1)));
+  }
+  const labels = labelSlots.map(({ i, date, isDrop }, idx) => {
+    if (!labelIndexSet.has(idx)) return "";
     return `<text class="trend-axis${isDrop ? " trend-axis-dropped" : ""}" x="${x(i)}" y="${h - 3}" text-anchor="middle">${esc(date.slice(5).replace("-", "."))}</text>`;
   }).join("");
   const dots = rows.map((row, i) => {
@@ -1752,17 +2081,26 @@ function renderMiniTrendSvg(rows, valueKey, formatter, invert = false, dropMarke
   </svg></div>`;
 }
 
-function renderTrendWrap(title, rows, valueKey, formatter, invert = false, dropMarker = null) {
-  const ranges = [
-    { key: "week", label: "1주일" },
-    { key: "month6", label: "6개월" },
-    { key: "year", label: "1년" },
-  ];
+// 지표마다 자연스러운 갱신 주기가 달라서(방문자=매일, 순위/유효키워드=주1회) 기간 토글
+// 목록도 지표별로 다르게 줄 수 있게 ranges를 인자로 받는다 — 안 넘기면 기존 기본값 그대로.
+const TREND_RANGES_DAILY = [
+  { key: "week", label: "1주일" },
+  { key: "month6", label: "6개월" },
+  { key: "year", label: "1년" },
+];
+const TREND_RANGES_WEEKLY = [
+  { key: "month1", label: "1개월" },
+  { key: "month6", label: "6개월" },
+  { key: "year", label: "1년" },
+  { key: "all", label: "전체" },
+];
+
+function renderTrendWrap(title, rows, valueKey, formatter, invert = false, dropMarker = null, activeRange = "week", ranges = TREND_RANGES_DAILY) {
   return `<div class="rank-trend-wrap">
     <div class="rank-trend-head">
       <span>${esc(title)}</span>
       <span class="rank-trend-range">
-        ${ranges.map((range, i) => `<button type="button" class="${i === 0 ? "active" : ""}" data-range="${range.key}">${range.label}</button>`).join("")}
+        ${ranges.map((range, i) => `<button type="button" class="${range.key === activeRange || (!ranges.some(r => r.key === activeRange) && i === 0) ? "active" : ""}" data-range="${range.key}">${range.label}</button>`).join("")}
       </span>
     </div>
     ${ranges.map((range, i) => {
@@ -1770,7 +2108,7 @@ function renderTrendWrap(title, rows, valueKey, formatter, invert = false, dropM
       const content = hasEnoughTrendRange(filtered, range.key)
         ? renderMiniTrendSvg(filtered, valueKey, formatter, invert, dropMarker)
         : renderTrendEmpty(`${range.label} 데이터가 아직 부족합니다`, "최근 수집 데이터 기준으로 표시됩니다");
-      return `<div class="rank-trend-panel${i === 0 ? " active" : ""}" data-range="${range.key}">
+      return `<div class="rank-trend-panel${range.key === activeRange || (!ranges.some(r => r.key === activeRange) && i === 0) ? " active" : ""}" data-range="${range.key}">
         ${content}
       </div>`;
     }).join("")}
@@ -2019,6 +2357,23 @@ function diagnosisAt(blogId, daysAgo) {
     || null;
 }
 
+// category_rank/valid_keyword_count(블로그차트, 주간 갱신)는 blog_level/visitors_today(whereispost,
+// 일간 갱신)와 같은 diagnosis 행 안에 같이 저장되긴 하지만 갱신 주기가 다르다 — diagnosisAt은
+// "날짜상 가장 가까운 행"을 찾다 보니, 그 행에 하필 이 필드가 비어 있는 날짜(예: 화~일요일 백필분은
+// 방문자만 있고 순위/키워드는 없음)를 집어서 "데이터 없음"으로 잘못 뜨는 경우가 있었다.
+// 이 필드가 실제로 채워진 행들 중에서만 날짜를 비교해서 찾는다.
+function diagnosisFieldAt(blogId, daysAgo, field) {
+  const rows = state.diagnosis
+    .filter(row => row.blog_id === blogId && row[field] != null)
+    .sort((a, b) => String(b.snapshot_date).localeCompare(String(a.snapshot_date)));
+  if (!rows.length) return null;
+  if (daysAgo === 0) return rows[0];
+  const target = new Date(rows[0].snapshot_date);
+  target.setUTCDate(target.getUTCDate() - daysAgo);
+  const targetStr = target.toISOString().slice(0, 10);
+  return rows.find(row => row.snapshot_date <= targetStr) || null;
+}
+
 // whereispost가 알려주는 자체 평균 대신, 우리가 실제로 쌓은(백필 포함) 방문 이력으로 직접 평균을 낸다.
 function avgVisitors(blogId) {
   const values = state.diagnosis
@@ -2057,6 +2412,12 @@ function renderDiagnosisCard(blog) {
   const snapshot = diagnosisAt(blog.blog_id, 0);
   const dayAgo = diagnosisAt(blog.blog_id, 1);
   const weekAgo = diagnosisAt(blog.blog_id, 7);
+  // category_rank/valid_keyword_count는 주간 갱신이라 snapshot/weekAgo(날짜상 가장 가까운 행)에는
+  // 하필 이 필드가 비어 있는 날이 걸릴 수 있다 — 이 필드가 실제로 채워진 행 기준으로 따로 찾는다.
+  const categoryRankNow = diagnosisFieldAt(blog.blog_id, 0, "category_rank");
+  const categoryRankWeekAgo = diagnosisFieldAt(blog.blog_id, 7, "category_rank");
+  const keywordCountNow = diagnosisFieldAt(blog.blog_id, 0, "valid_keyword_count");
+  const keywordCountWeekAgo = diagnosisFieldAt(blog.blog_id, 7, "valid_keyword_count");
   const snapshotLabel = snapshot ? `최근 진단: ${formatTime(snapshot.collected_at)}` : "아직 진단한 적이 없습니다.";
 
   const tiles = [
@@ -2082,17 +2443,17 @@ function renderDiagnosisCard(blog) {
     },
     {
       label: "블로그 순위",
-      tip: snapshot?.category_label ? `블로그차트 "${snapshot.category_label}" 카테고리 기준 순위입니다. (주간 단위 갱신)` : "블로그차트 연동 계정의 카테고리 순위입니다. (주간 단위 갱신)",
-      value: snapshot?.category_rank != null ? Number(snapshot.category_rank).toLocaleString() : "-",
-      unit: `위${snapshot?.best_rank != null ? ` · 최고 ${Number(snapshot.best_rank).toLocaleString()}위` : ""}`,
-      cmp: `<div class="metric-cmp">${rankChangeChip("전주", snapshot?.category_rank, weekAgo?.category_rank)}</div>`,
+      tip: (categoryRankNow?.category_label ? `블로그차트 "${categoryRankNow.category_label}" 카테고리 기준 순위입니다. (주간 단위 갱신)` : "블로그차트 연동 계정의 카테고리 순위입니다. (주간 단위 갱신)"),
+      value: categoryRankNow?.category_rank != null ? Number(categoryRankNow.category_rank).toLocaleString() : "-",
+      unit: `위${categoryRankNow?.best_rank != null ? ` · 최고 ${Number(categoryRankNow.best_rank).toLocaleString()}위` : ""}`,
+      cmp: `<div class="metric-cmp">${rankChangeChip("전주", categoryRankNow?.category_rank, categoryRankWeekAgo?.category_rank)}</div>`,
     },
     {
       label: "유효키워드",
       tip: "블로그차트 기준, 검색에 실제로 잡히고 있는 키워드 수입니다. (주간 단위 갱신)",
-      value: snapshot?.valid_keyword_count ?? "-",
-      unit: snapshot?.total_keyword_count != null ? `/ 전체 ${Number(snapshot.total_keyword_count).toLocaleString()}개` : "개",
-      cmp: `<div class="metric-cmp">${pctChangeChip("전주", snapshot?.valid_keyword_count, weekAgo?.valid_keyword_count)}</div>`,
+      value: keywordCountNow?.valid_keyword_count ?? "-",
+      unit: keywordCountNow?.total_keyword_count != null ? `/ 전체 ${Number(keywordCountNow.total_keyword_count).toLocaleString()}개` : "개",
+      cmp: `<div class="metric-cmp">${pctChangeChip("전주", keywordCountNow?.valid_keyword_count, keywordCountWeekAgo?.valid_keyword_count)}</div>`,
     },
   ];
 
@@ -2117,6 +2478,76 @@ function renderDiagnosisCard(blog) {
         <div class="rank-dash-tiles">${tilesHtml}</div>
       </div>
     </div>`;
+}
+
+// 방문자/블로그순위/유효키워드는 단위·규모가 완전히 달라서 한 그래프에 같이 못 그린다
+// (축 두 개짜리 그래프는 만들지 않는다) — 랭킹추적 순위 그래프(renderTrendWrap)와 같은 컴포넌트를
+// 재사용한다.
+function blogMetricHistory(blogId, field) {
+  return state.diagnosis
+    .filter(row => row.blog_id === blogId && row[field] != null)
+    .map(row => ({ date: row.snapshot_date, value: Number(row[field]) }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+// category_rank/valid_keyword_count는 블로그차트 원본이 주 1회(월요일 즈음)만 갱신된다 —
+// 우리 크론은 매일 돌지만 값 자체는 다음 월요일까지 그대로다. 복잡하게 "값이 바뀐 지점만
+// 남기기" 대신, 그냥 월요일 행만 골라서 원래 주기 그대로 보여준다.
+function mondayOnlyMetricRows(rows) {
+  return rows.filter(row => new Date(row.date + "T00:00:00Z").getUTCDay() === 1);
+}
+
+const BLOG_METRIC_TREND_OPTIONS = {
+  visitors: { optionLabel: "방문자", title: "방문자 추이", field: "visitors_today", invert: false, unit: "명", ranges: TREND_RANGES_DAILY },
+  rank: { optionLabel: "블로그 순위", title: "블로그 순위 추이", field: "category_rank", invert: true, unit: "위", weekly: true, ranges: TREND_RANGES_WEEKLY },
+  keywordCount: { optionLabel: "유효키워드", title: "유효키워드 추이", field: "valid_keyword_count", invert: false, unit: "개", weekly: true, ranges: TREND_RANGES_WEEKLY },
+};
+let blogMetricTrendKey = "visitors";
+
+function changeBlogMetricTrend(blogId, key) {
+  if (!BLOG_METRIC_TREND_OPTIONS[key]) return;
+  blogMetricTrendKey = key;
+  mountMetricTrendChart(blogId);
+}
+
+// "지표 추이" — 대시보드("지표 현황") 카드와 분리된 독립 카드.
+// 그래프는 랭킹추적의 순위 그래프와 같은 형태로 보여준다.
+function renderMetricTrendCard(blog) {
+  const option = BLOG_METRIC_TREND_OPTIONS[blogMetricTrendKey];
+  return `
+    <div class="summary-mini-card app-card">
+      <div class="summary-section-title-row app-card-head">
+        <div class="summary-section-title-wrap app-card-title-wrap">
+          <span class="summary-section-title app-card-title">지표 추이</span>
+          <span class="summary-section-subtitle app-card-subtitle">${esc(blog.blog_name || blog.blog_id)} · 주간 단위로 쌓인 지표 흐름입니다.</span>
+        </div>
+      </div>
+      <div class="summary-divider"></div>
+      <div class="summary-section-body app-card-body" style="padding:0;">
+        <div class="summary-section-title-row app-card-head" style="padding:16px 20px 0;">
+          <span class="summary-top3-title" style="margin-bottom:0;">${esc(option.title)}</span>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <select class="period-select" onchange="changeBlogMetricTrend('${esc(blog.blog_id)}', this.value)">
+              ${Object.entries(BLOG_METRIC_TREND_OPTIONS).map(([key, opt]) =>
+                `<option value="${key}"${key === blogMetricTrendKey ? " selected" : ""}>${esc(opt.optionLabel)}</option>`).join("")}
+            </select>
+          </div>
+        </div>
+        <div class="metric-trend-rank-body" id="metricTrendBody-${esc(blog.blog_id)}"></div>
+      </div>
+    </div>`;
+}
+
+function mountMetricTrendChart(blogId) {
+  const bodyId = `metricTrendBody-${blogId}`;
+  const body = document.getElementById(bodyId);
+  if (!body) return;
+
+  const option = BLOG_METRIC_TREND_OPTIONS[blogMetricTrendKey];
+  const allRows = blogMetricHistory(blogId, option.field);
+  const rows = option.weekly ? mondayOnlyMetricRows(allRows) : allRows;
+  const formatter = value => `${Number(value).toLocaleString()}${option.unit}`;
+  body.innerHTML = renderTrendWrap(option.title, rows, "value", formatter, option.invert, null, "month6", option.ranges);
 }
 
 function latestExposure(blogId, keyword, provider) {
@@ -2447,9 +2878,8 @@ function renderExposureCard(blog, mode = "full") {
         ${pageBarHtml}
         <div class="summary-divider" style="margin:18px 0;"></div>
         <div class="summary-top3-row-wrap summary-mover-grid">${moverCardsHtml}</div>
+        ${dropoutHtml ? `<div class="summary-divider" style="margin:18px 0;"></div>${dropoutHtml}` : ""}
         ` : `
-        ${dropoutHtml}
-        <div class="summary-divider" style="margin:18px 0;"></div>
         ${keywords.length
           ? `${exposedRowsHtml ? `<div class="exposure-list">${exposedRowsHtml}</div>` : `<div class="empty-state" style="padding:16px 4px;font-size:12px;">아직 노출 중인 키워드가 없습니다.</div>`}
              ${missingKeywordsHtml ? `<div style="margin-top:14px;">
@@ -2837,7 +3267,6 @@ function renderPostDetail(blog, post) {
 function renderRecentPostRow(blog, post) {
   const check = postTitleCheckFor(blog.blog_id, post.log_no);
   const isMissing = !!check && !check.found;
-  const statusLabel = !check ? "확인 전" : check.found ? "정상 노출" : "제목 검색 누락";
   const best = bestKeywordForPost(blog.blog_id, post.log_no);
   const bestDelta = best ? deltaInfo(best.latest, best.previous) : { text: "-", cls: "same" };
   const score = postAiCitationScore(blog.blog_id, post.log_no);
@@ -2845,6 +3274,8 @@ function renderRecentPostRow(blog, post) {
   const analysisDate = latestAnalysisDateForPost(blog.blog_id, post.log_no);
   const key = `${blog.blog_id}::${post.log_no}`;
   const isOpen = expandedRecentPosts.has(key);
+  const memos = parseMemos(post.memo);
+  const memoTip = postMemoTipHtml(post);
 
   return `
     <div class="post-card${isOpen ? " open" : ""}${isMissing ? " missing" : ""}">
@@ -2852,7 +3283,7 @@ function renderRecentPostRow(blog, post) {
         <button type="button" class="expand-btn" aria-label="게시글 상세 보기" onclick="event.stopPropagation(); togglePostCard('${esc(blog.blog_id)}', '${esc(post.log_no)}')"></button>
         ${postThumbHtml(post, true)}
         <div class="post-info">
-          <a class="recent-post-title" href="${esc(post.post_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${esc(post.title || post.log_no)}</a>
+          <a class="recent-post-title" href="${esc(post.post_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${esc(post.title || post.log_no)}</a>${isMissing ? `<span class="missing-badge">누락</span>` : ""}
           <div class="post-sub"><span class="post-date-inline">발행일 ${esc(formatDate(post.published_at))}</span> · <span class="post-score-inline">분석일 ${analysisDate ? esc(formatDate(analysisDate)) : "-"}</span></div>
         </div>
         <span class="post-keyword-pill"><span>${best ? esc(best.keyword) : "-"}</span></span>
@@ -2860,9 +3291,10 @@ function renderRecentPostRow(blog, post) {
         <span class="rank-delta ${bestDelta.cls}">${esc(bestDelta.text)}</span>
         <span class="post-score-cell${score != null ? "" : " empty"}">${score != null ? `${score}점` : "-"}</span>
         <span class="post-actions">
-          <span class="row-btn status-icon${isMissing ? " active" : ""}" data-tip="${esc(statusLabel)}">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><line x1="12" y1="8" x2="12" y2="13"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-          </span>
+          <button class="row-btn${memos.length ? " has-memo" : ""}" type="button" data-tip="메모" onclick="openPostMemoModal(event, '${esc(blog.blog_id)}', '${esc(post.log_no)}')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"></path></svg>
+            ${memoTip}
+          </button>
           <button class="row-btn collect-one" type="button" data-tip="순위 수집" onclick="event.stopPropagation(); collectPostRankHandler('${esc(blog.blog_id)}', '${esc(post.log_no)}')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-15.5 6.2"></path><path d="M3 12a9 9 0 0 1 15.5-6.2"></path><path d="M18 3v4h-4"></path><path d="M6 21v-4h4"></path></svg>
           </button>
@@ -2893,12 +3325,15 @@ function renderRecentPostsCard(blog) {
           <span class="summary-section-title app-card-title">최근 게시글 진단</span>
           <span class="summary-section-subtitle app-card-subtitle">최근 발행한 포스팅 ${posts.length}개의 상태를 확인합니다. 행을 누르면 상세가 펼쳐집니다.</span>
         </div>
-        <button class="diagnosis-refresh-btn" type="button" onclick="refreshAllPostContentHandler('${esc(blog.blog_id)}')">전체 본문 재분석</button>
+        <button class="diagnosis-refresh-btn" type="button" onclick="refreshAllPostRankHandler('${esc(blog.blog_id)}')">전체 순위 재분석</button>
       </div>
       <div class="summary-divider"></div>
       <div class="summary-section-body app-card-body">
         ${posts.length
-          ? `${headHtml}${posts.map(post => renderRecentPostRow(blog, post)).join("")}`
+          ? `${headHtml}${posts.map(post => renderRecentPostRow(blog, post)).join("")}
+            <div class="recent-post-more-wrap">
+              <button type="button" class="summary-top3-more" onclick="goToAllPosts()">전체 포스팅 보기 <span>+</span></button>
+            </div>`
           : `<div class="empty-state" style="padding:24px 4px;font-size:12px;">불러온 포스팅이 없습니다.</div>`}
       </div>
     </div>`;
@@ -2936,10 +3371,13 @@ function renderDiagnosis() {
       </div>`;
     return;
   }
-  list.innerHTML = mine.map(blog => renderDiagnosisCard(blog) + renderExposureCard(blog, "compact") + renderRecentPostsCard(blog)).join("") + diagnosisPlaceholderCardsHtml();
+  list.innerHTML = mine.map(blog => renderDiagnosisCard(blog) + renderMetricTrendCard(blog) + renderExposureCard(blog, "compact") + renderRecentPostsCard(blog)).join("") + diagnosisPlaceholderCardsHtml();
+  // 매출 추이 차트와 같은 방식 — placeholder를 DOM에 꽂은 뒤에야 SVG를 그릴 수 있다.
+  mine.forEach(blog => mountMetricTrendChart(blog.blog_id));
 }
 
 function renderAll() {
+  mergeLocalPostMemos();
   renderSummary();
   renderRows();
   renderExposureRows();
@@ -3021,18 +3459,35 @@ async function refreshPostContentCheck(blogId, logNo) {
   }
 }
 
-// logNo 없이 부르면 collectPostContentCheck가 최근 발행 10개를 신선도 무관하게 전부 재분석한다 —
-// 로직(글자수/사진/외부링크 등 판정식)을 고친 뒤 기존에 캐시된 값을 한 번에 밀어내는 용도.
-async function refreshAllPostContentHandler(blogId) {
-  showLoading("최근 게시글 10개를 다시 분석하는 중입니다.");
-  try {
-    state = await callApi("collectPostContentCheck", { blogId });
-    renderAll();
-    showToast("전체 본문 재분석을 완료했습니다.");
-  } catch (error) {
-    showToast(error.message);
-  } finally {
-    hideLoading();
+// "전체 순위 재분석" — 카드 안 "순위 수집" 버튼(collectPostRank)과 하는 일은 완전히 같고,
+// 최근 발행 10개 포스팅에 대해 그걸 한 번에 돌리는 것뿐이다. 본문 진단·AI 분석은 안 건드린다.
+async function refreshAllPostRankHandler(blogId) {
+  const posts = state.posts
+    .filter(p => p.blog_id === blogId)
+    .sort((a, b) => String(b.published_at || "").localeCompare(String(a.published_at || "")))
+    .slice(0, 10);
+  if (!posts.length) return showToast("재분석할 포스팅이 없습니다.");
+
+  const errors = [];
+  showLoading(`0/${posts.length} 포스팅 순위 재분석 중...`);
+  for (let i = 0; i < posts.length; i++) {
+    const post = posts[i];
+    setLoadingMessage(`${i + 1}/${posts.length} 포스팅 순위 재분석 중...`);
+    if (activePostKeywordsForPost(blogId, post.log_no).length) {
+      try {
+        state = await callApi("collectPostRank", { blogId, logNo: post.log_no });
+        renderAll();
+      } catch (error) {
+        errors.push({ logNo: post.log_no, step: "순위", message: error.message });
+      }
+    }
+  }
+  hideLoading();
+  if (errors.length) {
+    showToast(`재분석 완료 · ${errors.length}건은 확인이 필요합니다.`);
+    console.warn("전체 순위 재분석 오류", errors);
+  } else {
+    showToast(`포스팅 ${posts.length}개의 순위 재분석을 완료했습니다.`);
   }
 }
 
@@ -3266,8 +3721,14 @@ async function deleteBlog(blogId, blogName) {
 document.getElementById("targetModal").addEventListener("click", event => {
   if (event.target.id === "targetModal") closeModal();
 });
+document.getElementById("postMemoModal").addEventListener("click", event => {
+  if (event.target.id === "postMemoModal") closePostMemoModal();
+});
 document.addEventListener("keydown", event => {
-  if (event.key === "Escape") closeModal();
+  if (event.key === "Escape") {
+    closeModal();
+    closePostMemoModal();
+  }
 });
 
 document.addEventListener("click", event => {
@@ -3301,6 +3762,12 @@ function setBlogView(view) {
   document.getElementById("blogDiagnosisView").hidden = nextView !== "diagnosis";
   document.getElementById("blogRankView").hidden = nextView !== "rank";
   document.getElementById("rankHeadActions").hidden = nextView !== "rank";
+}
+
+function goToAllPosts() {
+  setBlogView("rank");
+  setRankSubView("posts");
+  document.getElementById("blogRankView")?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 document.querySelector(".app-title-tabs")?.addEventListener("click", event => {
