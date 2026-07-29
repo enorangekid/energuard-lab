@@ -679,19 +679,33 @@ async function saveHistory(blogId: string, logNo: string, keyword: string, devic
 
 /* RSS는 최신 50개까지만 주기 때문에 그보다 오래된 포스팅이 검색에 걸리면 blog_rank_posts에 없어서
    제목을 못 찾는다. 그럴 땐 모바일 블로그 페이지(m.blog.naver.com)를 직접 열어 제목을 가져온다 —
-   데스크톱 페이지(blog.naver.com)는 iframe 래퍼라 <title>이 블로그 이름만 나오고 실제 글 제목은 안 나온다. */
-async function fetchPostTitleFallback(blogId: string, logNo: string): Promise<string | null> {
+   데스크톱 페이지(blog.naver.com)는 iframe 래퍼라 <title>이 블로그 이름만 나오고 실제 글 제목은 안 나온다.
+   같은 페이지 안에 baParams.postWriteDate(= addDate, 에포크 ms)로 실제 발행일도 들어있어서 같이 뽑는다 —
+   전에는 이 값을 안 읽어서 스텁으로 채운 포스팅은 발행일이 영원히 비어 있었다(전체 포스팅 목록에서
+   "-"로 표시되던 문제). */
+async function fetchPostMetaFallback(blogId: string, logNo: string): Promise<{ title: string | null; publishedAt: string | null }> {
   try {
     const response = await fetch(`https://m.blog.naver.com/${encodeURIComponent(blogId)}/${encodeURIComponent(logNo)}`, {
       headers: { "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1" },
     });
     const text = await response.text();
-    const match = text.match(/<title>([\s\S]*?)<\/title>/i);
-    if (!match) return null;
-    return stripTags(decodeHtml(match[1])).replace(/\s*:\s*네이버 블로그\s*$/, "").trim() || null;
+    const titleMatch = text.match(/<title>([\s\S]*?)<\/title>/i);
+    const title = titleMatch
+      ? stripTags(decodeHtml(titleMatch[1])).replace(/\s*:\s*네이버 블로그\s*$/, "").trim() || null
+      : null;
+
+    const dateMatch = text.match(/addDate="(\d+)"/);
+    const publishedAtMs = dateMatch ? Number(dateMatch[1]) : NaN;
+    const publishedAt = Number.isFinite(publishedAtMs) ? new Date(publishedAtMs).toISOString() : null;
+
+    return { title, publishedAt };
   } catch {
-    return null;
+    return { title: null, publishedAt: null };
   }
+}
+
+async function fetchPostTitleFallback(blogId: string, logNo: string): Promise<string | null> {
+  return (await fetchPostMetaFallback(blogId, logNo)).title;
 }
 
 /* 사진 캡션(se-caption)과 인용구 출처(se-cite)도 본문과 똑같은 <p class="se-text-paragraph">를
@@ -1162,11 +1176,14 @@ async function removeBlog(blogId: string) {
 
 async function refreshPosts(blogId: string) {
   if (!blogId) throw new Error("블로그가 없습니다.");
-  const { blogName, posts } = await fetchBlogRss(blogId);
+  // blog_name은 addBlog(최초 등록) 때만 RSS 채널 제목으로 채운다 — 새로고침마다 다시 덮어쓰면
+  // 사용자가 보기 좋게 손봐둔 이름이 다음 새로고침에서 원래 RSS 제목(홍보문구 섞인 긴 이름)으로
+  // 되돌아가 버린다.
+  const { posts } = await fetchBlogRss(blogId);
   await db(`blog_rank_blogs?blog_id=eq.${encodeURIComponent(blogId)}`, {
     method: "PATCH",
     headers: { Prefer: "return=minimal" },
-    body: JSON.stringify({ blog_name: blogName, updated_at: new Date().toISOString() }),
+    body: JSON.stringify({ updated_at: new Date().toISOString() }),
   });
   if (posts.length) {
     await db("blog_rank_posts?on_conflict=blog_id,log_no", {
@@ -1240,11 +1257,12 @@ async function refreshRssForBlogs(targets: string[], deadline: number): Promise<
   for (const target of targets) {
     if (Date.now() > deadline) break;
     try {
-      const { blogName, posts } = await fetchBlogRss(target);
+      // blog_name은 addBlog 때만 채운다 — 이유는 refreshPosts 쪽 주석 참고.
+      const { posts } = await fetchBlogRss(target);
       await db(`blog_rank_blogs?blog_id=eq.${encodeURIComponent(target)}`, {
         method: "PATCH",
         headers: { Prefer: "return=minimal" },
-        body: JSON.stringify({ blog_name: blogName, updated_at: new Date().toISOString() }),
+        body: JSON.stringify({ updated_at: new Date().toISOString() }),
       });
       if (posts.length) {
         await db("blog_rank_posts?on_conflict=blog_id,log_no", {
@@ -1276,13 +1294,13 @@ async function ensurePostRowsExist(blogId: string, logNos: string[]): Promise<vo
   const now = new Date().toISOString();
   const rows: PostRow[] = [];
   for (const logNo of missing) {
-    const title = (await fetchPostTitleFallback(blogId, logNo)) || logNo;
+    const meta = await fetchPostMetaFallback(blogId, logNo);
     rows.push({
       blog_id: blogId,
       log_no: logNo,
-      title,
+      title: meta.title || logNo,
       post_url: `https://blog.naver.com/${blogId}/${logNo}`,
-      published_at: null,
+      published_at: meta.publishedAt,
       first_seen_at: now,
     });
   }

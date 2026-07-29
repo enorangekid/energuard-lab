@@ -412,15 +412,14 @@
     .post-sub .post-score-inline { font-family: var(--font-mono); font-weight: 800; color: var(--accent-dark); }
     .post-score-cell {
       justify-self: center;
-      min-width: 62px;
-      padding: 5px 9px;
-      border-radius: calc(var(--radius) - 2px);
-      background: var(--accent-tint);
-      color: var(--accent-dark);
+      min-width: 64px;
+      padding: 5px 8px;
+      border-radius: var(--radius);
+      background: #f1f3f7;
+      color: #69758a;
       font-family: var(--font-mono);
-      font-size: 12px;
-      font-weight: 900;
-      line-height: 1.1;
+      font-size: 13px;
+      font-weight: 800;
       text-align: center;
       white-space: nowrap;
     }
@@ -429,6 +428,9 @@
       color: #a9b3c3;
       font-weight: 800;
     }
+    /* score-dash-grade(포스팅 상세의 종합분석평가 등급 배지)와 같은 톤 — 보통/우수/최상 */
+    .post-score-cell.good { background: #eaf8ef; color: #128044; }
+    .post-score-cell.best { background: var(--accent-tint); color: var(--accent-dark); }
     /* 랭킹추적 .main-keyword-cell과 같은 알약 배지 — 상위노출 키워드 하나만 표기 */
     .post-keyword-pill { text-align: center; font-size: 12.5px; font-weight: 900; color: var(--ink); }
     .post-keyword-pill span {
@@ -726,6 +728,19 @@
       color: var(--sub); font-size: 11.5px; text-decoration: none;
     }
     .exposure-post-title:hover { color: var(--accent); text-decoration: underline; }
+    /* 경쟁사 블로그 — 최근 포스팅만 가볍게 확인하는 목적이라 제목+발행일 한 줄이면 충분하다 */
+    .competitor-post-list { display: flex; flex-direction: column; }
+    .competitor-post-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 9px 4px; border-top: 1px solid var(--line); text-decoration: none;
+    }
+    .competitor-post-list .competitor-post-row:first-child { border-top: none; }
+    .competitor-post-title {
+      min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      color: var(--ink); font-size: 13px; font-weight: 700;
+    }
+    .competitor-post-row:hover .competitor-post-title { color: var(--accent-dark); text-decoration: underline; text-underline-offset: 3px; }
+    .competitor-post-date { flex-shrink: 0; color: var(--sub); font-size: 11.5px; font-family: var(--font-mono); }
     .exposure-rank { text-align: center; font-family: var(--font-mono); font-size: 13px; font-weight: 800; color: var(--ink); }
     .missing-keyword-wrap { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
     .missing-keyword-chip {
@@ -1084,6 +1099,13 @@
       font-size: 11px; color: var(--sub); font-family: var(--font-mono); white-space: nowrap; flex-shrink: 0;
     }
     .pkw-volume svg { width: 11px; height: 11px; flex-shrink: 0; opacity: .55; }
+    .pkw-del-btn {
+      flex-shrink: 0; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50%;
+      background: transparent; color: #b0b8c5; display: inline-flex; align-items: center;
+      justify-content: center; cursor: pointer; transition: all .14s;
+    }
+    .pkw-del-btn:hover { background: #fdecec; color: var(--danger); }
+    .pkw-del-btn svg { width: 14px; height: 14px; }
     .rank-trend-wrap {
       margin: 10px 2px 12px 220px; border: 1px solid rgba(232, 93, 47, 0.18); border-radius: var(--radius);
       background: #fff; overflow: hidden;
@@ -2168,6 +2190,9 @@ function renderPostKeywordRankItem(blogId, logNo, kw, provider = "naver_blog_scr
         ${postKeywordRankBadgeHtml(latest, provider)}
         <span class="rank-delta ${delta.cls}">${esc(delta.text)}</span>
         ${volumeHtml}
+        <button class="pkw-del-btn" type="button" data-tip="키워드 삭제" onclick="event.stopPropagation(); deletePostKeyword(${kw.id}, '${esc(kw.keyword)}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M19 6l-1 14H6L5 6"></path><path d="M10 11v5M14 11v5"></path></svg>
+        </button>
       </div>
       ${renderTrendWrap("순위 그래프", history, "rank", value => `${value}위`, true, dropMarker)}
     </div>`;
@@ -2290,7 +2315,8 @@ function renderBlogCard(blog) {
 
 function renderRows() {
   const list = document.getElementById("rankList");
-  if (!state.blogs.length) {
+  const mine = state.blogs.filter(blog => blog.is_mine);
+  if (!mine.length) {
     list.innerHTML = `
       <div class="rank-card app-card">
         <div class="empty-state">
@@ -2300,7 +2326,9 @@ function renderRows() {
       </div>`;
     return;
   }
-  const blogById = new Map(state.blogs.map(blog => [blog.blog_id, blog]));
+  // 경쟁사 블로그(is_mine=false)까지 여기 섞이면 안 된다 — 이 목록은 내 포스팅의 키워드 노출·
+  // AI 인용 점수를 추적하는 화면이라 남의 글이 낄 이유가 없다.
+  const blogById = new Map(mine.map(blog => [blog.blog_id, blog]));
   const posts = state.posts
     .map(post => ({ post, blog: blogById.get(post.blog_id) }))
     .filter(item => item.blog)
@@ -3230,10 +3258,6 @@ function renderPostDetail(blog, post) {
     .map(r => r.kw);
 
   return `
-    <div class="post-detail-head">
-      <span></span>
-      <button class="text-btn primary" type="button" onclick="event.stopPropagation(); refreshPostContentCheck('${esc(blog.blog_id)}', '${esc(post.log_no)}')">분석 새로고침</button>
-    </div>
     <div class="post-keyword-add-row" style="margin-bottom:12px;">
       <input type="text" placeholder="추가할 키워드 (쉼표로 여러 개)" onkeydown="if(event.key==='Enter') quickAddPostKeyword('${esc(post.blog_id)}', '${esc(post.log_no)}', this)">
       <button class="keyword-add-btn" type="button" onclick="quickAddPostKeyword('${esc(post.blog_id)}', '${esc(post.log_no)}', this.previousElementSibling)">+ 추가</button>
@@ -3270,6 +3294,7 @@ function renderRecentPostRow(blog, post) {
   const best = bestKeywordForPost(blog.blog_id, post.log_no);
   const bestDelta = best ? deltaInfo(best.latest, best.previous) : { text: "-", cls: "same" };
   const score = postAiCitationScore(blog.blog_id, post.log_no);
+  const scoreGrade = scoreGradeInfo(score);
   const aiCheck = postAiCheckFor(blog.blog_id, post.log_no);
   const analysisDate = latestAnalysisDateForPost(blog.blog_id, post.log_no);
   const key = `${blog.blog_id}::${post.log_no}`;
@@ -3289,7 +3314,7 @@ function renderRecentPostRow(blog, post) {
         <span class="post-keyword-pill"><span>${best ? esc(best.keyword) : "-"}</span></span>
         <span class="post-rank-badge${best ? "" : " empty"}">${best ? `${best.rank}위` : "-"}</span>
         <span class="rank-delta ${bestDelta.cls}">${esc(bestDelta.text)}</span>
-        <span class="post-score-cell${score != null ? "" : " empty"}">${score != null ? `${score}점` : "-"}</span>
+        <span class="post-score-cell${score != null ? ` ${scoreGrade.cls}` : " empty"}">${score != null ? `${score}점` : "-"}</span>
         <span class="post-actions">
           <button class="row-btn${memos.length ? " has-memo" : ""}" type="button" data-tip="메모" onclick="openPostMemoModal(event, '${esc(blog.blog_id)}', '${esc(post.log_no)}')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"></path></svg>
@@ -3339,23 +3364,57 @@ function renderRecentPostsCard(blog) {
     </div>`;
 }
 
-function diagnosisPlaceholderCardsHtml() {
-  const sections = [
-    { title: "경쟁자 블로그", subtitle: "등록한 경쟁사 블로그와 비교 분석하는 영역입니다.", note: "준비 중입니다." },
-  ];
-  return sections.map(s => `
+// 경쟁사 블로그 — AI 점수·키워드 순위·본문 진단은 안 붙이고(그건 내 콘텐츠 최적화용),
+// "최근에 뭘 올렸는지"만 가볍게 확인한다. 포스팅 목록 자체는 addBlog/refreshPosts가
+// is_mine 여부와 상관없이 이미 동일하게 RSS로 채워주고 있어서 새 수집 로직은 필요 없다.
+function renderCompetitorBlogCard(blog) {
+  const posts = state.posts
+    .filter(p => p.blog_id === blog.blog_id)
+    .sort((a, b) => String(b.published_at || "").localeCompare(String(a.published_at || "")))
+    .slice(0, 10);
+
+  return `
     <div class="summary-mini-card app-card">
       <div class="summary-section-title-row app-card-head">
         <div class="summary-section-title-wrap app-card-title-wrap">
-          <span class="summary-section-title app-card-title">${esc(s.title)}</span>
-          <span class="summary-section-subtitle app-card-subtitle">${esc(s.subtitle)}</span>
+          <span class="summary-section-title app-card-title">${esc(blog.blog_name || blog.blog_id)}</span>
+          <span class="summary-section-subtitle app-card-subtitle">${esc(blog.blog_id)} · 최근 포스팅 ${posts.length}개</span>
         </div>
+        <button class="row-btn" type="button" data-tip="포스팅 새로고침" onclick="refreshPosts('${esc(blog.blog_id)}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><path d="M21 12a9 9 0 0 1-15.5 6.2"></path><path d="M3 12a9 9 0 0 1 15.5-6.2"></path><path d="M18 3v4h-4"></path><path d="M6 21v-4h4"></path></svg>
+        </button>
       </div>
       <div class="summary-divider"></div>
       <div class="summary-section-body app-card-body">
-        <div class="empty-state" style="padding:32px 4px;font-size:12px;">${esc(s.note)}</div>
+        ${posts.length
+          ? `<div class="competitor-post-list">${posts.map(post => `
+              <a class="competitor-post-row" href="${esc(post.post_url)}" target="_blank" rel="noopener">
+                <span class="competitor-post-title">${esc(post.title || post.log_no)}</span>
+                <span class="competitor-post-date">${formatDate(post.published_at)}</span>
+              </a>`).join("")}</div>`
+          : `<div class="empty-state" style="padding:20px 4px;font-size:12px;">불러온 포스팅이 없습니다. "포스팅 새로고침"을 눌러보세요.</div>`}
       </div>
-    </div>`).join("");
+    </div>`;
+}
+
+function diagnosisPlaceholderCardsHtml() {
+  const competitors = state.blogs.filter(blog => !blog.is_mine);
+  if (!competitors.length) {
+    return `
+      <div class="summary-mini-card app-card">
+        <div class="summary-section-title-row app-card-head">
+          <div class="summary-section-title-wrap app-card-title-wrap">
+            <span class="summary-section-title app-card-title">경쟁사 블로그</span>
+            <span class="summary-section-subtitle app-card-subtitle">등록한 경쟁사 블로그의 최근 포스팅을 확인합니다.</span>
+          </div>
+        </div>
+        <div class="summary-divider"></div>
+        <div class="summary-section-body app-card-body">
+          <div class="empty-state" style="padding:32px 4px;font-size:12px;">등록된 경쟁사 블로그가 없습니다. "블로그 추가"에서 "내 블로그입니다" 체크를 빼고 등록해 주세요.</div>
+        </div>
+      </div>`;
+  }
+  return competitors.map(blog => renderCompetitorBlogCard(blog)).join("");
 }
 
 function renderDiagnosis() {
@@ -3402,9 +3461,11 @@ async function loadData() {
   autoRefreshDiagnosis();
 }
 
-// 블로그차트/웨어이즈포스트(진단)와 RSS/모바일 글 페이지(포스팅 목록·썸네일)는 전부 네이버 "검색"이
-// 아니라 가벼운 직접 조회라, 무거운 키워드 순위 수집과 달리 페이지 진입마다 자동으로 새로 조회해도
-// 부담이 없다 — 캐시된 값을 먼저 보여준 뒤 조용히 갱신한다.
+// 블로그차트/웨어이즈포스트(진단)는 네이버가 아니라 제3자 사이트 조회라 페이지 진입마다 자동
+// 새로고침해도 무방하지만, RSS/모바일 글 페이지(m.blog.naver.com) 조회는 결국 네이버 쪽으로
+// 나가는 트래픽이라 — 사용자 판단으로 여기서는 자동 호출을 뺐다. 이제 포스팅 목록·본문 재분석은
+// "포스팅 새로고침"/"전체 순위 재분석"/카드별 "분석 새로고침" 같은 수동 버튼으로만 돈다
+// (매일 밤 23:00 크론에도 안 얹혀 있음 — cron_blog_post_rank_collect 참고).
 async function autoRefreshDiagnosis() {
   const mine = state.blogs.filter(blog => blog.is_mine && blog.active);
   if (!mine.length) return;
@@ -3413,12 +3474,6 @@ async function autoRefreshDiagnosis() {
     renderAll();
   } catch {
     // 진입 시 자동 새로고침 실패는 조용히 무시 — 화면엔 이미 캐시된 값이 떠 있고, 수동 버튼으로 재시도 가능
-  }
-  try {
-    state = await callApi("refreshRecent", {});
-    renderAll();
-  } catch {
-    // 위와 동일하게 조용히 무시
   }
 }
 
@@ -3439,19 +3494,6 @@ async function refreshDiagnosis(blogId) {
     state = await callApi("collectDiagnosis", { blogId });
     renderAll();
     showToast("블로그 진단을 새로고침했습니다.");
-  } catch (error) {
-    showToast(error.message);
-  } finally {
-    hideLoading();
-  }
-}
-
-async function refreshPostContentCheck(blogId, logNo) {
-  showLoading("게시글 본문을 분석하는 중입니다.");
-  try {
-    state = await callApi("collectPostContentCheck", { blogId, logNo });
-    renderAll();
-    showToast("게시글 분석을 완료했습니다.");
   } catch (error) {
     showToast(error.message);
   } finally {
