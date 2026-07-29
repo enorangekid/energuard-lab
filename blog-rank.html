@@ -216,6 +216,7 @@
     .rank-sub-tabs {
       display: flex;
       align-items: center;
+      gap: 8px;
       margin-bottom: 16px;
     }
     .rank-sub-view[hidden] { display: none !important; }
@@ -481,29 +482,58 @@
     .diagnosis-refresh-btn:hover { border-color: #aeb6c4; background: #f5f7fa; }
 
     /* ── 노출 현황 진단 — 키워드 검색 결과(노출중) / 미노출 키워드 목록 ── */
-    .exposure-list { display: flex; flex-direction: column; gap: 6px; }
-    .exposure-keyword-panel {
-      padding: 16px 18px;
+    .exposure-list { display: flex; flex-direction: column; gap: 10px; }
+    .exposure-card {
       border: 1px solid var(--line);
       border-radius: var(--radius);
       background: #fff;
-      box-shadow: 0 10px 28px rgba(20, 27, 40, .05);
+      overflow: hidden;
+      box-shadow: 0 14px 34px rgba(5, 7, 11, 0.05);
+    }
+    .exposure-card-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 20px 20px 16px;
+      border-bottom: 1px solid var(--line);
+      background: #fff;
+    }
+    .exposure-card-title-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+    }
+    .exposure-card-title {
+      color: var(--ink);
+      font-size: 15px;
+      font-weight: 800;
+    }
+    .exposure-card-subtitle {
+      color: var(--sub);
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .exposure-card-body { padding: 20px; }
+    .exposure-keyword-panel {
+      padding-top: 18px;
+      border-top: 1px solid var(--line);
     }
     .exposure-keyword-panel-head {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 16px;
-      padding-bottom: 14px;
-      border-bottom: 1px solid var(--line);
+      gap: 12px;
+      margin-bottom: 12px;
     }
     .exposure-keyword-title {
       display: flex;
       align-items: center;
       gap: 8px;
-      color: var(--sub);
-      font-size: 12px;
-      font-weight: 900;
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 800;
     }
     .exposure-count-pill {
       display: inline-flex;
@@ -519,37 +549,50 @@
     .exposure-keyword-groups {
       display: flex;
       flex-direction: column;
-      gap: 14px;
-      padding-top: 14px;
+      gap: 12px;
+      padding: 0;
     }
     .exposure-keyword-group-label {
       margin-bottom: 8px;
-      color: #8590a3;
-      font-size: 11px;
-      font-weight: 900;
+      color: #8a93a5;
+      font-size: 11.5px;
+      font-weight: 800;
     }
     .exposure-keyword-chips {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 6px;
     }
     .exposure-monitor-chip {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      height: 30px;
-      padding: 0 11px;
+      justify-content: center;
+      gap: 7px;
+      min-width: 0;
+      height: 34px;
+      padding: 0 10px;
       border: 1px solid var(--line);
-      border-radius: 999px;
-      background: #f8fafc;
+      border-radius: 5px;
+      background: #fff;
       color: var(--ink);
       font-size: 12px;
-      font-weight: 900;
+      font-weight: 700;
+      line-height: 1;
     }
     .exposure-monitor-chip.main {
-      border-color: rgba(232, 93, 47, .18);
-      background: var(--accent-soft);
-      color: var(--accent);
+      border-color: var(--line);
+      background: #fff;
+      color: var(--ink);
+    }
+    .exposure-monitor-chip .exposure-cat-badge {
+      flex-shrink: 0;
+    }
+    .exposure-monitor-keyword {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--ink);
     }
     .exposure-monitor-chip button {
       width: 18px;
@@ -563,57 +606,89 @@
       line-height: 1;
       cursor: pointer;
     }
+    .exposure-monitor-chip:hover { border-color: #c8cdd4; background: #fafbfd; }
     .exposure-monitor-chip button:hover { background: #e8edf4; color: var(--ink); }
-    .exposure-monitor-chip.main button:hover { background: rgba(232, 93, 47, .12); color: var(--accent); }
+    .exposure-keyword-add-grid {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      margin-top: 14px;
+    }
+    .exposure-keyword-add-grid input {
+      width: 100%;
+      height: 42px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 0 14px;
+      background: #fff;
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 700;
+      outline: none;
+    }
+    .exposure-keyword-add-grid input:focus {
+      border-color: #efae91;
+      box-shadow: 0 0 0 3px rgba(232, 93, 47, .09);
+    }
+    .exposure-keyword-add-grid .keyword-add-btn {
+      height: 42px;
+      min-width: 106px;
+    }
     .exposure-stat-grid {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 12px;
-      margin: 18px 0;
+      gap: 10px;
+      margin: 0 0 20px;
     }
+    .exposure-dashboard-section .exposure-stat-grid { margin-bottom: 0; }
+    .exposure-result-section .summary-section-body { padding: 10px 10px 10px; }
     .exposure-stat-card {
       min-width: 0;
-      padding: 15px 16px;
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
+      padding: 0 18px 0 0;
+      border: 0;
+      border-right: 1px solid var(--line);
+      border-radius: 0;
       background: #fff;
-      box-shadow: 0 10px 24px rgba(20, 27, 40, .045);
+      box-shadow: none;
     }
+    .exposure-stat-card:last-child { border-right: 0; padding-right: 0; }
     .exposure-stat-label {
       margin-bottom: 5px;
-      color: #8590a3;
-      font-size: 11px;
-      font-weight: 900;
+      color: #8a93a5;
+      font-size: 11.5px;
+      font-weight: 800;
     }
     .exposure-stat-value {
       font-family: var(--font-mono);
-      font-size: 24px;
-      font-weight: 900;
+      font-size: 22px;
+      font-weight: 800;
       color: var(--ink);
       letter-spacing: 0;
     }
     .exposure-stat-value.good { color: #16a34a; }
     .exposure-stat-value.bad { color: var(--danger); }
     .exposure-result-card {
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
+      margin-top: 20px;
+      border: 0;
+      border-top: 1px solid var(--line);
+      border-radius: 0;
       background: #fff;
-      overflow: hidden;
-      box-shadow: 0 10px 28px rgba(20, 27, 40, .05);
+      overflow: visible;
+      box-shadow: none;
     }
     .exposure-result-head {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 12px;
-      padding: 14px 18px;
-      border-bottom: 1px solid var(--line);
+      padding: 18px 0 10px;
+      border-bottom: 0;
       background: #fff;
     }
     .exposure-result-title {
       color: var(--ink);
-      font-size: 14px;
-      font-weight: 900;
+      font-size: 15px;
+      font-weight: 800;
     }
     .exposure-check-time {
       color: var(--sub);
@@ -626,40 +701,47 @@
       display: grid;
       grid-template-columns: minmax(180px, 1.05fr) 90px 90px 90px minmax(260px, 1.7fr) 90px 70px;
       align-items: center;
-      gap: 12px;
+      gap: 14px;
     }
     .exposure-table-head {
-      min-height: 42px;
-      padding: 0 18px;
-      border-bottom: 1px solid var(--line);
-      background: #f8fafc;
-      color: #7b8598;
-      font-size: 11px;
-      font-weight: 900;
+      min-height: 38px;
+      margin: 0;
+      padding: 9px 14px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fafbfc;
+      color: #8a93a5;
+      font-size: 11.5px;
+      font-weight: 800;
       text-align: center;
     }
     .exposure-table-head span:first-child,
     .exposure-table-row .exposure-cell-keyword { text-align: left; }
     .exposure-table-row {
-      min-height: 52px;
-      padding: 9px 18px;
-      border-bottom: 1px solid #edf0f4;
+      min-height: 58px;
+      margin: 8px 0 0;
+      padding: 10px 14px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fff;
       font-size: 12px;
+      transition: border-color .14s, background .14s;
     }
-    .exposure-table-row:last-child { border-bottom: 0; }
+    .exposure-table-row:hover { border-color: var(--line-strong); background: #fafbfc; }
+    .exposure-table-row:last-child { margin-bottom: 0; }
     .exposure-cell-keyword {
       min-width: 0;
       display: flex;
       align-items: center;
       gap: 8px;
       color: var(--ink);
-      font-weight: 900;
+      font-weight: 800;
     }
     .exposure-cell-rank {
       text-align: center;
       font-family: var(--font-mono);
       font-size: 14px;
-      font-weight: 900;
+      font-weight: 800;
       color: var(--ink);
     }
     .exposure-cell-muted {
@@ -690,7 +772,7 @@
       background: #e8f8ee;
       color: #16a34a;
       font-size: 11px;
-      font-weight: 900;
+      font-weight: 800;
     }
     .exposure-result-badge.missing { background: #f1f3f7; color: #7a8496; }
     .exposure-delta {
@@ -703,7 +785,7 @@
       background: #f1f3f7;
       color: #7a8496;
       font-size: 11px;
-      font-weight: 900;
+      font-weight: 800;
     }
     .exposure-delta.up { background: #e8f8ee; color: #16a34a; }
     .exposure-delta.down { background: #fff0f0; color: var(--danger); }
@@ -711,15 +793,28 @@
       display: grid;
       grid-template-columns: 60px 1fr 1.3fr 70px 32px;
       align-items: center;
-      gap: 10px;
-      padding: 8px 10px;
+      gap: 12px;
+      padding: 10px 14px;
       border: 1px solid var(--line);
       border-radius: var(--radius);
       background: #fff;
     }
     .exposure-cat-badge {
-      padding: 2px 7px; border-radius: 999px; text-align: center;
-      background: #f1f3f7; color: #69758a; font-size: 10px; font-weight: 800;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 42px;
+      min-width: 42px;
+      height: 24px;
+      padding: 0;
+      border-radius: 999px;
+      text-align: center;
+      background: #f1f3f7;
+      color: #69758a;
+      font-size: 11.5px;
+      font-weight: 800;
+      line-height: 1;
+      white-space: nowrap;
     }
     .exposure-cat-badge.main { background: var(--accent-soft); color: var(--accent); }
     .exposure-keyword { min-width: 0; font-size: 12.5px; font-weight: 800; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -728,19 +823,306 @@
       color: var(--sub); font-size: 11.5px; text-decoration: none;
     }
     .exposure-post-title:hover { color: var(--accent); text-decoration: underline; }
-    /* 경쟁사 블로그 — 최근 포스팅만 가볍게 확인하는 목적이라 제목+발행일 한 줄이면 충분하다 */
-    .competitor-post-list { display: flex; flex-direction: column; }
-    .competitor-post-row {
-      display: flex; align-items: center; justify-content: space-between; gap: 12px;
-      padding: 9px 4px; border-top: 1px solid var(--line); text-decoration: none;
+    /* 경쟁사 블로그 — 최근 포스팅 흐름을 내 블로그 카드 목록과 같은 밀도로 확인한다 */
+    .competitor-card-head { align-items: center; }
+    .competitor-controls { display: inline-flex; align-items: center; gap: 8px; }
+    .competitor-controls[hidden] { display: none !important; }
+    .competitor-card-head .store-select {
+      height: 34px;
+      min-width: 158px;
+      padding: 0 11px 0 13px;
+      gap: 12px;
+      font-size: 12.5px;
     }
-    .competitor-post-list .competitor-post-row:first-child { border-top: none; }
+    .competitor-card-head .store-caret svg { width: 12px; height: 12px; }
+    .competitor-controls .item-btn {
+      height: 42px;
+      padding: 0 16px;
+      border: 1px solid #dfe4ec;
+      border-radius: var(--radius);
+      background: #fff;
+      color: var(--sub);
+      font-family: inherit;
+      font-size: 12.5px;
+      font-weight: 800;
+      cursor: pointer;
+      transition: all .12s;
+      white-space: nowrap;
+    }
+    .competitor-controls .item-btn:hover { border-color: #c8cdd4; color: var(--ink); background: #fafbfc; }
+    .competitor-controls .item-btn.primary { background: #07111f; border-color: #07111f; color: #fff; }
+    .competitor-controls .item-btn.primary:hover { background: #111827; border-color: #111827; }
+    .competitor-controls .item-icon-btn {
+      width: 42px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .competitor-controls .item-icon-btn svg { width: 16px; height: 16px; }
+    .competitor-controls .item-icon-btn.collect {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: #fff;
+    }
+    .competitor-controls .item-icon-btn.collect:hover {
+      border-color: var(--accent-dark);
+      background: var(--accent-dark);
+      color: #fff;
+    }
+    .competitor-dashboard {
+      background: transparent;
+      padding: 0;
+      margin: 0;
+    }
+    .competitor-dash-tiles {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .competitor-dash-tile {
+      min-width: 0;
+      padding: 4px 2px;
+    }
+    .competitor-dash-tile + .competitor-dash-tile { border-left: 1px solid var(--line); padding-left: 14px; }
+    .competitor-dash-label {
+      color: #8a93a5;
+      font-size: 11px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    .competitor-dash-value {
+      margin-top: 2px;
+      color: var(--ink);
+      font-size: 21px;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+      white-space: nowrap;
+      line-height: 1.2;
+    }
+    .competitor-dash-value small {
+      margin-left: 4px;
+      color: var(--sub);
+      font-size: 11.5px;
+      font-weight: 700;
+    }
+    .competitor-dash-sub {
+      margin-top: 2px;
+      color: var(--sub);
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .competitor-dash-bar-wrap { margin-top: 14px; }
+    .competitor-dash-block-title {
+      margin-bottom: 8px;
+      color: var(--sub);
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .competitor-dash-bar { display: flex; gap: 2px; height: 12px; }
+    .competitor-dash-bar-seg { min-width: 3px; }
+    .competitor-dash-bar-seg:first-child { border-radius: 6px 0 0 6px; }
+    .competitor-dash-bar-seg:last-child { border-radius: 0 6px 6px 0; }
+    .competitor-dash-bar-seg:only-child { border-radius: 6px; }
+    .competitor-dash-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 8px; font-size: 11.5px; color: var(--sub); font-weight: 700; }
+    .competitor-dash-legend-item { display: inline-flex; align-items: center; gap: 5px; }
+    .competitor-dash-legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .competitor-dash-legend-item b { color: var(--ink); font-weight: 800; }
+    .competitor-insight-grid {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    .competitor-insight-card {
+      flex: 1 1 260px;
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 16px 18px;
+      background: #fff;
+    }
+    .competitor-insight-title {
+      margin-bottom: 12px;
+      color: var(--sub);
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .competitor-keyword-rank-list { display: flex; flex-direction: column; gap: 0; }
+    .competitor-keyword-rank {
+      display: grid;
+      grid-template-columns: 20px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 8px;
+      min-height: 38px;
+      padding: 9px 0;
+      border-bottom: 1px solid #f4f5f7;
+    }
+    .competitor-keyword-rank:last-child {
+      border-bottom: none;
+    }
+    .competitor-keyword-rank .rank-no {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--dark-tint);
+      color: var(--sub);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 800;
+    }
+    .competitor-keyword-rank .rank-name {
+      min-width: 0;
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .competitor-keyword-rank .rank-meta {
+      color: var(--accent);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    .competitor-blog-rank-list { display: flex; flex-direction: column; gap: 0; }
+    .competitor-blog-rank {
+      display: grid;
+      grid-template-columns: 20px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 8px;
+      min-height: 38px;
+      padding: 9px 0;
+      border-bottom: 1px solid #f4f5f7;
+    }
+    .competitor-blog-rank:last-child {
+      border-bottom: none;
+    }
+    .competitor-blog-rank .rank-no {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--dark-tint);
+      color: var(--sub);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 800;
+    }
+    .competitor-blog-rank .rank-name {
+      min-width: 0;
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .competitor-blog-rank .rank-meta {
+      color: var(--accent);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    .competitor-section-split {
+      height: 1px;
+      margin: 18px 0 16px;
+      background: var(--line);
+    }
+    .competitor-list-title-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+    .competitor-list-title {
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 900;
+    }
+    .competitor-list-sub {
+      color: var(--sub);
+      font-size: 11.5px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .competitor-post-card-section { margin-top: 18px; }
+    .competitor-post-list { display: flex; flex-direction: column; gap: 10px; }
+    .competitor-post-head,
+    .competitor-post-card {
+      display: grid;
+      grid-template-columns: 86px minmax(260px, 1fr) minmax(340px, 420px) 104px;
+      align-items: center;
+      gap: 14px;
+    }
+    .competitor-post-head {
+      min-height: 38px;
+      padding: 9px 14px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fafbfc;
+      color: #8a93a5;
+      font-size: 11.5px;
+      font-weight: 800;
+      text-align: center;
+    }
+    .competitor-post-head span:nth-child(2) { text-align: center; }
+    .competitor-post-card {
+      min-height: 76px;
+      padding: 10px 14px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fff;
+      text-decoration: none;
+      transition: border-color .14s, background .14s;
+    }
+    .competitor-post-card:hover { border-color: var(--line-strong); background: #fafbfc; }
+    .competitor-post-info { min-width: 0; }
     .competitor-post-title {
-      min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-      color: var(--ink); font-size: 13px; font-weight: 700;
+      display: block;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--ink);
+      font-size: 14px;
+      font-weight: 800;
+      text-decoration: none;
     }
-    .competitor-post-row:hover .competitor-post-title { color: var(--accent-dark); text-decoration: underline; text-underline-offset: 3px; }
-    .competitor-post-date { flex-shrink: 0; color: var(--sub); font-size: 11.5px; font-family: var(--font-mono); }
+    .competitor-post-card:hover .competitor-post-title { color: var(--accent-dark); text-decoration: underline; text-underline-offset: 3px; }
+    .competitor-post-sub { margin-top: 3px; font-size: 11.5px; color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .competitor-post-sub .post-date-inline { font-family: var(--font-mono); font-weight: 800; color: #687386; }
+    .competitor-keyword-cell { display: flex; align-items: center; justify-content: center; gap: 5px; min-height: 1px; min-width: 0; }
+    .competitor-keyword-chip {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      max-width: 100%;
+      min-height: 24px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: #f7f8fa;
+      color: var(--ink);
+      font-size: 12px;
+      line-height: 1.25;
+      font-weight: 900;
+      text-align: center;
+      white-space: nowrap;
+      overflow: visible;
+    }
+    .competitor-keyword-empty { color: #b0b8c5; font-size: 11.5px; font-weight: 800; }
+    .competitor-post-actions { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
     .exposure-rank { text-align: center; font-family: var(--font-mono); font-size: 13px; font-weight: 800; color: var(--ink); }
     .missing-keyword-wrap { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
     .missing-keyword-chip {
@@ -1557,6 +1939,8 @@
 
     @media (max-width: 1040px) {
       .summary-grid { grid-template-columns: repeat(3, 1fr); row-gap: 18px; }
+      .competitor-dash-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .competitor-dash-tile:nth-child(odd) { border-left: none; padding-left: 2px; }
       .summary-item:nth-child(3) { border-right: 0; }
       .rank-card { overflow-x: auto; }
       .table-head, .rank-row { min-width: 1040px; }
@@ -1568,6 +1952,7 @@
       .mode-title-tabs { gap: 22px; overflow-x: auto; }
       .mode-title-tab { font-size: 18px; white-space: nowrap; }
       .summary-grid { grid-template-columns: 1fr 1fr; }
+      .competitor-dash-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .summary-item { padding: 0 12px; }
       .summary-item:nth-child(2n) { border-right: 0; }
       .field-row { grid-template-columns: 1fr; }
@@ -1627,6 +2012,36 @@
   </header>
 
   <section class="blog-view blog-diagnosis-stack" id="blogDiagnosisView">
+    <div class="rank-sub-tabs" aria-label="블로그 진단 보기">
+      <div class="store-chips" id="diagnosisSubChips">
+        <button type="button" class="store-select" data-action="toggle-diagnosis-sub-menu" aria-label="블로그 진단 보기">
+          <span id="diagnosisSubLabel">에너가드컴퍼니</span>
+          <span class="store-caret" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
+          </span>
+        </button>
+        <div class="store-menu" role="menu">
+          <button type="button" class="store-chip active" data-diagnosis-sub-option="mine" role="menuitem">에너가드컴퍼니</button>
+          <button type="button" class="store-chip" data-diagnosis-sub-option="competitor" role="menuitem">경쟁업체 블로그</button>
+        </div>
+      </div>
+      <div class="competitor-controls" id="competitorDiagnosisActions" hidden>
+        <button class="item-btn item-icon-btn collect" type="button" aria-label="신규 포스팅 수집" title="신규 포스팅 수집" onclick="refreshCompetitorPosts()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12a9 9 0 0 1-15.5 6.2"></path>
+            <path d="M3 12a9 9 0 0 1 15.5-6.2"></path>
+            <path d="M18 3v4h-4"></path>
+            <path d="M6 21v-4h4"></path>
+          </svg>
+        </button>
+        <button class="item-btn item-icon-btn primary" type="button" aria-label="경쟁블로그 추가" title="경쟁블로그 추가" onclick="openCompetitorBlogModal()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 5v14"></path>
+            <path d="M5 12h14"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
     <div id="diagnosisList"></div>
   </section>
 
@@ -1724,13 +2139,109 @@ const BLOG_RANK_URL = `${SUPABASE_URL}/functions/v1/blog-rank`;
 let state = { blogs: [], posts: [], postKeywords: [], history: [], diagnosis: [], targetKeywords: [], exposureHistory: [], postTitleChecks: [], postContentChecks: [], postAiChecks: [], capabilities: {} };
 let toastTimer = 0;
 let rankSubView = "posts";
+let diagnosisSubView = "mine";
+let selectedCompetitorBlogId = "";
+let competitorPostsExpanded = false;
 const postRankProviderByKey = new Map();
 let postMemoTarget = null;
+const COMPETITOR_BLOG_ORDER = ["taewhainsulation", "jspark1963", "cons01", "djjs1850", "baro0904", "hyb0316"];
+
+function sortCompetitorBlogs(blogs) {
+  return [...blogs].sort((a, b) => {
+    const ai = COMPETITOR_BLOG_ORDER.indexOf(a.blog_id);
+    const bi = COMPETITOR_BLOG_ORDER.indexOf(b.blog_id);
+    const ao = ai === -1 ? 999 : ai;
+    const bo = bi === -1 ? 999 : bi;
+    return ao - bo || String(a.blog_name || a.blog_id).localeCompare(String(b.blog_name || b.blog_id), "ko");
+  });
+}
 
 function esc(value) {
   return String(value ?? "").replace(/[&<>"']/g, char => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
   })[char]);
+}
+
+function competitorPostKeywordHtml(blogId, logNo, title) {
+  const savedKeywords = activePostKeywordsForPost(blogId, logNo)
+    .map(row => String(row.keyword || "").trim())
+    .filter(Boolean);
+  const uniqueKeywords = [...new Set(savedKeywords)];
+  if (!uniqueKeywords.length) return `<span class="competitor-keyword-empty">-</span>`;
+  const visibleKeywords = uniqueKeywords.slice(0, 5);
+  const extraCount = uniqueKeywords.length - visibleKeywords.length;
+  const titleText = uniqueKeywords.join(", ");
+  return `${visibleKeywords.map(keyword => `<span class="competitor-keyword-chip" title="${esc(titleText)}">${esc(keyword)}</span>`).join("")}${extraCount > 0 ? `<span class="competitor-keyword-chip" title="${esc(titleText)}">+${extraCount}</span>` : ""}`;
+}
+
+function postTime(post) {
+  const time = new Date(post?.published_at || "").getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
+function daysSincePost(post) {
+  const time = postTime(post);
+  if (!time) return null;
+  return Math.max(0, Math.floor((Date.now() - time) / 86400000));
+}
+
+function competitorKeywordRows(posts) {
+  const postKeys = new Set(posts.map(post => `${post.blog_id}::${post.log_no}`));
+  return state.postKeywords.filter(row => row.active !== false && postKeys.has(`${row.blog_id}::${row.log_no}`));
+}
+
+function keywordStats(rows) {
+  const map = new Map();
+  rows.forEach(row => {
+    const keyword = String(row.keyword || "").trim();
+    if (!keyword) return;
+    const current = map.get(keyword) || { keyword, count: 0, blogs: new Set(), posts: new Set() };
+    current.count += 1;
+    current.blogs.add(row.blog_id);
+    current.posts.add(`${row.blog_id}::${row.log_no}`);
+    map.set(keyword, current);
+  });
+  return [...map.values()]
+    .map(item => ({ keyword: item.keyword, count: item.count, blogCount: item.blogs.size, postCount: item.posts.size }))
+    .sort((a, b) => b.postCount - a.postCount || b.blogCount - a.blogCount || a.keyword.localeCompare(b.keyword, "ko"));
+}
+
+function competitorKeywordRankHtml(stats, emptyText = "집계된 키워드가 없습니다.") {
+  if (!stats.length) return `<div class="empty-state" style="padding:8px 0;font-size:12px;">${esc(emptyText)}</div>`;
+  return `<div class="competitor-keyword-rank-list">${stats.slice(0, 5).map((item, index) => `
+    <div class="competitor-keyword-rank">
+      <span class="rank-no">${index + 1}</span>
+      <span class="rank-name" title="${esc(item.keyword)}">${esc(item.keyword)}</span>
+      <span class="rank-meta">${Number(item.postCount).toLocaleString()}건 · ${Number(item.blogCount).toLocaleString()}곳</span>
+    </div>`).join("")}</div>`;
+}
+
+function competitorBlogActivityHtml(items, emptyText = "집계된 업체 활동이 없습니다.") {
+  if (!items.length) return `<div class="empty-state" style="padding:8px 0;font-size:12px;">${esc(emptyText)}</div>`;
+  return `<div class="competitor-blog-rank-list">${items.slice(0, 5).map((item, index) => `
+    <div class="competitor-blog-rank">
+      <span class="rank-no">${index + 1}</span>
+      <span class="rank-name" title="${esc(item.name)}">${esc(item.name)}</span>
+      <span class="rank-meta">월 ${Number(item.recentCount).toLocaleString()}건 · 주 ${(item.recentCount / 4.3).toFixed(1)}건</span>
+    </div>`).join("")}</div>`;
+}
+
+function competitorUploadShareHtml(items) {
+  const activeItems = items.filter(item => item.recentCount > 0);
+  if (!activeItems.length) return "";
+  const colors = ["#e85d2f", "#f4a988", "#fbdccb", "#f5c3ad", "#f7d7c9"];
+  const total = activeItems.reduce((sum, item) => sum + item.recentCount, 0);
+  const visible = activeItems.slice(0, 5);
+  return `
+    <div class="competitor-dash-bar-wrap">
+      <div class="competitor-dash-block-title">업체별 최근 한달 발행량</div>
+      <div class="competitor-dash-bar" aria-label="최근 30일 업체별 업로드 비중">
+        ${visible.map((item, index) => `<span class="competitor-dash-bar-seg" style="flex:${item.recentCount};background:${colors[index % colors.length]};" title="${esc(item.name)} ${item.recentCount}건"></span>`).join("")}
+      </div>
+      <div class="competitor-dash-legend">
+        ${visible.map((item, index) => `<span class="competitor-dash-legend-item"><span class="competitor-dash-legend-dot" style="background:${colors[index % colors.length]};"></span>${esc(item.name)} <b>${item.recentCount}건</b> · ${Math.round(item.recentCount / total * 100)}%</span>`).join("")}
+      </div>
+    </div>`;
 }
 
 function showToast(message) {
@@ -2326,13 +2837,14 @@ function renderRows() {
       </div>`;
     return;
   }
-  // 경쟁사 블로그(is_mine=false)까지 여기 섞이면 안 된다 — 이 목록은 내 포스팅의 키워드 노출·
-  // AI 인용 점수를 추적하는 화면이라 남의 글이 낄 이유가 없다.
+  // 전체 포스팅은 내 블로그만 보여준다. 경쟁업체 포스팅은 블로그 진단의 경쟁업체 섹션 안에서만 다룬다.
   const blogById = new Map(mine.map(blog => [blog.blog_id, blog]));
   const posts = state.posts
     .map(post => ({ post, blog: blogById.get(post.blog_id) }))
     .filter(item => item.blog)
     .sort((a, b) => String(b.post.published_at || "").localeCompare(String(a.post.published_at || "")));
+  const cardTitle = "전체 포스팅";
+  const cardSubtitle = `등록한 블로그 포스팅 ${posts.length}개의 키워드 노출 상태를 확인합니다.`;
   const headHtml = `
     <div class="post-main-row head-row">
       <span></span><span>이미지</span><span>제목</span><span>상위노출 키워드</span><span>현재순위</span><span>변동</span><span>종합분석평가</span><span>관리</span>
@@ -2341,8 +2853,8 @@ function renderRows() {
     <div class="summary-mini-card app-card">
       <div class="summary-section-title-row app-card-head">
         <div class="summary-section-title-wrap app-card-title-wrap">
-          <span class="summary-section-title app-card-title">전체 포스팅</span>
-          <span class="summary-section-subtitle app-card-subtitle">등록된 블로그 포스팅 ${posts.length}개의 키워드 노출 상태를 확인합니다.</span>
+          <span class="summary-section-title app-card-title">${esc(cardTitle)}</span>
+          <span class="summary-section-subtitle app-card-subtitle">${esc(cardSubtitle)}</span>
         </div>
       </div>
       <div class="summary-divider"></div>
@@ -2794,7 +3306,8 @@ function renderExposureCard(blog, mode = "full") {
       .pop();
     const renderKeywordChip = kw => `
       <span class="exposure-monitor-chip${kw.category === "메인" ? " main" : ""}">
-        ${esc(kw.keyword)}
+        <span class="exposure-cat-badge${kw.category === "메인" ? " main" : ""}">${esc(kw.category)}</span>
+        <span class="exposure-monitor-keyword">${esc(kw.keyword)}</span>
         <button type="button" aria-label="${esc(kw.keyword)} 삭제" onclick="removeTargetKeywordHandler(${kw.id}, '${esc(kw.keyword)}')">&times;</button>
       </span>`;
     const keywordGroupsHtml = ["메인", "서브"].map(category => {
@@ -2855,34 +3368,59 @@ function renderExposureCard(blog, mode = "full") {
 
     return `
       <div class="blog-diagnosis-stack">
-        <section class="exposure-keyword-panel">
-          <div class="exposure-keyword-panel-head">
-            <div class="exposure-keyword-title">모니터링 키워드 <span class="exposure-count-pill">${keywords.length}개</span></div>
+        <section class="summary-mini-card app-card exposure-dashboard-section">
+          <div class="summary-section-title-row app-card-head">
+            <div class="summary-section-title-wrap app-card-title-wrap">
+              <span class="summary-section-title app-card-title">노출 현황 진단</span>
+              <span class="summary-section-subtitle app-card-subtitle">설정한 키워드의 노출 상태를 한눈에 확인합니다.</span>
+            </div>
+            <div class="exposure-check-time">체크 시각: ${checkedAt ? formatTime(checkedAt) : "-"}</div>
+          </div>
+          <div class="summary-divider"></div>
+          <div class="summary-section-body app-card-body">
+            <div class="exposure-stat-grid">${statCardsHtml}</div>
+          </div>
+        </section>
+
+        <section class="summary-mini-card app-card exposure-keyword-section">
+          <div class="summary-section-title-row app-card-head">
+            <div class="summary-section-title-wrap app-card-title-wrap">
+              <span class="summary-section-title app-card-title">모니터링 키워드</span>
+              <span class="summary-section-subtitle app-card-subtitle">메인·서브 키워드를 등록하고 진단을 수집합니다.</span>
+            </div>
             <div style="display:flex;gap:8px;flex-shrink:0;">
               <button class="diagnosis-refresh-btn" type="button" onclick="collectPostTitleCheckHandler('${esc(blog.blog_id)}')">제목 자가진단</button>
               <button class="diagnosis-refresh-btn" type="button" onclick="collectExposureHandler('${esc(blog.blog_id)}')">노출 진단 수집</button>
             </div>
           </div>
-          <div class="exposure-keyword-groups">${keywordGroupsHtml}</div>
-          <div class="post-keyword-add-row" style="margin-top:16px;">
-            <input type="text" placeholder="메인 키워드 추가 (쉼표로 여러 개)" onkeydown="if(event.key==='Enter') addTargetKeywordsBulk('${esc(blog.blog_id)}', '메인', this)">
-            <button class="keyword-add-btn" type="button" onclick="addTargetKeywordsBulk('${esc(blog.blog_id)}', '메인', this.previousElementSibling)">+ 메인 추가</button>
-          </div>
-          <div class="post-keyword-add-row">
-            <input type="text" placeholder="서브 키워드 추가 (쉼표로 여러 개)" onkeydown="if(event.key==='Enter') addTargetKeywordsBulk('${esc(blog.blog_id)}', '서브', this)">
-            <button class="keyword-add-btn" type="button" onclick="addTargetKeywordsBulk('${esc(blog.blog_id)}', '서브', this.previousElementSibling)">+ 서브 추가</button>
+          <div class="summary-divider"></div>
+          <div class="summary-section-body app-card-body">
+            <div class="exposure-keyword-groups">${keywordGroupsHtml}</div>
+            <div class="exposure-keyword-add-grid">
+              <input type="text" placeholder="메인 키워드 추가 (쉼표로 여러 개)" onkeydown="if(event.key==='Enter') addTargetKeywordsBulk('${esc(blog.blog_id)}', '메인', this)">
+              <button class="keyword-add-btn" type="button" onclick="addTargetKeywordsBulk('${esc(blog.blog_id)}', '메인', this.previousElementSibling)">+ 메인 추가</button>
+            </div>
+            <div class="exposure-keyword-add-grid">
+              <input type="text" placeholder="서브 키워드 추가 (쉼표로 여러 개)" onkeydown="if(event.key==='Enter') addTargetKeywordsBulk('${esc(blog.blog_id)}', '서브', this)">
+              <button class="keyword-add-btn" type="button" onclick="addTargetKeywordsBulk('${esc(blog.blog_id)}', '서브', this.previousElementSibling)">+ 서브 추가</button>
+            </div>
           </div>
         </section>
-        <div class="exposure-stat-grid">${statCardsHtml}</div>
-        <section class="exposure-result-card">
-          <div class="exposure-result-head">
-            <div class="exposure-result-title">키워드별 결과</div>
-            <div class="exposure-check-time">체크 시각: ${checkedAt ? formatTime(checkedAt) : "-"}</div>
+
+        <section class="summary-mini-card app-card exposure-result-section">
+          <div class="summary-section-title-row app-card-head">
+            <div class="summary-section-title-wrap app-card-title-wrap">
+              <span class="summary-section-title app-card-title">키워드별 결과</span>
+              <span class="summary-section-subtitle app-card-subtitle">키워드별 현재 순위와 노출 포스팅을 확인합니다.</span>
+            </div>
           </div>
-          <div class="exposure-table-head">
-            <span>키워드</span><span>현재 순위</span><span>이전 순위</span><span>변동</span><span>노출 포스팅</span><span>결과</span><span>관리</span>
+          <div class="summary-divider"></div>
+          <div class="summary-section-body app-card-body">
+            <div class="exposure-table-head">
+              <span>키워드</span><span>현재 순위</span><span>이전 순위</span><span>변동</span><span>노출 포스팅</span><span>결과</span><span>관리</span>
+            </div>
+            ${keywords.length ? tableRowsHtml : `<div class="empty-state" style="padding:24px 0;font-size:12px;">등록된 진단 키워드가 없습니다. 위에서 메인/서브 키워드를 추가해 주세요.</div>`}
           </div>
-          ${keywords.length ? tableRowsHtml : `<div class="empty-state" style="padding:24px 18px;font-size:12px;">등록된 진단 키워드가 없습니다. 위에서 메인/서브 키워드를 추가해 주세요.</div>`}
         </section>
       </div>`;
   }
@@ -3397,8 +3935,182 @@ function renderCompetitorBlogCard(blog) {
     </div>`;
 }
 
+function competitorPostCardHtml(blog, post) {
+  const memos = parseMemos(post.memo);
+  const memoTip = postMemoTipHtml(post);
+  return `
+    <div class="competitor-post-card">
+      ${postThumbHtml(post, true)}
+      <span class="competitor-post-info">
+        <a class="competitor-post-title" href="${esc(post.post_url)}" target="_blank" rel="noopener">${esc(post.title || post.log_no)}</a>
+        <span class="competitor-post-sub"><span class="post-date-inline">발행일 ${esc(formatDate(post.published_at))}</span></span>
+      </span>
+      <span class="competitor-keyword-cell" aria-label="주요 키워드">${competitorPostKeywordHtml(post.blog_id, post.log_no, post.title || "")}</span>
+      <span class="competitor-post-actions">
+        <button class="row-btn${memos.length ? " has-memo" : ""}" type="button" data-tip="메모" onclick="openPostMemoModal(event, '${esc(blog.blog_id)}', '${esc(post.log_no)}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"></path></svg>
+          ${memoTip}
+        </button>
+        <button class="row-btn" type="button" data-tip="주요 키워드 수정" onclick="event.stopPropagation(); editCompetitorPostKeywords('${esc(blog.blog_id)}', '${esc(post.log_no)}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path></svg>
+        </button>
+        <button class="row-btn collect-one" type="button" data-tip="이 포스팅 새로고침" onclick="event.stopPropagation(); refreshSinglePost('${esc(blog.blog_id)}', '${esc(post.log_no)}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><path d="M21 12a9 9 0 0 1-15.5 6.2"></path><path d="M3 12a9 9 0 0 1 15.5-6.2"></path><path d="M18 3v4h-4"></path><path d="M6 21v-4h4"></path></svg>
+        </button>
+      </span>
+    </div>`;
+}
+
+function renderCompetitorDashboard(selectedBlog, selectedPosts, competitors) {
+  const allCompetitorPosts = state.posts.filter(post => competitors.some(blog => blog.blog_id === post.blog_id));
+  const allKeywordRows = competitorKeywordRows(allCompetitorPosts);
+  const recentLimit = Date.now() - 30 * 86400000;
+  const weekLimit = Date.now() - 7 * 86400000;
+  const allRecentPosts = allCompetitorPosts.filter(post => postTime(post) >= recentLimit);
+  const weekPosts = allCompetitorPosts.filter(post => postTime(post) >= weekLimit);
+  const allStats = keywordStats(allKeywordRows);
+  const recentStats = keywordStats(competitorKeywordRows(allRecentPosts));
+  const latestPost = [...allCompetitorPosts].sort((a, b) => postTime(b) - postTime(a))[0] || null;
+  const latestDays = daysSincePost(latestPost);
+  const weeklyAvg = allRecentPosts.length ? (allRecentPosts.length / 4.3).toFixed(1) : "0";
+  const activeBlogCount = new Set(allCompetitorPosts.map(post => post.blog_id)).size;
+  const blogActivity = competitors.map(blog => {
+    const posts = allCompetitorPosts.filter(post => post.blog_id === blog.blog_id);
+    const recentPosts = posts.filter(post => postTime(post) >= recentLimit);
+    return {
+      name: blog.blog_name || blog.blog_id,
+      totalCount: posts.length,
+      recentCount: recentPosts.length,
+    };
+  }).sort((a, b) => b.recentCount - a.recentCount || b.totalCount - a.totalCount || a.name.localeCompare(b.name, "ko"));
+  const uploadShareHtml = competitorUploadShareHtml(blogActivity);
+
+  return `
+    <div class="competitor-dashboard" aria-label="경쟁업체 블로그 요약">
+      <div class="competitor-dash-tiles">
+        <div class="competitor-dash-tile">
+          <div class="competitor-dash-label">등록 업체</div>
+          <div class="competitor-dash-value">${competitors.length}<small>곳</small></div>
+          <div class="competitor-dash-sub">최근 글 확인 ${activeBlogCount}곳</div>
+        </div>
+        <div class="competitor-dash-tile">
+          <div class="competitor-dash-label">저장된 글</div>
+          <div class="competitor-dash-value">${allCompetitorPosts.length}<small>개</small></div>
+          <div class="competitor-dash-sub">업체 블로그에서 가져온 글</div>
+        </div>
+        <div class="competitor-dash-tile">
+          <div class="competitor-dash-label">최근 한달 새 글</div>
+          <div class="competitor-dash-value">${allRecentPosts.length}<small>개</small></div>
+          <div class="competitor-dash-sub">업체 전체 · 주 평균 ${weeklyAvg}개</div>
+        </div>
+        <div class="competitor-dash-tile">
+          <div class="competitor-dash-label">최근 일주일 새 글</div>
+          <div class="competitor-dash-value">${weekPosts.length}<small>개</small></div>
+          <div class="competitor-dash-sub">${latestDays == null ? "최근 글 없음" : latestDays === 0 ? "오늘 새 글 있음" : `최근 ${latestDays}일 전 등록`}</div>
+        </div>
+      </div>
+      ${uploadShareHtml}
+      <div class="summary-divider" style="margin:18px 0;"></div>
+      <div class="competitor-insight-grid" aria-label="경쟁 키워드 인사이트">
+        <div class="competitor-insight-card">
+          <div class="competitor-insight-title">많이 사용되는 키워드</div>
+          ${competitorKeywordRankHtml(allStats, "저장된 주요 키워드가 아직 없습니다.")}
+        </div>
+        <div class="competitor-insight-card">
+          <div class="competitor-insight-title">최근 뜨는 키워드</div>
+          ${competitorKeywordRankHtml(recentStats, "최근 한달 주요 키워드가 없습니다.")}
+        </div>
+        <div class="competitor-insight-card">
+          <div class="competitor-insight-title">업체별 업로드 빈도</div>
+          ${competitorBlogActivityHtml(blogActivity, "수집된 업체 글이 없습니다.")}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderCompetitorBlogSection() {
+  const competitors = sortCompetitorBlogs(state.blogs.filter(blog => !blog.is_mine));
+  if (!competitors.length) {
+    return `
+      <div class="summary-mini-card app-card">
+        <div class="summary-section-title-row app-card-head">
+          <div class="summary-section-title-wrap app-card-title-wrap">
+            <span class="summary-section-title app-card-title">경쟁업체 블로그 확인</span>
+            <span class="summary-section-subtitle app-card-subtitle">등록한 경쟁업체 블로그의 최근 포스팅을 한 곳에서 확인합니다.</span>
+          </div>
+        </div>
+        <div class="summary-divider"></div>
+        <div class="summary-section-body app-card-body">
+          <div class="empty-state" style="padding:32px 4px;font-size:12px;">등록한 경쟁업체 블로그가 없습니다. 블로그 추가에서 경쟁업체 블로그를 등록해 주세요.</div>
+        </div>
+      </div>`;
+  }
+
+  if (!selectedCompetitorBlogId || !competitors.some(blog => blog.blog_id === selectedCompetitorBlogId)) {
+    selectedCompetitorBlogId = competitors[0].blog_id;
+    competitorPostsExpanded = false;
+  }
+
+  const selectedBlog = competitors.find(blog => blog.blog_id === selectedCompetitorBlogId) || competitors[0];
+  const allPosts = state.posts
+    .filter(p => p.blog_id === selectedBlog.blog_id)
+    .sort((a, b) => String(b.published_at || "").localeCompare(String(a.published_at || "")));
+  const visiblePosts = competitorPostsExpanded ? allPosts : allPosts.slice(0, 5);
+  const dashboardHtml = renderCompetitorDashboard(selectedBlog, allPosts, competitors);
+
+  return `
+    <div class="summary-mini-card app-card">
+      <div class="summary-section-title-row app-card-head competitor-card-head">
+        <div class="summary-section-title-wrap app-card-title-wrap">
+          <span class="summary-section-title app-card-title">경쟁업체 블로그 확인</span>
+          <span class="summary-section-subtitle app-card-subtitle">경쟁업체 블로그의 최근 포스팅 흐름을 빠르게 확인합니다.</span>
+        </div>
+      </div>
+      <div class="summary-divider"></div>
+      <div class="summary-section-body app-card-body">
+        ${dashboardHtml}
+      </div>
+    </div>
+    <div class="summary-mini-card app-card competitor-post-card-section">
+      <div class="summary-section-title-row app-card-head competitor-card-head">
+        <div class="summary-section-title-wrap app-card-title-wrap">
+          <span class="summary-section-title app-card-title">최근 경쟁업체 포스팅</span>
+          <span class="summary-section-subtitle app-card-subtitle">${esc(selectedBlog.blog_name || selectedBlog.blog_id)} · ${allPosts.length}개</span>
+        </div>
+        <div class="competitor-controls">
+          <div class="store-chips" id="competitorBlogChips">
+            <button type="button" class="store-select" data-action="toggle-competitor-menu" aria-label="경쟁업체 블로그 선택">
+              <span>${esc(selectedBlog.blog_name || selectedBlog.blog_id)}</span>
+              <span class="store-caret" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
+              </span>
+            </button>
+            <div class="store-menu" role="menu">
+              ${competitors.map(blog => `
+                <button type="button" class="store-chip${blog.blog_id === selectedBlog.blog_id ? " active" : ""}" data-competitor-blog="${esc(blog.blog_id)}" role="menuitem">${esc(blog.blog_name || blog.blog_id)}</button>
+              `).join("")}
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="summary-divider"></div>
+      <div class="summary-section-body app-card-body">
+        ${allPosts.length
+          ? `<div class="competitor-post-list">
+              <div class="competitor-post-head"><span>이미지</span><span>제목</span><span>주요 키워드</span><span>관리</span></div>
+              ${visiblePosts.map(post => competitorPostCardHtml(selectedBlog, post)).join("")}
+            </div>
+            ${allPosts.length > 5 ? `<div class="recent-post-more-wrap"><button type="button" class="summary-top3-more" onclick="toggleCompetitorPosts()">${competitorPostsExpanded ? "접기" : "이 업체 전체 포스팅 보기"} <span>${competitorPostsExpanded ? "-" : "+"}</span></button></div>` : ""}`
+          : `<div class="empty-state" style="padding:24px 4px;font-size:12px;">불러온 포스팅이 없습니다. 선택한 블로그의 포스팅을 새로고침해 주세요.</div>`}
+      </div>
+    </div>`;
+}
+
 function diagnosisPlaceholderCardsHtml() {
-  const competitors = state.blogs.filter(blog => !blog.is_mine);
+  return renderCompetitorBlogSection();
+/*
+  const competitors = sortCompetitorBlogs(state.blogs.filter(blog => !blog.is_mine));
   if (!competitors.length) {
     return `
       <div class="summary-mini-card app-card">
@@ -3415,10 +4127,15 @@ function diagnosisPlaceholderCardsHtml() {
       </div>`;
   }
   return competitors.map(blog => renderCompetitorBlogCard(blog)).join("");
+*/
 }
 
 function renderDiagnosis() {
   const list = document.getElementById("diagnosisList");
+  if (diagnosisSubView === "competitor") {
+    list.innerHTML = diagnosisPlaceholderCardsHtml();
+    return;
+  }
   const mine = state.blogs.filter(blog => blog.is_mine);
   if (!mine.length) {
     list.innerHTML = `
@@ -3430,9 +4147,48 @@ function renderDiagnosis() {
       </div>`;
     return;
   }
-  list.innerHTML = mine.map(blog => renderDiagnosisCard(blog) + renderMetricTrendCard(blog) + renderExposureCard(blog, "compact") + renderRecentPostsCard(blog)).join("") + diagnosisPlaceholderCardsHtml();
+  list.innerHTML = mine.map(blog => renderDiagnosisCard(blog) + renderMetricTrendCard(blog) + renderExposureCard(blog, "compact") + renderRecentPostsCard(blog)).join("");
   // 매출 추이 차트와 같은 방식 — placeholder를 DOM에 꽂은 뒤에야 SVG를 그릴 수 있다.
   mine.forEach(blog => mountMetricTrendChart(blog.blog_id));
+}
+
+function setCompetitorBlog(blogId) {
+  selectedCompetitorBlogId = blogId;
+  competitorPostsExpanded = false;
+  renderDiagnosis();
+}
+
+function toggleCompetitorPosts() {
+  competitorPostsExpanded = !competitorPostsExpanded;
+  renderDiagnosis();
+}
+
+async function refreshCompetitorPosts(blogId = "") {
+  const targets = blogId ? [blogId] : sortCompetitorBlogs(state.blogs.filter(blog => !blog.is_mine && blog.active !== false)).map(blog => blog.blog_id);
+  if (!targets.length) {
+    showToast("새로고침할 경쟁업체 블로그가 없습니다.");
+    return;
+  }
+  showLoading("경쟁업체 블로그의 신규 포스팅을 확인하는 중입니다.");
+  try {
+    const data = await callApi("refreshRecent", blogId ? { blogId } : { scope: "competitor" });
+    state = data;
+    if (!selectedCompetitorBlogId || !targets.includes(selectedCompetitorBlogId)) {
+      selectedCompetitorBlogId = targets[0];
+    }
+    renderAll();
+    const errors = data.errors || [];
+    if (errors.length) {
+      showToast(`신규 포스팅 확인 완료 · ${errors.length}건은 확인 필요`);
+      console.warn("경쟁업체 신규 포스팅 확인 필요", errors);
+    } else {
+      showToast(`경쟁업체 블로그 ${targets.length}곳의 신규 포스팅을 확인했습니다.`);
+    }
+  } catch (error) {
+    showToast(error.message);
+  } finally {
+    hideLoading();
+  }
 }
 
 function renderAll() {
@@ -3481,6 +4237,11 @@ function openModal() {
   document.getElementById("targetModal").classList.add("show");
   document.getElementById("targetModal").setAttribute("aria-hidden", "false");
   setTimeout(() => document.getElementById("blogUrlInput").focus(), 50);
+}
+
+function openCompetitorBlogModal() {
+  document.getElementById("isMineInput").checked = false;
+  openModal();
 }
 
 function closeModal() {
@@ -3595,6 +4356,38 @@ async function refreshPosts(blogId) {
     state = await callApi("refreshPosts", { blogId });
     renderAll();
     showToast("포스팅 목록을 새로고침했습니다.");
+  } catch (error) {
+    showToast(error.message);
+  } finally {
+    hideLoading();
+  }
+}
+
+async function refreshSinglePost(blogId, logNo) {
+  showLoading("선택한 포스팅을 새로고침하는 중입니다.");
+  try {
+    state = await callApi("collectPostContentCheck", { blogId, logNo });
+    renderAll();
+    showToast("선택한 포스팅을 새로고침했습니다.");
+  } catch (error) {
+    showToast(error.message);
+  } finally {
+    hideLoading();
+  }
+}
+
+async function editCompetitorPostKeywords(blogId, logNo) {
+  const currentKeywords = activePostKeywordsForPost(blogId, logNo)
+    .map(row => String(row.keyword || "").trim())
+    .filter(Boolean);
+  const nextValue = prompt("주요 키워드를 쉼표로 구분해서 입력해 주세요.", [...new Set(currentKeywords)].join(", "));
+  if (nextValue === null) return;
+  const keywords = [...new Set(nextValue.split(",").map(value => value.trim()).filter(Boolean))];
+  showLoading("주요 키워드를 저장하는 중입니다.");
+  try {
+    state = await callApi("replacePostKeywords", { blogId, logNo, keywords });
+    renderAll();
+    showToast(keywords.length ? `주요 키워드 ${keywords.length}개를 저장했습니다.` : "주요 키워드를 비웠습니다.");
   } catch (error) {
     showToast(error.message);
   } finally {
@@ -3796,6 +4589,18 @@ function setRankSubView(view) {
   if (exposureView) exposureView.hidden = rankSubView !== "exposure";
 }
 
+function setDiagnosisSubView(view) {
+  diagnosisSubView = view === "competitor" ? "competitor" : "mine";
+  const label = document.getElementById("diagnosisSubLabel");
+  if (label) label.textContent = diagnosisSubView === "competitor" ? "경쟁업체 블로그" : "에너가드컴퍼니";
+  document.querySelectorAll("[data-diagnosis-sub-option]").forEach(option => {
+    option.classList.toggle("active", option.dataset.diagnosisSubOption === diagnosisSubView);
+  });
+  const competitorActions = document.getElementById("competitorDiagnosisActions");
+  if (competitorActions) competitorActions.hidden = diagnosisSubView !== "competitor";
+  renderDiagnosis();
+}
+
 function setBlogView(view) {
   const nextView = view === "diagnosis" ? "diagnosis" : "rank";
   document.querySelectorAll("[data-blog-view]").forEach(tab => {
@@ -3804,11 +4609,14 @@ function setBlogView(view) {
   document.getElementById("blogDiagnosisView").hidden = nextView !== "diagnosis";
   document.getElementById("blogRankView").hidden = nextView !== "rank";
   document.getElementById("rankHeadActions").hidden = nextView !== "rank";
+  const competitorActions = document.getElementById("competitorDiagnosisActions");
+  if (competitorActions) competitorActions.hidden = nextView !== "diagnosis" || diagnosisSubView !== "competitor";
 }
 
 function goToAllPosts() {
   setBlogView("rank");
   setRankSubView("posts");
+  renderRows();
   document.getElementById("blogRankView")?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -3819,6 +4627,38 @@ document.querySelector(".app-title-tabs")?.addEventListener("click", event => {
 });
 
 document.addEventListener("click", event => {
+  const diagnosisToggle = event.target.closest('[data-action="toggle-diagnosis-sub-menu"]');
+  const diagnosisOption = event.target.closest("[data-diagnosis-sub-option]");
+  const diagnosisChips = document.getElementById("diagnosisSubChips");
+  if (diagnosisToggle) {
+    diagnosisChips?.classList.toggle("open");
+    return;
+  }
+  if (diagnosisOption) {
+    setDiagnosisSubView(diagnosisOption.dataset.diagnosisSubOption);
+    diagnosisChips?.classList.remove("open");
+    return;
+  }
+  if (diagnosisChips && !event.target.closest("#diagnosisSubChips")) {
+    diagnosisChips.classList.remove("open");
+  }
+
+  const competitorToggle = event.target.closest('[data-action="toggle-competitor-menu"]');
+  const competitorOption = event.target.closest("[data-competitor-blog]");
+  const competitorChips = document.getElementById("competitorBlogChips");
+  if (competitorToggle) {
+    competitorChips?.classList.toggle("open");
+    return;
+  }
+  if (competitorOption) {
+    setCompetitorBlog(competitorOption.dataset.competitorBlog);
+    competitorChips?.classList.remove("open");
+    return;
+  }
+  if (competitorChips && !event.target.closest("#competitorBlogChips")) {
+    competitorChips.classList.remove("open");
+  }
+
   const subToggle = event.target.closest('[data-action="toggle-rank-sub-menu"]');
   const subOption = event.target.closest("[data-rank-sub-option]");
   const subChips = document.getElementById("rankSubChips");
@@ -3828,6 +4668,7 @@ document.addEventListener("click", event => {
   }
   if (subOption) {
     setRankSubView(subOption.dataset.rankSubOption);
+    renderRows();
     subChips?.classList.remove("open");
     return;
   }

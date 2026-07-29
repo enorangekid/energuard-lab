@@ -85,6 +85,10 @@ interface PostContentAnalysis {
   has_table: boolean;
 }
 
+interface PostContentAnalysisResult extends PostContentAnalysis {
+  body_text: string;
+}
+
 interface PostAiJudgment {
   conclusion_first: boolean | null;
   structured_flow: boolean | null;
@@ -721,9 +725,157 @@ function extractBodyParagraphs(rawHtml: string): string[] {
     .filter(Boolean);
 }
 
+const COMPETITOR_KEYWORD_RULES: Array<{ label: string; aliases: string[] }> = [
+  { label: "PF보드", aliases: ["pf보드", "피에프보드", "페놀폼보드"] },
+  { label: "PF보드단열재", aliases: ["pf보드단열재", "pf 보드 단열재"] },
+  { label: "심재준불연", aliases: ["심재준불연", "심재 준불연"] },
+  { label: "심재준불연단열재", aliases: ["심재준불연단열재", "심재 준불연 단열재"] },
+  { label: "준불연단열재", aliases: ["준불연단열재", "준불연 단열재"] },
+  { label: "준불연비드법", aliases: ["준불연비드법", "준불연 비드법"] },
+  { label: "불연단열재", aliases: ["불연단열재", "불연 단열재"] },
+  { label: "열반사단열재", aliases: ["열반사단열재", "열반사 단열재", "열반사"] },
+  { label: "저방사단열재", aliases: ["저방사단열재", "저방사 단열재"] },
+  { label: "은박시트", aliases: ["은박시트", "은박 시트", "은박시트지"] },
+  { label: "비드법단열재", aliases: ["비드법단열재", "비드법 단열재"] },
+  { label: "비드법보온판", aliases: ["비드법보온판", "비드법 보온판"] },
+  { label: "비드법1종", aliases: ["비드법1종", "비드법 1종"] },
+  { label: "비드법2종", aliases: ["비드법2종", "비드법 2종"] },
+  { label: "스티로폼단열재", aliases: ["스티로폼단열재", "스티로폼 단열재"] },
+  { label: "스티로폼", aliases: ["스티로폼"] },
+  { label: "압출법단열재", aliases: ["압출법단열재", "압출법 단열재"] },
+  { label: "압출법보온판", aliases: ["압출법보온판", "압출법 보온판"] },
+  { label: "아이소핑크단열재", aliases: ["아이소핑크단열재", "아이소핑크 단열재"] },
+  { label: "아이소핑크", aliases: ["아이소핑크"] },
+  { label: "아이소핑크가격", aliases: ["아이소핑크가격", "아이소핑크 가격", "아이소핑크단가", "아이소핑크 단가"] },
+  { label: "경질우레탄보드", aliases: ["경질우레탄보드", "경질 우레탄 보드"] },
+  { label: "경질우레탄단열재", aliases: ["경질우레탄단열재", "경질 우레탄 단열재"] },
+  { label: "페놀폼단열재", aliases: ["페놀폼단열재", "페놀폼 단열재"] },
+  { label: "페놀폼", aliases: ["페놀폼"] },
+  { label: "글라스울단열재", aliases: ["글라스울단열재", "글라스울 단열재", "그라스울단열재", "그라스울 단열재"] },
+  { label: "글라스울", aliases: ["글라스울", "그라스울"] },
+  { label: "미네랄울", aliases: ["미네랄울", "미네랄 울"] },
+  { label: "복합단열재", aliases: ["복합단열재", "복합 단열재"] },
+  { label: "단열벽지", aliases: ["단열벽지", "단열 벽지"] },
+  { label: "이보드", aliases: ["이보드"] },
+  { label: "로이보드", aliases: ["로이보드"] },
+  { label: "골드폭스보드", aliases: ["골드폭스보드", "골드 폭스 보드"] },
+  { label: "뉴골드폭스보드", aliases: ["뉴골드폭스보드", "뉴 골드 폭스 보드"] },
+  { label: "석고보드", aliases: ["석고보드", "석고 보드"] },
+  { label: "건축외장재", aliases: ["건축외장재", "건축 외장재"] },
+  { label: "외장재", aliases: ["외장재"] },
+  { label: "알루미늄스펜드럴", aliases: ["알루미늄스펜드럴", "알루미늄 스펜드럴", "알루미늄스팬드럴", "알루미늄 스팬드럴"] },
+  { label: "스펜드럴", aliases: ["스펜드럴", "스팬드럴"] },
+  { label: "리빙보드", aliases: ["리빙보드", "리빙 보드"] },
+  { label: "PVC천장", aliases: ["pvc천장", "pvc 천장", "pvc천장재", "pvc 천장재"] },
+  { label: "욕실마감재", aliases: ["욕실마감재", "욕실 마감재", "욕실천장마감재", "욕실 천장 마감재"] },
+  { label: "천장마감재", aliases: ["천장마감재", "천장 마감재", "천장재", "천장 마감"] },
+  { label: "MLH합판", aliases: ["mlh합판", "mlh 합판", "hlh합판", "hlh 합판"] },
+  { label: "콤비합판", aliases: ["콤비합판", "콤비 합판"] },
+  { label: "합판", aliases: ["합판"] },
+  { label: "층간차음재", aliases: ["층간차음재", "층간 차음재"] },
+  { label: "보드매트", aliases: ["보드매트", "보드 매트"] },
+  { label: "방수석고보드", aliases: ["방수석고보드", "방수 석고보드"] },
+  { label: "천장텍스", aliases: ["천장텍스", "천장 텍스"] },
+  { label: "합성데크", aliases: ["합성데크", "합성 데크"] },
+  { label: "조립식판넬", aliases: ["조립식판넬", "조립식 판넬", "조립식패널"] },
+  { label: "화스너", aliases: ["화스너", "파스너"] },
+  { label: "폼본드", aliases: ["폼본드", "폼 본드"] },
+  { label: "몰탈", aliases: ["몰탈", "모르타르"] },
+  { label: "단열재시공", aliases: ["단열재시공", "단열재 시공", "단열공사", "단열 공사"] },
+  { label: "단열재업체", aliases: ["단열재업체", "단열재 업체", "단열공사업체"] },
+  { label: "단열재종류", aliases: ["단열재종류", "단열재 종류"] },
+  { label: "단열효과", aliases: ["단열효과", "단열 효과"] },
+  { label: "결로방지", aliases: ["결로방지", "결로 방지"] },
+  { label: "천장단열", aliases: ["천장단열", "천장 단열"] },
+  { label: "EPS", aliases: ["eps", "eps단열재", "eps 단열재"] },
+  { label: "XPS", aliases: ["xps", "xps단열재", "xps 단열재"] },
+  { label: "PUR", aliases: ["pur"] },
+  { label: "LXPF보드", aliases: ["lxpf보드", "lx pf보드", "lx하우시스 pf보드"] },
+  { label: "KCC", aliases: ["kcc"] },
+];
+
+const COMPETITOR_KEYWORD_NOISE = [
+  "블루인슈텍", "태화단열", "하이홈테크", "바로상사", "가인산업", "한국산업단열",
+  "알려드립니다", "알려드리겠습니다", "전문업체가", "전문업체", "구매하는법",
+  "쉽게", "좋은부분", "확인해야", "가능합니다", "좋은가요", "있나요", "하나요",
+];
+
+function compactKeywordText(value: string) {
+  return value.toLowerCase().replace(/[\s\-_/·.,()[\]{}'"“”‘’!?…:|]/g, "");
+}
+
+function keywordHitCount(compactText: string, alias: string) {
+  const compactAlias = compactKeywordText(alias);
+  if (!compactAlias) return 0;
+  let count = 0;
+  let index = compactText.indexOf(compactAlias);
+  while (index !== -1) {
+    count += 1;
+    index = compactText.indexOf(compactAlias, index + compactAlias.length);
+  }
+  return count;
+}
+
+function addKeywordScore(scores: Map<string, number>, label: string, score: number) {
+  const compact = compactKeywordText(label);
+  if (!compact || COMPETITOR_KEYWORD_NOISE.some((noise) => compact.includes(compactKeywordText(noise)))) return;
+  scores.set(label, Math.max(scores.get(label) || 0, score));
+}
+
+function extractCompetitorKeywords(title: string, bodyText: string) {
+  const titleCompact = compactKeywordText(title);
+  const bodyCompact = compactKeywordText(bodyText.slice(0, 6000));
+  const scores = new Map<string, number>();
+  const titleMatched = new Set<string>();
+
+  for (const rule of COMPETITOR_KEYWORD_RULES) {
+    let score = 0;
+    let hasTitleHit = false;
+    for (const alias of rule.aliases) {
+      const titleHits = keywordHitCount(titleCompact, alias);
+      const bodyHits = keywordHitCount(bodyCompact, alias);
+      if (titleHits) {
+        score += titleHits * 100;
+        hasTitleHit = true;
+      }
+      if (bodyHits) score += Math.min(bodyHits, 3) * 2;
+    }
+    if (hasTitleHit) titleMatched.add(rule.label);
+    if (score > 0) addKeywordScore(scores, rule.label, score);
+  }
+
+  const titleNoSpace = compactKeywordText(title);
+  const regionMatch = title.match(/(서울|인천|용인|수원|경기|김포|부산|대구|대전|광주|천안|평택|화성|남양주)/);
+  if (regionMatch && /(단열재|단열공사|단열업체|보온재)/.test(title)) {
+    addKeywordScore(scores, `${regionMatch[1]}단열재업체`, 10);
+  }
+  if (/(가격|단가|저렴|싸게|구매|판매)/.test(title) && titleNoSpace.includes("단열재")) {
+    addKeywordScore(scores, "단열재구매", 8);
+  }
+
+  let ranked = [...scores.entries()]
+    .sort((a, b) => b[1] - a[1] || b[0].length - a[0].length || a[0].localeCompare(b[0], "ko"));
+  if (titleMatched.size >= 2) {
+    const titleRows = ranked.filter(([keyword]) => titleMatched.has(keyword));
+    ranked = titleRows;
+  }
+
+  const selected: string[] = [];
+  for (const [keyword] of ranked) {
+    const compact = compactKeywordText(keyword);
+    if (selected.some((existing) => {
+      const exist = compactKeywordText(existing);
+      return exist.includes(compact) || compact.includes(exist);
+    })) continue;
+    selected.push(keyword);
+    if (selected.length >= 5) break;
+  }
+  return selected;
+}
+
 /* 게시글 진단 모달용 — 모바일 페이지(m.blog.naver.com)를 열어 본문 분석 지표를 뽑는다.
    공감(좋아요) 수는 이 정적 페이지 안에 없어서(별도 API로 로드되는 것으로 보임) 제외했다. */
-async function fetchPostContentAnalysis(blogId: string, logNo: string): Promise<PostContentAnalysis> {
+async function fetchPostContentAnalysis(blogId: string, logNo: string): Promise<PostContentAnalysisResult> {
   const response = await fetch(`https://m.blog.naver.com/${encodeURIComponent(blogId)}/${encodeURIComponent(logNo)}`, {
     headers: { "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1" },
   });
@@ -764,6 +916,7 @@ async function fetchPostContentAnalysis(blogId: string, logNo: string): Promise<
   }
 
   const bodyParagraphs = extractBodyParagraphs(text);
+  const bodyText = bodyParagraphs.join("\n");
   const charCount = bodyParagraphs.length ? bodyParagraphs.join("").length : null;
 
   // 실제 마크업은 class="se-component se-quotation se-l-..."라 class="se-quotation"(값이 그것만
@@ -791,6 +944,7 @@ async function fetchPostContentAnalysis(blogId: string, logNo: string): Promise<
     external_link_count: externalLinkCount,
     has_list: hasList,
     has_table: hasTable,
+    body_text: bodyText,
   };
 }
 
@@ -1028,16 +1182,28 @@ async function collectPostTitleCheck(body: Record<string, unknown>) {
 
 async function savePostContentAnalysis(blogId: string, logNo: string) {
   const analysis = await fetchPostContentAnalysis(blogId, logNo);
+  const { body_text: bodyText, ...contentAnalysis } = analysis;
   await db("blog_rank_post_content_check?on_conflict=blog_id,log_no", {
     method: "POST",
     headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
     body: JSON.stringify([{
       blog_id: blogId,
       log_no: logNo,
-      ...analysis,
+      ...contentAnalysis,
       checked_at: new Date().toISOString(),
     }]),
   });
+
+  const [blog] = await db(`blog_rank_blogs?select=is_mine&blog_id=eq.${encodeURIComponent(blogId)}&limit=1`) as Array<{ is_mine: boolean }>;
+  if (blog && !blog.is_mine) {
+    const [post] = await db(`blog_rank_posts?select=title&blog_id=eq.${encodeURIComponent(blogId)}&log_no=eq.${encodeURIComponent(logNo)}&limit=1`) as Array<{ title: string | null }>;
+    const keywords = extractCompetitorKeywords(post?.title || "", bodyText);
+    await db(`blog_rank_post_keywords?blog_id=eq.${encodeURIComponent(blogId)}&log_no=eq.${encodeURIComponent(logNo)}&source=eq.auto`, {
+      method: "DELETE",
+      headers: { Prefer: "return=minimal" },
+    });
+    await saveKeywordsForPost(blogId, logNo, keywords, "auto", "desktop", 300);
+  }
 }
 
 async function fetchPostThumbnail(blogId: string, logNo: string): Promise<string | null> {
@@ -1191,6 +1357,7 @@ async function refreshPosts(blogId: string) {
       headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
       body: JSON.stringify(posts),
     });
+    await backfillThumbnailsForLogNos(blogId, posts.slice(0, 50).map((post) => post.log_no), Date.now() + 90_000);
   }
   return listData();
 }
@@ -1245,6 +1412,29 @@ async function addPostKeyword(body: Record<string, unknown>) {
 async function removePostKeyword(id: number) {
   if (!id) throw new Error("삭제할 키워드가 없습니다.");
   await db(`blog_rank_post_keywords?id=eq.${id}`, { method: "DELETE", headers: { Prefer: "return=minimal" } });
+  return listData();
+}
+
+async function replacePostKeywords(body: Record<string, unknown>) {
+  const blogId = cleanText(body.blogId);
+  const logNo = cleanText(body.logNo);
+  const keywords = Array.from(new Set(
+    (Array.isArray(body.keywords) ? body.keywords : cleanText(body.keyword).split(","))
+      .map(cleanText)
+      .filter(Boolean),
+  ));
+  if (!blogId || !logNo) throw new Error("포스팅을 확인할 수 없습니다.");
+
+  await db(`blog_rank_post_keywords?blog_id=eq.${encodeURIComponent(blogId)}&log_no=eq.${encodeURIComponent(logNo)}`, {
+    method: "DELETE",
+    headers: { Prefer: "return=minimal" },
+  });
+
+  if (keywords.length) {
+    const device: Device = body.device === "mobile" ? "mobile" : "desktop";
+    const maxRank = [100, 300, 500, 1000].includes(Number(body.maxRank)) ? Number(body.maxRank) : 300;
+    await saveKeywordsForPost(blogId, logNo, keywords, "manual", device, maxRank);
+  }
   return listData();
 }
 
@@ -1373,13 +1563,15 @@ async function backfillThumbnailsForLogNos(blogId: string, logNos: string[], dea
   return errors;
 }
 
-/* 신규 포스팅 수집 — 등록된 내 블로그 RSS만 확인해서 새 글 목록을 추가한다.
+/* 신규 포스팅 수집 — 등록된 블로그 RSS만 확인해서 새 글 목록을 추가한다.
    순위/썸네일/본문/AI 분석은 각각 카드 관리 아이콘에서 분리해서 실행한다. */
 async function refreshRecent(body: Record<string, unknown>) {
   const blogId = cleanText(body.blogId);
+  const scope = cleanText(body.scope);
+  const mineFilter = scope === "competitor" ? "is_mine=eq.false" : "is_mine=eq.true";
   const refreshTargets = blogId
     ? [blogId]
-    : ((await db("blog_rank_blogs?select=blog_id&is_mine=eq.true&active=eq.true")) as Array<{ blog_id: string }> || []).map((b) => b.blog_id);
+    : ((await db(`blog_rank_blogs?select=blog_id&${mineFilter}&active=eq.true`)) as Array<{ blog_id: string }> || []).map((b) => b.blog_id);
   if (!refreshTargets.length) throw new Error("새로고침할 블로그가 없습니다.");
 
   const deadline = Date.now() + 60_000;
@@ -1559,6 +1751,7 @@ Deno.serve(async (request) => {
     if (action === "refreshPosts") return json(await refreshPosts(cleanText(body.blogId)));
     if (action === "addPostKeyword") return json(await addPostKeyword(body));
     if (action === "removePostKeyword") return json(await removePostKeyword(Number(body.id)));
+    if (action === "replacePostKeywords") return json(await replacePostKeywords(body));
     if (action === "collect") return json(await collect(body));
     if (action === "collectPostRank") return json(await collectPostRank(body));
     if (action === "refreshRecent") return json(await refreshRecent(body));
