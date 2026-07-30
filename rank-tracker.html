@@ -908,12 +908,21 @@ function productHasKeywordOrName(product, keywords) {
     || keywords.some(keyword => name.includes(keyword));
 }
 
+// isBlockedFromCategory 전용 — 상품이 "실제로 그 키워드로 랭킹이 잡혔는지"만 본다.
+// k.main_keyword(그 키워드가 속한 그룹명)까지 같이 체크하면, 압출법단열재(main_keyword=아이소핑크)로
+// 교차 노출된 비드법(EPS) 상품이 "아이소핑크 키워드가 있다"고 오판돼 비드법단열재 카테고리에서
+// 통째로 차단되는 문제가 있었다 — keyword 문자열 자체만 비교한다.
 function productHasKeyword(product, keywords) {
-  return product.keywords.some(k => keywords.includes(k.keyword) || keywords.includes(k.main_keyword));
+  return product.keywords.some(k => keywords.includes(k.keyword));
 }
 
 function isBlockedFromCategory(product, categoryName) {
   if (selectedStore !== "에너가드컴퍼니") return false;
+  if (categoryName === "아이소핑크") {
+    // 비드법단열재(EPS)류가 "압출법단열재" 키워드에도 걸려서 아이소핑크(XPS) 카테고리에
+    // 같이 뜨는 걸 막는다 — 비드법단열재 계열 키워드가 있으면 그쪽이 원 카테고리다.
+    return productHasKeyword(product, ["비드법단열재", "EPS단열재", "스티로폼단열재"]);
+  }
   if (categoryName === "비드법단열재") {
     return productHasKeyword(product, [
       "PF보드", "경질우레탄보드", "준불연열반사",

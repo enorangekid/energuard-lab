@@ -2129,7 +2129,7 @@
       <button type="button" class="topbar-icon-btn" tabindex="-1" aria-label="검색">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path></svg>
       </button>
-      <button type="button" class="topbar-icon-btn" tabindex="-1" aria-label="분석 내역">
+      <button type="button" class="topbar-icon-btn" tabindex="-1" aria-label="계산 내역">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 3"></path></svg>
       </button>
     </div>
@@ -3393,19 +3393,6 @@ function renderExposureCard(blog, mode = "full") {
   const exposureRate = checkedCount ? Math.round((exposedCount / checkedCount) * 100) : null;
 
   const posts = state.posts.filter(p => p.blog_id === blog.blog_id);
-  const titleChecks = posts.map(p => postTitleCheckFor(blog.blog_id, p.log_no)).filter(Boolean);
-  const missingCount = titleChecks.filter(c => !c.found).length;
-
-  const tilesHtml = [
-    { label: "노출중", value: exposedCount, tip: "검색 시 우리 블로그 포스팅이 결과에 걸린 키워드 수입니다." },
-    { label: "미노출", value: notExposedCount, tip: "검색해봤지만 우리 블로그 포스팅이 안 걸린 키워드 수입니다." },
-    { label: "누락", value: missingCount, tip: "포스팅 제목으로 검색해도 그 포스팅 자체가 안 뜨는 경우 — 노출 경쟁력이 아니라 색인/노출 자체의 문제입니다." },
-    { label: "노출률", value: exposureRate != null ? `${exposureRate}%` : "-", tip: "진단 키워드 중 노출중 비율입니다." },
-  ].map(t => `
-    <div class="dash-tile">
-      <div class="dash-label">${esc(t.label)}<span class="dash-info">?<span class="dash-tip">${esc(t.tip)}</span></span></div>
-      <div class="dash-value">${t.value}</div>
-    </div>`).join("");
 
   const pageDist = exposurePageDistribution(blog.blog_id);
   const rankedTotal = pageDist.page1 + pageDist.page23 + pageDist.page4plus;
@@ -3437,46 +3424,70 @@ function renderExposureCard(blog, mode = "full") {
     ? dashMoverSubCard("이탈 포스팅", sliceFor(dropKey, dropouts).map((p, i) => exposureDropoutRowHtml(p, i + 1)).join("") + exposureMoreBtnHtml(dropKey, dropouts.length))
     : "";
 
-  const exposedResults = results.filter(r => r.result?.found).sort((a, b) => (a.result.rank || 9999) - (b.result.rank || 9999));
-  const exposedKey = `exp-list-${blog.blog_id}`;
-  const exposedRowsHtml = sliceFor(exposedKey, exposedResults).map(r => `
-      <div class="exposure-row">
-        <span class="exposure-cat-badge${r.kw.category === "메인" ? " main" : ""}">${esc(displayKeywordCategory(r.kw.category))}</span>
-        <span class="exposure-keyword">${esc(r.kw.keyword)}</span>
-        <a class="exposure-post-title" href="${esc(r.result.result_url || "#")}" target="_blank" rel="noopener">${esc(r.result.result_title || r.result.result_log_no || "포스팅 확인 필요")}</a>
-        <span class="exposure-rank">${r.result.rank}위</span>
-        <button class="row-btn" type="button" data-tip="삭제" onclick="removeTargetKeywordHandler(${r.kw.id}, '${esc(r.kw.keyword)}')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M19 6l-1 14H6L5 6"></path><path d="M10 11v5M14 11v5"></path></svg>
-        </button>
-      </div>`).join("") + exposureMoreBtnHtml(exposedKey, exposedResults.length);
-
-  const missingKeywordsHtml = results
-    .filter(r => !r.result?.found)
-    .map(r => `
-      <span class="missing-keyword-chip">
-        ${esc(displayKeywordCategory(r.kw.category))} · ${esc(r.kw.keyword)}${!r.result ? " (수집 전)" : ""}
-        <button type="button" onclick="removeTargetKeywordHandler(${r.kw.id}, '${esc(r.kw.keyword)}')">&times;</button>
-      </span>`).join("");
-
-  const missingPostsHtml = posts
-    .map(p => ({ post: p, check: postTitleCheckFor(blog.blog_id, p.log_no) }))
-    .filter(({ check }) => check && !check.found)
-    .map(({ post }) => `
-      <span class="missing-keyword-chip">
-        <a href="${esc(post.post_url)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none;">${esc(post.title || post.log_no)}</a>
-      </span>`).join("");
+  const sortedResults = [...results].sort((a, b) => {
+    const ar = a.result?.found && a.result.rank != null ? Number(a.result.rank) : 99999;
+    const br = b.result?.found && b.result.rank != null ? Number(b.result.rank) : 99999;
+    return ar - br || a.kw.keyword.localeCompare(b.kw.keyword, "ko");
+  });
+  const checkedAt = sortedResults
+    .map(r => r.result?.checked_date || r.result?.collected_at)
+    .filter(Boolean)
+    .sort()
+    .pop();
+  const checkedRate = keywords.length ? Math.round((checkedCount / keywords.length) * 100) : 0;
+  const checkedDate = String(checkedAt || "").slice(0, 10);
+  const shiftDate = (date, days) => {
+    if (!date) return "";
+    const d = new Date(`${date}T00:00:00+09:00`);
+    if (Number.isNaN(d.getTime())) return "";
+    d.setDate(d.getDate() + days);
+    return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(d);
+  };
+  const dateStats = date => {
+    if (!date) return null;
+    let checked = 0, found = 0, page1 = 0;
+    keywords.forEach(kw => {
+      const row = state.exposureHistory.find(item =>
+        item.blog_id === blog.blog_id &&
+        item.keyword === kw.keyword &&
+        item.provider === "naver_blog_screen" &&
+        String(item.checked_date || item.collected_at || "").slice(0, 10) === date
+      );
+      if (!row) return;
+      checked += 1;
+      if (row.found) {
+        found += 1;
+        const rank = row.rank != null ? Number(row.rank) : null;
+        const page = row.page || (rank != null ? Math.ceil(rank / 30) : null);
+        if (page === 1) page1 += 1;
+      }
+    });
+    if (!checked) return null;
+    return { checked, found, missing: checked - found, rate: Math.round((found / checked) * 100), page1 };
+  };
+  const yesterdayStats = dateStats(shiftDate(checkedDate, -1));
+  const lastWeekStats = dateStats(shiftDate(checkedDate, -7));
+  const cmpChip = (label, current, previous, inverse = false, suffix = "") => {
+    if (current == null || previous == null) return `<span class="cmp">${label} 데이터 없음</span>`;
+    const diff = current - previous;
+    if (!diff) return `<span class="cmp">${label} -</span>`;
+    const good = inverse ? diff < 0 : diff > 0;
+    return `<span class="cmp ${good ? "up" : "down"}">${label} ${diff > 0 ? "▲" : "▼"}${Math.abs(diff).toLocaleString()}${suffix}</span>`;
+  };
+  const statCardsHtml = [
+    { label: "체크 키워드", value: keywords.length.toLocaleString(), unit: "개", subHtml: `<span class="cmp">수집 ${checkedCount.toLocaleString()}개 · ${checkedRate}%</span>`, tip: "등록한 진단 키워드 수와, 그중 오늘까지 순위 수집을 완료한 개수입니다." },
+    { label: "노출중", value: exposedCount.toLocaleString(), unit: "개", cls: "up", subHtml: cmpChip("전일", exposedCount, yesterdayStats?.found) + cmpChip("전주", exposedCount, lastWeekStats?.found), tip: "검색 시 우리 블로그 포스팅이 결과에 걸린 키워드 수입니다." },
+    { label: "미노출", value: notExposedCount.toLocaleString(), unit: "개", cls: "down", subHtml: cmpChip("전일", notExposedCount, yesterdayStats?.missing, true) + cmpChip("전주", notExposedCount, lastWeekStats?.missing, true), tip: "검색해봤지만 우리 블로그 포스팅이 안 걸린 키워드 수입니다." },
+    { label: "노출률", value: exposureRate != null ? exposureRate : "-", unit: exposureRate != null ? "%" : "", subHtml: cmpChip("전일", exposureRate, yesterdayStats?.rate, false, "%p") + cmpChip("전주", exposureRate, lastWeekStats?.rate, false, "%p"), tip: "진단 키워드 중 노출중 비율입니다." },
+    { label: "1페이지", value: pageDist.page1.toLocaleString(), unit: "개", subHtml: cmpChip("전일", pageDist.page1, yesterdayStats?.page1) + cmpChip("전주", pageDist.page1, lastWeekStats?.page1), tip: "노출 중인 키워드 중 검색 결과 1페이지(30위 이내)에 걸린 키워드 수입니다." },
+  ].map(card => `
+    <div class="dash-tile">
+      <div class="dash-label">${esc(card.label)}<span class="dash-info">?<span class="dash-tip">${esc(card.tip)}</span></span></div>
+      <div class="dash-value ${card.cls || ""}">${card.value}${card.unit ? `<small>${esc(card.unit)}</small>` : ""}</div>
+      <div class="metric-cmp">${card.subHtml}</div>
+    </div>`).join("");
 
   if (!compact) {
-    const sortedResults = [...results].sort((a, b) => {
-      const ar = a.result?.found && a.result.rank != null ? Number(a.result.rank) : 99999;
-      const br = b.result?.found && b.result.rank != null ? Number(b.result.rank) : 99999;
-      return ar - br || a.kw.keyword.localeCompare(b.kw.keyword, "ko");
-    });
-    const checkedAt = sortedResults
-      .map(r => r.result?.checked_date || r.result?.collected_at)
-      .filter(Boolean)
-      .sort()
-      .pop();
     const selectionKey = kw => exposureSelectionKey(blog.blog_id, kw.keyword);
     const selectedCount = keywords.filter(kw => exposureSelectedKeywords.has(selectionKey(kw))).length;
     const renderKeywordChip = kw => {
@@ -3493,59 +3504,7 @@ function renderExposureCard(blog, mode = "full") {
         </div>
       </div>`;
     }).join("");
-    const checkedRate = keywords.length ? Math.round((checkedCount / keywords.length) * 100) : 0;
     const uncheckedCount = Math.max(0, keywords.length - checkedCount);
-    const checkedDate = String(checkedAt || "").slice(0, 10);
-    const shiftDate = (date, days) => {
-      if (!date) return "";
-      const d = new Date(`${date}T00:00:00+09:00`);
-      if (Number.isNaN(d.getTime())) return "";
-      d.setDate(d.getDate() + days);
-      return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(d);
-    };
-    const dateStats = date => {
-      if (!date) return null;
-      let checked = 0, found = 0, page1 = 0;
-      keywords.forEach(kw => {
-        const row = state.exposureHistory.find(item =>
-          item.blog_id === blog.blog_id &&
-          item.keyword === kw.keyword &&
-          item.provider === "naver_blog_screen" &&
-          String(item.checked_date || item.collected_at || "").slice(0, 10) === date
-        );
-        if (!row) return;
-        checked += 1;
-        if (row.found) {
-          found += 1;
-          const rank = row.rank != null ? Number(row.rank) : null;
-          const page = row.page || (rank != null ? Math.ceil(rank / 30) : null);
-          if (page === 1) page1 += 1;
-        }
-      });
-      if (!checked) return null;
-      return { checked, found, missing: checked - found, rate: Math.round((found / checked) * 100), page1 };
-    };
-    const yesterdayStats = dateStats(shiftDate(checkedDate, -1));
-    const lastWeekStats = dateStats(shiftDate(checkedDate, -7));
-    const cmpChip = (label, current, previous, inverse = false, suffix = "") => {
-      if (current == null || previous == null) return `<span class="cmp">${label} 데이터 없음</span>`;
-      const diff = current - previous;
-      if (!diff) return `<span class="cmp">${label} -</span>`;
-      const good = inverse ? diff < 0 : diff > 0;
-      return `<span class="cmp ${good ? "up" : "down"}">${label} ${diff > 0 ? "▲" : "▼"}${Math.abs(diff).toLocaleString()}${suffix}</span>`;
-    };
-    const statCardsHtml = [
-      { label: "체크 키워드", value: keywords.length.toLocaleString(), unit: "개", subHtml: `<span class="cmp">수집 ${checkedCount.toLocaleString()}개 · ${checkedRate}%</span>` },
-      { label: "노출중", value: exposedCount.toLocaleString(), unit: "개", cls: "up", subHtml: cmpChip("전일", exposedCount, yesterdayStats?.found) + cmpChip("전주", exposedCount, lastWeekStats?.found) },
-      { label: "미노출", value: notExposedCount.toLocaleString(), unit: "개", cls: "down", subHtml: cmpChip("전일", notExposedCount, yesterdayStats?.missing, true) + cmpChip("전주", notExposedCount, lastWeekStats?.missing, true) },
-      { label: "노출률", value: exposureRate != null ? exposureRate : "-", unit: exposureRate != null ? "%" : "", subHtml: cmpChip("전일", exposureRate, yesterdayStats?.rate, false, "%p") + cmpChip("전주", exposureRate, lastWeekStats?.rate, false, "%p") },
-      { label: "1페이지", value: pageDist.page1.toLocaleString(), unit: "개", subHtml: cmpChip("전일", pageDist.page1, yesterdayStats?.page1) + cmpChip("전주", pageDist.page1, lastWeekStats?.page1) },
-    ].map(card => `
-      <div class="dash-tile">
-        <div class="dash-label">${esc(card.label)}</div>
-        <div class="dash-value ${card.cls || ""}">${card.value}${card.unit ? `<small>${esc(card.unit)}</small>` : ""}</div>
-        <div class="metric-cmp">${card.subHtml}</div>
-      </div>`).join("");
     const rankText = row => {
       if (!row) return "-";
       if (!row.found || row.rank == null) return "미노출";
@@ -3672,42 +3631,17 @@ function renderExposureCard(blog, mode = "full") {
       <div class="summary-section-title-row app-card-head">
         <div class="summary-section-title-wrap app-card-title-wrap">
           <span class="summary-section-title app-card-title">노출 현황 진단</span>
-          <span class="summary-section-subtitle app-card-subtitle">주요 키워드 ${keywords.length}개로 검색했을 때 우리 블로그 포스팅이 노출되는지 확인합니다.</span>
+          <span class="summary-section-subtitle app-card-subtitle">설정한 키워드의 노출 상태를 한눈에 확인합니다.</span>
         </div>
-        ${compact ? "" : `<div style="display:flex;gap:8px;flex-shrink:0;">
-          <button class="diagnosis-refresh-btn" type="button" onclick="collectPostTitleCheckHandler('${esc(blog.blog_id)}')">제목 자가진단</button>
-          <button class="diagnosis-refresh-btn" type="button" onclick="collectExposureHandler('${esc(blog.blog_id)}')">노출 진단 수집</button>
-        </div>`}
+        <div class="exposure-check-time">체크 시각: ${checkedAt ? formatTime(checkedAt) : "-"}</div>
       </div>
       <div class="summary-divider"></div>
       <div class="summary-section-body app-card-body">
-        ${compact ? `
-        <div class="rank-dash-tiles" style="grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:18px;">${tilesHtml}</div>
+        <div class="rank-dash-tiles">${statCardsHtml}</div>
         ${pageBarHtml}
         <div class="summary-divider" style="margin:18px 0;"></div>
         <div class="summary-top3-row-wrap summary-mover-grid">${moverCardsHtml}</div>
         ${dropoutHtml ? `<div class="summary-divider" style="margin:18px 0;"></div>${dropoutHtml}` : ""}
-        ` : `
-        ${keywords.length
-          ? `${exposedRowsHtml ? `<div class="exposure-list">${exposedRowsHtml}</div>` : `<div class="empty-state" style="padding:16px 4px;font-size:12px;">아직 노출 중인 키워드가 없습니다.</div>`}
-             ${missingKeywordsHtml ? `<div style="margin-top:14px;">
-               <div style="margin-bottom:6px;color:#8590a3;font-size:11px;font-weight:800;">미노출 키워드</div>
-               <div class="missing-keyword-wrap">${missingKeywordsHtml}</div>
-             </div>` : ""}`
-          : `<div class="empty-state" style="padding:24px 4px;font-size:12px;">등록된 진단 키워드가 없습니다. 아래에서 추가해 주세요.</div>`}
-        ${missingPostsHtml ? `<div style="margin-top:14px;">
-          <div style="margin-bottom:6px;color:#8590a3;font-size:11px;font-weight:800;">누락된 포스팅 (제목으로 검색해도 안 뜸)</div>
-          <div class="missing-keyword-wrap">${missingPostsHtml}</div>
-        </div>` : ""}
-        <div class="post-keyword-add-row" style="margin-top:16px;">
-          <input type="text" placeholder="메인 키워드 추가 (쉼표로 여러 개)" onkeydown="if(event.key==='Enter') addTargetKeywordsBulk('${esc(blog.blog_id)}', '메인', this)">
-          <button class="keyword-add-btn" type="button" onclick="addTargetKeywordsBulk('${esc(blog.blog_id)}', '메인', this.previousElementSibling)">+ 메인 추가</button>
-        </div>
-        <div class="post-keyword-add-row">
-          <input type="text" placeholder="서브 키워드 추가 (쉼표로 여러 개)" onkeydown="if(event.key==='Enter') addTargetKeywordsBulk('${esc(blog.blog_id)}', '서브', this)">
-          <button class="keyword-add-btn" type="button" onclick="addTargetKeywordsBulk('${esc(blog.blog_id)}', '서브', this.previousElementSibling)">+ 서브 추가</button>
-        </div>
-        `}
       </div>
     </div>`;
 }
@@ -4144,9 +4078,12 @@ function renderRecentPostsCard(blog) {
     </div>`;
 }
 
-// 경쟁사 블로그 — AI 점수·키워드 순위·본문 진단은 안 붙이고(그건 내 콘텐츠 최적화용),
-// "최근에 뭘 올렸는지"만 가볍게 확인한다. 포스팅 목록 자체는 addBlog/refreshPosts가
-// is_mine 여부와 상관없이 이미 동일하게 RSS로 채워주고 있어서 새 수집 로직은 필요 없다.
+// 경쟁사 블로그 — 이 간단 카드는 여전히 "최근에 뭘 올렸는지"만 가볍게 확인하는 용도다
+// (AI 점수·순위 추적은 안 붙임, 그건 내 콘텐츠 최적화용). 포스팅 목록 자체는 addBlog/refreshPosts가
+// is_mine 여부와 상관없이 이미 동일하게 RSS로 채워준다.
+// 단, 아래 competitorPostCardHtml/refreshSinglePost/editCompetitorPostKeywords는 별도로
+// 포스팅별 본문 분석 + 주요 키워드 자동추출(경쟁사 대시보드용)을 붙여둔 뒤쪽 기능이라 이 코멘트가
+// 가리키는 "새 수집 로직 없음"은 이 카드 하나에만 해당한다.
 function renderCompetitorBlogCard(blog) {
   const posts = state.posts
     .filter(p => p.blog_id === blog.blog_id)
@@ -4696,22 +4633,6 @@ async function deletePostKeyword(id, keyword) {
   }
 }
 
-async function addTargetKeywordsBulk(blogId, category, inputEl) {
-  const keywords = inputEl.value.split(",").map(v => v.trim()).filter(Boolean);
-  if (!keywords.length) return showToast("키워드를 입력해 주세요.");
-  inputEl.value = "";
-  showLoading("진단 키워드를 추가하는 중입니다.");
-  try {
-    state = await callApi("addTargetKeywords", { blogId, keywords: keywords.map(keyword => ({ keyword, category })) });
-    renderAll();
-    showToast(`${category} 키워드 ${keywords.length}개를 추가했습니다.`);
-  } catch (error) {
-    showToast(error.message);
-  } finally {
-    hideLoading();
-  }
-}
-
 function exposureSelectionKey(blogId, keyword) {
   return `${blogId}::${String(keyword || "").trim()}`;
 }
@@ -4806,7 +4727,7 @@ async function collectExposureHandler(blogId) {
       errors.push({ keyword: kw.keyword, message: error.message });
     }
   }
-  setLoadingMessage("포스팅 목록·썸네일을 새로고침하는 중...");
+  setLoadingMessage("포스팅 목록을 새로고침하는 중...");
   try {
     state = await callApi("refreshRecent", { blogId });
     renderAll();

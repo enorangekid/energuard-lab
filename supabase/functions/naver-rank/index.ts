@@ -544,7 +544,10 @@ async function scanKeywordForStore(
   return { foundRows, watchedRows, volume };
 }
 
-async function collectStoreKeywords(storeName: string) {
+/* half: 1|2를 주면 회전 정렬된 전체 키워드 목록을 절반으로 나눠 그 절반만 처리한다.
+   "한국 단열"처럼 키워드가 많아(89개) 130초 예산 안에 하루치가 다 안 도는 스토어는
+   크론을 half:1/half:2 두 번(몇 분 간격)으로 나눠 호출해서 매일 전체가 다 돌게 한다. */
+async function collectStoreKeywords(storeName: string, half?: 1 | 2) {
   const clientId = Deno.env.get("NAVER_CLIENT_ID");
   const clientSecret = Deno.env.get("NAVER_CLIENT_SECRET");
   if (!clientId || !clientSecret) throw new Error("NAVER_CLIENT_ID / NAVER_CLIENT_SECRET 필요");
@@ -588,11 +591,48 @@ async function collectStoreKeywords(storeName: string) {
   const deadline = Date.now() + 130_000; // request idle timeout(150초) 대비 20초 여유 (collectTrackedItems와 동일)
   let keywordsDone = 0;
   let rowsSaved = 0;
+  const errors: Array<{ keyword: string; message: string }> = [];
 
-  for (const { keyword, mainKeyword, isSub } of list) {
-    if (Date.now() > deadline) break; // 남은 키워드는 다음 실행에서 (하루 1회라 이월돼도 무방)
+  // list가 고정 순서라 예산 안에 다 못 돌면 뒤쪽 키워드가 매일 잘리기만 했다 — collectTrackedItems와
+  // 동일하게 키워드별 마지막 수집일이 오래된(또는 한 번도 안 된) 순으로 매일 순서를 회전시켜서
+  // 특정 키워드가 영영 밀리지 않게 한다.
+  const historyRows: Array<Record<string, unknown>> = await supabaseRequest(
+    `/rest/v1/keyword_rank_history?store_name=eq.${encodeURIComponent(storeName)}&select=keyword,collected_date&order=collected_date.desc&limit=5000`,
+  ) || [];
+  const lastCollectedByKeyword = new Map<string, string>();
+  for (const row of historyRows) {
+    const kw = String(row.keyword || "");
+    if (kw && !lastCollectedByKeyword.has(kw)) lastCollectedByKeyword.set(kw, String(row.collected_date || ""));
+  }
+  let orderedList = [...list].sort((a, b) => {
+    const da = lastCollectedByKeyword.get(a.keyword) || ""; // 미수집 키워드는 빈 문자열 → 항상 최우선
+    const db = lastCollectedByKeyword.get(b.keyword) || "";
+    return da.localeCompare(db);
+  });
+  if (half === 1 || half === 2) {
+    const mid = Math.ceil(orderedList.length / 2);
+    orderedList = half === 1 ? orderedList.slice(0, mid) : orderedList.slice(mid);
+  }
+
+  for (const { keyword, mainKeyword, isSub } of orderedList) {
+    if (Date.now() > deadline) break; // 남은 키워드는 다음 실행에서 — 오래된 순으로 돌기 때문에 매번 같은 키워드가 밀리진 않는다
+    let scanResult: Awaited<ReturnType<typeof scanKeywordForStore>> | null = null;
+    let lastError: unknown = null;
+    // 개별 키워드 실패를 조용히 넘기기만 하면 일시적 오류(네이버 API 순간 오류/타임아웃)로
+    // 하루치 데이터가 통째로 비어버린다 — 같은 실행 안에서 한 번 더 재시도해본다.
+    for (let attempt = 0; attempt < 2 && !scanResult; attempt++) {
+      try {
+        scanResult = await scanKeywordForStore(keyword, storeName, watchSet, clientId, clientSecret);
+      } catch (err) {
+        lastError = err;
+      }
+    }
+    if (!scanResult) {
+      errors.push({ keyword, message: lastError instanceof Error ? lastError.message : String(lastError) });
+      continue;
+    }
     try {
-      const { foundRows, watchedRows, volume } = await scanKeywordForStore(keyword, storeName, watchSet, clientId, clientSecret);
+      const { foundRows, watchedRows, volume } = scanResult;
 
       const uniqueRows: Array<Record<string, unknown>> = [];
       const seenCodes = new Set<string>();
@@ -650,10 +690,12 @@ async function collectStoreKeywords(storeName: string) {
         });
       }
       keywordsDone++;
-    } catch (_) { /* 개별 키워드 실패는 건너뛰고 계속 */ }
+    } catch (err) {
+      errors.push({ keyword, message: err instanceof Error ? err.message : String(err) });
+    }
   }
 
-  return { ok: true, storeName, collectedDate, keywords: list.length, keywordsDone, rowsSaved };
+  return { ok: true, storeName, half: half ?? null, collectedDate, keywords: orderedList.length, keywordsDone, rowsSaved, errors };
 }
 
 Deno.serve(async (req) => {
@@ -672,7 +714,8 @@ Deno.serve(async (req) => {
 
     /* cron 키워드 일괄 수집: naver-rank.html "키워드 일괄 수집"의 서버 버전 (pg_cron이 스토어별로 호출) */
     if (body.action === "collectStoreKeywords") {
-      return json(await collectStoreKeywords(String(body.storeName || "")));
+      const half = body.half === 1 || body.half === 2 ? body.half : undefined;
+      return json(await collectStoreKeywords(String(body.storeName || ""), half));
     }
 
     const clientId = Deno.env.get("NAVER_CLIENT_ID");
