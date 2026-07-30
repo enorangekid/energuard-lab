@@ -219,6 +219,11 @@
       gap: 8px;
       margin-bottom: 16px;
     }
+    .rank-sub-tabs .store-select > span:first-child {
+      display: inline-flex;
+      align-items: center;
+      line-height: 1;
+    }
     .rank-sub-view[hidden] { display: none !important; }
 
     /* ── 블로그 진단 요약 대시보드 — 매출분석의 .rank-dash/.dash-tile 구조를 그대로 옮겨온 것 ── */
@@ -241,6 +246,8 @@
       margin-top: 2px; font-size: 21px; font-weight: 800; color: var(--ink);
       font-variant-numeric: tabular-nums; letter-spacing: -0.01em; white-space: nowrap;
     }
+    .dash-value.up { color: #16a34a; }
+    .dash-value.down { color: var(--danger); }
     .dash-value small { margin-left: 4px; font-size: 11.5px; font-weight: 700; color: var(--sub); }
     .dash-info {
       position: relative;
@@ -634,6 +641,96 @@
       height: 42px;
       min-width: 106px;
     }
+    .exposure-batch-utils {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+    .exposure-batch-grid {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 6px;
+    }
+    .exposure-batch-divider {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 13px 0 9px;
+      color: var(--sub);
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .exposure-batch-divider::before,
+    .exposure-batch-divider::after {
+      content: "";
+      height: 1px;
+      background: var(--line);
+      flex: 1;
+    }
+    .exposure-batch-banner {
+      position: relative;
+      min-width: 0;
+      padding: 7px 10px;
+      border: 1.5px solid var(--line);
+      border-radius: 4px;
+      background: #fff;
+      color: var(--sub);
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1;
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      cursor: pointer;
+      transition: all .12s;
+    }
+    .exposure-batch-banner:hover { border-color: #c8cdd4; }
+    .exposure-batch-banner.main { font-weight: 700; color: var(--ink); }
+    .exposure-batch-banner.sub { font-weight: 500; color: var(--sub); }
+    .exposure-batch-banner.active {
+      border-color: var(--dark);
+      background: var(--dark);
+      color: #fff;
+    }
+    .exposure-batch-banner.util {
+      height: 42px;
+      padding: 0 12px;
+      border-radius: 6px;
+      border-style: dashed;
+      color: var(--accent);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 800;
+    }
+    .exposure-batch-banner.util:hover {
+      border-color: var(--accent);
+      background: var(--accent-tint);
+    }
+    .exposure-batch-run-wrap {
+      display: none;
+      margin-top: 14px;
+      text-align: center;
+    }
+    .exposure-batch-run-wrap.show { display: block; }
+    .exposure-batch-run-btn {
+      height: 42px;
+      padding: 0 28px;
+      border: none;
+      border-radius: 6px;
+      background: var(--accent);
+      color: #fff;
+      font-family: inherit;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .exposure-batch-run-btn:hover { background: var(--accent-dark); }
     .exposure-stat-grid {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -641,7 +738,7 @@
       margin: 0 0 20px;
     }
     .exposure-dashboard-section .exposure-stat-grid { margin-bottom: 0; }
-    .exposure-result-section .summary-section-body { padding: 10px 10px 10px; }
+    .exposure-result-section .summary-section-body { padding: 20px 20px 24px; }
     .exposure-stat-card {
       min-width: 0;
       padding: 0 18px 0 0;
@@ -699,13 +796,13 @@
     .exposure-table-head,
     .exposure-table-row {
       display: grid;
-      grid-template-columns: minmax(180px, 1.05fr) 90px 90px 90px minmax(260px, 1.7fr) 90px 70px;
+      grid-template-columns: 28px minmax(180px, 1.05fr) 90px 90px 90px minmax(260px, 1.7fr) 90px 96px;
       align-items: center;
       gap: 14px;
     }
     .exposure-table-head {
       min-height: 38px;
-      margin: 0;
+      margin: 0 0 10px;
       padding: 9px 14px;
       border: 1px solid var(--line);
       border-radius: var(--radius);
@@ -715,20 +812,39 @@
       font-weight: 800;
       text-align: center;
     }
-    .exposure-table-head span:first-child,
+    .exposure-table-head span:nth-child(2),
     .exposure-table-row .exposure-cell-keyword { text-align: left; }
+    .exposure-table-block { margin-top: 10px; }
     .exposure-table-row {
-      min-height: 58px;
-      margin: 8px 0 0;
+      min-height: 64px;
+      margin: 0;
       padding: 10px 14px;
       border: 1px solid var(--line);
       border-radius: var(--radius);
       background: #fff;
       font-size: 12px;
-      transition: border-color .14s, background .14s;
+      transition: border-color .14s, background .14s, box-shadow .14s;
     }
-    .exposure-table-row:hover { border-color: var(--line-strong); background: #fafbfc; }
-    .exposure-table-row:last-child { margin-bottom: 0; }
+    .exposure-table-row:hover { border-color: var(--line-strong); background: #fafbfc; box-shadow: 0 10px 24px rgba(5, 7, 11, 0.04); }
+    .exposure-table-block.open .exposure-table-row {
+      border-color: var(--accent-soft);
+      border-bottom-left-radius: 0;
+      border-bottom-right-radius: 0;
+      background: #fffaf7;
+    }
+    .exposure-table-block.open .expand-btn {
+      border-color: var(--accent);
+      background: var(--accent-tint);
+      color: var(--accent-dark);
+    }
+    .exposure-table-block.open .expand-btn::before { content: "-"; }
+    .exposure-rank-detail {
+      border: 1px solid var(--accent-soft);
+      border-top: 0;
+      border-radius: 0 0 var(--radius) var(--radius);
+      background: #fffaf7;
+      padding: 12px 14px 14px;
+    }
     .exposure-cell-keyword {
       min-width: 0;
       display: flex;
@@ -751,17 +867,50 @@
       font-size: 12px;
       font-weight: 800;
     }
+    .exposure-rank-badge {
+      justify-self: center;
+      min-width: 62px;
+      height: 34px;
+      padding: 0 10px;
+      border-radius: var(--radius);
+      background: #eef0f3;
+      color: var(--sub);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-size: 14px;
+      font-weight: 800;
+      line-height: 1;
+      text-align: center;
+      white-space: nowrap;
+    }
+    .exposure-rank-badge.current.p1 { background: var(--accent-tint); color: var(--accent-dark); }
+    .exposure-rank-badge.current.p23 { background: #fff5d6; color: #9a6a00; }
+    .exposure-rank-badge.current.p49 { background: #e9f7ef; color: #128044; }
+    .exposure-rank-badge.current.low { background: #edf3ff; color: #2f5f9e; }
+    .exposure-rank-badge.prev { background: #f1f3f7; color: #7a8496; }
+    .exposure-rank-badge.none,
+    .exposure-rank-badge.empty { background: #f1f3f7; color: #8a94a6; }
     .exposure-cell-post {
       min-width: 0;
-      color: var(--sub);
-      font-size: 12px;
-      font-weight: 700;
+      color: #263248;
+      font-size: 12.5px;
+      font-weight: 800;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
       text-decoration: none;
     }
-    .exposure-cell-post:hover { color: var(--accent); text-decoration: underline; }
+    .exposure-cell-post:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+    .exposure-cell-date {
+      justify-self: center;
+      color: #687386;
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
     .exposure-result-badge {
       justify-self: center;
       display: inline-flex;
@@ -769,26 +918,31 @@
       height: 24px;
       padding: 0 10px;
       border-radius: 999px;
-      background: #e8f8ee;
-      color: #16a34a;
-      font-size: 11px;
+      background: var(--accent-tint);
+      color: var(--accent-dark);
+      font-size: 11.5px;
       font-weight: 800;
     }
     .exposure-result-badge.missing { background: #f1f3f7; color: #7a8496; }
     .exposure-delta {
       justify-self: center;
-      display: inline-flex;
-      align-items: center;
-      height: 24px;
-      padding: 0 9px;
-      border-radius: 999px;
-      background: #f1f3f7;
-      color: #7a8496;
-      font-size: 11px;
-      font-weight: 800;
+      min-width: 34px;
+      color: #c3c9d4;
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      font-weight: 700;
+      text-align: center;
     }
-    .exposure-delta.up { background: #e8f8ee; color: #16a34a; }
-    .exposure-delta.down { background: #fff0f0; color: var(--danger); }
+    .exposure-delta.up { color: #16a34a; }
+    .exposure-delta.down { color: var(--danger); }
+    .exposure-delta.same { color: #c3c9d4; }
+    .exposure-result-text {
+      justify-self: center;
+      color: #c3c9d4;
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      font-weight: 700;
+    }
     .exposure-row {
       display: grid;
       grid-template-columns: 60px 1fr 1.3fr 70px 32px;
@@ -1135,7 +1289,7 @@
       background: transparent; color: #b0b8c5; font-size: 12px; line-height: 1; cursor: pointer;
     }
     .missing-keyword-chip button:hover { background: #e6e9ef; color: #566176; }
-    .blog-diagnosis-stack .summary-mini-card + .summary-mini-card { margin-top: 16px; }
+    .blog-diagnosis-stack .summary-mini-card + .summary-mini-card { margin-top: 0; }
     /* common.css의 .summary-mini-card는 둥근 모서리 때문에 overflow:hidden인데,
        그러면 .dash-tip 툴팁이 카드 밖으로 못 나가고 잘린다 — 이 탭에서만 풀어준다. */
     .blog-diagnosis-stack .summary-mini-card { overflow: visible; }
@@ -1998,17 +2152,6 @@
         </span>
       </button>
     </div>
-    <div class="head-actions" id="rankHeadActions" hidden>
-      <button class="icon-btn collect" type="button" data-tip="신규 포스팅 수집" onclick="refreshRecentHandler()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 12a9 9 0 0 1-15.5 6.2"></path><path d="M3 12a9 9 0 0 1 15.5-6.2"></path>
-          <path d="M18 3v4h-4"></path><path d="M6 21v-4h4"></path>
-        </svg>
-      </button>
-      <button class="icon-btn primary" type="button" data-tip="블로그 추가" onclick="openModal()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
-      </button>
-    </div>
   </header>
 
   <section class="blog-view blog-diagnosis-stack" id="blogDiagnosisView">
@@ -2017,12 +2160,12 @@
         <button type="button" class="store-select" data-action="toggle-diagnosis-sub-menu" aria-label="블로그 진단 보기">
           <span id="diagnosisSubLabel">에너가드컴퍼니</span>
           <span class="store-caret" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
           </span>
         </button>
         <div class="store-menu" role="menu">
           <button type="button" class="store-chip active" data-diagnosis-sub-option="mine" role="menuitem">에너가드컴퍼니</button>
-          <button type="button" class="store-chip" data-diagnosis-sub-option="competitor" role="menuitem">경쟁업체 블로그</button>
+          <button type="button" class="store-chip" data-diagnosis-sub-option="competitor" role="menuitem">경쟁사 블로그</button>
         </div>
       </div>
       <div class="competitor-controls" id="competitorDiagnosisActions" hidden>
@@ -2042,16 +2185,16 @@
         </button>
       </div>
     </div>
-    <div id="diagnosisList"></div>
+    <div id="diagnosisList" class="blog-diagnosis-stack"></div>
   </section>
 
-  <section class="blog-view" id="blogRankView" hidden>
+  <section class="blog-view blog-diagnosis-stack" id="blogRankView" hidden>
     <div class="rank-sub-tabs" aria-label="포스팅 순위 보기">
       <div class="store-chips" id="rankSubChips">
         <button type="button" class="store-select" data-action="toggle-rank-sub-menu" aria-label="포스팅 순위 보기">
           <span id="rankSubLabel">노출 현황</span>
           <span class="store-caret" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
           </span>
         </button>
         <div class="store-menu" role="menu">
@@ -2065,8 +2208,8 @@
       <div id="rankExposureList"></div>
     </section>
 
-    <section class="rank-sub-view" id="rankPostsView" hidden>
-      <div id="rankList">
+    <section class="rank-sub-view blog-diagnosis-stack" id="rankPostsView" hidden>
+      <div id="rankList" class="blog-diagnosis-stack">
         <div class="rank-card app-card">
           <div class="empty-state"><strong>블로그 데이터를 불러오는 중입니다.</strong></div>
         </div>
@@ -2140,6 +2283,8 @@ let state = { blogs: [], posts: [], postKeywords: [], history: [], diagnosis: []
 let toastTimer = 0;
 let rankSubView = "posts";
 let diagnosisSubView = "mine";
+const exposureSelectedKeywords = new Set();
+const exposureExpandedRows = new Set();
 let selectedCompetitorBlogId = "";
 let competitorPostsExpanded = false;
 const postRankProviderByKey = new Map();
@@ -2214,6 +2359,10 @@ function competitorKeywordRankHtml(stats, emptyText = "집계된 키워드가 �
       <span class="rank-name" title="${esc(item.keyword)}">${esc(item.keyword)}</span>
       <span class="rank-meta">${Number(item.postCount).toLocaleString()}건 · ${Number(item.blogCount).toLocaleString()}곳</span>
     </div>`).join("")}</div>`;
+}
+
+function displayKeywordCategory(category) {
+  return category === "서브" ? "보조" : category;
 }
 
 function competitorBlogActivityHtml(items, emptyText = "집계된 업체 활동이 없습니다.") {
@@ -2618,6 +2767,7 @@ function renderMiniTrendSvg(rows, valueKey, formatter, invert = false, dropMarke
 // 목록도 지표별로 다르게 줄 수 있게 ranges를 인자로 받는다 — 안 넘기면 기존 기본값 그대로.
 const TREND_RANGES_DAILY = [
   { key: "week", label: "1주일" },
+  { key: "month1", label: "1개월" },
   { key: "month6", label: "6개월" },
   { key: "year", label: "1년" },
 ];
@@ -2856,6 +3006,7 @@ function renderRows() {
           <span class="summary-section-title app-card-title">${esc(cardTitle)}</span>
           <span class="summary-section-subtitle app-card-subtitle">${esc(cardSubtitle)}</span>
         </div>
+        <button class="diagnosis-refresh-btn" type="button" onclick="refreshRecentHandler()">신규 포스팅 수집</button>
       </div>
       <div class="summary-divider"></div>
       <div class="summary-section-body app-card-body">
@@ -3087,7 +3238,7 @@ function mountMetricTrendChart(blogId) {
   const allRows = blogMetricHistory(blogId, option.field);
   const rows = option.weekly ? mondayOnlyMetricRows(allRows) : allRows;
   const formatter = value => `${Number(value).toLocaleString()}${option.unit}`;
-  body.innerHTML = renderTrendWrap(option.title, rows, "value", formatter, option.invert, null, "month6", option.ranges);
+  body.innerHTML = renderTrendWrap(option.title, rows, "value", formatter, option.invert, null, "month1", option.ranges);
 }
 
 function latestExposure(blogId, keyword, provider) {
@@ -3104,6 +3255,29 @@ function exposureHistoryFor(blogId, keyword, provider) {
   return state.exposureHistory
     .filter(row => row.blog_id === blogId && row.keyword === keyword && row.provider === provider)
     .sort((a, b) => String(b.collected_at).localeCompare(String(a.collected_at)));
+}
+
+function exposureRankHistory(blogId, keyword, provider = "naver_blog_screen") {
+  const rows = exposureHistoryFor(blogId, keyword, provider);
+  const byDate = new Map();
+  rows.forEach(row => {
+    const date = String(row.checked_date || row.collected_at || "").slice(0, 10);
+    if (!date || byDate.has(date) || !row.found || row.rank == null) return;
+    byDate.set(date, Number(row.rank));
+  });
+  return [...byDate.entries()].map(([date, rank]) => ({ date, rank })).sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function renderExposureRankGraph(blogId, keyword) {
+  const rows = exposureHistoryFor(blogId, keyword, "naver_blog_screen");
+  const latest = rows[0];
+  const history = exposureRankHistory(blogId, keyword, "naver_blog_screen");
+  const lastGraphDate = history.at(-1)?.date;
+  const latestDate = String(latest?.checked_date || latest?.collected_at || "").slice(0, 10);
+  const dropMarker = latest && !latest.found && latestDate && (!lastGraphDate || latestDate > lastGraphDate)
+    ? { date: latestDate }
+    : null;
+  return `<div class="exposure-rank-detail">${renderTrendWrap("순위 그래프", history, "rank", value => `${value}위`, true, dropMarker)}</div>`;
 }
 
 // 랭킹추적의 "순위 더보기"(moverExpandedCards)와 동일한 패턴 — 기본 3개만 보이고 눌러야 펼쳐진다.
@@ -3267,7 +3441,7 @@ function renderExposureCard(blog, mode = "full") {
   const exposedKey = `exp-list-${blog.blog_id}`;
   const exposedRowsHtml = sliceFor(exposedKey, exposedResults).map(r => `
       <div class="exposure-row">
-        <span class="exposure-cat-badge${r.kw.category === "메인" ? " main" : ""}">${esc(r.kw.category)}</span>
+        <span class="exposure-cat-badge${r.kw.category === "메인" ? " main" : ""}">${esc(displayKeywordCategory(r.kw.category))}</span>
         <span class="exposure-keyword">${esc(r.kw.keyword)}</span>
         <a class="exposure-post-title" href="${esc(r.result.result_url || "#")}" target="_blank" rel="noopener">${esc(r.result.result_title || r.result.result_log_no || "포스팅 확인 필요")}</a>
         <span class="exposure-rank">${r.result.rank}위</span>
@@ -3280,7 +3454,7 @@ function renderExposureCard(blog, mode = "full") {
     .filter(r => !r.result?.found)
     .map(r => `
       <span class="missing-keyword-chip">
-        ${esc(r.kw.category)} · ${esc(r.kw.keyword)}${!r.result ? " (수집 전)" : ""}
+        ${esc(displayKeywordCategory(r.kw.category))} · ${esc(r.kw.keyword)}${!r.result ? " (수집 전)" : ""}
         <button type="button" onclick="removeTargetKeywordHandler(${r.kw.id}, '${esc(r.kw.keyword)}')">&times;</button>
       </span>`).join("");
 
@@ -3293,76 +3467,145 @@ function renderExposureCard(blog, mode = "full") {
       </span>`).join("");
 
   if (!compact) {
-    const keywordOrder = kw => kw.category === "메인" ? 0 : 1;
     const sortedResults = [...results].sort((a, b) => {
       const ar = a.result?.found && a.result.rank != null ? Number(a.result.rank) : 99999;
       const br = b.result?.found && b.result.rank != null ? Number(b.result.rank) : 99999;
-      return keywordOrder(a.kw) - keywordOrder(b.kw) || ar - br || a.kw.keyword.localeCompare(b.kw.keyword, "ko");
+      return ar - br || a.kw.keyword.localeCompare(b.kw.keyword, "ko");
     });
     const checkedAt = sortedResults
-      .map(r => r.result?.collected_at || r.result?.checked_date)
+      .map(r => r.result?.checked_date || r.result?.collected_at)
       .filter(Boolean)
       .sort()
       .pop();
-    const renderKeywordChip = kw => `
-      <span class="exposure-monitor-chip${kw.category === "메인" ? " main" : ""}">
-        <span class="exposure-cat-badge${kw.category === "메인" ? " main" : ""}">${esc(kw.category)}</span>
-        <span class="exposure-monitor-keyword">${esc(kw.keyword)}</span>
-        <button type="button" aria-label="${esc(kw.keyword)} 삭제" onclick="removeTargetKeywordHandler(${kw.id}, '${esc(kw.keyword)}')">&times;</button>
-      </span>`;
+    const selectionKey = kw => exposureSelectionKey(blog.blog_id, kw.keyword);
+    const selectedCount = keywords.filter(kw => exposureSelectedKeywords.has(selectionKey(kw))).length;
+    const renderKeywordChip = kw => {
+      const isMain = kw.category === "메인";
+      const active = exposureSelectedKeywords.has(selectionKey(kw));
+      return `<button type="button" class="exposure-batch-banner ${isMain ? "main" : "sub"}${active ? " active" : ""}" data-exposure-blog="${esc(blog.blog_id)}" data-exposure-keyword="${esc(kw.keyword)}" onclick="toggleExposureKeyword(this)" title="${esc(kw.keyword)}">${esc(kw.keyword)}</button>`;
+    };
     const keywordGroupsHtml = ["메인", "서브"].map(category => {
       const group = keywords.filter(kw => kw.category === category);
       return `<div>
-        <div class="exposure-keyword-group-label">${category}</div>
-        <div class="exposure-keyword-chips">
-          ${group.length ? group.map(renderKeywordChip).join("") : `<span class="missing-keyword-chip">등록된 ${category} 키워드 없음</span>`}
+        <div class="exposure-batch-divider">${category === "서브" ? "보조" : category}</div>
+        <div class="exposure-batch-grid" data-exposure-grid="${esc(blog.blog_id)}-${category === "메인" ? "main" : "sub"}">
+          ${group.length ? group.map(renderKeywordChip).join("") : `<span class="missing-keyword-chip">등록된 ${displayKeywordCategory(category)} 키워드 없음</span>`}
         </div>
       </div>`;
     }).join("");
+    const checkedRate = keywords.length ? Math.round((checkedCount / keywords.length) * 100) : 0;
+    const uncheckedCount = Math.max(0, keywords.length - checkedCount);
+    const checkedDate = String(checkedAt || "").slice(0, 10);
+    const shiftDate = (date, days) => {
+      if (!date) return "";
+      const d = new Date(`${date}T00:00:00+09:00`);
+      if (Number.isNaN(d.getTime())) return "";
+      d.setDate(d.getDate() + days);
+      return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(d);
+    };
+    const dateStats = date => {
+      if (!date) return null;
+      let checked = 0, found = 0, page1 = 0;
+      keywords.forEach(kw => {
+        const row = state.exposureHistory.find(item =>
+          item.blog_id === blog.blog_id &&
+          item.keyword === kw.keyword &&
+          item.provider === "naver_blog_screen" &&
+          String(item.checked_date || item.collected_at || "").slice(0, 10) === date
+        );
+        if (!row) return;
+        checked += 1;
+        if (row.found) {
+          found += 1;
+          const rank = row.rank != null ? Number(row.rank) : null;
+          const page = row.page || (rank != null ? Math.ceil(rank / 30) : null);
+          if (page === 1) page1 += 1;
+        }
+      });
+      if (!checked) return null;
+      return { checked, found, missing: checked - found, rate: Math.round((found / checked) * 100), page1 };
+    };
+    const yesterdayStats = dateStats(shiftDate(checkedDate, -1));
+    const lastWeekStats = dateStats(shiftDate(checkedDate, -7));
+    const cmpChip = (label, current, previous, inverse = false, suffix = "") => {
+      if (current == null || previous == null) return `<span class="cmp">${label} 데이터 없음</span>`;
+      const diff = current - previous;
+      if (!diff) return `<span class="cmp">${label} -</span>`;
+      const good = inverse ? diff < 0 : diff > 0;
+      return `<span class="cmp ${good ? "up" : "down"}">${label} ${diff > 0 ? "▲" : "▼"}${Math.abs(diff).toLocaleString()}${suffix}</span>`;
+    };
     const statCardsHtml = [
-      { label: "체크 키워드", value: keywords.length, cls: "" },
-      { label: "노출중", value: exposedCount, cls: "good" },
-      { label: "미노출", value: notExposedCount, cls: "bad" },
-      { label: "노출률", value: exposureRate != null ? `${exposureRate}%` : "-", cls: "" },
+      { label: "체크 키워드", value: keywords.length.toLocaleString(), unit: "개", subHtml: `<span class="cmp">수집 ${checkedCount.toLocaleString()}개 · ${checkedRate}%</span>` },
+      { label: "노출중", value: exposedCount.toLocaleString(), unit: "개", cls: "up", subHtml: cmpChip("전일", exposedCount, yesterdayStats?.found) + cmpChip("전주", exposedCount, lastWeekStats?.found) },
+      { label: "미노출", value: notExposedCount.toLocaleString(), unit: "개", cls: "down", subHtml: cmpChip("전일", notExposedCount, yesterdayStats?.missing, true) + cmpChip("전주", notExposedCount, lastWeekStats?.missing, true) },
+      { label: "노출률", value: exposureRate != null ? exposureRate : "-", unit: exposureRate != null ? "%" : "", subHtml: cmpChip("전일", exposureRate, yesterdayStats?.rate, false, "%p") + cmpChip("전주", exposureRate, lastWeekStats?.rate, false, "%p") },
+      { label: "1페이지", value: pageDist.page1.toLocaleString(), unit: "개", subHtml: cmpChip("전일", pageDist.page1, yesterdayStats?.page1) + cmpChip("전주", pageDist.page1, lastWeekStats?.page1) },
     ].map(card => `
-      <div class="exposure-stat-card">
-        <div class="exposure-stat-label">${esc(card.label)}</div>
-        <div class="exposure-stat-value ${card.cls}">${card.value}</div>
+      <div class="dash-tile">
+        <div class="dash-label">${esc(card.label)}</div>
+        <div class="dash-value ${card.cls || ""}">${card.value}${card.unit ? `<small>${esc(card.unit)}</small>` : ""}</div>
+        <div class="metric-cmp">${card.subHtml}</div>
       </div>`).join("");
     const rankText = row => {
       if (!row) return "-";
       if (!row.found || row.rank == null) return "미노출";
       return `${row.rank}위`;
     };
+    const rankBadgeHtml = (row, tone = "current") => {
+      if (!row) return `<span class="exposure-rank-badge empty">미수집</span>`;
+      if (!row.found || row.rank == null) {
+        return `<span class="exposure-rank-badge ${tone === "prev" ? "prev" : "none"}">미노출</span>`;
+      }
+      const rank = Number(row.rank);
+      const page = row.page || Math.ceil(rank / 30);
+      const cls = tone === "prev"
+        ? "prev"
+        : page <= 1
+          ? "current p1"
+          : page <= 3
+            ? "current p23"
+            : page <= 9
+              ? "current p49"
+              : "current low";
+      return `<span class="exposure-rank-badge ${cls}">${rank}위</span>`;
+    };
     const deltaHtml = (current, previous) => {
       if (!current) return `<span class="exposure-delta">-</span>`;
-      if (current.found && (!previous || !previous.found)) return `<span class="exposure-delta up">신규</span>`;
-      if (!current.found && previous?.found) return `<span class="exposure-delta down">이탈</span>`;
+      if (current.found && (!previous || !previous.found)) return `<span class="exposure-delta up">▲신규</span>`;
+      if (!current.found && previous?.found) return `<span class="exposure-delta down">▼이탈</span>`;
       if (!current.found || !previous?.found || current.rank == null || previous.rank == null) return `<span class="exposure-delta">-</span>`;
       const delta = previous.rank - current.rank;
       if (delta > 0) return `<span class="exposure-delta up">▲${delta}</span>`;
       if (delta < 0) return `<span class="exposure-delta down">▼${Math.abs(delta)}</span>`;
-      return `<span class="exposure-delta">유지</span>`;
+      return `<span class="exposure-delta same">-</span>`;
     };
     const tableRowsHtml = sortedResults.map(({ kw, result }) => {
       const rows = exposureHistoryFor(blog.blog_id, kw.keyword, "naver_blog_screen");
       const current = rows[0] || result;
       const previous = rows[1];
+      const rowKey = exposureSelectionKey(blog.blog_id, kw.keyword);
+      const isOpen = exposureExpandedRows.has(rowKey);
+      const matchedPost = current?.result_log_no
+        ? state.posts.find(post => post.blog_id === blog.blog_id && String(post.log_no) === String(current.result_log_no))
+        : null;
       const postTitle = current?.found ? (current.result_title || current.result_log_no || "포스팅 확인 필요") : (current ? "노출된 포스팅 없음" : "수집 전");
       const postUrl = current?.result_url || "#";
-      return `<div class="exposure-table-row">
-        <div class="exposure-cell-keyword">
-          <span class="exposure-cat-badge${kw.category === "메인" ? " main" : ""}">${esc(kw.category)}</span>
-          <span class="exposure-keyword">${esc(kw.keyword)}</span>
+      const publishedText = current?.found ? formatDate(matchedPost?.published_at) : "-";
+      return `<div class="exposure-table-block${isOpen ? " open" : ""}">
+        <div class="exposure-table-row">
+          <button class="expand-btn" type="button" aria-label="${isOpen ? "닫기" : "펼치기"}" data-exposure-blog="${esc(blog.blog_id)}" data-exposure-keyword="${esc(kw.keyword)}" onclick="toggleExposureResultRow(this)"></button>
+          <div class="exposure-cell-keyword">
+            <span class="exposure-cat-badge${kw.category === "메인" ? " main" : ""}">${esc(displayKeywordCategory(kw.category))}</span>
+            <span class="exposure-keyword">${esc(kw.keyword)}</span>
+          </div>
+          <div class="exposure-cell-rank">${rankBadgeHtml(current, "current")}</div>
+          <div class="exposure-cell-muted">${rankBadgeHtml(previous, "prev")}</div>
+          ${deltaHtml(current, previous)}
+          ${current?.found ? `<a class="exposure-cell-post" href="${esc(postUrl)}" target="_blank" rel="noopener" title="${esc(postTitle)}">${esc(postTitle)}</a>` : `<span class="exposure-cell-post">${esc(postTitle)}</span>`}
+          ${current?.found ? `<span class="exposure-result-badge">노출</span>` : `<span class="exposure-result-text">-</span>`}
+          <span class="exposure-cell-date">${esc(publishedText)}</span>
         </div>
-        <div class="exposure-cell-rank">${rankText(current)}</div>
-        <div class="exposure-cell-muted">${rankText(previous)}</div>
-        ${deltaHtml(current, previous)}
-        ${current?.found ? `<a class="exposure-cell-post" href="${esc(postUrl)}" target="_blank" rel="noopener" title="${esc(postTitle)}">${esc(postTitle)}</a>` : `<span class="exposure-cell-post">${esc(postTitle)}</span>`}
-        <span class="exposure-result-badge${current?.found ? "" : " missing"}">${current?.found ? "노출" : current ? "미노출" : "미수집"}</span>
-        <button class="row-btn" type="button" data-tip="삭제" onclick="removeTargetKeywordHandler(${kw.id}, '${esc(kw.keyword)}')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M19 6l-1 14H6L5 6"></path><path d="M10 11v5M14 11v5"></path></svg>
-        </button>
+        ${isOpen ? renderExposureRankGraph(blog.blog_id, kw.keyword) : ""}
       </div>`;
     }).join("");
 
@@ -3378,7 +3621,8 @@ function renderExposureCard(blog, mode = "full") {
           </div>
           <div class="summary-divider"></div>
           <div class="summary-section-body app-card-body">
-            <div class="exposure-stat-grid">${statCardsHtml}</div>
+            <div class="rank-dash-tiles">${statCardsHtml}</div>
+            ${pageBarHtml}
           </div>
         </section>
 
@@ -3386,23 +3630,21 @@ function renderExposureCard(blog, mode = "full") {
           <div class="summary-section-title-row app-card-head">
             <div class="summary-section-title-wrap app-card-title-wrap">
               <span class="summary-section-title app-card-title">모니터링 키워드</span>
-              <span class="summary-section-subtitle app-card-subtitle">메인·서브 키워드를 등록하고 진단을 수집합니다.</span>
+              <span class="summary-section-subtitle app-card-subtitle">메인·보조 키워드를 선택하고 진단을 수집합니다.</span>
             </div>
-            <div style="display:flex;gap:8px;flex-shrink:0;">
-              <button class="diagnosis-refresh-btn" type="button" onclick="collectPostTitleCheckHandler('${esc(blog.blog_id)}')">제목 자가진단</button>
-              <button class="diagnosis-refresh-btn" type="button" onclick="collectExposureHandler('${esc(blog.blog_id)}')">노출 진단 수집</button>
-            </div>
+            <button class="diagnosis-refresh-btn" type="button" onclick="collectPostTitleCheckHandler('${esc(blog.blog_id)}')">누락여부 체크</button>
           </div>
           <div class="summary-divider"></div>
           <div class="summary-section-body app-card-body">
-            <div class="exposure-keyword-groups">${keywordGroupsHtml}</div>
-            <div class="exposure-keyword-add-grid">
-              <input type="text" placeholder="메인 키워드 추가 (쉼표로 여러 개)" onkeydown="if(event.key==='Enter') addTargetKeywordsBulk('${esc(blog.blog_id)}', '메인', this)">
-              <button class="keyword-add-btn" type="button" onclick="addTargetKeywordsBulk('${esc(blog.blog_id)}', '메인', this.previousElementSibling)">+ 메인 추가</button>
+            <div class="exposure-batch-utils">
+              <button type="button" class="exposure-batch-banner util" onclick="toggleAllExposureKeywords('${esc(blog.blog_id)}', '메인')">메인 선택</button>
+              <button type="button" class="exposure-batch-banner util" onclick="toggleAllExposureKeywords('${esc(blog.blog_id)}', '서브')">보조 선택</button>
+              <button type="button" class="exposure-batch-banner util" onclick="addExposureKeywordPrompt('${esc(blog.blog_id)}', '메인')">메인 추가</button>
+              <button type="button" class="exposure-batch-banner util" onclick="addExposureKeywordPrompt('${esc(blog.blog_id)}', '서브')">보조 추가</button>
             </div>
-            <div class="exposure-keyword-add-grid">
-              <input type="text" placeholder="서브 키워드 추가 (쉼표로 여러 개)" onkeydown="if(event.key==='Enter') addTargetKeywordsBulk('${esc(blog.blog_id)}', '서브', this)">
-              <button class="keyword-add-btn" type="button" onclick="addTargetKeywordsBulk('${esc(blog.blog_id)}', '서브', this.previousElementSibling)">+ 서브 추가</button>
+            <div class="exposure-keyword-groups">${keywordGroupsHtml}</div>
+            <div class="exposure-batch-run-wrap${selectedCount ? " show" : ""}">
+              <button class="exposure-batch-run-btn" type="button" onclick="collectExposureHandler('${esc(blog.blog_id)}')">선택한 ${selectedCount}개 키워드 수집 시작</button>
             </div>
           </div>
         </section>
@@ -3417,9 +3659,9 @@ function renderExposureCard(blog, mode = "full") {
           <div class="summary-divider"></div>
           <div class="summary-section-body app-card-body">
             <div class="exposure-table-head">
-              <span>키워드</span><span>현재 순위</span><span>이전 순위</span><span>변동</span><span>노출 포스팅</span><span>결과</span><span>관리</span>
+              <span></span><span>키워드</span><span>현재 순위</span><span>이전 순위</span><span>변동</span><span>노출 포스팅</span><span>결과</span><span>발행일</span>
             </div>
-            ${keywords.length ? tableRowsHtml : `<div class="empty-state" style="padding:24px 0;font-size:12px;">등록된 진단 키워드가 없습니다. 위에서 메인/서브 키워드를 추가해 주세요.</div>`}
+            ${keywords.length ? tableRowsHtml : `<div class="empty-state" style="padding:24px 0;font-size:12px;">등록된 진단 키워드가 없습니다. 위에서 메인/보조 키워드를 추가해 주세요.</div>`}
           </div>
         </section>
       </div>`;
@@ -4470,11 +4712,73 @@ async function addTargetKeywordsBulk(blogId, category, inputEl) {
   }
 }
 
+function exposureSelectionKey(blogId, keyword) {
+  return `${blogId}::${String(keyword || "").trim()}`;
+}
+
+function activeExposureKeywords(blogId) {
+  return state.targetKeywords.filter(k => k.blog_id === blogId && k.active);
+}
+
+function toggleExposureKeyword(button) {
+  const blogId = button.dataset.exposureBlog;
+  const keyword = button.dataset.exposureKeyword;
+  const key = exposureSelectionKey(blogId, keyword);
+  if (exposureSelectedKeywords.has(key)) exposureSelectedKeywords.delete(key);
+  else exposureSelectedKeywords.add(key);
+  renderAll();
+}
+
+function toggleExposureResultRow(button) {
+  const blogId = button.dataset.exposureBlog;
+  const keyword = button.dataset.exposureKeyword;
+  const key = exposureSelectionKey(blogId, keyword);
+  if (exposureExpandedRows.has(key)) exposureExpandedRows.delete(key);
+  else exposureExpandedRows.add(key);
+  renderAll();
+}
+
+function toggleAllExposureKeywords(blogId, category) {
+  const group = activeExposureKeywords(blogId).filter(k => k.category === category);
+  if (!group.length) return showToast(`등록된 ${category === "서브" ? "보조" : category} 키워드가 없습니다.`);
+  const allSelected = group.every(k => exposureSelectedKeywords.has(exposureSelectionKey(blogId, k.keyword)));
+  group.forEach(k => {
+    const key = exposureSelectionKey(blogId, k.keyword);
+    if (allSelected) exposureSelectedKeywords.delete(key);
+    else exposureSelectedKeywords.add(key);
+  });
+  renderAll();
+}
+
+async function addExposureKeywordPrompt(blogId, category) {
+  const label = category === "서브" ? "보조" : "메인";
+  const raw = (prompt(`추가할 ${label} 키워드를 입력하세요. 여러 개는 쉼표로 구분할 수 있습니다.`) || "").trim();
+  if (!raw) return;
+  const keywords = [...new Set(raw.split(",").map(v => v.trim()).filter(Boolean))];
+  if (!keywords.length) return;
+  const existing = new Set(activeExposureKeywords(blogId).map(k => k.keyword));
+  const nextKeywords = keywords.filter(keyword => !existing.has(keyword));
+  if (!nextKeywords.length) return showToast("이미 등록된 키워드입니다.");
+  showLoading("진단 키워드를 추가하는 중입니다.");
+  try {
+    state = await callApi("addTargetKeywords", { blogId, keywords: nextKeywords.map(keyword => ({ keyword, category })) });
+    nextKeywords.forEach(keyword => exposureSelectedKeywords.add(exposureSelectionKey(blogId, keyword)));
+    renderAll();
+    showToast(`${label} 키워드 ${nextKeywords.length}개를 추가했습니다.`);
+  } catch (error) {
+    showToast(error.message);
+  } finally {
+    hideLoading();
+  }
+}
+
 async function removeTargetKeywordHandler(id, keyword) {
   if (!confirm(`"${keyword}" 진단 키워드를 삭제할까요?`)) return;
+  const target = state.targetKeywords.find(k => k.id === id);
   showLoading("키워드를 삭제하는 중입니다.");
   try {
     state = await callApi("removeTargetKeyword", { id });
+    if (target) exposureSelectedKeywords.delete(exposureSelectionKey(target.blog_id, target.keyword));
     renderAll();
     showToast("키워드를 삭제했습니다.");
   } catch (error) {
@@ -4485,8 +4789,11 @@ async function removeTargetKeywordHandler(id, keyword) {
 }
 
 async function collectExposureHandler(blogId) {
-  const keywords = state.targetKeywords.filter(k => k.blog_id === blogId && k.active);
-  if (!keywords.length) return showToast("등록된 진단 키워드가 없습니다.");
+  const activeKeywords = activeExposureKeywords(blogId);
+  if (!activeKeywords.length) return showToast("등록된 진단 키워드가 없습니다.");
+  const selected = activeKeywords.filter(k => exposureSelectedKeywords.has(exposureSelectionKey(blogId, k.keyword)));
+  if (!selected.length) return showToast("수집할 키워드를 선택해 주세요.");
+  const keywords = selected;
   const errors = [];
   showLoading(`0/${keywords.length} 키워드 진단 중...`);
   for (let i = 0; i < keywords.length; i++) {
@@ -4587,12 +4894,20 @@ function setRankSubView(view) {
   const exposureView = document.getElementById("rankExposureView");
   if (postsView) postsView.hidden = rankSubView !== "posts";
   if (exposureView) exposureView.hidden = rankSubView !== "exposure";
+  syncRankHeadActions();
+}
+
+function syncRankHeadActions(activeView) {
+  const actions = document.getElementById("rankHeadActions");
+  if (!actions) return;
+  const isRankView = activeView ? activeView === "rank" : !document.getElementById("blogRankView")?.hidden;
+  actions.hidden = !isRankView || rankSubView !== "posts";
 }
 
 function setDiagnosisSubView(view) {
   diagnosisSubView = view === "competitor" ? "competitor" : "mine";
   const label = document.getElementById("diagnosisSubLabel");
-  if (label) label.textContent = diagnosisSubView === "competitor" ? "경쟁업체 블로그" : "에너가드컴퍼니";
+  if (label) label.textContent = diagnosisSubView === "competitor" ? "경쟁사 블로그" : "에너가드컴퍼니";
   document.querySelectorAll("[data-diagnosis-sub-option]").forEach(option => {
     option.classList.toggle("active", option.dataset.diagnosisSubOption === diagnosisSubView);
   });
@@ -4608,7 +4923,7 @@ function setBlogView(view) {
   });
   document.getElementById("blogDiagnosisView").hidden = nextView !== "diagnosis";
   document.getElementById("blogRankView").hidden = nextView !== "rank";
-  document.getElementById("rankHeadActions").hidden = nextView !== "rank";
+  syncRankHeadActions(nextView);
   const competitorActions = document.getElementById("competitorDiagnosisActions");
   if (competitorActions) competitorActions.hidden = nextView !== "diagnosis" || diagnosisSubView !== "competitor";
 }
