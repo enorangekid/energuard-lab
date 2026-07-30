@@ -564,11 +564,18 @@ async function collectStoreKeywords(storeName: string, half?: 1 | 2) {
   }));
 
   const seen = new Set<string>();
-  const list = [...baseList, ...customList].filter((k) => {
+  let list = [...baseList, ...customList].filter((k) => {
     if (seen.has(k.keyword)) return false;
     seen.add(k.keyword);
     return true;
   });
+  // half는 이 "고정 목록" 위에서 나눈다 — 최신성으로 정렬한 뒤에 자르면, half:1이 수집하며
+  // collected_date를 오늘로 갱신해버려서 몇 분 뒤 도는 half:2가 새로 정렬을 계산할 때 절반 경계가
+  // 밀려 half:1이 방금 돈 키워드를 중복으로 다시 돌고 나머지 절반은 통째로 스킵되는 버그가 있었다.
+  if (half === 1 || half === 2) {
+    const mid = Math.ceil(list.length / 2);
+    list = half === 1 ? list.slice(0, mid) : list.slice(mid);
+  }
 
   const watchItems: Array<Record<string, unknown>> = await supabaseRequest(
     `/rest/v1/tracked_items?select=product_code,alt_codes`,
@@ -604,15 +611,11 @@ async function collectStoreKeywords(storeName: string, half?: 1 | 2) {
     const kw = String(row.keyword || "");
     if (kw && !lastCollectedByKeyword.has(kw)) lastCollectedByKeyword.set(kw, String(row.collected_date || ""));
   }
-  let orderedList = [...list].sort((a, b) => {
+  const orderedList = [...list].sort((a, b) => {
     const da = lastCollectedByKeyword.get(a.keyword) || ""; // 미수집 키워드는 빈 문자열 → 항상 최우선
     const db = lastCollectedByKeyword.get(b.keyword) || "";
     return da.localeCompare(db);
   });
-  if (half === 1 || half === 2) {
-    const mid = Math.ceil(orderedList.length / 2);
-    orderedList = half === 1 ? orderedList.slice(0, mid) : orderedList.slice(mid);
-  }
 
   for (const { keyword, mainKeyword, isSub } of orderedList) {
     if (Date.now() > deadline) break; // 남은 키워드는 다음 실행에서 — 오래된 순으로 돌기 때문에 매번 같은 키워드가 밀리진 않는다
