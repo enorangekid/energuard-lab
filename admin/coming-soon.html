@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>준비중 — ENERGUARD LAB 관리자</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="../common.css?v=20260731c">
+<link rel="stylesheet" href="admin.css?v=20260731g">
+</head>
+<body>
+<header class="topbar" data-admin-topbar></header>
+
+<main class="app-shell">
+  <div class="admin-coming-soon">
+    <div class="admin-coming-soon-icon">🛠️</div>
+    <h1 class="admin-coming-soon-title" id="comingSoonName">준비중입니다</h1>
+    <p class="admin-coming-soon-desc">이 메뉴는 아직 이식하지 않았습니다. 순서대로 옮길 예정입니다.</p>
+    <a href="work-notes.html" class="admin-coming-soon-btn">← 업무노트로 이동</a>
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="admin-common.js?v=20260731c"></script>
+<script>
+(async () => {
+  const session = await requireAdminSession();
+  if (!session) return;
+  const params = new URLSearchParams(location.search);
+  const name = params.get("name");
+  if (name) document.getElementById("comingSoonName").textContent = decodeURIComponent(name) + " — 준비중입니다";
+})();
+</script>
+<script src="../common.js?v=20260731a"></script>
+</body>
+</html>

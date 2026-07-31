@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>업무노트 — ENERGUARD LAB 관리자</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/moonspam/NanumSquare@2.0/nanumsquare.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&family=Nanum+Myeongjo:wght@400;700;800&display=swap">
+<link href="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.snow.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/quill-table-better/dist/quill-table-better.css" rel="stylesheet">
+<link rel="stylesheet" href="../common.css?v=20260731c">
+<link rel="stylesheet" href="admin.css?v=20260731j">
+<style>
+  :root {
+    --bg: #f8f9fb; --card: #fff; --ink: #07111f; --sub: #5a6378;
+    --line: #e8ecf2; --soft-line: #e8ecf2; --dark: #05070b; --dark-tint: #eef0f3;
+    --accent: #e85d2f; --accent-dark: #d94d24; --accent-tint: #fdeee7;
+  }
+  .ql-snow .ql-picker.ql-size { width: 64px; }
+  .ql-snow .ql-picker.ql-size .ql-picker-label::before,
+  .ql-snow .ql-picker.ql-size .ql-picker-item::before { content: '기본'; }
+  .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="14px"]::before,
+  .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="14px"]::before { content: '14px'; }
+  .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="16px"]::before,
+  .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="16px"]::before { content: '16px'; }
+  .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="18px"]::before,
+  .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="18px"]::before { content: '18px'; }
+  .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="14px"] { font-size: 14px; }
+  .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="16px"] { font-size: 16px; }
+  .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="18px"] { font-size: 18px; }
+</style>
+</head>
+<body>
+<header class="topbar" data-admin-topbar></header>
+
+<main class="app-shell">
+  <div class="note-container">
+    <div class="nt-title-bar">
+      <div class="nt-left">
+        <h2>업무 노트</h2>
+        <div class="nt-tabs">
+          <button type="button" class="nt-tab active" data-tab="general" onclick="setNoteTab('general')">일반 노트</button>
+          <button type="button" class="nt-tab" data-tab="blog" onclick="setNoteTab('blog')">블로그 원고</button>
+          <button type="button" class="nt-tab" data-tab="youtube" onclick="setNoteTab('youtube')">유튜브 원고</button>
+        </div>
+      </div>
+      <div class="note-controls">
+        <span class="note-save-status" id="noteSaveStatus">최신 상태</span>
+        <input type="month" id="noteMonthPicker" onchange="handleNoteMonthChange()">
+        <button type="button" class="nt-btn" onclick="insertTodayHeader()">오늘</button>
+        <button type="button" class="nt-btn" onclick="printNote()">인쇄</button>
+        <button type="button" class="nt-btn" onclick="cancelNoteChanges()">취소</button>
+        <button type="button" class="nt-btn btn-primary" onclick="saveNoteManual()">저장</button>
+      </div>
+    </div>
+
+    <div class="nt-search-bar">
+      <input type="text" id="noteSearchInput" placeholder="제목/내용 검색..." oninput="searchNotes()">
+      <div class="note-search-results" id="noteSearchResults"></div>
+    </div>
+
+    <div class="nt-body">
+      <div id="draftListContainer" style="display:none;">
+        <div class="list-toolbar">
+          <button type="button" class="nt-btn btn-primary" onclick="createNewDraft()">+ 새 원고 작성</button>
+        </div>
+        <table class="nt-table">
+          <thead><tr><th>작성일</th><th class="text-left">제목</th><th>상태</th><th>최근저장</th></tr></thead>
+          <tbody id="draftListBody"></tbody>
+        </table>
+      </div>
+
+      <div id="draftMetadataArea" class="draft-meta-area" style="display:none;">
+        <button type="button" class="back-to-list-btn" onclick="backToList()">← 목록</button>
+        <input type="text" id="draftTitle" placeholder="제목을 입력하세요">
+        <input type="date" id="noteDate">
+        <select id="draftStatus">
+          <option value="saving">작성중</option>
+          <option value="uploaded">업로드 완료</option>
+        </select>
+        <button type="button" class="nt-btn" id="aiSuggestBtn" onclick="runAiSuggest()">✨ AI 추천</button>
+      </div>
+
+      <div id="editor-wrapper">
+        <div id="nt-toolbar" class="ql-toolbar ql-snow nt-toolbar">
+          <span class="ql-formats nt-tool-group">
+            <span class="nt-picker-tool">
+              <select class="ql-font" title="글꼴">
+                <option selected></option>
+                <option value="nanum-square"></option>
+                <option value="nanum-myeongjo"></option>
+                <option value="gowun-dodum"></option>
+              </select>
+              <span class="nt-picker-label">글꼴</span>
+            </span>
+            <span class="nt-picker-tool">
+              <select class="ql-size" title="글자 크기">
+                <option value="14px"></option>
+                <option value="16px"></option>
+                <option value="18px"></option>
+                <option selected></option>
+              </select>
+              <span class="nt-picker-label">크기</span>
+            </span>
+            <button class="ql-bold nt-tb-btn nt-format-btn" type="button" title="굵게" data-label="굵게" data-icon="bold"></button>
+            <button class="ql-italic nt-tb-btn nt-format-btn" type="button" title="기울임" data-label="기울임" data-icon="italic"></button>
+            <button class="ql-underline nt-tb-btn nt-format-btn" type="button" title="밑줄" data-label="밑줄" data-icon="underline"></button>
+            <span class="nt-picker-tool">
+              <select class="ql-color" title="글자색"></select>
+              <span class="nt-picker-label">글자색</span>
+            </span>
+            <span class="nt-picker-tool">
+              <select class="ql-background" title="배경색"></select>
+              <span class="nt-picker-label">배경</span>
+            </span>
+            <button class="ql-list nt-tb-btn nt-format-btn" type="button" value="ordered" title="번호 목록" data-label="번호" data-icon="ordered-list"></button>
+            <button class="ql-list nt-tb-btn nt-format-btn" type="button" value="bullet" title="글머리 목록" data-label="목록" data-icon="bullet-list"></button>
+            <button class="ql-blockquote nt-tb-btn" type="button" title="인용구" data-label="인용구">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 10H5a4 4 0 0 1 4-4"/><path d="M19 10h-4a4 4 0 0 1 4-4"/><path d="M5 10v7h6v-7"/><path d="M15 10v7h6v-7"/></svg>
+              <span class="nt-tb-label">인용구</span>
+            </button>
+            <button class="ql-divider nt-tb-btn" type="button" title="구분선" data-label="구분선">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h16"/></svg>
+              <span class="nt-tb-label">구분선</span>
+            </button>
+            <button class="ql-image nt-tb-btn nt-tb-accent" type="button" title="사진" data-label="사진">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.8"/><path d="M21 16l-4.2-4.2a2 2 0 0 0-2.8 0L8 18"/></svg>
+              <span class="nt-tb-label">사진</span>
+            </button>
+            <button class="ql-table-insert nt-tb-btn" type="button" title="표" data-label="표">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 10h16M4 15h16M10 4v16M15 4v16"/></svg>
+              <span class="nt-tb-label">표</span>
+            </button>
+            <button class="ql-clean nt-tb-btn nt-format-btn" type="button" title="서식 지우기" data-label="초기화" data-icon="clean"></button>
+          </span>
+        </div>
+        <div id="editor"></div>
+        <div id="aiSuggestResult" style="display:none;"></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="admin-common.js?v=20260731c"></script>
+<script src="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/quill-table-better/dist/quill-table-better.js"></script>
+<script src="work-notes.js?v=20260731f"></script>
+<script src="../common.js?v=20260731b"></script>
+<script>
+(async () => {
+  const session = await requireAdminSession();
+  if (!session) return;
+  initWorkNotesPage();
+})();
+</script>
+</body>
+</html>

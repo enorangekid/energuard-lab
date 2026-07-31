@@ -11,6 +11,7 @@ const TOPBAR_MENU = [
   { label: "매출분석",   href: "sales-analysis.html" },
   { label: "아이템발굴", href: "item-discovery.html" },
   { label: "유틸리티",   href: "utility.html" },
+  { label: "관리자",     href: "admin/work-notes.html", cls: "topbar-nav-admin" },
 ];
 
 function initTopbar() {
@@ -47,6 +48,13 @@ function initTopbar() {
       blogLink.textContent = "블로그분석";
       keywordLink?.after(blogLink);
     }
+    if (nav && !nav.querySelector('a[href*="admin/work-notes.html"]')) {
+      const adminLink = document.createElement("a");
+      adminLink.href = `${prefix}admin/work-notes.html`;
+      adminLink.textContent = "관리자";
+      adminLink.className = "topbar-nav-admin";
+      nav.appendChild(adminLink);
+    }
     bar.querySelectorAll(".topbar-nav a").forEach((a) => {
       const href = (a.getAttribute("href") || "").split("/").pop().toLowerCase();
       a.classList.toggle("active", href === activePage);
@@ -56,8 +64,9 @@ function initTopbar() {
 
   const navHtml = TOPBAR_MENU.map((item) => {
     if (!item.href) return `<a href="#" class="nav-dummy">${item.label}</a>`;
-    const active = activePage === item.href.toLowerCase() ? ' class="active"' : "";
-    return `<a href="${prefix}${item.href}"${active}>${item.label}</a>`;
+    const isActive = activePage === item.href.toLowerCase();
+    const cls = [item.cls, isActive ? "active" : ""].filter(Boolean).join(" ");
+    return `<a href="${prefix}${item.href}"${cls ? ` class="${cls}"` : ""}>${item.label}</a>`;
   }).join("\n      ");
 
   bar.innerHTML = `

@@ -712,7 +712,8 @@ body > .wrap {
 /* header.topbar 로 스코프를 걸어(element+class = 특이도 우위) style.css/calc.css 등
    다른 스타일시트의 구식 .topbar 규칙(예: 계산기 티커바)에 덮어써지지 않도록 방어합니다. */
 /* common.js가 메뉴를 채우기 전(빈 셸 상태)에도 높이를 확보해 레이아웃 점프를 방지 */
-header.topbar[data-topbar]:empty { min-height: 73px; }
+header.topbar[data-topbar]:empty,
+header.topbar[data-admin-topbar]:empty { min-height: 73px; }
 
 header.topbar,
 header.topbar *,
@@ -819,6 +820,16 @@ header.topbar .topbar-nav a:hover {
 }
 
 header.topbar .topbar-nav a.active { color: #fff; font-weight: 700; }
+
+/* 관리자 링크 — 셀러용 제품 메뉴와 성격이 달라 옅은 구분선으로 시각적으로 떼어놓음 */
+header.topbar .topbar-nav a.topbar-nav-admin {
+  margin-left: 8px;
+  padding-left: 24px;
+  border-left: 1px solid rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 14px;
+}
+header.topbar .topbar-nav a.topbar-nav-admin:hover { color: rgba(255, 255, 255, 0.85); }
 
 header.topbar .topbar-actions {
   position: absolute;
@@ -1518,4 +1529,3 @@ header.topbar .topbar-icon-btn.history-on { color: var(--accent, #e85d2f); borde
   visibility: visible;
   transform: translate(-50%, 0);
 }
-
