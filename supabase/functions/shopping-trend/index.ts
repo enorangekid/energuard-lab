@@ -98,6 +98,7 @@ const SNAPSHOT_TABLE = "realtime_trend_snapshot";
 const TREND_ARCHIVE_TABLE = "realtime_trend_archive";
 const CONTENT_IDEA_TABLE = "content_ideas";
 const CONTENT_DRAFT_TABLE = "content_drafts";
+const CONTENT_IDEA_REJECTED_TABLE = "content_idea_rejected_keywords";
 const NICHE_DAILY_TABLE = "niche_trend_daily_snapshot";
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") || "";
 const OPENAI_MODEL = Deno.env.get("OPENAI_MODEL") || "gpt-4o-mini";
@@ -610,8 +611,17 @@ async function saveContentIdeas(slot: string, items: SemanticIdea[], idPrefix = 
     existingByKeyword.filter(row => !idSet.has(row.id)).map(row => ideaKey(row.keyword)),
   );
 
+  // 완전삭제(휴지통 비우기)로 content_ideas 행 자체가 사라진 키워드는 rejected 테이블에 남아있다 —
+  // "이미 판단해서 버린 키워드"이므로 트렌드/뉴스에 다시 떠도 후보로 다시 띄우지 않는다.
+  const rejectedKeyFilter = pgListLiteral(rows.map(row => ideaKey(row.keyword)));
+  const rejected: Array<{ keyword_key: string }> = await supabaseRequest(
+    `/rest/v1/${CONTENT_IDEA_REJECTED_TABLE}?select=keyword_key&keyword_key=in.${rejectedKeyFilter}`,
+  ).catch(() => []) || [];
+  const rejectedKeys = new Set(rejected.map(row => row.keyword_key));
+
   const writableRows = rows
     .filter(row => !takenKeywords.has(ideaKey(row.keyword)))
+    .filter(row => !rejectedKeys.has(ideaKey(row.keyword)))
     .filter(row => !existingStatus.has(row.id) || existingStatus.get(row.id) === "candidate")
     .map(row => ({ ...row, status: existingStatus.get(row.id) || "candidate" }));
   if (!writableRows.length) return 0;
@@ -698,6 +708,40 @@ async function deleteContentIdea(idRaw: unknown) {
     headers: { "Prefer": "return=minimal" },
   });
   return { ok: true, id };
+}
+
+/* 휴지통(deleted_at 있는 항목) 전체를 한 번에 완전삭제 — 그냥 지우기만 하면 "이미 판단해서
+   버린 키워드"라는 기록이 사라져 나중에 같은 키워드가 다시 추천된다. 지우기 전에 키워드 텍스트를
+   rejected 테이블에 먼저 남겨서, saveContentIdeas가 앞으로 이 키워드를 걸러내게 한다. */
+async function purgeDeletedContentIdeas() {
+  const trashed: Array<{ id: string; keyword: string }> = await supabaseRequest(
+    `/rest/v1/${CONTENT_IDEA_TABLE}?select=id,keyword&deleted_at=not.is.null`,
+  ) || [];
+  if (!trashed.length) return { ok: true, purged: 0 };
+
+  const rejectedRows = new Map<string, { keyword_key: string; keyword: string }>();
+  trashed.forEach((row) => {
+    const key = ideaKey(row.keyword);
+    if (key && !rejectedRows.has(key)) rejectedRows.set(key, { keyword_key: key, keyword: row.keyword });
+  });
+  if (rejectedRows.size) {
+    await supabaseRequest(`/rest/v1/${CONTENT_IDEA_REJECTED_TABLE}?on_conflict=keyword_key`, {
+      method: "POST",
+      headers: { "Prefer": "resolution=merge-duplicates,return=minimal" },
+      body: JSON.stringify([...rejectedRows.values()]),
+    });
+  }
+
+  const idsFilter = encodeURIComponent(`(${trashed.map((row) => `"${row.id.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`).join(",")})`);
+  await supabaseRequest(`/rest/v1/${CONTENT_DRAFT_TABLE}?idea_id=in.${idsFilter}`, {
+    method: "DELETE",
+    headers: { "Prefer": "return=minimal" },
+  }).catch(() => null);
+  await supabaseRequest(`/rest/v1/${CONTENT_IDEA_TABLE}?deleted_at=not.is.null`, {
+    method: "DELETE",
+    headers: { "Prefer": "return=minimal" },
+  });
+  return { ok: true, purged: trashed.length };
 }
 
 async function deleteContentDraftsOnly(idsRaw: unknown) {
@@ -1391,6 +1435,7 @@ Deno.serve(async (req) => {
     if (body.action === "deleteRealtimeTrend") return json(await deleteTrendArchive(body.id));
     if (body.action === "addContentIdea") return json(await addContentIdea(body));
     if (body.action === "deleteContentIdea") return json(await deleteContentIdea(body.id));
+    if (body.action === "purgeDeletedContentIdeas") return json(await purgeDeletedContentIdeas());
     if (body.action === "deleteContentDraftsOnly") return json(await deleteContentDraftsOnly(body.ids || body.id));
     if (body.action === "deleteContentDraftsByRowId") return json(await deleteContentDraftsByRowId(body.ids || body.id));
     if (body.action === "collectNicheDaily") return json(await collectNicheDaily());
