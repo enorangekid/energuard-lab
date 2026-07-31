@@ -392,7 +392,6 @@
           <span class="card-title app-card-title">키워드 후보</span>
           <span class="card-subtitle app-card-subtitle">트렌드와 검색에서 저장한 콘텐츠 후보입니다.</span>
         </div>
-        <span class="pill gray" id="ideaCount">0개</span>
         <button type="button" class="idea-purge-btn" id="purgeTrashBtn" title="휴지통을 비우고 해당 키워드들을 앞으로 추천에서 제외합니다" hidden>완전삭제</button>
       </div>
       <div class="card-body app-card-body">
@@ -688,7 +687,6 @@ function renderIdeas() {
   // 처음 진입해서 아직 아무것도 선택 안 한 상태(selectedId="")면 강제로 첫 카드를 고르지 않는다.
   // 이미 뭔가 선택돼 있었는데 필터링으로 그 카드가 목록에서 빠졌을 때만 다음 후보로 넘어간다.
   if (selectedId && !rows.some(x => x.id === selectedId) && rows[0]) selectedId = rows[0].id;
-  document.getElementById("ideaCount").textContent = `${rows.length}개`;
   // 초안 카드(#draftCard)는 목록 맨 아래 고정이 아니라 선택된 행 바로 아래에 펼쳐져야 하므로,
   // innerHTML로 목록을 새로 그리기 전에 먼저 떼어냈다가 알맞은 행 뒤에 다시 끼워 넣는다.
   const draftCard = document.getElementById("draftCard");
