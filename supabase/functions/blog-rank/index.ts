@@ -708,10 +708,6 @@ async function fetchPostMetaFallback(blogId: string, logNo: string): Promise<{ t
   }
 }
 
-async function fetchPostTitleFallback(blogId: string, logNo: string): Promise<string | null> {
-  return (await fetchPostMetaFallback(blogId, logNo)).title;
-}
-
 /* 사진 캡션(se-caption)과 인용구 출처(se-cite)도 본문과 똑같은 <p class="se-text-paragraph">를
    재사용해서, 이 두 래퍼를 먼저 통째로 잘라내지 않으면 본문이 아닌 텍스트까지 섞여 들어간다.
    char_count 집계와 AI 판정용 본문 텍스트 추출이 이 로직을 그대로 공유한다. */
@@ -1057,11 +1053,15 @@ async function saveExposureHistory(blogId: string, keyword: string, device: Devi
   const collectedDate = kstDateString();
   let resultTitle: string | null = null;
   if (result.resultLogNo) {
+    // 노출 진단이 찾아낸 포스팅이 RSS 최근 50개 밖의 오래된 글이면 blog_rank_posts에 행 자체가
+    // 없어서 "키워드별 결과" 화면에서 발행일을 조회할 대상이 없었다 — 제목만 fallback으로 구해서
+    // exposure_history에 채워 넣을 뿐 blog_rank_posts는 그대로 비어 있었다. ensurePostRowsExist로
+    // 발행일까지 포함한 스텁 행을 먼저 채운다(이미 있으면 건드리지 않음).
+    await ensurePostRowsExist(blogId, [result.resultLogNo]);
     const rows = await db(
       `blog_rank_posts?select=title&blog_id=eq.${encodeURIComponent(blogId)}&log_no=eq.${encodeURIComponent(result.resultLogNo)}`,
     ) as Array<{ title: string }>;
     resultTitle = rows?.[0]?.title || null;
-    if (!resultTitle) resultTitle = await fetchPostTitleFallback(blogId, result.resultLogNo);
   }
   await db("blog_rank_exposure_history?on_conflict=blog_id,keyword,provider,device,checked_date", {
     method: "POST",
@@ -1470,8 +1470,8 @@ async function refreshRssForBlogs(targets: string[], deadline: number): Promise<
 
 /* blog_rank_post_content_check은 blog_rank_posts에 대한 외래키가 걸려 있는데, RSS는 최신 50개
    글만 주기 때문에 노출 결과가 가리키는 오래된 글은 blog_rank_posts에 행 자체가 없어 FK 위반(409)으로
-   저장이 통째로 실패한다 — 제목을 못 구했을 때 쓰는 fetchPostTitleFallback으로 스텁 행을 먼저
-   채워서 이 실패를 없앤다. */
+   저장이 통째로 실패한다 — fetchPostMetaFallback(제목+발행일)으로 스텁 행을 먼저 채워서 이 실패를
+   없앤다. saveExposureHistory도 노출 진단이 찾아낸 오래된 글의 발행일을 보여주려고 이걸 재사용한다. */
 async function ensurePostRowsExist(blogId: string, logNos: string[]): Promise<void> {
   if (!logNos.length) return;
   const existing = await db(

@@ -3429,13 +3429,21 @@ function renderExposureCard(blog, mode = "full") {
     const br = b.result?.found && b.result.rank != null ? Number(b.result.rank) : 99999;
     return ar - br || a.kw.keyword.localeCompare(b.kw.keyword, "ko");
   });
+  // 체크 시각 표시용(collected_at, 실제 타임스탬프)과 전일/전주 비교 기준일(checked_date, 이미
+  // KST로 보정된 날짜 문자열)은 서로 다른 값이라 분리한다 — 예전엔 checked_date(날짜만, 시간정보
+  // 없음)를 화면 표시에도 그대로 썼는데, "2026-07-31" 같은 날짜만 있는 문자열은 new Date()가
+  // UTC 자정으로 해석해버려서 KST로 표시하면 실제 수집 시각과 무관하게 항상 "오전 9시"로 보였다.
   const checkedAt = sortedResults
-    .map(r => r.result?.checked_date || r.result?.collected_at)
+    .map(r => r.result?.collected_at || r.result?.checked_date)
     .filter(Boolean)
     .sort()
     .pop();
   const checkedRate = keywords.length ? Math.round((checkedCount / keywords.length) * 100) : 0;
-  const checkedDate = String(checkedAt || "").slice(0, 10);
+  const checkedDate = sortedResults
+    .map(r => r.result?.checked_date)
+    .filter(Boolean)
+    .sort()
+    .pop() || String(checkedAt || "").slice(0, 10);
   const shiftDate = (date, days) => {
     if (!date) return "";
     const d = new Date(`${date}T00:00:00+09:00`);
