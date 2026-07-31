@@ -393,7 +393,7 @@
           <span class="card-subtitle app-card-subtitle">트렌드와 검색에서 저장한 콘텐츠 후보입니다.</span>
         </div>
         <span class="pill gray" id="ideaCount">0개</span>
-        <button type="button" class="idea-purge-btn" id="purgeTrashBtn" title="휴지통을 비우고 해당 키워드들을 앞으로 추천에서 제외합니다">완전삭제</button>
+        <button type="button" class="idea-purge-btn" id="purgeTrashBtn" title="휴지통을 비우고 해당 키워드들을 앞으로 추천에서 제외합니다" hidden>완전삭제</button>
       </div>
       <div class="card-body app-card-body">
         <div class="idea-list" id="ideaList"></div>
@@ -671,6 +671,8 @@ function renderCategories() {
   document.getElementById("categoryTabs").innerHTML = CATEGORIES.map(cat =>
     `<button type="button" class="category-tab${activeCategory === cat ? " active" : ""}" data-category="${esc(cat)}">${esc(cat)}<span class="category-tab-count">${categoryCount(cat)}</span></button>`
   ).join("");
+  const purgeBtn = document.getElementById("purgeTrashBtn");
+  if (purgeBtn) purgeBtn.hidden = activeCategory !== "삭제됨";
 }
 function filteredIdeas() {
   return ideas.filter(item => {
