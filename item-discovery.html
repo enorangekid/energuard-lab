@@ -1075,8 +1075,11 @@ async function addTrendIdea(button) {
   }
 }
 // content_ideas는 anon update 정책이 있어 굳이 edge function을 거치지 않고 직접 PATCH한다.
+// deleted_at 컬럼이 DB에 없던 시절엔 이 fetch가 400을 받고도 응답 확인을 안 해서 삭제가 매번
+// 조용히 실패하는데도 화면엔 성공한 것처럼 보였다 — 이제 실패하면 반드시 throw해서 호출부의
+// catch(showToast 에러 안내)가 실제로 동작하게 한다.
 async function patchContentIdea(id, patch) {
-  await fetch(`${SUPABASE_URL}/rest/v1/content_ideas?id=eq.${encodeURIComponent(id)}`, {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/content_ideas?id=eq.${encodeURIComponent(id)}`, {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json; charset=utf-8",
@@ -1086,6 +1089,10 @@ async function patchContentIdea(id, patch) {
     },
     body: JSON.stringify(patch),
   });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`저장 실패 (${res.status})${detail ? `: ${detail.slice(0, 200)}` : ""}`);
+  }
 }
 // "삭제됨" 탭이 아닌 곳에서는 소프트 삭제(deleted_at만 채움) — 목록에서만 숨기고 "삭제됨" 탭에서
 // 복구할 수 있다. "삭제됨" 탭 안에서 다시 삭제를 누르면 그때는 완전 삭제(기존 하드 삭제)로 처리한다.
