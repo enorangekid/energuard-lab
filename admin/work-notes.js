@@ -5,23 +5,261 @@
    ================================================================ */
 
 let currentNoteTab = 'general';
+let currentMediaChannel = 'blog'; // 미디어 채널 탭에서 마지막으로 보던 채널
+let currentRecordView = 'organize'; // 업무기록 탭 안의 종류: 'timeline'(미이식) | 'organize'(=업무 정리, 기존 일반노트)
 let currentNoteId = null;
 let currentNoteMonth = '';
 let noteOriginalContent = '';
 let noteAutoSaveTimer = null;
+
+/* ── 페이지 타이틀 탭(업무기록/미디어 채널) + 드롭박스(업무기록 종류·미디어 채널) 클릭 처리
+   (블로그진단의 store-chips 드롭박스와 같은 패턴) ── */
+document.addEventListener('click', (e) => {
+  const titleTab = e.target.closest('#noteTitleTabs .app-title-tab');
+  if (titleTab) {
+    setNoteTab(titleTab.dataset.noteView === 'media' ? currentMediaChannel : 'general');
+    return;
+  }
+
+  const recordChips = document.getElementById('recordViewChips');
+  if (e.target.closest('[data-action="toggle-record-view-menu"]')) {
+    recordChips?.classList.toggle('open');
+    return;
+  }
+  const recordOption = e.target.closest('[data-record-view]');
+  if (recordOption) {
+    applyRecordView(recordOption.dataset.recordView);
+    recordChips?.classList.remove('open');
+    return;
+  }
+  if (recordChips && !e.target.closest('#recordViewChips')) recordChips.classList.remove('open');
+
+  const mediaChips = document.getElementById('mediaChannelChips');
+  if (e.target.closest('[data-action="toggle-media-menu"]')) {
+    mediaChips?.classList.toggle('open');
+    return;
+  }
+  const mediaOption = e.target.closest('[data-media-channel]');
+  if (mediaOption) {
+    setNoteTab(mediaOption.dataset.mediaChannel);
+    mediaChips?.classList.remove('open');
+    return;
+  }
+  if (mediaChips && !e.target.closest('#mediaChannelChips')) mediaChips.classList.remove('open');
+});
+
+// 업무기록 종류 전환(업무 타임라인 ↔ 업무 정리) — 업무 타임라인은 아직 미이식이라 안내만 보여준다.
+function applyRecordView(view) {
+  currentRecordView = view;
+  document.getElementById('recordViewLabel').textContent = view === 'timeline' ? '업무 타임라인' : '업무 정리';
+  document.querySelectorAll('[data-record-view]').forEach((chip) =>
+    chip.classList.toggle('active', chip.dataset.recordView === view)
+  );
+  if (currentNoteTab === 'general') applyGeneralView();
+}
+
+// 업무기록(general) 탭 안에서 현재 currentRecordView에 맞는 화면만 보여준다.
+function applyGeneralView() {
+  const isOrganize = currentRecordView === 'organize';
+  const monthCard = document.getElementById('noteMonthCard');
+  const organizeContainer = document.getElementById('organizeContainer');
+  const timelineView = document.getElementById('timelineView');
+  if (monthCard) monthCard.hidden = !isOrganize;
+  if (organizeContainer) organizeContainer.hidden = !isOrganize;
+  if (timelineView) timelineView.hidden = isOrganize;
+  // 오늘/인쇄/취소/저장은 Quill 에디터(업무 정리) 전용이라 업무 타임라인에선 숨긴다
+  const noteControls = document.querySelector('.nt-filterbar .note-controls');
+  if (noteControls) noteControls.style.display = isOrganize ? '' : 'none';
+  if (!isOrganize) initTimelineOnce();
+}
 
 function initWorkNotesPage() {
   const now = new Date();
   document.getElementById('noteMonthPicker').value =
     now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
   initQuill();
+  initFontSizeSelects();
+  initNoteMonthQuick();
   setNoteTab('general');
 }
 window.initWorkNotesPage = initWorkNotesPage;
 
+/* ── 월별 바로가기 — 매출분석 month-quick UI 이식(연도 셀렉트 + 1~12월 카드).
+   노트가 있는 달 + 이번 달(새 노트 작성용)만 활성화한다. ── */
+let noteMonthQuickYear = new Date().getFullYear();
+let noteMonthFillCache = {}; // year → Set("YYYY-MM") | null(조회 실패: 비활성화하지 않음)
+const noteMonthFillLoading = new Set();
+
+function initNoteMonthQuick() {
+  const sel = document.getElementById('noteMonthYear');
+  const curYear = new Date().getFullYear();
+  const years = [];
+  for (let y = curYear; y >= curYear - 3; y--) years.push(y);
+  sel.innerHTML = years
+    .map((y) => `<option value="${y}"${y === noteMonthQuickYear ? ' selected' : ''}>${y}년</option>`)
+    .join('');
+  sel.addEventListener('change', (e) => {
+    noteMonthQuickYear = Number(e.target.value);
+    renderNoteMonthQuick();
+  });
+  document.getElementById('noteMonthQuick').addEventListener('click', (e) => {
+    const card = e.target.closest('.month-card');
+    if (!card || card.disabled) return;
+    document.getElementById('noteMonthPicker').value = card.dataset.month;
+    handleNoteMonthChange();
+  });
+  renderNoteMonthQuick();
+}
+
+async function ensureNoteMonthFillLoaded(year) {
+  if (year in noteMonthFillCache || noteMonthFillLoading.has(year)) return;
+  noteMonthFillLoading.add(year);
+  try {
+    const { data, error } = await supabaseClient
+      .from('work_notes')
+      .select('date')
+      .eq('type', 'general')
+      .is('deleted_at', null)
+      .gte('date', `${year}-01-01`)
+      .lte('date', `${year}-12-31`);
+    if (error) throw error;
+    const months = new Set();
+    (data || []).forEach((r) => r.date && months.add(String(r.date).slice(0, 7)));
+    noteMonthFillCache[year] = months;
+  } catch (_) {
+    noteMonthFillCache[year] = null;
+  } finally {
+    noteMonthFillLoading.delete(year);
+    renderNoteMonthQuick();
+  }
+}
+
+function renderNoteMonthQuick() {
+  const grid = document.getElementById('noteMonthQuick');
+  if (!grid) return;
+  const selected = document.getElementById('noteMonthPicker').value;
+  const now = new Date();
+  const curKey = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+  const fillSet = noteMonthFillCache[noteMonthQuickYear];
+  const stillLoading = !(noteMonthQuickYear in noteMonthFillCache);
+  ensureNoteMonthFillLoaded(noteMonthQuickYear);
+  grid.innerHTML = Array.from({ length: 12 }, (_, i) => i + 1)
+    .map((month) => {
+      const monthKey = noteMonthQuickYear + '-' + String(month).padStart(2, '0');
+      // 다음 달 1개까지는 미리 열어둔다(월말에 다음 달 계획을 미리 적는 용도)
+      const nextDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+      const nextKey = nextDate.getFullYear() + '-' + String(nextDate.getMonth() + 1).padStart(2, '0');
+      const isFuture = monthKey > curKey && monthKey !== nextKey;
+      const isCurrent = monthKey === curKey || monthKey === nextKey;
+      const hasNote = !stillLoading && fillSet instanceof Set && fillSet.has(monthKey);
+      // 조회 실패(null) 시에는 매출분석과 같은 정책으로 비활성화하지 않는다
+      const enabled = !isFuture && (isCurrent || hasNote || (fillSet === null && !stillLoading));
+      const active = enabled && selected === monthKey;
+      return enabled
+        ? `<button type="button" class="month-card${active ? ' active' : ''}" data-month="${monthKey}">${month}월</button>`
+        : `<button type="button" class="month-card" disabled>${month}월</button>`;
+    })
+    .join('');
+}
+
+// 새 달에 첫 노트가 생성됐을 때 그 달을 즉시 활성 표시로 반영
+function markNoteMonthFilled(monthStr) {
+  const year = Number(monthStr.slice(0, 4));
+  if (noteMonthFillCache[year] instanceof Set) noteMonthFillCache[year].add(monthStr);
+  renderNoteMonthQuick();
+}
+
+/* ── 글꼴/크기 — Quill picker 대신 사이트 공용 .store-select 컴포넌트를 그대로 써서
+   quill.format()만 호출한다. 열고 닫기는 블로그진단 드롭박스와 같은 패턴. ── */
+function initFontSizeSelects() {
+  const fontLabelMap = { 'nanum-square': '나눔스퀘어', 'nanum-myeongjo': '나눔명조', 'gowun-dodum': '고운돋움' };
+  const sizeLabelMap = { '14px': '14', '15px': '15', '16px': '16', '18px': '18' };
+
+  function setActiveChip(chipsId, value, attr) {
+    document.querySelectorAll('#' + chipsId + ' [' + attr + ']').forEach((chip) => {
+      chip.classList.toggle('active', chip.getAttribute(attr) === value);
+    });
+  }
+  function applyFont(value) {
+    window.quill.format('font', value);
+    document.getElementById('wnFontLabel').textContent = fontLabelMap[value] || value;
+    setActiveChip('wnFontChips', value, 'data-wn-font');
+  }
+  function applySize(value) {
+    window.quill.format('size', value);
+    document.getElementById('wnSizeLabel').textContent = sizeLabelMap[value] || value;
+    setActiveChip('wnSizeChips', value, 'data-wn-size');
+  }
+
+  document.addEventListener('click', (e) => {
+    const fontChips = document.getElementById('wnFontChips');
+    const sizeChips = document.getElementById('wnSizeChips');
+
+    if (e.target.closest('[data-action="toggle-wn-font-menu"]')) {
+      fontChips?.classList.toggle('open');
+      sizeChips?.classList.remove('open');
+      return;
+    }
+    const fontOption = e.target.closest('[data-wn-font]');
+    if (fontOption) {
+      applyFont(fontOption.dataset.wnFont);
+      fontChips?.classList.remove('open');
+      return;
+    }
+    if (fontChips && !e.target.closest('#wnFontChips')) fontChips.classList.remove('open');
+
+    if (e.target.closest('[data-action="toggle-wn-size-menu"]')) {
+      sizeChips?.classList.toggle('open');
+      fontChips?.classList.remove('open');
+      return;
+    }
+    const sizeOption = e.target.closest('[data-wn-size]');
+    if (sizeOption) {
+      applySize(sizeOption.dataset.wnSize);
+      sizeChips?.classList.remove('open');
+      return;
+    }
+    if (sizeChips && !e.target.closest('#wnSizeChips')) sizeChips.classList.remove('open');
+  });
+
+  window.quill.on('selection-change', (range) => {
+    if (!range) return;
+    const format = window.quill.getFormat(range);
+    const fontVal = format.font || 'nanum-square';
+    const sizeVal = format.size || '15px';
+    document.getElementById('wnFontLabel').textContent = fontLabelMap[fontVal] || fontVal;
+    setActiveChip('wnFontChips', fontVal, 'data-wn-font');
+    document.getElementById('wnSizeLabel').textContent = sizeLabelMap[sizeVal] || sizeVal;
+    setActiveChip('wnSizeChips', sizeVal, 'data-wn-size');
+  });
+}
+
 window.setNoteTab = function (tab) {
   currentNoteTab = tab;
-  document.querySelectorAll('.nt-tab').forEach((btn) => btn.classList.toggle('active', btn.dataset.tab === tab));
+  const isMedia = tab === 'blog' || tab === 'youtube';
+  if (isMedia) currentMediaChannel = tab;
+
+  // 페이지 타이틀 탭(업무기록/미디어 채널) + 드롭박스 상태 동기화
+  document.querySelectorAll('#noteTitleTabs .app-title-tab').forEach((btn) =>
+    btn.classList.toggle('active', btn.dataset.noteView === (isMedia ? 'media' : 'general'))
+  );
+  const mediaChips = document.getElementById('mediaChannelChips');
+  if (mediaChips) mediaChips.hidden = !isMedia;
+  const recordChips = document.getElementById('recordViewChips');
+  if (recordChips) recordChips.hidden = isMedia;
+  if (isMedia) {
+    document.getElementById('mediaChannelLabel').textContent = tab === 'blog' ? '블로그 원고' : '유튜브 원고';
+    document.querySelectorAll('[data-media-channel]').forEach((chip) =>
+      chip.classList.toggle('active', chip.dataset.mediaChannel === tab)
+    );
+    document.getElementById('noteMonthCard').hidden = true;
+    document.getElementById('timelineView').hidden = true;
+    document.getElementById('organizeContainer').hidden = false;
+    const noteControls = document.querySelector('.nt-filterbar .note-controls');
+    if (noteControls) noteControls.style.display = '';
+  } else {
+    applyGeneralView();
+  }
 
   document.getElementById('draftMetadataArea').style.display = 'none';
   const aiResultEl = document.getElementById('aiSuggestResult');
@@ -35,7 +273,7 @@ window.setNoteTab = function (tab) {
     listContainer.style.display = 'none';
     editorWrapper.style.display = 'flex';
     if (window.quill) window.quill.enable(true);
-    handleNoteMonthChange();
+    if (currentRecordView === 'organize') handleNoteMonthChange();
   } else {
     listContainer.style.display = 'block';
     editorWrapper.style.display = 'none';
@@ -60,6 +298,7 @@ window.handleNoteMonthChange = async function () {
   currentNoteMonth = monthStr;
   const monthDate = monthStr + '-01';
 
+  showLoading('노트를 불러오는 중...');
   try {
     const { data, error } = await supabaseClient
       .from('work_notes')
@@ -80,10 +319,20 @@ window.handleNoteMonthChange = async function () {
       if (window.quill) window.quill.root.innerHTML = '';
       noteOriginalContent = '';
     }
+    // 선택한 달이 다른 연도면 그리드 연도도 따라가고, active 표시 동기화
+    const selYear = Number(monthStr.slice(0, 4));
+    if (selYear !== noteMonthQuickYear) {
+      noteMonthQuickYear = selYear;
+      const yearSel = document.getElementById('noteMonthYear');
+      if (yearSel) yearSel.value = String(selYear);
+    }
+    renderNoteMonthQuick();
     setSaveStatus('최신 상태');
   } catch (e) {
     console.error('노트 로드 실패:', e);
     showToast('원고 데이터를 불러오지 못했습니다.', 'error');
+  } finally {
+    hideLoading();
   }
 };
 
@@ -112,7 +361,7 @@ function initQuill() {
   if (window.quill) return;
 
   const Size = Quill.import('attributors/style/size');
-  Size.whitelist = ['14px', '16px', '18px'];
+  Size.whitelist = ['14px', '15px', '16px', '18px'];
   Quill.register(Size, true);
 
   const Font = Quill.import('formats/font');
@@ -130,6 +379,13 @@ function initQuill() {
   // 툴바는 Quill이 자동 생성하지 않고 #nt-toolbar(work-notes.html에 직접 작성, 네이버
   // 블로그 에디터 참고해 아이콘+텍스트 라벨 버튼)를 그대로 사용한다. Quill은 기존 마크업을
   // 지우지 않고 클릭 이벤트만 붙이므로 버튼 내부 아이콘/라벨은 우리가 쓴 그대로 유지된다.
+  // 단, color/background 피커는 Quill이 트리거 아이콘을 자체적으로 그려 넣으므로
+  // ui/icons 맵을 오버라이드해야 우리가 준 아이콘으로 바뀐다.
+  const pickerIcons = Quill.import('ui/icons');
+  pickerIcons.color =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 15v-7a3 3 0 0 1 6 0v7"/><path d="M9 11h6"/><path d="M5 19h14"/></svg>';
+  pickerIcons.background =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8l4 -4"/><path d="M14 4l-10 10"/><path d="M4 20l16 -16"/><path d="M20 10l-10 10"/><path d="M20 16l-4 4"/></svg>';
 
   // quill-table-better — 활발히 관리되는 라이브러리라 등록. CDN 로드 실패/API 변경 시에도
   // 나머지 에디터 기능은 정상 동작하도록 try/catch로 감싼다.
@@ -214,27 +470,30 @@ function initQuill() {
 }
 
 function applyNoteToolbarUi() {
+  // 사용자가 제공한 Tabler 아이콘 세트로 교체.
   const icons = {
     image:
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.8"/><path d="M21 16l-4.2-4.2a2 2 0 0 0-2.8 0L8 18"/></svg>',
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 8h.01"/><path d="M3 6a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v12a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3v-12"/><path d="M3 16l5 -5c.928 -.893 2.072 -.893 3 0l5 5"/><path d="M14 14l1 -1c.928 -.893 2.072 -.893 3 0l3 3"/></svg>',
     blockquote:
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 10H5a4 4 0 0 1 4-4"/><path d="M19 10h-4a4 4 0 0 1 4-4"/><path d="M5 10v7h6v-7"/><path d="M15 10v7h6v-7"/></svg>',
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 11h-4a1 1 0 0 1 -1 -1v-3a1 1 0 0 1 1 -1h3a1 1 0 0 1 1 1v6c0 2.667 -1.333 4.333 -4 5"/><path d="M19 11h-4a1 1 0 0 1 -1 -1v-3a1 1 0 0 1 1 -1h3a1 1 0 0 1 1 1v6c0 2.667 -1.333 4.333 -4 5"/></svg>',
     divider:
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h16"/></svg>',
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l16 0"/><path d="M4 4l0 .01"/><path d="M8 4l0 .01"/><path d="M12 4l0 .01"/><path d="M16 4l0 .01"/><path d="M20 4l0 .01"/><path d="M4 8l0 .01"/><path d="M12 8l0 .01"/><path d="M20 8l0 .01"/><path d="M4 16l0 .01"/><path d="M12 16l0 .01"/><path d="M20 16l0 .01"/><path d="M4 20l0 .01"/><path d="M8 20l0 .01"/><path d="M12 20l0 .01"/><path d="M16 20l0 .01"/><path d="M20 20l0 .01"/></svg>',
     'table-insert':
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 10h16M4 15h16M10 4v16M15 4v16"/></svg>',
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-14"/><path d="M3 10h18"/><path d="M10 3v18"/></svg>',
     bold:
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 5h6a4 4 0 0 1 0 8H7z"/><path d="M7 13h7a4 4 0 0 1 0 8H7z"/></svg>',
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 5h6a3.5 3.5 0 0 1 0 7h-6l0 -7"/><path d="M13 12h1a3.5 3.5 0 0 1 0 7h-7v-7"/></svg>',
     italic:
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><path d="M10 5h8M6 19h8M14 5 10 19"/></svg>',
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5l6 0"/><path d="M7 19l6 0"/><path d="M14 5l-4 14"/></svg>',
     underline:
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><path d="M7 4v7a5 5 0 0 0 10 0V4"/><path d="M5 21h14"/></svg>',
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 5v5a5 5 0 0 0 10 0v-5"/><path d="M5 19h14"/></svg>',
+    strike:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l14 0"/><path d="M16 6.5a4 2 0 0 0 -4 -1.5h-1a3.5 3.5 0 0 0 0 7h2a3.5 3.5 0 0 1 0 7h-1.5a4 2 0 0 1 -4 -1.5"/></svg>',
     'ordered-list':
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M10 6h10M10 12h10M10 18h10"/><path d="M4 5h1v3M4 11h2l-2 3h2M4 17h2v3H4"/></svg>',
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 6h9"/><path d="M11 12h9"/><path d="M12 18h8"/><path d="M4 16a2 2 0 1 1 4 0c0 .591 -.5 1 -1 1.5l-3 2.5h4"/><path d="M6 10v-6l-2 2"/></svg>',
     'bullet-list':
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M10 6h10M10 12h10M10 18h10"/><circle cx="5" cy="6" r="1"/><circle cx="5" cy="12" r="1"/><circle cx="5" cy="18" r="1"/></svg>',
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l11 0"/><path d="M9 12l11 0"/><path d="M9 18l11 0"/><path d="M5 6l0 .01"/><path d="M5 12l0 .01"/><path d="M5 18l0 .01"/></svg>',
     clean:
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5h11M10.5 5 8 19M5 19h8"/><path d="m15 14 5 5M20 14l-5 5"/></svg>',
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 15l4 4m0 -4l-4 4"/><path d="M7 6v-1h11v1"/><path d="M7 19l4 0"/><path d="M13 5l-4 14"/></svg>',
   };
 
   document.querySelectorAll('#nt-toolbar button.nt-tb-btn[data-label]').forEach((button) => {
@@ -269,6 +528,7 @@ async function autoSaveNote() {
         .select();
       if (error) throw error;
       if (data && data.length > 0) currentNoteId = data[0].id;
+      markNoteMonthFilled(monthStr);
     }
     const now = new Date();
     setSaveStatus(
@@ -319,6 +579,7 @@ window.saveNoteToServer = async function (isManual = false) {
         .select();
       if (error) throw error;
       if (data && data.length > 0) currentNoteId = data[0].id;
+      if (currentNoteTab === 'general') markNoteMonthFilled(String(date).slice(0, 7));
     }
 
     if (isManual) {
@@ -721,5 +982,393 @@ ${paragraphs.map((p, i) => `[문단 ${i + 1}]\n${p}`).join('\n\n')}`;
   } finally {
     btn.disabled = false;
     btn.textContent = '✨ AI 추천';
+  }
+};
+
+/* ================================================================
+   업무 타임라인 — Admin_backup(js/tasks.js)의 time_logs 이식.
+   테이블: work_timelogs (authenticated 전용 RLS)
+   ================================================================ */
+let timeLogs = [];
+let editingTimeLogIndex = -1;
+let isTimelineFetched = false;
+let timelineCollapsedDates = {};
+let timelineMonthQuickYear = new Date().getFullYear();
+let timelineSelectedMonth = '';
+let timelineMonthFillCache = {}; // year → Set("YYYY-MM") | null
+const timelineMonthFillLoading = new Set();
+
+const TL_ICON_EDIT =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="M15 5l4 4"/></svg>';
+const TL_ICON_TRASH =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>';
+
+// 업무기록 > 업무 타임라인 탭을 처음 열 때 한 번만 초기화
+let timelineInitDone = false;
+function initTimelineOnce() {
+  if (timelineInitDone) return;
+  timelineInitDone = true;
+  const todayStr = new Date().toISOString().slice(0, 10);
+  document.getElementById('tlDate').value = todayStr;
+  timelineSelectedMonth = todayStr.slice(0, 7);
+  initTimelineMonthQuick();
+  loadTimelineFromServer();
+}
+
+window.onTlCategoryChange = function () {
+  const isHoliday = document.getElementById('tlCategory').value === '휴무';
+  document.getElementById('tlStartField').style.display = isHoliday ? 'none' : '';
+  document.getElementById('tlEndField').style.display = isHoliday ? 'none' : '';
+};
+
+// 같은 날짜에 이미 기록이 있으면, 마지막 종료 시각을 다음 시작 시각으로 자동 채워준다(연속 기록용)
+function updateTlDefaultStartTime() {
+  if (editingTimeLogIndex > -1) return;
+  const selectedDate = document.getElementById('tlDate').value;
+  if (!selectedDate) return;
+  const dayLogs = timeLogs.filter((log) => log.date === selectedDate && log.category !== '휴무');
+  if (dayLogs.length > 0) {
+    dayLogs.sort((a, b) => a.end.localeCompare(b.end));
+    const last = dayLogs[dayLogs.length - 1];
+    if (last && last.end && last.end !== '00:00') {
+      const [h, m] = last.end.split(':');
+      document.getElementById('tlStartH').value = h;
+      document.getElementById('tlStartM').value = m;
+      return;
+    }
+  }
+  document.getElementById('tlStartH').value = '';
+  document.getElementById('tlStartM').value = '';
+}
+
+async function loadTimelineFromServer() {
+  if (isTimelineFetched) {
+    renderTimeLogList();
+    updateTlDefaultStartTime();
+    return;
+  }
+  showLoading('타임라인을 불러오는 중...');
+  try {
+    const { data, error } = await supabaseClient
+      .from('work_timelogs')
+      .select('*')
+      .order('date', { ascending: false })
+      .order('start_time', { ascending: true });
+    if (error) throw error;
+
+    timeLogs = (data || []).map((r) => ({
+      id: r.id,
+      date: r.date,
+      category: r.category,
+      task: r.task,
+      start: r.start_time || '',
+      end: r.end_time || '',
+      duration: r.duration,
+      min: r.minutes,
+    }));
+    isTimelineFetched = true;
+    renderTimeLogList();
+    renderTimelineMonthQuick();
+    updateTlDefaultStartTime();
+  } catch (e) {
+    console.error('타임라인 로드 실패:', e);
+    showToast('타임라인 데이터를 불러오지 못했습니다.', 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+/* ── 월별 바로가기(업무 정리와 같은 컴포넌트, 별도 인스턴스) ── */
+function initTimelineMonthQuick() {
+  const sel = document.getElementById('timelineMonthYear');
+  const curYear = new Date().getFullYear();
+  const years = [];
+  for (let y = curYear; y >= curYear - 3; y--) years.push(y);
+  sel.innerHTML = years
+    .map((y) => `<option value="${y}"${y === timelineMonthQuickYear ? ' selected' : ''}>${y}년</option>`)
+    .join('');
+  sel.addEventListener('change', (e) => {
+    timelineMonthQuickYear = Number(e.target.value);
+    renderTimelineMonthQuick();
+  });
+  document.getElementById('timelineMonthQuick').addEventListener('click', (e) => {
+    const card = e.target.closest('.month-card');
+    if (!card || card.disabled) return;
+    timelineSelectedMonth = card.dataset.month;
+    renderTimelineMonthQuick();
+    renderTimeLogList();
+  });
+  renderTimelineMonthQuick();
+}
+
+function ensureTimelineMonthFillLoaded(year) {
+  if (year in timelineMonthFillCache || timelineMonthFillLoading.has(year)) return;
+  timelineMonthFillLoading.add(year);
+  // 이미 전체 로드된 timeLogs 안에서 연도별로 집계 — 별도 조회 불필요
+  const months = new Set();
+  timeLogs.forEach((log) => {
+    if (log.date && log.date.startsWith(String(year))) months.add(log.date.slice(0, 7));
+  });
+  timelineMonthFillCache[year] = months;
+  timelineMonthFillLoading.delete(year);
+  renderTimelineMonthQuick();
+}
+
+function renderTimelineMonthQuick() {
+  const grid = document.getElementById('timelineMonthQuick');
+  if (!grid) return;
+  const now = new Date();
+  const curKey = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+  const nextDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const nextKey = nextDate.getFullYear() + '-' + String(nextDate.getMonth() + 1).padStart(2, '0');
+  const fillSet = timelineMonthFillCache[timelineMonthQuickYear];
+  const stillLoading = !(timelineMonthQuickYear in timelineMonthFillCache);
+  if (isTimelineFetched) ensureTimelineMonthFillLoaded(timelineMonthQuickYear);
+  grid.innerHTML = Array.from({ length: 12 }, (_, i) => i + 1)
+    .map((month) => {
+      const monthKey = timelineMonthQuickYear + '-' + String(month).padStart(2, '0');
+      const isFuture = monthKey > curKey && monthKey !== nextKey;
+      const isCurrent = monthKey === curKey || monthKey === nextKey;
+      const hasLog = !stillLoading && fillSet instanceof Set && fillSet.has(monthKey);
+      const enabled = !isFuture && (isCurrent || hasLog);
+      const active = enabled && timelineSelectedMonth === monthKey;
+      return enabled
+        ? `<button type="button" class="month-card${active ? ' active' : ''}" data-month="${monthKey}">${month}월</button>`
+        : `<button type="button" class="month-card" disabled>${month}월</button>`;
+    })
+    .join('');
+}
+
+/* ── 목록 렌더링(날짜별 접기/펼치기, 청크 렌더링) ── */
+function getDayKor(dateStr) {
+  const days = ['일', '월', '화', '수', '목', '금', '토'];
+  return days[new Date(dateStr).getDay()];
+}
+
+window.renderTimeLogList = function () {
+  const tbody = document.getElementById('timelineListBody');
+  if (!tbody) return;
+  const searchQuery = (document.getElementById('tlSearchInput').value || '').toLowerCase();
+
+  const filtered = timeLogs.filter(
+    (log) =>
+      log.date.startsWith(timelineSelectedMonth) &&
+      (searchQuery === '' || log.task.toLowerCase().includes(searchQuery) || log.category.toLowerCase().includes(searchQuery))
+  );
+  filtered.sort((a, b) => b.date.localeCompare(a.date) || a.start.localeCompare(b.start));
+
+  const idxMap = new Map(timeLogs.map((log, i) => [log, i]));
+  const grouped = {};
+  filtered.forEach((log) => {
+    if (!grouped[log.date]) grouped[log.date] = [];
+    grouped[log.date].push(log);
+  });
+  const sortedDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
+
+  tbody.innerHTML = '';
+  if (sortedDates.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:30px; color:#94a3b8; font-size:13px;">기록이 없습니다.</td></tr>';
+    return;
+  }
+
+  function buildDateFrag(date) {
+    const frag = document.createDocumentFragment();
+    const groupLogs = grouped[date];
+    const isHoliday = groupLogs.some((l) => l.category === '휴무');
+    const isCollapsed = timelineCollapsedDates[date] || false;
+
+    const headerRow = document.createElement('tr');
+    headerRow.className = 'nt-tl-date-row' + (isCollapsed ? ' collapsed' : '');
+    headerRow.onclick = () => {
+      timelineCollapsedDates[date] = !timelineCollapsedDates[date];
+      renderTimeLogList();
+    };
+    headerRow.innerHTML =
+      '<td colspan="6"><svg class="nt-tl-date-arrow" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>' +
+      date +
+      '<span class="nt-tl-date-day">(' +
+      getDayKor(date) +
+      ')</span>' +
+      (isHoliday ? ' <span class="nt-tl-badge nt-tl-badge--holiday">휴무</span>' : '') +
+      '</td>';
+    frag.appendChild(headerRow);
+
+    if (!isCollapsed) {
+      groupLogs.forEach((log) => {
+        const realIdx = idxMap.get(log) ?? timeLogs.indexOf(log);
+        const row = document.createElement('tr');
+        let durationCls = '';
+        if (log.min >= 120) durationCls = 'nt-tl-duration nt-tl-duration--danger';
+        else if (log.min >= 60) durationCls = 'nt-tl-duration nt-tl-duration--warn';
+
+        const tdCat = document.createElement('td');
+        const catSpan = document.createElement('span');
+        catSpan.className = 'nt-tl-badge' + (log.category === '휴무' ? ' nt-tl-badge--holiday' : '');
+        catSpan.textContent = log.category;
+        tdCat.appendChild(catSpan);
+
+        const tdTask = document.createElement('td');
+        tdTask.className = 'text-left';
+        tdTask.textContent = log.task;
+        const tdStart = document.createElement('td');
+        tdStart.textContent = log.start;
+        const tdEnd = document.createElement('td');
+        tdEnd.textContent = log.end;
+        const tdDuration = document.createElement('td');
+        if (durationCls) {
+          const span = document.createElement('span');
+          span.className = durationCls;
+          span.textContent = log.duration;
+          tdDuration.appendChild(span);
+        } else {
+          tdDuration.textContent = log.duration;
+        }
+        const tdBtns = document.createElement('td');
+        tdBtns.innerHTML =
+          '<div class="nt-tl-row-btns">' +
+          '<button type="button" class="nt-tl-row-btn" title="수정" onclick="editTimeLog(' + realIdx + ')">' + TL_ICON_EDIT + '</button>' +
+          '<button type="button" class="nt-tl-row-btn danger" title="삭제" onclick="deleteTimeLog(' + realIdx + ')">' + TL_ICON_TRASH + '</button>' +
+          '</div>';
+
+        row.appendChild(tdCat);
+        row.appendChild(tdTask);
+        row.appendChild(tdStart);
+        row.appendChild(tdEnd);
+        row.appendChild(tdDuration);
+        row.appendChild(tdBtns);
+        frag.appendChild(row);
+      });
+    }
+    return frag;
+  }
+
+  // 날짜 그룹이 많아도 한 프레임에 다 그리지 않고 나눠서 렌더(메인스레드 블로킹 분산)
+  const CHUNK_SIZE = 5;
+  let idx = 0;
+  function renderChunk() {
+    const frag = document.createDocumentFragment();
+    const end = Math.min(idx + CHUNK_SIZE, sortedDates.length);
+    for (; idx < end; idx++) frag.appendChild(buildDateFrag(sortedDates[idx]));
+    tbody.appendChild(frag);
+    if (idx < sortedDates.length) requestAnimationFrame(renderChunk);
+  }
+  requestAnimationFrame(renderChunk);
+};
+
+/* ── 추가/수정/삭제 ── */
+window.addTimeLog = async function () {
+  const date = document.getElementById('tlDate').value;
+  const category = document.getElementById('tlCategory').value;
+  const task = document.getElementById('tlTask').value.trim();
+  const sh = document.getElementById('tlStartH').value;
+  const sm = document.getElementById('tlStartM').value;
+  const eh = document.getElementById('tlEndH').value;
+  const em = document.getElementById('tlEndM').value;
+
+  if (!date) { showToast('날짜를 선택해주세요.', 'warning'); return; }
+  if (!task) { showToast('업무 내용을 입력해주세요.', 'warning'); return; }
+
+  const padTwo = (n) => String(n).padStart(2, '0');
+  let start = null, end = null, duration = '0:00', min = 0;
+  if (category !== '휴무') {
+    if (sh === '' || eh === '') { showToast('시간을 입력해주세요.', 'warning'); return; }
+    start = padTwo(sh) + ':' + padTwo(sm || 0);
+    end = padTwo(eh) + ':' + padTwo(em || 0);
+    const s = new Date('2000-01-01T' + start + ':00');
+    const e = new Date('2000-01-01T' + end + ':00');
+    const mTotal = Math.max(0, Math.floor((e - s) / 60000));
+    duration = Math.floor(mTotal / 60) + ':' + padTwo(mTotal % 60);
+    min = mTotal;
+  }
+
+  showLoading(editingTimeLogIndex > -1 ? '수정하는 중...' : '등록하는 중...');
+  try {
+    if (editingTimeLogIndex > -1) {
+      const targetId = timeLogs[editingTimeLogIndex].id;
+      const { error } = await supabaseClient
+        .from('work_timelogs')
+        .update({ date, category, task, start_time: start, end_time: end, duration, minutes: min })
+        .eq('id', targetId);
+      if (error) throw error;
+      timeLogs[editingTimeLogIndex] = { id: targetId, date, category, task, start: start || '', end: end || '', duration, min };
+      showToast('수정 완료!', 'success');
+      cancelTimeLogEdit();
+    } else {
+      const { data, error } = await supabaseClient
+        .from('work_timelogs')
+        .insert([{ date, category, task, start_time: start, end_time: end, duration, minutes: min }])
+        .select();
+      if (error) throw error;
+      if (data && data.length > 0) {
+        timeLogs.push({ id: data[0].id, date, category, task, start: start || '', end: end || '', duration, min });
+        document.getElementById('tlTask').value = '';
+        document.getElementById('tlEndH').value = '';
+        document.getElementById('tlEndM').value = '';
+        updateTlDefaultStartTime();
+      }
+    }
+    delete timelineMonthFillCache[Number(date.slice(0, 4))];
+    renderTimeLogList();
+    renderTimelineMonthQuick();
+  } catch (e) {
+    console.error('타임라인 저장 오류:', e);
+    showToast('저장 중 오류가 발생했습니다.', 'error');
+  } finally {
+    hideLoading();
+  }
+};
+
+window.editTimeLog = function (index) {
+  const log = timeLogs[index];
+  if (!log) return;
+  editingTimeLogIndex = index;
+  document.getElementById('tlDate').value = log.date;
+  document.getElementById('tlCategory').value = log.category;
+  onTlCategoryChange();
+  document.getElementById('tlTask').value = log.task;
+  if (log.category !== '휴무' && log.start) {
+    const [sh, sm] = log.start.split(':');
+    const [eh, em] = (log.end || '00:00').split(':');
+    document.getElementById('tlStartH').value = sh;
+    document.getElementById('tlStartM').value = sm;
+    document.getElementById('tlEndH').value = eh;
+    document.getElementById('tlEndM').value = em;
+  } else {
+    ['tlStartH', 'tlStartM', 'tlEndH', 'tlEndM'].forEach((id) => (document.getElementById(id).value = ''));
+  }
+  document.getElementById('tlEditingMsg').style.display = 'flex';
+  document.getElementById('tlAddBtn').textContent = '수정 완료';
+  document.getElementById('tlAddBtn').scrollIntoView({ behavior: 'smooth', block: 'center' });
+};
+
+window.cancelTimeLogEdit = function () {
+  editingTimeLogIndex = -1;
+  document.getElementById('tlEditingMsg').style.display = 'none';
+  document.getElementById('tlAddBtn').textContent = '+ 등록';
+  document.getElementById('tlTask').value = '';
+  document.getElementById('tlEndH').value = '';
+  document.getElementById('tlEndM').value = '';
+  updateTlDefaultStartTime();
+};
+
+window.deleteTimeLog = async function (index) {
+  if (!confirm('정말 이 기록을 삭제하시겠습니까?')) return;
+  const target = timeLogs[index];
+  if (!target || !target.id) return;
+
+  showLoading('삭제하는 중...');
+  try {
+    const { error } = await supabaseClient.from('work_timelogs').delete().eq('id', target.id);
+    if (error) throw error;
+    timeLogs.splice(index, 1);
+    delete timelineMonthFillCache[Number(target.date.slice(0, 4))];
+    updateTlDefaultStartTime();
+    renderTimeLogList();
+    renderTimelineMonthQuick();
+  } catch (e) {
+    console.error('타임라인 삭제 오류:', e);
+    showToast('삭제 중 오류가 발생했습니다.', 'error');
+  } finally {
+    hideLoading();
   }
 };

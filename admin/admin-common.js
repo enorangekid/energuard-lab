@@ -11,7 +11,7 @@ const SUPABASE_ANON_KEY = "sb_publishable_MiBvlf3d6ulcVBsi7Odcgw_PTXSmXKj";
 
 const ADMIN_SUBNAV = [
   { label: "업무일지", href: "worklog.html" },
-  { label: "업무노트", href: "work-notes.html" },
+  { label: "업무기록", href: "work-notes.html" },
   { label: "단가표",   href: "pricing.html" },
   { label: "견적서",   href: "quote.html" },
   { label: "자료실",   href: "archive.html" },

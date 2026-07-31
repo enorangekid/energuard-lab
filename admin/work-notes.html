@@ -10,51 +10,151 @@
 <link href="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.snow.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/quill-table-better/dist/quill-table-better.css" rel="stylesheet">
 <link rel="stylesheet" href="../common.css?v=20260731c">
-<link rel="stylesheet" href="admin.css?v=20260731j">
+<link rel="stylesheet" href="admin.css?v=202607311q">
 <style>
   :root {
     --bg: #f8f9fb; --card: #fff; --ink: #07111f; --sub: #5a6378;
     --line: #e8ecf2; --soft-line: #e8ecf2; --dark: #05070b; --dark-tint: #eef0f3;
     --accent: #e85d2f; --accent-dark: #d94d24; --accent-tint: #fdeee7;
   }
-  .ql-snow .ql-picker.ql-size { width: 64px; }
-  .ql-snow .ql-picker.ql-size .ql-picker-label::before,
-  .ql-snow .ql-picker.ql-size .ql-picker-item::before { content: '기본'; }
-  .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="14px"]::before,
-  .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="14px"]::before { content: '14px'; }
-  .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="16px"]::before,
-  .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="16px"]::before { content: '16px'; }
-  .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="18px"]::before,
-  .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="18px"]::before { content: '18px'; }
-  .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="14px"] { font-size: 14px; }
-  .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="16px"] { font-size: 16px; }
-  .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="18px"] { font-size: 18px; }
 </style>
 </head>
 <body>
 <header class="topbar" data-admin-topbar></header>
 
 <main class="app-shell">
-  <div class="note-container">
-    <div class="nt-title-bar">
-      <div class="nt-left">
-        <h2>업무 노트</h2>
-        <div class="nt-tabs">
-          <button type="button" class="nt-tab active" data-tab="general" onclick="setNoteTab('general')">일반 노트</button>
-          <button type="button" class="nt-tab" data-tab="blog" onclick="setNoteTab('blog')">블로그 원고</button>
-          <button type="button" class="nt-tab" data-tab="youtube" onclick="setNoteTab('youtube')">유튜브 원고</button>
-        </div>
-      </div>
-      <div class="note-controls">
-        <span class="note-save-status" id="noteSaveStatus">최신 상태</span>
-        <input type="month" id="noteMonthPicker" onchange="handleNoteMonthChange()">
-        <button type="button" class="nt-btn" onclick="insertTodayHeader()">오늘</button>
-        <button type="button" class="nt-btn" onclick="printNote()">인쇄</button>
-        <button type="button" class="nt-btn" onclick="cancelNoteChanges()">취소</button>
-        <button type="button" class="nt-btn btn-primary" onclick="saveNoteManual()">저장</button>
+  <header class="app-page-head">
+    <div class="app-title-tabs" id="noteTitleTabs">
+      <button type="button" class="app-title-tab active" data-note-view="general">
+        <span class="app-title-text">
+          <span class="app-title-label">업무기록</span>
+          <span class="app-title-help" title="업무 타임라인/업무 정리 두 가지를 기록합니다. 종류는 왼쪽 드롭박스에서 전환합니다.">?</span>
+        </span>
+      </button>
+      <button type="button" class="app-title-tab" data-note-view="media">
+        <span class="app-title-text">
+          <span class="app-title-label">미디어 채널</span>
+          <span class="app-title-help" title="블로그/유튜브 원고를 작성하고 관리합니다. 채널은 왼쪽 드롭박스에서 전환합니다.">?</span>
+        </span>
+      </button>
+    </div>
+  </header>
+
+  <div class="app-filterbar nt-filterbar">
+    <div class="store-chips" id="recordViewChips">
+      <button type="button" class="store-select" data-action="toggle-record-view-menu" aria-label="업무기록 종류 선택">
+        <span id="recordViewLabel">업무 정리</span>
+        <span class="store-caret" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </span>
+      </button>
+      <div class="store-menu" role="menu">
+        <button type="button" class="store-chip" data-record-view="timeline" role="menuitem">업무 타임라인</button>
+        <button type="button" class="store-chip active" data-record-view="organize" role="menuitem">업무 정리</button>
       </div>
     </div>
+    <div class="store-chips" id="mediaChannelChips" hidden>
+      <button type="button" class="store-select" data-action="toggle-media-menu" aria-label="미디어 채널 선택">
+        <span id="mediaChannelLabel">블로그 원고</span>
+        <span class="store-caret" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </span>
+      </button>
+      <div class="store-menu" role="menu">
+        <button type="button" class="store-chip active" data-media-channel="blog" role="menuitem">블로그 원고</button>
+        <button type="button" class="store-chip" data-media-channel="youtube" role="menuitem">유튜브 원고</button>
+      </div>
+    </div>
+    <div class="note-controls">
+      <span class="note-save-status" id="noteSaveStatus">최신 상태</span>
+      <button type="button" class="nt-btn" onclick="insertTodayHeader()">오늘</button>
+      <button type="button" class="nt-btn" onclick="printNote()">인쇄</button>
+      <button type="button" class="nt-btn" onclick="cancelNoteChanges()">취소</button>
+      <button type="button" class="nt-btn btn-primary" onclick="saveNoteManual()">저장</button>
+    </div>
+  </div>
 
+  <div id="timelineView" hidden>
+    <section class="card nt-tl-input-card">
+      <div class="nt-tl-input-row">
+        <div class="nt-tl-field">
+          <label for="tlDate">날짜</label>
+          <input type="date" id="tlDate" class="nt-tl-input">
+        </div>
+        <div class="nt-tl-field">
+          <label for="tlCategory">구분</label>
+          <select id="tlCategory" class="nt-tl-input" onchange="onTlCategoryChange()">
+            <option value="데일리">데일리</option>
+            <option value="광고">광고</option>
+            <option value="회의">회의</option>
+            <option value="상품등록">상품등록</option>
+            <option value="상품수정">상품수정</option>
+            <option value="디자인">디자인</option>
+            <option value="블로그">블로그</option>
+            <option value="유튜브">유튜브</option>
+            <option value="기타">기타</option>
+            <option value="휴무">휴무</option>
+          </select>
+        </div>
+        <div class="nt-tl-field nt-tl-field--wide">
+          <label for="tlTask">업무 내용</label>
+          <input type="text" id="tlTask" class="nt-tl-input" placeholder="내용을 입력하세요">
+        </div>
+        <div class="nt-tl-field" id="tlStartField">
+          <label>시작</label>
+          <div class="nt-tl-time-box">
+            <input type="text" id="tlStartH" class="nt-tl-time-part" maxlength="2" placeholder="00">
+            <span>:</span>
+            <input type="text" id="tlStartM" class="nt-tl-time-part" maxlength="2" placeholder="00">
+          </div>
+        </div>
+        <div class="nt-tl-field" id="tlEndField">
+          <label>끝</label>
+          <div class="nt-tl-time-box">
+            <input type="text" id="tlEndH" class="nt-tl-time-part" maxlength="2" placeholder="00">
+            <span>:</span>
+            <input type="text" id="tlEndM" class="nt-tl-time-part" maxlength="2" placeholder="00">
+          </div>
+        </div>
+        <button type="button" class="nt-btn btn-primary" id="tlAddBtn" onclick="addTimeLog()">+ 등록</button>
+      </div>
+      <div class="nt-tl-editing-msg" id="tlEditingMsg" style="display:none;">
+        📝 기존 항목 수정 중...
+        <button type="button" class="nt-tl-cancel-edit" onclick="cancelTimeLogEdit()">취소</button>
+      </div>
+    </section>
+
+    <section class="card nt-month-card" id="timelineMonthCard">
+      <div class="month-quick-row">
+        <select class="month-quick-year" id="timelineMonthYear"></select>
+        <div class="month-quick-grid" id="timelineMonthQuick"></div>
+      </div>
+    </section>
+
+    <div class="note-container">
+      <div class="nt-search-bar">
+        <input type="text" id="tlSearchInput" placeholder="업무/구분 검색..." oninput="renderTimeLogList()">
+      </div>
+      <div class="nt-body">
+        <table class="nt-table nt-tl-table">
+          <thead>
+            <tr><th width="90">구분</th><th class="text-left">업무</th><th width="70">시작</th><th width="70">끝</th><th width="90">소요시간</th><th width="80">관리</th></tr>
+          </thead>
+          <tbody id="timelineListBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <section class="card nt-month-card" id="noteMonthCard">
+    <input type="month" id="noteMonthPicker" onchange="handleNoteMonthChange()" hidden>
+    <div class="month-quick-row">
+      <select class="month-quick-year" id="noteMonthYear"></select>
+      <div class="month-quick-grid" id="noteMonthQuick"></div>
+    </div>
+  </section>
+
+  <div class="note-container" id="organizeContainer">
     <div class="nt-search-bar">
       <input type="text" id="noteSearchInput" placeholder="제목/내용 검색..." oninput="searchNotes()">
       <div class="note-search-results" id="noteSearchResults"></div>
@@ -84,36 +184,50 @@
 
       <div id="editor-wrapper">
         <div id="nt-toolbar" class="ql-toolbar ql-snow nt-toolbar">
+          <span class="ql-formats nt-tool-group nt-tool-group--selects">
+            <div class="store-chips nt-select-chips" id="wnFontChips">
+              <button type="button" class="store-select" data-action="toggle-wn-font-menu" aria-label="글꼴 선택">
+                <span id="wnFontLabel">나눔스퀘어</span>
+                <span class="store-caret" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                </span>
+              </button>
+              <div class="store-menu" role="menu">
+                <button type="button" class="store-chip active" data-wn-font="nanum-square" role="menuitem">나눔스퀘어</button>
+                <button type="button" class="store-chip" data-wn-font="nanum-myeongjo" role="menuitem">나눔명조</button>
+                <button type="button" class="store-chip" data-wn-font="gowun-dodum" role="menuitem">고운돋움</button>
+              </div>
+            </div>
+            <div class="store-chips nt-select-chips nt-select-chips--size" id="wnSizeChips">
+              <button type="button" class="store-select" data-action="toggle-wn-size-menu" aria-label="글자 크기 선택">
+                <span id="wnSizeLabel">15</span>
+                <span class="store-caret" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                </span>
+              </button>
+              <div class="store-menu" role="menu">
+                <button type="button" class="store-chip" data-wn-size="14px" role="menuitem">14</button>
+                <button type="button" class="store-chip active" data-wn-size="15px" role="menuitem">15</button>
+                <button type="button" class="store-chip" data-wn-size="16px" role="menuitem">16</button>
+                <button type="button" class="store-chip" data-wn-size="18px" role="menuitem">18</button>
+              </div>
+            </div>
+          </span>
+          <span class="nt-toolbar-divider"></span>
           <span class="ql-formats nt-tool-group">
-            <span class="nt-picker-tool">
-              <select class="ql-font" title="글꼴">
-                <option selected></option>
-                <option value="nanum-square"></option>
-                <option value="nanum-myeongjo"></option>
-                <option value="gowun-dodum"></option>
-              </select>
-              <span class="nt-picker-label">글꼴</span>
-            </span>
-            <span class="nt-picker-tool">
-              <select class="ql-size" title="글자 크기">
-                <option value="14px"></option>
-                <option value="16px"></option>
-                <option value="18px"></option>
-                <option selected></option>
-              </select>
-              <span class="nt-picker-label">크기</span>
-            </span>
             <button class="ql-bold nt-tb-btn nt-format-btn" type="button" title="굵게" data-label="굵게" data-icon="bold"></button>
             <button class="ql-italic nt-tb-btn nt-format-btn" type="button" title="기울임" data-label="기울임" data-icon="italic"></button>
             <button class="ql-underline nt-tb-btn nt-format-btn" type="button" title="밑줄" data-label="밑줄" data-icon="underline"></button>
+            <button class="ql-strike nt-tb-btn nt-format-btn" type="button" title="취소선" data-label="취소선" data-icon="strike"></button>
             <span class="nt-picker-tool">
               <select class="ql-color" title="글자색"></select>
-              <span class="nt-picker-label">글자색</span>
             </span>
             <span class="nt-picker-tool">
               <select class="ql-background" title="배경색"></select>
-              <span class="nt-picker-label">배경</span>
             </span>
+          </span>
+          <span class="nt-toolbar-divider"></span>
+          <span class="ql-formats nt-tool-group">
             <button class="ql-list nt-tb-btn nt-format-btn" type="button" value="ordered" title="번호 목록" data-label="번호" data-icon="ordered-list"></button>
             <button class="ql-list nt-tb-btn nt-format-btn" type="button" value="bullet" title="글머리 목록" data-label="목록" data-icon="bullet-list"></button>
             <button class="ql-blockquote nt-tb-btn" type="button" title="인용구" data-label="인용구">
@@ -132,7 +246,10 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 10h16M4 15h16M10 4v16M15 4v16"/></svg>
               <span class="nt-tb-label">표</span>
             </button>
-            <button class="ql-clean nt-tb-btn nt-format-btn" type="button" title="서식 지우기" data-label="초기화" data-icon="clean"></button>
+          </span>
+          <span class="nt-toolbar-divider"></span>
+          <span class="ql-formats nt-tool-group">
+            <button class="ql-clean nt-tb-btn nt-format-btn" type="button" title="초기화" data-label="초기화" data-icon="clean"></button>
           </span>
         </div>
         <div id="editor"></div>
@@ -146,7 +263,7 @@
 <script src="admin-common.js?v=20260731c"></script>
 <script src="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/quill-table-better/dist/quill-table-better.js"></script>
-<script src="work-notes.js?v=20260731f"></script>
+<script src="work-notes.js?v=20260731v"></script>
 <script src="../common.js?v=20260731b"></script>
 <script>
 (async () => {
