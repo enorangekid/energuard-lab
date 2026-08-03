@@ -19,7 +19,7 @@ function findCardRoot(anchor) {
 
 function absoluteUrl(value) {
   const source = String(value || "").trim();
-  if (!source || source === "about:blank") return "";
+  if (!source || source === "about:blank" || source.startsWith("#") || /^javascript:/i.test(source)) return "";
   try { return new URL(source, location.href).href; } catch (_) { return source; }
 }
 
@@ -38,12 +38,14 @@ function primaryProductAnchors() {
   [...document.querySelectorAll(selector)].forEach((anchor, index) => {
     const group = anchor.getAttribute("data-shp-contents-grp") || "";
     const type = anchor.getAttribute("data-shp-contents-type") || "";
+    const inventory = anchor.getAttribute("data-shp-inventory") || "";
+    const area = anchor.getAttribute("data-shp-area") || "";
+    if (!RankParser.isMainListSlot({ group, inventory, area })) return;
     const detail = parseDetailAttribute(anchor, "data-shp-contents-dtl");
     const isAd = RankParser.isAdRecord({ group, type, href: anchor.href });
     const key = productIdentity(anchor, detail, isAd);
     if (!key || /:$/.test(key)) return;
 
-    const area = anchor.getAttribute("data-shp-area") || "";
     const image = anchor.querySelector("img");
     const score = (/\.img$/i.test(area) ? 100 : 0)
       + (image ? 50 : 0)
@@ -165,7 +167,9 @@ function extractProducts(pageIndex) {
 async function waitForProducts() {
   const started = Date.now();
   while (Date.now() - started < 18000) {
-    const count = document.querySelectorAll('a[data-shp-contents-grp][data-shp-contents-dtl]').length;
+    const count = document.querySelectorAll(
+      'a[data-shp-inventory="lst*N"][data-shp-area="lst*N.img"], a[data-shp-inventory="lst*A"][data-shp-area="lst*A.img"]'
+    ).length;
     if (count) {
       window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" });
       await sleep(900);

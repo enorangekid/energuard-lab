@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Energuard Lab Shopping Rank Collector",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "직원 브라우저에서 네이버 쇼핑 일반 검색 순위를 수집해 에너가드랩에 저장합니다.",
   "permissions": ["tabs", "storage"],
   "host_permissions": [

@@ -38,6 +38,11 @@ assert.equal(parser.resolveOrganicRank(organic.organic_expose_order, 1, 5), 5,
 assert.equal(parser.resolveOrganicRank(5, 2, 5), 45,
   "페이지별 순번으로 제공될 경우 두 번째 페이지 오프셋을 적용해야 합니다.");
 
+assert.equal(parser.isMainListSlot({ group: "prod", inventory: "lst*N", area: "lst*N.img" }), true);
+assert.equal(parser.isMainListSlot({ group: "ad", inventory: "lst*A", area: "lst*A.img" }), true);
+assert.equal(parser.isMainListSlot({ group: "prod", inventory: "rec*N", area: "rec*N.img" }), false);
+assert.equal(parser.isMainListSlot({ group: "prod", inventory: "lst*N", area: "lst*N.keep" }), false);
+
 const nextDataFixture = {
   props: { pageProps: { shoppingResult: { products: [
     { productTitle: "광고 상품", channelProductNo: "AD1", nvMid: "9001", price: 1000, mallName: "광고몰", isAd: true },

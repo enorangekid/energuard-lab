@@ -26,6 +26,15 @@
     return (page - 1) * 40 + Math.max(1, Number(localOrganicOrder) || 1);
   }
 
+  function isMainListSlot(record) {
+    const inventory = String(record?.inventory || "");
+    const area = String(record?.area || "");
+    const group = String(record?.group || "");
+    if (!/^lst\*[NA]$/i.test(inventory)) return false;
+    if (!/^lst\*[NA]\.img$/i.test(area)) return false;
+    return group === "prod" || group === "ad";
+  }
+
   function firstValue(record, aliases) {
     if (!record || typeof record !== "object") return "";
     for (const key of aliases) {
@@ -115,7 +124,7 @@
     return { products, path: candidate.path };
   }
 
-  const api = { toDetailMap, isAdRecord, resolveOrganicRank, findBestProductArray, parseNextDataProducts };
+  const api = { toDetailMap, isAdRecord, resolveOrganicRank, isMainListSlot, findBestProductArray, parseNextDataProducts };
   root.RankParser = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);
