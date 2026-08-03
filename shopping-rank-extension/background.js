@@ -493,6 +493,10 @@ async function runCollection(config) {
       message: `${config.keywords.length}개 키워드의 검색결과 ${snapshotSaved}개를 저장하고 자사·추적 상품을 분류했습니다.`,
     });
     finishedSuccessfully = true;
+    chrome.tabs.create({
+      active: true,
+      url: chrome.runtime.getURL(`report.html?runId=${encodeURIComponent(runId)}`),
+    }).catch(() => {});
   } catch (error) {
     const cancelled = /중단/.test(error?.message || "");
     if (activeRun?.tabId) {

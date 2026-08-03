@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Energuard Lab 쇼핑 분석 리포트</title>
+  <link rel="stylesheet" href="report.css">
+</head>
+<body>
+  <main class="report-shell">
+    <header class="report-header">
+      <div>
+        <p class="eyebrow">ENERGUARD LAB</p>
+        <h1>쇼핑 검색 분석 리포트</h1>
+        <p id="reportMeta" class="meta">수집 결과를 불러오는 중입니다.</p>
+      </div>
+      <div class="header-actions">
+        <label class="keyword-select-wrap">
+          <span>키워드</span>
+          <select id="keywordSelect" aria-label="분석 키워드"></select>
+        </label>
+        <button id="copyButton" type="button">표 복사</button>
+        <button id="csvButton" class="primary" type="button">CSV 저장</button>
+      </div>
+    </header>
+
+    <section class="summary-band" aria-label="기본 요약 분석">
+      <div class="summary-intro">
+        <p class="section-label">분석 리포트</p>
+        <h2 id="summaryKeyword">-</h2>
+        <p id="summarySentence">검색결과를 분석하고 있습니다.</p>
+      </div>
+      <div class="metrics" id="metrics"></div>
+      <div class="insight-grid">
+        <div>
+          <span>대표 카테고리</span>
+          <strong id="mainCategory">-</strong>
+        </div>
+        <div>
+          <span>주요 쇼핑몰</span>
+          <strong id="topMalls">-</strong>
+        </div>
+        <div>
+          <span>자주 등장한 태그</span>
+          <div id="topTags" class="tag-list"><span class="empty">-</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="table-section">
+      <div class="table-heading">
+        <div>
+          <h2>검색결과 상품</h2>
+          <p id="tableDescription">일반상품을 네이버 노출 순서대로 표시합니다.</p>
+        </div>
+        <div class="legend">
+          <span><i class="target-dot"></i>자사 상품</span>
+          <span><i class="tracked-dot"></i>추적 상품</span>
+        </div>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th class="rank-col">순위</th>
+              <th class="image-col">이미지</th>
+              <th>상품명</th>
+              <th>쇼핑몰</th>
+              <th>스펙/속성</th>
+              <th>검색 태그</th>
+              <th class="number-col">판매가</th>
+              <th class="number-col">배송비</th>
+              <th class="number-col">구매</th>
+              <th class="number-col">리뷰</th>
+              <th class="date-col">등록일</th>
+            </tr>
+          </thead>
+          <tbody id="reportRows"></tbody>
+        </table>
+      </div>
+      <div id="emptyState" class="empty-state" hidden>
+        <strong>표시할 수집 결과가 없습니다.</strong>
+        <span>리포트 주소 또는 저장 상태를 확인하세요.</span>
+      </div>
+    </section>
+  </main>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="report.js"></script>
+</body>
+</html>
