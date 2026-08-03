@@ -234,6 +234,58 @@ function extractProducts(pageIndex, storeName) {
   return mergeNextDataWithDom(readNextDataProducts(pageIndex), domProducts, pageIndex);
 }
 
+function mergeDomSnapshots(snapshots) {
+  const byKey = new Map();
+  snapshots.flat().forEach((product) => {
+    const identity = product.productCode || product.naverProductId;
+    if (!identity) return;
+    const key = `${product.isAd ? "ad" : "prod"}:${identity}`;
+    const current = byKey.get(key);
+    byKey.set(key, {
+      ...(current || {}),
+      ...product,
+      rank: product.rank || current?.rank || null,
+      image: product.image || current?.image || "",
+      link: product.link || current?.link || "",
+      title: product.title || current?.title || "",
+      mallName: product.mallName || current?.mallName || "",
+      cardText: product.cardText || current?.cardText || "",
+      storeMatched: !!(product.storeMatched || current?.storeMatched),
+    });
+  });
+  return [...byKey.values()].sort((a, b) => {
+    if (a.isAd !== b.isAd) return a.isAd ? -1 : 1;
+    const rankA = Number.isFinite(a.rank) ? a.rank : Number.MAX_SAFE_INTEGER;
+    const rankB = Number.isFinite(b.rank) ? b.rank : Number.MAX_SAFE_INTEGER;
+    return rankA - rankB;
+  });
+}
+
+async function collectDomProductsAcrossPage(pageIndex, storeName) {
+  const snapshots = [];
+  const viewport = Math.max(600, window.innerHeight || 800);
+  const scrollStep = Math.max(360, Math.floor(viewport * 0.55));
+  let lastHeight = 0;
+  for (let pass = 0; pass < 2; pass += 1) {
+    const height = Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight || 0);
+    for (let top = 0; top < height; top += scrollStep) {
+      window.scrollTo(0, top);
+      await sleep(240);
+      snapshots.push(extractDomProducts(pageIndex, storeName));
+    }
+    window.scrollTo(0, height);
+    await sleep(650);
+    snapshots.push(extractDomProducts(pageIndex, storeName));
+    const nextHeight = Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight || 0);
+    if (nextHeight <= height || nextHeight === lastHeight) break;
+    lastHeight = height;
+  }
+  window.scrollTo(0, 0);
+  await sleep(240);
+  snapshots.push(extractDomProducts(pageIndex, storeName));
+  return mergeDomSnapshots(snapshots);
+}
+
 async function waitForProducts() {
   const started = Date.now();
   while (Date.now() - started < 18000) {
@@ -260,7 +312,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type !== "EXTRACT_PAGE") return false;
   (async () => {
     await waitForProducts();
-    const extracted = extractProducts(Number(message.pageIndex) || 1, message.storeName || "");
+    const pageIndex = Number(message.pageIndex) || 1;
+    const storeName = message.storeName || "";
+    const domProducts = await collectDomProductsAcrossPage(pageIndex, storeName);
+    const extracted = mergeNextDataWithDom(readNextDataProducts(pageIndex), domProducts, pageIndex);
     const products = extracted.products;
     const pageText = (document.body?.innerText || "").slice(0, 3000);
     let blockedReason = "";

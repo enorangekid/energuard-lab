@@ -185,11 +185,16 @@ function normalizePageProducts(products, pageIndex) {
   let organicIndex = 0;
   return [...unique.values()].map((product, index) => {
     if (!product.isAd) organicIndex += 1;
+    const extractedRank = Number(product.rank);
     return {
       ...product,
       pageIndex,
-      pagePosition: index + 1,
-      rank: product.isAd ? null : (pageIndex - 1) * 40 + organicIndex,
+      pagePosition: Number(product.pagePosition) || index + 1,
+      rank: product.isAd
+        ? null
+        : (Number.isFinite(extractedRank) && extractedRank > 0
+          ? extractedRank
+          : (pageIndex - 1) * 40 + organicIndex),
     };
   });
 }
