@@ -8,19 +8,28 @@ window.addEventListener("message", (event) => {
   if (event.source !== window || event.origin !== window.location.origin) return;
   if (event.data?.type !== APP_REQUEST) return;
   const requestId = String(event.data.requestId || "");
-  chrome.runtime.sendMessage({
-    type: "START_COLLECTION_FROM_APP",
-    config: event.data.config,
-  }).then((result) => {
-    window.postMessage({ type: APP_RESPONSE, requestId, ...result }, window.location.origin);
-  }).catch((error) => {
+  try {
+    chrome.runtime.sendMessage({
+      type: "START_COLLECTION_FROM_APP",
+      config: event.data.config,
+    }).then((result) => {
+      window.postMessage({ type: APP_RESPONSE, requestId, ...result }, window.location.origin);
+    }).catch((error) => {
+      window.postMessage({
+        type: APP_RESPONSE,
+        requestId,
+        ok: false,
+        error: error?.message || "확장프로그램 연결에 실패했습니다.",
+      }, window.location.origin);
+    });
+  } catch (error) {
     window.postMessage({
       type: APP_RESPONSE,
       requestId,
       ok: false,
-      error: error?.message || "확장프로그램 연결에 실패했습니다.",
+      error: "확장프로그램이 갱신되었습니다. 키워드 분석 페이지도 새로고침한 뒤 다시 시도하세요.",
     }, window.location.origin);
-  });
+  }
 });
 
 chrome.storage.onChanged.addListener((changes, areaName) => {

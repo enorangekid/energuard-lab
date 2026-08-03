@@ -1929,8 +1929,8 @@ function startExtensionBatchCollection(config) {
     const requestId = `rank-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const timer = setTimeout(() => {
       window.removeEventListener("message", onResponse);
-      reject(new Error("쇼핑 순위 수집 확장프로그램을 찾지 못했습니다. 확장프로그램을 설치하거나 새로고침하세요."));
-    }, 3000);
+      reject(new Error("쇼핑 순위 수집 확장프로그램과 연결되지 않았습니다. chrome://extensions에서 확장프로그램을 새로고침한 뒤 이 페이지도 Ctrl+F5로 새로고침하세요."));
+    }, 5000);
     function onResponse(event) {
       if (event.source !== window || event.origin !== window.location.origin) return;
       if (event.data?.type !== "ENERGUARD_SHOPPING_RANK_RESPONSE" || event.data.requestId !== requestId) return;
