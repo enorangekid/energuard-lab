@@ -124,7 +124,58 @@
     return { products, path: candidate.path };
   }
 
-  const api = { toDetailMap, isAdRecord, resolveOrganicRank, isMainListSlot, findBestProductArray, parseNextDataProducts };
+  function productKeys(product) {
+    return [product?.productCode, product?.naverProductId]
+      .filter(Boolean)
+      .map(String);
+  }
+
+  function mergeProductSources(nextProducts, domProducts) {
+    const nextList = Array.isArray(nextProducts) ? nextProducts : [];
+    const domList = Array.isArray(domProducts) ? domProducts : [];
+    const domById = new Map();
+    domList.forEach((product) => {
+      productKeys(product).forEach((key) => domById.set(key, product));
+    });
+
+    const usedDom = new Set();
+    const merged = nextList.map((next) => {
+      const dom = productKeys(next).map((key) => domById.get(key)).find(Boolean);
+      if (!dom) return { ...next };
+      usedDom.add(dom);
+      return {
+        ...next,
+        ...dom,
+        isAd: dom.isAd,
+        rank: Number.isFinite(dom.rank) ? dom.rank : next.rank,
+        productCode: dom.productCode || next.productCode || "",
+        naverProductId: dom.naverProductId || next.naverProductId || "",
+        title: dom.title || next.title || "",
+        price: dom.price || next.price || 0,
+        image: dom.image || next.image || "",
+        link: dom.link || next.link || "",
+        channelNo: dom.channelNo || next.channelNo || "",
+        providerId: dom.providerId || next.providerId || "",
+        mallName: dom.mallName || next.mallName || "",
+        storeMatched: !!dom.storeMatched,
+      };
+    });
+
+    domList.forEach((product) => {
+      if (!usedDom.has(product)) merged.push({ ...product });
+    });
+    return merged;
+  }
+
+  const api = {
+    toDetailMap,
+    isAdRecord,
+    resolveOrganicRank,
+    isMainListSlot,
+    findBestProductArray,
+    parseNextDataProducts,
+    mergeProductSources,
+  };
   root.RankParser = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);

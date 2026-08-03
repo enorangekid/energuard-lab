@@ -145,43 +145,22 @@ function readNextDataProducts(pageIndex) {
   }
 }
 
-function productLookupKeys(product) {
-  return [product.productCode, product.naverProductId].filter(Boolean).map(String);
-}
-
 function mergeNextDataWithDom(nextResult, domProducts, pageIndex) {
   if (!nextResult.products.length) return { products: domProducts, source: "dom", schemaPath: "" };
-  const nextById = new Map();
-  nextResult.products.forEach((product) => {
-    productLookupKeys(product).forEach((key) => nextById.set(key, product));
-  });
+  const merged = RankParser.mergeProductSources(nextResult.products, domProducts).map((product) => ({
+    ...product,
+    image: absoluteUrl(product.image || ""),
+    link: absoluteUrl(product.link || ""),
+    cardText: product.cardText || [product.mallName, product.title].filter(Boolean).join(" "),
+  }));
+  const domIds = new Set(domProducts.flatMap((product) => [product.productCode, product.naverProductId]).filter(Boolean));
+  const matched = nextResult.products.some((product) =>
+    [product.productCode, product.naverProductId].filter(Boolean).some((key) => domIds.has(key))
+  );
 
-  let matched = 0;
-  const merged = domProducts.map((dom) => {
-    const next = productLookupKeys(dom).map((key) => nextById.get(key)).find(Boolean);
-    if (next) matched += 1;
-    return {
-      ...dom,
-      // 순위와 광고 판정은 실제 화면의 data-shp 계약만 신뢰합니다.
-      isAd: dom.isAd,
-      rank: dom.rank,
-      productCode: dom.productCode || next?.productCode || "",
-      naverProductId: dom.naverProductId || next?.naverProductId || "",
-      title: dom.title || next?.title || "",
-      price: dom.price || next?.price || 0,
-      image: absoluteUrl(dom.image || next?.image || ""),
-      link: absoluteUrl(dom.link || next?.link || ""),
-      channelNo: dom.channelNo || next?.channelNo || "",
-      mallName: dom.mallName || next?.mallName || "",
-      storeMatched: dom.storeMatched,
-      cardText: dom.cardText || [next?.mallName, next?.title].filter(Boolean).join(" "),
-    };
-  });
-
-  // NEXT_DATA는 실제 화면에 존재하는 동일 상품의 누락 정보만 보강합니다.
   return {
     products: merged,
-    source: matched ? "dom+next-data" : "dom-fallback",
+    source: matched ? "next-data+dom" : "next-data",
     schemaPath: nextResult.path,
   };
 }

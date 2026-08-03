@@ -234,9 +234,12 @@ async function runCollection(config) {
           if (matchesStore(product, config.storeName, knownChannelNos, knownProviderIds)) found.push(product);
         });
         completed += 1;
+        const sourceLabel = String(result.extractionSource || "dom").includes("next-data")
+          ? "NEXT_DATA"
+          : "DOM";
         await updateProgress({
           completed,
-          message: `${keywordMeta.keyword} ${pageIndex}/${config.pageCount}페이지 · 일반상품 ${result.products.filter((item) => !item.isAd).length}개 · ${config.storeName} ${found.length}개 발견`,
+          message: `${keywordMeta.keyword} ${pageIndex}/${config.pageCount}페이지 · ${sourceLabel} 일반상품 ${result.products.filter((item) => !item.isAd).length}개 · ${config.storeName} 누적 ${found.length}개`,
         });
       }
       saved += await saveKeywordRows(config, keywordMeta, found);

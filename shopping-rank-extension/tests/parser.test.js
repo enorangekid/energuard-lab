@@ -57,4 +57,21 @@ assert.equal(nextParsed.products[0].isAd, true);
 assert.equal(nextParsed.products[1].rank, 1);
 assert.equal(nextParsed.products[2].rank, 2);
 
+const merged = parser.mergeProductSources(nextParsed.products, [{
+  isAd: false,
+  rank: 7,
+  productCode: "P1",
+  naverProductId: "1001",
+  title: "DOM 상품 A",
+  channelNo: "500128955",
+  providerId: "329308",
+  storeMatched: true,
+}]);
+assert.equal(merged.length, 3, "DOM에 렌더링되지 않은 NEXT_DATA 상품도 유지해야 합니다.");
+assert.equal(merged.find((item) => item.productCode === "P1").rank, 7,
+  "DOM에서 확인한 실제 노출 순위는 NEXT_DATA 순위보다 우선해야 합니다.");
+assert.equal(merged.find((item) => item.productCode === "P2").rank, 2,
+  "DOM에 없는 상품은 NEXT_DATA 순위를 유지해야 합니다.");
+assert.equal(merged.find((item) => item.productCode === "P1").channelNo, "500128955");
+
 console.log("parser smoke tests passed");
