@@ -124,40 +124,37 @@ function productLookupKeys(product) {
 
 function mergeNextDataWithDom(nextResult, domProducts, pageIndex) {
   if (!nextResult.products.length) return { products: domProducts, source: "dom", schemaPath: "" };
-  const domById = new Map();
-  domProducts.forEach((product) => {
-    productLookupKeys(product).forEach((key) => domById.set(key, product));
+  const nextById = new Map();
+  nextResult.products.forEach((product) => {
+    productLookupKeys(product).forEach((key) => nextById.set(key, product));
   });
 
   let matched = 0;
-  let localOrganicOrder = 0;
-  const merged = nextResult.products.map((product) => {
-    const dom = productLookupKeys(product).map((key) => domById.get(key)).find(Boolean);
-    if (dom) matched += 1;
-    const isAd = dom ? dom.isAd : product.isAd;
-    if (!isAd) localOrganicOrder += 1;
+  const merged = domProducts.map((dom) => {
+    const next = productLookupKeys(dom).map((key) => nextById.get(key)).find(Boolean);
+    if (next) matched += 1;
     return {
-      ...product,
-      isAd,
-      rank: isAd ? null : RankParser.resolveOrganicRank(dom?.rank || product.rank, pageIndex, localOrganicOrder),
-      productCode: product.productCode || dom?.productCode || "",
-      naverProductId: product.naverProductId || dom?.naverProductId || "",
-      title: product.title || dom?.title || "",
-      price: product.price || dom?.price || 0,
-      image: absoluteUrl(product.image || dom?.image || ""),
-      link: absoluteUrl(product.link || dom?.link || ""),
-      providerId: dom?.providerId || "",
-      channelNo: product.channelNo || dom?.channelNo || "",
-      cardText: dom?.cardText || [product.mallName, product.title].filter(Boolean).join(" "),
+      ...dom,
+      // 순위와 광고 판정은 실제 화면의 data-shp 계약만 신뢰합니다.
+      isAd: dom.isAd,
+      rank: dom.rank,
+      productCode: dom.productCode || next?.productCode || "",
+      naverProductId: dom.naverProductId || next?.naverProductId || "",
+      title: dom.title || next?.title || "",
+      price: dom.price || next?.price || 0,
+      image: absoluteUrl(dom.image || next?.image || ""),
+      link: absoluteUrl(dom.link || next?.link || ""),
+      channelNo: dom.channelNo || next?.channelNo || "",
+      cardText: dom.cardText || [next?.mallName, next?.title].filter(Boolean).join(" "),
     };
   });
 
-  // 추천상품 같은 다른 배열을 고른 경우 검증된 화면 DOM 결과로 자동 복귀합니다.
-  const minimumMatches = Math.min(5, Math.max(2, Math.ceil(nextResult.products.length * 0.2)));
-  if (domProducts.length && matched < minimumMatches) {
-    return { products: domProducts, source: "dom-fallback", schemaPath: nextResult.path };
-  }
-  return { products: merged, source: "next-data", schemaPath: nextResult.path };
+  // NEXT_DATA는 실제 화면에 존재하는 동일 상품의 누락 정보만 보강합니다.
+  return {
+    products: merged,
+    source: matched ? "dom+next-data" : "dom-fallback",
+    schemaPath: nextResult.path,
+  };
 }
 
 function extractProducts(pageIndex) {
