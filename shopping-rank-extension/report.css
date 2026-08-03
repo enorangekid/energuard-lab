@@ -82,14 +82,15 @@ button.primary:hover { background: #d94c20; }
 .table-scroll { overflow-x: auto; }
 table { width: 100%; min-width: 1420px; border-collapse: collapse; table-layout: fixed; }
 th { height: 46px; padding: 0 11px; background: var(--soft); color: #667085; font-size: 11px; text-align: left; }
-td { height: 74px; padding: 10px 11px; border-top: 1px solid #edf0f4; color: #344054; font-size: 12px; vertical-align: middle; }
+tbody tr { height: 78px; }
+td { height: 78px; padding: 9px 11px; border-top: 1px solid #edf0f4; color: #344054; font-size: 12px; vertical-align: middle; }
 tbody tr:first-child td { border-top: 0; }
 tbody tr:hover { background: #fffaf7; }
 tbody tr.target-row { box-shadow: inset 3px 0 var(--orange); }
 .rank-col { width: 58px; text-align: center; }
 .image-col { width: 72px; }
 .number-col { width: 94px; text-align: right; }
-.date-col { width: 105px; text-align: center; }
+.date-col { width: 112px; color: #667085; text-align: center; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .rank { font-weight: 800; text-align: center; }
 .thumb { width: 52px; height: 52px; border: 1px solid var(--line); border-radius: 5px; object-fit: cover; background: var(--soft); }
 .product-cell { width: 340px; }
@@ -102,7 +103,7 @@ tbody tr.target-row { box-shadow: inset 3px 0 var(--orange); }
 .mall { width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .specs { width: 220px; color: #667085; line-height: 1.45; }
 .tags { width: 260px; }
-.tags .tag-list { margin: 0; }
+.tags .tag-list { align-content: center; max-height: 48px; margin: 0; overflow: hidden; }
 .money, .count { text-align: right; font-variant-numeric: tabular-nums; }
 .money strong { color: var(--orange); }
 .empty-state { padding: 80px 20px; text-align: center; }

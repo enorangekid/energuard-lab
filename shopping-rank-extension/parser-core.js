@@ -62,6 +62,10 @@
     return [...new Set(String(value).split(/[,|>]/).map((item) => item.trim()).filter(Boolean))];
   }
 
+  function metadataKey(value) {
+    return String(value || "").normalize("NFKC").replace(/[^\p{L}\p{N}]/gu, "").toLocaleLowerCase("ko-KR");
+  }
+
   function numberValue(record, aliases) {
     const raw = firstValue(record, aliases);
     const value = Number(String(raw || "").replace(/[^0-9.-]/g, ""));
@@ -76,9 +80,12 @@
       ]))
       .map(String)
       .filter(Boolean);
+    const brand = String(firstValue(record, ["brandName", "brandNm", "brand"]));
+    const maker = String(firstValue(record, ["makerName", "makerNm", "maker"]));
+    const excludedSpecs = new Set([brand, maker].map(metadataKey).filter(Boolean));
     const specs = asStringList(firstValue(record, [
       "characterValue", "characteristic", "characteristics", "spec", "specs", "attributeValue", "attributeValues",
-    ]));
+    ])).filter((value) => !excludedSpecs.has(metadataKey(value)));
     const nestedTerms = record?.nluInfo?.nluTerms;
     const tags = asStringList(firstValue(record, [
       "manuTag", "manuTags", "searchTag", "searchTags", "terms", "nluTerms", "keepWord", "tags", "tagList",
@@ -90,8 +97,8 @@
       ]),
       reviewCount: numberValue(record, ["reviewCount", "reviewCountLog", "reviewCnt", "reviewCntSum", "totalReviewCount"]),
       registrationDate: String(firstValue(record, ["openDate", "registrationDate", "registeredDate", "productOpenDate"])),
-      brand: String(firstValue(record, ["brandName", "brandNm", "brand"])),
-      maker: String(firstValue(record, ["makerName", "makerNm", "maker"])),
+      brand,
+      maker,
       categoryPath: categories.join(" > "),
       specs,
       tags,

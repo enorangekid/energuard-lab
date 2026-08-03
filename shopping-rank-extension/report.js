@@ -29,6 +29,25 @@ function compact(value) {
   return String(value || "").normalize("NFKC").replace(/[^\p{L}\p{N}]/gu, "").toLocaleLowerCase("ko-KR");
 }
 
+function displaySpecs(row) {
+  const excluded = new Set([row.brand, row.maker].map(compact).filter(Boolean));
+  const specs = Array.isArray(row.specs) ? row.specs : [];
+  return specs.filter((value) => value && !excluded.has(compact(value))).join(" · ");
+}
+
+function formatRegistrationDate(value) {
+  const source = String(value || "").trim();
+  const digits = source.replace(/\D/g, "");
+  if (digits.length >= 8) {
+    return `${digits.slice(0, 4)}.${digits.slice(4, 6)}.${digits.slice(6, 8)}`;
+  }
+  const date = new Date(source);
+  if (!source || Number.isNaN(date.getTime())) return source || "-";
+  return new Intl.DateTimeFormat("ko-KR", {
+    year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(date).replace(/\s/g, "");
+}
+
 function currentRows() {
   return state.rows
     .filter((row) => row.keyword === state.keyword && !row.is_ad)
@@ -72,7 +91,7 @@ function renderRows(rows) {
   empty.hidden = rows.length > 0;
   body.innerHTML = rows.map((row) => {
     const tags = Array.isArray(row.tags) ? row.tags.slice(0, 7) : [];
-    const specs = Array.isArray(row.specs) ? row.specs.join(" · ") : "";
+    const specs = displaySpecs(row);
     const image = row.product_image
       ? `<img class="thumb" src="${escapeHtml(row.product_image)}" alt="" loading="lazy">`
       : '<div class="thumb"></div>';
@@ -88,13 +107,13 @@ function renderRows(rows) {
           </div>
         </td>
         <td class="mall">${escapeHtml(row.mall_name || "-")}</td>
-        <td class="specs">${escapeHtml(specs || row.brand || row.maker || "-")}</td>
+        <td class="specs">${escapeHtml(specs || "-")}</td>
         <td class="tags"><div class="tag-list">${tags.length ? tags.map((tag) => `<span>#${escapeHtml(tag)}</span>`).join("") : '<span class="empty">-</span>'}</div></td>
         <td class="money"><strong>${row.product_price ? money.format(row.product_price) : "-"}</strong></td>
         <td class="money">${row.shipping_fee ? money.format(row.shipping_fee) : "-"}</td>
         <td class="count">${number.format(row.purchase_count || 0)}</td>
         <td class="count">${number.format(row.review_count || 0)}</td>
-        <td class="date-col">${escapeHtml(row.registration_date || "-")}</td>
+        <td class="date-col">${escapeHtml(formatRegistrationDate(row.registration_date))}</td>
       </tr>`;
   }).join("");
 }
@@ -121,10 +140,10 @@ function createCsv() {
   const headers = ["순위", "상품명", "쇼핑몰", "스펙/속성", "검색태그", "판매가", "배송비", "구매", "리뷰", "등록일", "자사상품", "추적상품", "상품링크"];
   const lines = currentRows().map((row) => [
     row.organic_rank, row.product_name, row.mall_name,
-    Array.isArray(row.specs) ? row.specs.join(" ") : "",
+    displaySpecs(row),
     Array.isArray(row.tags) ? row.tags.join(" ") : "",
     row.product_price, row.shipping_fee, row.purchase_count, row.review_count,
-    row.registration_date, row.is_target_store ? "Y" : "N", row.is_tracked ? "Y" : "N", row.product_link,
+    formatRegistrationDate(row.registration_date), row.is_target_store ? "Y" : "N", row.is_tracked ? "Y" : "N", row.product_link,
   ].map(csvCell).join(","));
   return `\uFEFF${headers.map(csvCell).join(",")}\r\n${lines.join("\r\n")}`;
 }

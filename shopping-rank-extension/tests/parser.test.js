@@ -148,6 +148,24 @@ assert.equal(wrappedResult.products[0].purchaseCount, 924);
 assert.equal(wrappedResult.products[0].reviewCount, 12050);
 assert.equal(wrappedResult.products[0].categoryPath, "생활/건강 > 생활용품 > 단열시트");
 assert.deepEqual(wrappedResult.products[0].specs, ["1m", "10T", "결로방지"]);
+
+const brandInSpecsResult = parser.parseNextDataProducts({
+  props: {
+    pageProps: {
+      products: [{
+        item: {
+          productTitle: "빌트론 열반사단열재 10T",
+          channelProductNo: "brand-spec-test",
+          mallName: "한국 단열",
+          brandName: "빌트론",
+          characterValue: "빌트론|1m|10T",
+          price: 5800,
+        },
+      }],
+    },
+  },
+}, { pageIndex: 1 });
+assert.deepEqual(brandInSpecsResult.products[0].specs, ["1m", "10T"]);
 assert.deepEqual(wrappedResult.products[0].tags, ["은박단열재", "외벽단열재"]);
 assert.equal(wrappedResult.products[0].link, "https://example.com/wrapped");
 
