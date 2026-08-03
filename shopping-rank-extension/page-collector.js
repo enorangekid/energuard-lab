@@ -18,12 +18,47 @@ function findCardRoot(anchor) {
 }
 
 function absoluteUrl(value) {
-  try { return new URL(value, location.href).href; } catch (_) { return value || ""; }
+  const source = String(value || "").trim();
+  if (!source || source === "about:blank") return "";
+  try { return new URL(source, location.href).href; } catch (_) { return source; }
+}
+
+function productIdentity(anchor, detail, isAd) {
+  const productCode = String(detail.chnl_prod_no || "").trim();
+  const naverProductId = String(
+    anchor.getAttribute("data-shp-contents-id") || detail.catalog_nv_mid || ""
+  ).trim();
+  return `${isAd ? "ad" : "prod"}:${naverProductId || productCode || anchor.href}`;
+}
+
+function primaryProductAnchors() {
+  const selector = 'a[data-shp-contents-grp][data-shp-contents-dtl]';
+  const selected = new Map();
+
+  [...document.querySelectorAll(selector)].forEach((anchor, index) => {
+    const group = anchor.getAttribute("data-shp-contents-grp") || "";
+    const type = anchor.getAttribute("data-shp-contents-type") || "";
+    const detail = parseDetailAttribute(anchor, "data-shp-contents-dtl");
+    const isAd = RankParser.isAdRecord({ group, type, href: anchor.href });
+    const key = productIdentity(anchor, detail, isAd);
+    if (!key || /:$/.test(key)) return;
+
+    const area = anchor.getAttribute("data-shp-area") || "";
+    const image = anchor.querySelector("img");
+    const score = (/\.img$/i.test(area) ? 100 : 0)
+      + (image ? 50 : 0)
+      + (detail.organic_expose_order ? 20 : 0)
+      + (detail.prod_nm ? 10 : 0)
+      + (detail.chnl_prod_no ? 5 : 0);
+    const current = selected.get(key);
+    if (!current || score > current.score) selected.set(key, { anchor, score, index });
+  });
+
+  return [...selected.values()].sort((a, b) => a.index - b.index).map((item) => item.anchor);
 }
 
 function extractProducts(pageIndex) {
-  const selector = 'a[data-shp-contents-grp][data-shp-contents-dtl]';
-  const anchors = [...document.querySelectorAll(selector)];
+  const anchors = primaryProductAnchors();
   const products = [];
   const seen = new Set();
   let localOrganicOrder = 0;
@@ -34,8 +69,6 @@ function extractProducts(pageIndex) {
     const detail = parseDetailAttribute(anchor, "data-shp-contents-dtl");
     const provider = parseDetailAttribute(anchor, "data-shp-contents-provider-dtl");
     const isAd = RankParser.isAdRecord({ group, type, href: anchor.href });
-    if (!isAd) localOrganicOrder += 1;
-
     const productCode = String(detail.chnl_prod_no || "").trim();
     const naverProductId = String(
       detail.catalog_nv_mid || anchor.getAttribute("data-shp-contents-id") || ""
@@ -43,9 +76,15 @@ function extractProducts(pageIndex) {
     const uniqueKey = productCode || naverProductId || anchor.href;
     if (!uniqueKey || seen.has(`${isAd ? "ad" : "prod"}:${uniqueKey}`)) return;
     seen.add(`${isAd ? "ad" : "prod"}:${uniqueKey}`);
+    if (!isAd) localOrganicOrder += 1;
 
     const root = findCardRoot(anchor);
     const image = anchor.querySelector("img");
+    const imageSource = image?.currentSrc
+      || image?.getAttribute("src")
+      || image?.getAttribute("data-src")
+      || image?.getAttribute("data-original")
+      || "";
     let rank = null;
     if (!isAd) {
       rank = RankParser.resolveOrganicRank(detail.organic_expose_order, pageIndex, localOrganicOrder);
@@ -59,7 +98,7 @@ function extractProducts(pageIndex) {
       naverProductId,
       title: detail.prod_nm || image?.alt || "",
       price: Number(detail.price) || 0,
-      image: absoluteUrl(image?.currentSrc || image?.src || ""),
+      image: absoluteUrl(imageSource),
       link: absoluteUrl(anchor.href),
       providerId: anchor.getAttribute("data-shp-contents-provider-id") || "",
       channelNo: provider.chnl_no || "",

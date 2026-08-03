@@ -37,13 +37,77 @@ async function updateProgress(patch) {
   if (bar) bar.style.width = `${state.total ? Math.min(100, (state.completed || 0) / state.total * 100) : 0}%`;
 }
 
-async function fetchKnownProductCodes(storeName) {
-  const url = `${SUPABASE_URL}/rest/v1/keyword_rank_history?store_name=eq.${encodeURIComponent(storeName)}` +
-    "&select=product_code&order=checked_at.desc&limit=5000";
-  const response = await fetch(url, { headers: sbHeaders() });
-  if (!response.ok) throw new Error(`기존 상품번호 조회 실패: ${await response.text()}`);
-  const rows = await response.json();
-  return new Set(rows.map((row) => String(row.product_code || "").trim()).filter(Boolean));
+async function fetchJsonRows(path) {
+  const response = await fetch(`${SUPABASE_URL}${path}`, { headers: sbHeaders() });
+  if (!response.ok) throw new Error(`상품번호 조회 실패: ${await response.text()}`);
+  return response.json();
+}
+
+async function fetchKnownProducts(storeName) {
+  const products = new Map();
+
+  // 한국 단열 상품 마스터는 company_name이 비어 있는 자사 상품으로 관리됩니다.
+  if (compact(storeName) === compact("한국 단열")) {
+    const masters = await fetchJsonRows(
+      "/rest/v1/product_rankings?select=code,name,image_url,price,alt_codes,company_name&limit=1000"
+    );
+    masters.filter((row) => !compact(row.company_name)).forEach((row) => {
+      const canonicalCode = String(row.code || "").trim();
+      if (!canonicalCode) return;
+      const metadata = {
+        canonicalCode,
+        name: row.name || "",
+        image: row.image_url || "",
+        price: Number(row.price) || 0,
+      };
+      products.set(canonicalCode, metadata);
+      (Array.isArray(row.alt_codes) ? row.alt_codes : []).forEach((alt) => {
+        const code = String(alt || "").trim();
+        if (code) products.set(code, metadata);
+      });
+    });
+  }
+
+  const trackedItems = await fetchJsonRows(
+    `/rest/v1/tracked_items?mall_name=eq.${encodeURIComponent(storeName)}` +
+    "&select=product_code,product_name,product_image,alt_codes&limit=1000"
+  );
+  trackedItems.forEach((row) => {
+    const canonicalCode = String(row.product_code || "").trim();
+    if (!canonicalCode) return;
+    const metadata = products.get(canonicalCode) || {
+      canonicalCode,
+      name: row.product_name || "",
+      image: row.product_image || "",
+      price: 0,
+    };
+    products.set(canonicalCode, metadata);
+    (Array.isArray(row.alt_codes) ? row.alt_codes : []).forEach((alt) => {
+      const code = String(alt || "").trim();
+      if (code) products.set(code, metadata);
+    });
+  });
+
+  // 키워드/날짜 중복 행 때문에 최근 5,000행만 읽으면 일부 상품이 누락됩니다.
+  // 충분한 범위를 페이지로 읽고 상품번호 기준으로 합칩니다.
+  for (let offset = 0; offset < 20000; offset += 1000) {
+    const rows = await fetchJsonRows(
+      `/rest/v1/keyword_rank_history?store_name=eq.${encodeURIComponent(storeName)}` +
+      `&select=product_code,product_name,product_image,product_price&order=checked_at.desc&offset=${offset}&limit=1000`
+    );
+    rows.forEach((row) => {
+      const code = String(row.product_code || "").trim();
+      if (!code || products.has(code)) return;
+      products.set(code, {
+        canonicalCode: code,
+        name: row.product_name || "",
+        image: row.product_image || "",
+        price: Number(row.product_price) || 0,
+      });
+    });
+    if (rows.length < 1000) break;
+  }
+  return products;
 }
 
 async function waitForTabComplete(tabId, timeoutMs = 30000) {
@@ -77,14 +141,15 @@ async function extractPage(tabId, pageIndex) {
   throw new Error(`페이지 수집 스크립트 연결 실패: ${lastError?.message || "알 수 없는 오류"}`);
 }
 
-function matchesTarget(product, knownCodes, storeName) {
+function matchesTarget(product, knownProducts, storeName, knownChannelNos) {
   if (product.isAd) return false;
-  if (product.productCode && knownCodes.has(product.productCode)) return true;
+  if (product.productCode && knownProducts.has(product.productCode)) return true;
+  if (product.channelNo && knownChannelNos.has(product.channelNo)) return true;
   const store = compact(storeName);
   return !!store && compact(product.cardText).includes(store);
 }
 
-async function saveKeywordRows(config, keywordMeta, products) {
+async function saveKeywordRows(config, keywordMeta, products, knownProducts) {
   const collectedDate = todayKst();
   const now = new Date().toISOString();
   const unique = new Map();
@@ -92,7 +157,9 @@ async function saveKeywordRows(config, keywordMeta, products) {
     .filter((product) => !product.isAd && product.productCode)
     .sort((a, b) => (a.rank || Infinity) - (b.rank || Infinity))
     .forEach((product) => {
-      if (!unique.has(product.productCode)) unique.set(product.productCode, product);
+      const master = knownProducts.get(product.productCode);
+      const canonicalCode = master?.canonicalCode || product.productCode;
+      if (!unique.has(canonicalCode)) unique.set(canonicalCode, { ...product, canonicalCode, master });
     });
 
   const payload = unique.size
@@ -104,11 +171,11 @@ async function saveKeywordRows(config, keywordMeta, products) {
         rank: product.rank,
         max_rank: config.pageCount * 40,
         checked_at: now,
-        product_code: product.productCode,
-        product_name: product.title || "",
-        product_image: product.image || "",
+        product_code: product.canonicalCode,
+        product_name: product.title || product.master?.name || "",
+        product_image: product.image || product.master?.image || "",
         product_link: product.link || "",
-        product_price: product.price || 0,
+        product_price: product.price || product.master?.price || 0,
         collected_date: collectedDate,
       }))
     : [{
@@ -139,6 +206,15 @@ async function saveKeywordRows(config, keywordMeta, products) {
     }
   );
   if (!response.ok) throw new Error(`순위 저장 실패: ${await response.text()}`);
+
+  // 같은 날 다시 수집하면 이번 배치에 없는 예전 오탐 행이 남지 않게 정리합니다.
+  const cleanupUrl = `${SUPABASE_URL}/rest/v1/keyword_rank_history` +
+    `?store_name=eq.${encodeURIComponent(config.storeName)}` +
+    `&keyword=eq.${encodeURIComponent(keywordMeta.keyword)}` +
+    `&collected_date=eq.${encodeURIComponent(collectedDate)}` +
+    `&checked_at=neq.${encodeURIComponent(now)}`;
+  const cleanup = await fetch(cleanupUrl, { method: "DELETE", headers: sbHeaders() });
+  if (!cleanup.ok) throw new Error(`이전 오탐 행 정리 실패: ${await cleanup.text()}`);
   return unique.size;
 }
 
@@ -154,9 +230,13 @@ async function runCollection(config) {
   let saved = 0;
   let finishedSuccessfully = false;
   try {
-    const knownCodes = await fetchKnownProductCodes(config.storeName);
-    config.productCodes.forEach((code) => knownCodes.add(code));
-    if (!knownCodes.size) {
+    const knownProducts = await fetchKnownProducts(config.storeName);
+    config.productCodes.forEach((code) => {
+      if (!knownProducts.has(code)) {
+        knownProducts.set(code, { canonicalCode: code, name: "", image: "", price: 0 });
+      }
+    });
+    if (!knownProducts.size) {
       throw new Error("저장된 상품번호가 없습니다. 추가 상품번호를 한 개 이상 입력하세요.");
     }
 
@@ -166,6 +246,7 @@ async function runCollection(config) {
 
     for (const keywordMeta of config.keywords) {
       const found = [];
+      const knownChannelNos = new Set();
       for (let pageIndex = 1; pageIndex <= config.pageCount; pageIndex += 1) {
         if (!activeRun || activeRun.id !== runId || activeRun.cancelled) throw new Error("사용자가 수집을 중단했습니다.");
         const url = "https://search.shopping.naver.com/search/all?" + new URLSearchParams({
@@ -184,12 +265,17 @@ async function runCollection(config) {
         const result = await extractPage(tab.id, pageIndex);
         if (result.blockedReason) throw new Error(result.blockedReason);
         result.products.forEach((product) => {
-          if (matchesTarget(product, knownCodes, config.storeName)) found.push(product);
+          const directMatch = product.productCode && knownProducts.has(product.productCode);
+          const storeMatch = compact(product.cardText).includes(compact(config.storeName));
+          if ((directMatch || storeMatch) && product.channelNo) knownChannelNos.add(product.channelNo);
+        });
+        result.products.forEach((product) => {
+          if (matchesTarget(product, knownProducts, config.storeName, knownChannelNos)) found.push(product);
         });
         completed += 1;
         await updateProgress({ completed });
       }
-      saved += await saveKeywordRows(config, keywordMeta, found);
+      saved += await saveKeywordRows(config, keywordMeta, found, knownProducts);
       await updateProgress({ saved });
     }
 

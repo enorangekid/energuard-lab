@@ -1256,6 +1256,11 @@ function canonicalProductCode(row, masterMaps) {
   return findProductMaster(row, masterMaps)?.code || row.product_code;
 }
 
+function usableProductImage(value) {
+  const url = String(value || "").trim();
+  return url && !/search\.shopping\.naver\.com\/search\//i.test(url) ? url : "";
+}
+
 function buildProducts(rows, masterMaps, collectedKeywords) {
   const latestDate = rows[0]?.collected_date || rows[0]?.checked_at?.slice(0, 10) || "";
   const latestRows = rows.filter(r => rankDate(r) === latestDate && r.rank != null && r.product_code);
@@ -1288,7 +1293,7 @@ function buildProducts(rows, masterMaps, collectedKeywords) {
         name: master?.name || row.product_name || "(상품명 없음)",
         // 오늘 실제 수집된 이미지를 우선한다 — 통합어드민(마스터) 쪽 이미지는 수집과 무관하게
         // 수동으로 입력되는 값이라 오래되거나 다른 상품 사진으로 잘못 들어가 있을 수 있다.
-        image: row.product_image || master?.image || "",
+        image: usableProductImage(row.product_image) || master?.image || "",
         link: row.product_link || "",
         price: Number(row.product_price) || 0,
         category: master?.category || "기타",
@@ -1304,7 +1309,7 @@ function buildProducts(rows, masterMaps, collectedKeywords) {
     if (!product.masterCode && master?.code) product.masterCode = master.code;
     if (!product.isChecked && master?.isChecked) product.isChecked = true;
     if ((!product.memos || !product.memos.length) && master?.memos?.length) product.memos = master.memos;
-    if (!product.image && (row.product_image || master?.image)) product.image = row.product_image || master?.image;
+    if (!product.image && (usableProductImage(row.product_image) || master?.image)) product.image = usableProductImage(row.product_image) || master?.image;
     if (!product.link && row.product_link) product.link = row.product_link;
     if (!product.price && row.product_price) product.price = Number(row.product_price) || 0;
     if (master?.name && product.name === "(상품명 없음)") product.name = master.name;
@@ -1328,7 +1333,7 @@ function buildProducts(rows, masterMaps, collectedKeywords) {
     byProduct.set(code, {
       code,
       name: master?.name || row.product_name || "(상품명 없음)",
-      image: row.product_image || master?.image || "",
+      image: usableProductImage(row.product_image) || master?.image || "",
       link: row.product_link || "",
       price: Number(row.product_price) || 0,
       category: master?.category || "기타",
