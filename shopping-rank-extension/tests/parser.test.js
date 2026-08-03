@@ -74,4 +74,49 @@ assert.equal(merged.find((item) => item.productCode === "P2").rank, 2,
   "DOM에 없는 상품은 NEXT_DATA 순위를 유지해야 합니다.");
 assert.equal(merged.find((item) => item.productCode === "P1").channelNo, "500128955");
 
+const richFixture = {
+  props: {
+    pageProps: {
+      shoppingResult: {
+        products: [
+          {
+            productTitle: "열반사 단열재 10T",
+            channelProductNo: "RICH1",
+            nvMid: "MID1",
+            price: 5800,
+            mallName: "한국 단열",
+            imageUrl: "https://example.com/product.jpg",
+          },
+        ],
+      },
+      productDetails: [
+        {
+          productTitle: "열반사 단열재 10T",
+          channelProductNo: "RICH1",
+          nvMid: "MID1",
+          price: 5800,
+          mallName: "한국 단열",
+          deliveryFee: "4,300원",
+          purchaseCnt6m: "924",
+          reviewCntSum: "12,050",
+          openDate: "20160928",
+          category1Name: "생활/건강",
+          category2Name: "생활용품",
+          category3Name: "단열시트",
+          characteristic: "1m|10T|결로방지",
+          manuTag: ["은박단열재", "외벽단열재", "바닥단열재"],
+        },
+      ],
+    },
+  },
+};
+const richParsed = parser.parseNextDataProducts(richFixture, 1).products[0];
+assert.equal(richParsed.shippingFee, 4300);
+assert.equal(richParsed.purchaseCount, 924);
+assert.equal(richParsed.reviewCount, 12050);
+assert.equal(richParsed.registrationDate, "20160928");
+assert.equal(richParsed.categoryPath, "생활/건강 > 생활용품 > 단열시트");
+assert.deepEqual(richParsed.specs, ["1m", "10T", "결로방지"]);
+assert.deepEqual(richParsed.tags, ["은박단열재", "외벽단열재", "바닥단열재"]);
+
 console.log("parser smoke tests passed");

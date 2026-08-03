@@ -44,6 +44,51 @@
     return "";
   }
 
+  function asStringList(value) {
+    if (value === undefined || value === null || value === "") return [];
+    if (Array.isArray(value)) {
+      return [...new Set(value.flatMap(asStringList).map((item) => item.trim()).filter(Boolean))];
+    }
+    if (typeof value === "object") {
+      return [...new Set(Object.values(value).flatMap(asStringList).map((item) => item.trim()).filter(Boolean))];
+    }
+    return [...new Set(String(value).split(/[,|>]/).map((item) => item.trim()).filter(Boolean))];
+  }
+
+  function numberValue(record, aliases) {
+    const raw = firstValue(record, aliases);
+    const value = Number(String(raw || "").replace(/[^0-9.-]/g, ""));
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  function productMetadata(record) {
+    const categories = [1, 2, 3, 4]
+      .map((index) => firstValue(record, [
+        `category${index}Name`, `category${index}Nm`, `category${index}`,
+      ]))
+      .map(String)
+      .filter(Boolean);
+    const specs = asStringList(firstValue(record, [
+      "characteristic", "characteristics", "spec", "specs", "attributeValue", "attributeValues",
+    ]));
+    const tags = asStringList(firstValue(record, [
+      "manuTag", "manuTags", "searchTag", "searchTags", "nluTerms", "tags", "tagList",
+    ]));
+    return {
+      shippingFee: numberValue(record, ["deliveryFee", "shippingFee", "deliveryPrice", "baseDeliveryFee"]),
+      purchaseCount: numberValue(record, [
+        "purchaseCnt", "purchaseCount", "sixMonthPurchaseCount", "purchaseCnt6m", "saleCount",
+      ]),
+      reviewCount: numberValue(record, ["reviewCount", "reviewCnt", "reviewCntSum", "totalReviewCount"]),
+      registrationDate: String(firstValue(record, ["openDate", "registrationDate", "registeredDate", "productOpenDate"])),
+      brand: String(firstValue(record, ["brandName", "brandNm", "brand"])),
+      maker: String(firstValue(record, ["makerName", "makerNm", "maker"])),
+      categoryPath: categories.join(" > "),
+      specs,
+      tags,
+    };
+  }
+
   function productShapeScore(record) {
     if (!record || Array.isArray(record) || typeof record !== "object") return 0;
     const title = firstValue(record, ["productTitle", "productName", "prodName", "title"]);
@@ -82,6 +127,24 @@
     return candidates[0] || null;
   }
 
+  function findProductArrays(root) {
+    const candidates = [];
+    const visited = new Set();
+    function visit(value, path, depth) {
+      if (!value || typeof value !== "object" || depth > 18 || visited.has(value)) return;
+      visited.add(value);
+      if (Array.isArray(value)) {
+        const shaped = value.filter((item) => productShapeScore(item) >= 8);
+        if (shaped.length) candidates.push({ records: value, path, shapedCount: shaped.length });
+        value.forEach((item, index) => visit(item, `${path}[${index}]`, depth + 1));
+        return;
+      }
+      Object.entries(value).forEach(([key, child]) => visit(child, path ? `${path}.${key}` : key, depth + 1));
+    }
+    visit(root, "", 0);
+    return candidates;
+  }
+
   function isNextDataAd(record) {
     const group = String(firstValue(record, ["contentsGrp", "contentsGroup", "group", "adGroup"])).toLowerCase();
     const type = String(firstValue(record, ["contentsType", "type", "adType"])).toLowerCase();
@@ -95,10 +158,27 @@
   function parseNextDataProducts(root, pageIndex) {
     const candidate = findBestProductArray(root);
     if (!candidate) return { products: [], path: "" };
+    const enrichment = new Map();
+    findProductArrays(root).forEach(({ records }) => {
+      records.forEach((record) => {
+        if (productShapeScore(record) < 8) return;
+        const keys = [
+          firstValue(record, ["channelProductNo", "chnlProdNo", "chnl_prod_no"]),
+          firstValue(record, ["nvMid", "nv_mid", "catalogNvMid", "catalog_nv_mid"]),
+        ].filter(Boolean).map(String);
+        keys.forEach((key) => {
+          const current = enrichment.get(key) || {};
+          enrichment.set(key, { ...current, ...record });
+        });
+      });
+    });
     const seen = new Set();
     let localOrganicOrder = 0;
     const products = [];
-    candidate.records.forEach((record) => {
+    candidate.records.forEach((baseRecord, pagePosition) => {
+      const baseCode = String(firstValue(baseRecord, ["channelProductNo", "chnlProdNo", "chnl_prod_no"])).trim();
+      const baseNaverId = String(firstValue(baseRecord, ["nvMid", "nv_mid", "catalogNvMid", "catalog_nv_mid"])).trim();
+      const record = enrichment.get(baseCode) || enrichment.get(baseNaverId) || baseRecord;
       if (productShapeScore(record) < 8) return;
       const productCode = String(firstValue(record, ["channelProductNo", "chnlProdNo", "chnl_prod_no"])).trim();
       const naverProductId = String(firstValue(record, ["nvMid", "nv_mid", "catalogNvMid", "catalog_nv_mid"])).trim();
@@ -108,9 +188,11 @@
       const isAd = isNextDataAd(record);
       if (!isAd) localOrganicOrder += 1;
       const rawOrder = firstValue(record, ["organicExposeOrder", "organic_expose_order", "exposeOrder", "rank"]);
+      const metadata = productMetadata(record);
       products.push({
         isAd,
         rank: isAd ? null : resolveOrganicRank(rawOrder, pageIndex, localOrganicOrder),
+        pagePosition: pagePosition + 1,
         productCode,
         naverProductId,
         title: String(firstValue(record, ["productTitle", "productName", "prodName", "title"])),
@@ -118,7 +200,9 @@
         image: String(firstValue(record, ["imageUrl", "image_url", "image", "imageSrc"])),
         link: String(firstValue(record, ["productUrl", "mallProductUrl", "link", "url"])),
         channelNo: String(firstValue(record, ["channelNo", "chnlNo", "chnl_no"])),
+        providerId: String(firstValue(record, ["providerId", "mallSeq", "mallNo", "provider_id"])),
         mallName: String(firstValue(record, ["mallName", "mallNm", "storeName"])),
+        ...metadata,
       });
     });
     return { products, path: candidate.path };
@@ -157,6 +241,15 @@
         channelNo: dom.channelNo || next.channelNo || "",
         providerId: dom.providerId || next.providerId || "",
         mallName: dom.mallName || next.mallName || "",
+        shippingFee: dom.shippingFee || next.shippingFee || 0,
+        purchaseCount: dom.purchaseCount || next.purchaseCount || 0,
+        reviewCount: dom.reviewCount || next.reviewCount || 0,
+        registrationDate: dom.registrationDate || next.registrationDate || "",
+        brand: dom.brand || next.brand || "",
+        maker: dom.maker || next.maker || "",
+        categoryPath: dom.categoryPath || next.categoryPath || "",
+        specs: dom.specs?.length ? dom.specs : (next.specs || []),
+        tags: dom.tags?.length ? dom.tags : (next.tags || []),
         storeMatched: !!dom.storeMatched,
       };
     });
@@ -173,6 +266,8 @@
     resolveOrganicRank,
     isMainListSlot,
     findBestProductArray,
+    findProductArrays,
+    productMetadata,
     parseNextDataProducts,
     mergeProductSources,
   };

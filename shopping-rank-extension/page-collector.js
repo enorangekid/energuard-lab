@@ -68,9 +68,15 @@ function normalizeStoreName(value) {
     .toLocaleLowerCase("ko-KR");
 }
 
+function readCount(text, labels) {
+  const pattern = new RegExp(`(?:${labels.join("|")})\\s*([0-9,]+)`, "i");
+  const match = String(text || "").match(pattern);
+  return match ? Number(match[1].replace(/,/g, "")) || 0 : 0;
+}
+
 function findStoreName(root, storeName) {
   const target = normalizeStoreName(storeName);
-  if (!root || !target) return "";
+  if (!root) return "";
 
   const candidates = root.querySelectorAll(
     '[data-shp-area*="mall"], [data-shp-area-id="mall"], [class*="mall"], [class*="seller"], [class*="store"], a, span'
@@ -78,7 +84,15 @@ function findStoreName(root, storeName) {
   for (const element of candidates) {
     const text = String(element.innerText || element.textContent || "").replace(/\s+/g, " ").trim();
     if (!text || text.length > 60) continue;
-    if (normalizeStoreName(text) === target) return text;
+    if (target && normalizeStoreName(text) === target) return text;
+  }
+
+  const sellerCandidates = root.querySelectorAll(
+    '[data-shp-area*="mall"], [data-shp-area-id="mall"], [class*="mallName"], [class*="mall_name"], [class*="seller"], [class*="storeName"]'
+  );
+  for (const element of sellerCandidates) {
+    const text = String(element.innerText || element.textContent || "").replace(/\s+/g, " ").trim();
+    if (text && text.length <= 60) return text;
   }
   return "";
 }
@@ -123,6 +137,7 @@ function extractDomProducts(pageIndex, storeName) {
   const anchors = primaryProductAnchors();
   const products = [];
   const seen = new Set();
+  const target = normalizeStoreName(storeName);
   let localOrganicOrder = 0;
 
   anchors.forEach((anchor) => {
@@ -141,7 +156,7 @@ function extractDomProducts(pageIndex, storeName) {
     if (!isAd) localOrganicOrder += 1;
 
     const root = findCardRoot(anchor);
-    const mallName = findStoreName(root, storeName);
+    const mallName = detail.chnl_prod_nm || findStoreName(root, storeName);
     const image = anchor.querySelector("img");
     const imageSource = image?.currentSrc
       || image?.getAttribute("src")
@@ -153,9 +168,11 @@ function extractDomProducts(pageIndex, storeName) {
       rank = RankParser.resolveOrganicRank(detail.organic_expose_order, pageIndex, localOrganicOrder);
     }
 
+    const cardText = (root?.innerText || "").replace(/\s+/g, " ").trim().slice(0, 1200);
     products.push({
       isAd,
       rank,
+      pagePosition: products.length + 1,
       slotRank: Number(anchor.getAttribute("data-shp-contents-rank")) || null,
       productCode,
       naverProductId,
@@ -166,8 +183,17 @@ function extractDomProducts(pageIndex, storeName) {
       providerId: anchor.getAttribute("data-shp-contents-provider-id") || "",
       channelNo: provider.chnl_no || "",
       mallName,
-      storeMatched: !!mallName,
-      cardText: (root?.innerText || "").replace(/\s+/g, " ").trim().slice(0, 1200),
+      storeMatched: !!target && normalizeStoreName(mallName) === target,
+      cardText,
+      shippingFee: readCount(cardText, ["배송비"]),
+      purchaseCount: readCount(cardText, ["구매", "판매"]),
+      reviewCount: readCount(cardText, ["리뷰", "후기"]),
+      registrationDate: "",
+      brand: "",
+      maker: "",
+      categoryPath: detail.exhibition_category || "",
+      specs: [],
+      tags: [],
     });
   });
   return products;
