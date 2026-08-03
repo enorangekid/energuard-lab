@@ -27,7 +27,7 @@ function validateConfig(raw) {
   return {
     storeName,
     keywords,
-    pageCount: Math.min(5, Math.max(1, Number(raw?.pageCount) || 5)),
+    pageCount: 5,
     pageDelay: Math.min(10000, Math.max(1500, Number(raw?.pageDelay) || 2500)),
   };
 }

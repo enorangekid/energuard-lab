@@ -60,7 +60,11 @@ async function loadConfig() {
   const stored = await chrome.storage.local.get([CONFIG_KEY, "shoppingRankProgress"]);
   const config = stored[CONFIG_KEY] || {};
   Object.entries(fields).forEach(([key, field]) => {
-    if (config[key] != null) field.value = config[key];
+    if (key === "pageCount") {
+      field.value = "5";
+    } else if (config[key] != null) {
+      field.value = config[key];
+    }
   });
   if (stored.shoppingRankProgress) renderProgress(stored.shoppingRankProgress);
 }
@@ -85,7 +89,7 @@ $("startButton").addEventListener("click", async () => {
   const runConfig = {
     storeName: config.storeName,
     keywords,
-    pageCount: Number(config.pageCount) || 1,
+    pageCount: 5,
     pageDelay: Number(config.pageDelay) || 2500,
   };
   await chrome.storage.local.set({ [PENDING_KEY]: runConfig });

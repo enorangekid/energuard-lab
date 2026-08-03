@@ -49,10 +49,18 @@ async function updateProgress(patch) {
   const message = document.getElementById("runnerMessage");
   const count = document.getElementById("runnerCount");
   const bar = document.getElementById("runnerBar");
+  const stop = document.getElementById("runnerStop");
+  const note = document.querySelector(".note");
   if (title) title.textContent = state.title || "순위 수집";
   if (message) message.textContent = state.error || state.message || "";
   if (count) count.textContent = `${state.completed || 0}/${state.total || 0}`;
   if (bar) bar.style.width = `${state.total ? Math.min(100, (state.completed || 0) / state.total * 100) : 0}%`;
+  if (stop) stop.hidden = state.status !== "running";
+  if (note) {
+    note.textContent = state.status === "running"
+      ? "수집이 끝날 때까지 이 탭을 닫지 마세요. 실제 검색은 별도의 네이버 쇼핑 탭에서 진행됩니다."
+      : "수집 작업이 종료되었습니다. 이 탭은 닫아도 됩니다.";
+  }
 }
 
 async function waitForTabComplete(tabId, timeoutMs = 30000) {
