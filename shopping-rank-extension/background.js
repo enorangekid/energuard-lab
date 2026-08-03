@@ -207,15 +207,12 @@ function normalizePageProducts(products, pageIndex) {
   });
 }
 
-function validatePage(products, pageIndex, previousFingerprint) {
+function validatePage(products, pageIndex) {
   const organic = products.filter((product) => !product.isAd);
   if (pageIndex === 1 && organic.length < 20) {
     throw new Error(`${pageIndex}페이지 일반상품이 ${organic.length}개만 확인되어 저장하지 않았습니다.`);
   }
   const fingerprint = organic.slice(0, 8).map(productKey).join("|");
-  if (pageIndex > 1 && fingerprint && fingerprint === previousFingerprint) {
-    throw new Error(`${pageIndex}페이지가 이전 페이지와 동일합니다. 페이지 이동 결과를 확인하세요.`);
-  }
   return fingerprint;
 }
 
@@ -445,14 +442,44 @@ async function runCollection(config) {
           total,
         });
         await sleep(config.pageDelay);
-        const result = await extractPage(tab.id, pageIndex, config.storeName);
+        let result = await extractPage(tab.id, pageIndex, config.storeName);
         if (result.blockedReason) throw new Error(result.blockedReason);
-        const pageProducts = normalizePageProducts(result.products, pageIndex).map((product) => ({
+        let pageProducts = normalizePageProducts(result.products, pageIndex).map((product) => ({
           ...product,
           extractionSource: result.extractionSource || "dom",
         }));
-        const organicCount = pageProducts.filter((item) => !item.isAd).length;
-        previousFingerprint = validatePage(pageProducts, pageIndex, previousFingerprint);
+        let organicCount = pageProducts.filter((item) => !item.isAd).length;
+        let currentFingerprint = validatePage(pageProducts, pageIndex);
+
+        // 네이버가 간헐적으로 pagingIndex 이동 후 이전 페이지 데이터를 다시 보여주는 경우가 있다.
+        // 한 번 강제 재로딩해 확인하고, 그래도 같으면 이 키워드의 마지막 페이지로 처리한다.
+        if (pageIndex > 1 && currentFingerprint && currentFingerprint === previousFingerprint) {
+          await updateProgress({
+            completed,
+            message: `“${keywordMeta.keyword}” ${pageIndex}페이지 이동을 다시 확인하고 있습니다.`,
+          });
+          await chrome.tabs.reload(tab.id, { bypassCache: true });
+          await waitForTabComplete(tab.id);
+          await sleep(config.pageDelay);
+          result = await extractPage(tab.id, pageIndex, config.storeName);
+          if (result.blockedReason) throw new Error(result.blockedReason);
+          pageProducts = normalizePageProducts(result.products, pageIndex).map((product) => ({
+            ...product,
+            extractionSource: result.extractionSource || "dom",
+          }));
+          organicCount = pageProducts.filter((item) => !item.isAd).length;
+          currentFingerprint = validatePage(pageProducts, pageIndex);
+          if (currentFingerprint && currentFingerprint === previousFingerprint) {
+            completed += config.pageCount - pageIndex + 1;
+            await updateProgress({
+              completed,
+              message: `${keywordMeta.keyword} ${pageIndex - 1}페이지까지 저장하고 다음 키워드로 이동합니다.`,
+            });
+            break;
+          }
+        }
+
+        previousFingerprint = currentFingerprint;
         if (pageIndex > 1 && organicCount === 0) {
           completed += config.pageCount - pageIndex + 1;
           await updateProgress({ completed, message: `${keywordMeta.keyword} 검색결과의 마지막 페이지까지 확인했습니다.` });
