@@ -2,6 +2,44 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+const STATUS_HOST_ID = "energuard-shopping-rank-status";
+
+function renderCollectionStatus(state = {}) {
+  let host = document.getElementById(STATUS_HOST_ID);
+  if (!host) {
+    host = document.createElement("div");
+    host.id = STATUS_HOST_ID;
+    host.style.cssText = "position:fixed;right:22px;bottom:22px;z-index:2147483647;";
+    const shadow = host.attachShadow({ mode: "open" });
+    shadow.innerHTML = `
+      <style>
+        *{box-sizing:border-box} .panel{width:260px;padding:15px 16px 14px;border:1px solid #394150;border-radius:7px;background:#101318;color:#fff;box-shadow:0 12px 32px rgba(15,23,42,.26);font-family:Pretendard,"Noto Sans KR",Arial,sans-serif;letter-spacing:0}
+        .panel.running{border-color:#12a150}.panel.error{border-color:#ef5b2a}.head{display:flex;align-items:center;justify-content:space-between;gap:12px}.title{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:800}.dot{width:9px;height:9px;border:2px solid #101318;border-radius:50%;background:#98a2b3;box-shadow:0 0 0 1px #98a2b3}.running .dot{background:#1ec96b;box-shadow:0 0 0 1px #1ec96b}.error .dot{background:#ef5b2a;box-shadow:0 0 0 1px #ef5b2a}.count{color:#cbd2dc;font-size:11px;font-weight:750}.keyword{margin:12px 0 0;color:#f5f7fa;font-size:12px;font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.detail{margin:6px 0 0;color:#aeb8c6;font-size:10px;line-height:1.45}.track{height:4px;margin-top:11px;overflow:hidden;border-radius:5px;background:#2b313b}.bar{display:block;width:0;height:100%;background:#1ec96b;transition:width .2s ease}.error .bar{background:#ef5b2a}.meta{display:flex;justify-content:space-between;gap:10px;margin-top:8px;color:#7f8998;font-size:9px}.source{color:#aeb8c6}
+      </style>
+      <section class="panel running">
+        <div class="head"><div class="title"><i class="dot"></i><span class="titleText">에너가드랩 수집 중</span></div><span class="count">0/0</span></div>
+        <p class="keyword"></p><p class="detail"></p><div class="track"><i class="bar"></i></div>
+        <div class="meta"><span class="source"></span><span class="page"></span></div>
+      </section>`;
+    document.documentElement.appendChild(host);
+  }
+
+  const root = host.shadowRoot;
+  const panel = root.querySelector(".panel");
+  const status = state.status || "running";
+  panel.className = `panel ${status}`;
+  root.querySelector(".titleText").textContent = status === "error" ? "수집 확인 필요" : "에너가드랩 수집 중";
+  root.querySelector(".count").textContent = `${state.completed || 0}/${state.total || 0}`;
+  root.querySelector(".keyword").textContent = state.keyword || "상품 정보를 확인하고 있습니다.";
+  root.querySelector(".detail").textContent = state.message || "네이버 쇼핑 일반 검색 결과를 분석하고 있습니다.";
+  const ratio = state.total ? Math.min(100, Math.max(0, (state.completed || 0) / state.total * 100)) : 0;
+  root.querySelector(".bar").style.width = `${ratio}%`;
+  root.querySelector(".source").textContent = state.source || "";
+  root.querySelector(".page").textContent = state.pageIndex && state.pageCount
+    ? `${state.pageIndex}/${state.pageCount}페이지`
+    : "";
+}
+
 function parseDetailAttribute(element, name) {
   return RankParser.toDetailMap(element.getAttribute(name) || "[]");
 }
@@ -188,6 +226,11 @@ async function waitForProducts() {
 }
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type === "SHOW_COLLECTION_STATUS") {
+    renderCollectionStatus(message.state || {});
+    sendResponse({ ok: true });
+    return false;
+  }
   if (message?.type !== "EXTRACT_PAGE") return false;
   (async () => {
     await waitForProducts();

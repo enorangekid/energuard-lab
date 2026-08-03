@@ -77,6 +77,18 @@ async function extractPage(tabId, pageIndex, storeName) {
   throw new Error(`페이지 수집 스크립트 연결 실패: ${lastError?.message || "알 수 없는 오류"}`);
 }
 
+async function showCollectionStatus(tabId, state) {
+  if (!tabId) return;
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    try {
+      await chrome.tabs.sendMessage(tabId, { type: "SHOW_COLLECTION_STATUS", state });
+      return;
+    } catch (_) {
+      await sleep(350);
+    }
+  }
+}
+
 function matchesStore(product, storeName, knownChannelNos, knownProviderIds) {
   if (product.isAd) return false;
   if (product.storeMatched) return true;
@@ -219,6 +231,15 @@ async function runCollection(config) {
         });
         await chrome.tabs.update(tab.id, { url });
         await waitForTabComplete(tab.id);
+        await showCollectionStatus(tab.id, {
+          status: "running",
+          keyword: keywordMeta.keyword,
+          message: `${config.storeName} 상품을 확인하고 있습니다.`,
+          pageIndex,
+          pageCount: config.pageCount,
+          completed: completed + 1,
+          total,
+        });
         await sleep(config.pageDelay);
         const result = await extractPage(tab.id, pageIndex, config.storeName);
         if (result.blockedReason) throw new Error(result.blockedReason);
@@ -237,6 +258,16 @@ async function runCollection(config) {
         const sourceLabel = String(result.extractionSource || "dom").includes("next-data")
           ? "NEXT_DATA"
           : "DOM";
+        await showCollectionStatus(tab.id, {
+          status: "running",
+          keyword: keywordMeta.keyword,
+          message: `${config.storeName} 상품 누적 ${found.length}개 · 일반상품 ${result.products.filter((item) => !item.isAd).length}개`,
+          source: sourceLabel,
+          pageIndex,
+          pageCount: config.pageCount,
+          completed,
+          total,
+        });
         await updateProgress({
           completed,
           message: `${keywordMeta.keyword} ${pageIndex}/${config.pageCount}페이지 · ${sourceLabel} 일반상품 ${result.products.filter((item) => !item.isAd).length}개 · ${config.storeName} 누적 ${found.length}개`,
@@ -253,6 +284,13 @@ async function runCollection(config) {
     finishedSuccessfully = true;
   } catch (error) {
     const cancelled = /중단/.test(error?.message || "");
+    if (activeRun?.tabId) {
+      await showCollectionStatus(activeRun.tabId, {
+        status: "error",
+        keyword: cancelled ? "수집이 중단되었습니다." : "수집 결과를 확인하세요.",
+        message: error?.message || "수집 중 오류가 발생했습니다.",
+      });
+    }
     await updateProgress({
       status: cancelled ? "cancelled" : "error",
       title: cancelled ? "수집 중단" : "수집 실패",
