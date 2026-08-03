@@ -27,8 +27,11 @@ function validateConfig(raw) {
   return {
     storeName,
     keywords,
-    pageCount: 5,
+    pageCount: Math.min(5, Math.max(1, Number(raw?.pageCount) || 5)),
     pageDelay: Math.min(10000, Math.max(1500, Number(raw?.pageDelay) || 2500)),
+    mode: raw?.mode === "analysis" ? "analysis" : "batch",
+    requestToken: String(raw?.requestToken || ""),
+    openReport: raw?.openReport !== false,
   };
 }
 

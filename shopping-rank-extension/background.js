@@ -404,6 +404,7 @@ async function runCollection(config) {
   activeRun = { id: runId, cancelled: false, tabId: null };
   await updateProgress({
     status: "running", title: "수집 중", completed: 0, total, saved: 0,
+    runId, requestToken: config.requestToken || "", mode: config.mode || "batch",
     message: `선택한 키워드의 네이버 쇼핑 검색결과를 수집할 준비를 하고 있습니다.`, error: "",
   });
 
@@ -490,13 +491,16 @@ async function runCollection(config) {
 
     await updateProgress({
       status: "done", title: "수집 완료", completed: total, total, saved,
+      runId, requestToken: config.requestToken || "", mode: config.mode || "batch",
       message: `${config.keywords.length}개 키워드의 검색결과 ${snapshotSaved}개를 저장하고 자사·추적 상품을 분류했습니다.`,
     });
     finishedSuccessfully = true;
-    chrome.tabs.create({
-      active: true,
-      url: chrome.runtime.getURL(`report.html?runId=${encodeURIComponent(runId)}`),
-    }).catch(() => {});
+    if (config.openReport !== false) {
+      chrome.tabs.create({
+        active: true,
+        url: chrome.runtime.getURL(`report.html?runId=${encodeURIComponent(runId)}`),
+      }).catch(() => {});
+    }
   } catch (error) {
     const cancelled = /중단/.test(error?.message || "");
     if (activeRun?.tabId) {
@@ -509,6 +513,7 @@ async function runCollection(config) {
     await updateProgress({
       status: cancelled ? "cancelled" : "error",
       title: cancelled ? "수집 중단" : "수집 실패",
+      runId, requestToken: config.requestToken || "", mode: config.mode || "batch",
       message: error?.message || "수집 중 오류가 발생했습니다.",
       error: cancelled ? "" : (error?.message || "수집 중 오류가 발생했습니다."),
       saved,

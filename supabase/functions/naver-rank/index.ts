@@ -721,6 +721,29 @@ Deno.serve(async (req) => {
       return json(await collectStoreKeywords(String(body.storeName || ""), half));
     }
 
+    /* 키워드 분석 화면 전용: 쇼핑 검색은 직원 브라우저 확장프로그램이 담당하고,
+       서버에서는 검색광고 키워드도구의 검색량·연관어만 반환한다. */
+    if (body.action === "keywordInsight") {
+      const insightKeyword = String(body.keyword || "").trim();
+      if (!insightKeyword) return json({ error: "keyword는 필수입니다." }, 400);
+      const adRes = await fetchAdStats(insightKeyword);
+      if (!adRes.ok) return json({ keyword: insightKeyword, ad: null, adError: adRes.reason });
+      if (adRes.main) {
+        await saveMonthlyVolume(insightKeyword, adRes.main.pc, adRes.main.mobile);
+      }
+      return json({
+        keyword: insightKeyword,
+        ad: {
+          monthlyPc: adRes.main?.pc ?? null,
+          monthlyMobile: adRes.main?.mobile ?? null,
+          monthlyTotal: adRes.main?.total ?? null,
+          compRatio: null,
+          related: adRes.related.map((item) => ({ ...item, products: null, category: "" })),
+        },
+        adError: null,
+      });
+    }
+
     const clientId = Deno.env.get("NAVER_CLIENT_ID");
     const clientSecret = Deno.env.get("NAVER_CLIENT_SECRET");
     if (!clientId || !clientSecret) {

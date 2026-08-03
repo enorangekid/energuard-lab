@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Energuard Lab Shopping Rank Collector",
-  "version": "0.7.2",
+  "version": "0.8.0",
   "description": "직원 브라우저에서 네이버 쇼핑 검색결과 전체를 수집하고 자사·추적 상품을 분류합니다.",
   "permissions": ["tabs", "storage"],
   "host_permissions": [
