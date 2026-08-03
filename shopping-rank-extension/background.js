@@ -105,7 +105,6 @@ async function saveKeywordRows(config, keywordMeta, products) {
         product_image: product.image || "",
         product_link: product.link || "",
         product_price: product.price || 0,
-        mall_name: config.storeName,
         collected_date: collectedDate,
       }))
     : [{
@@ -121,7 +120,6 @@ async function saveKeywordRows(config, keywordMeta, products) {
         product_image: "",
         product_link: "",
         product_price: 0,
-        mall_name: config.storeName,
         collected_date: collectedDate,
       }];
 
