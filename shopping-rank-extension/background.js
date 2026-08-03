@@ -21,6 +21,30 @@ function todayKst() {
   return `${map.year}-${map.month}-${map.day}`;
 }
 
+function extractNaverProductIds(row) {
+  const ids = new Set();
+  const image = String(row?.product_image || row?.image_url || "");
+  const imageMatch = image.match(/\/([0-9]{8,})(?:\.[0-9]+)?\.(?:jpg|jpeg|png|webp)(?:\?|$)/i);
+  if (imageMatch) ids.add(imageMatch[1]);
+  const link = String(row?.product_link || "");
+  try {
+    const parsed = new URL(link);
+    const nvMid = parsed.searchParams.get("nvMid");
+    if (nvMid) ids.add(nvMid);
+  } catch (_) {
+    const linkMatch = link.match(/[?&]nvMid=([0-9]+)/i);
+    if (linkMatch) ids.add(linkMatch[1]);
+  }
+  return [...ids];
+}
+
+function registerProductAliases(products, metadata, aliases) {
+  aliases.forEach((value) => {
+    const alias = String(value || "").trim();
+    if (alias) products.set(alias, metadata);
+  });
+}
+
 async function updateProgress(patch) {
   if (!activeRun && patch.status === "running") return;
   const stored = await chrome.storage.local.get(PROGRESS_KEY);
@@ -61,10 +85,10 @@ async function fetchKnownProducts(storeName) {
         price: Number(row.price) || 0,
       };
       products.set(canonicalCode, metadata);
-      (Array.isArray(row.alt_codes) ? row.alt_codes : []).forEach((alt) => {
-        const code = String(alt || "").trim();
-        if (code) products.set(code, metadata);
-      });
+      registerProductAliases(products, metadata, [
+        ...(Array.isArray(row.alt_codes) ? row.alt_codes : []),
+        ...extractNaverProductIds(row),
+      ]);
     });
   }
 
@@ -82,10 +106,10 @@ async function fetchKnownProducts(storeName) {
       price: 0,
     };
     products.set(canonicalCode, metadata);
-    (Array.isArray(row.alt_codes) ? row.alt_codes : []).forEach((alt) => {
-      const code = String(alt || "").trim();
-      if (code) products.set(code, metadata);
-    });
+    registerProductAliases(products, metadata, [
+      ...(Array.isArray(row.alt_codes) ? row.alt_codes : []),
+      ...extractNaverProductIds(row),
+    ]);
   });
 
   // 키워드/날짜 중복 행 때문에 최근 5,000행만 읽으면 일부 상품이 누락됩니다.
@@ -93,17 +117,19 @@ async function fetchKnownProducts(storeName) {
   for (let offset = 0; offset < 20000; offset += 1000) {
     const rows = await fetchJsonRows(
       `/rest/v1/keyword_rank_history?store_name=eq.${encodeURIComponent(storeName)}` +
-      `&select=product_code,product_name,product_image,product_price&order=checked_at.desc&offset=${offset}&limit=1000`
+      `&select=product_code,product_name,product_image,product_link,product_price&order=checked_at.desc&offset=${offset}&limit=1000`
     );
     rows.forEach((row) => {
       const code = String(row.product_code || "").trim();
-      if (!code || products.has(code)) return;
-      products.set(code, {
-        canonicalCode: code,
-        name: row.product_name || "",
-        image: row.product_image || "",
-        price: Number(row.product_price) || 0,
-      });
+      if (!code) return;
+      const metadata = products.get(code) || {
+          canonicalCode: code,
+          name: row.product_name || "",
+          image: row.product_image || "",
+          price: Number(row.product_price) || 0,
+        };
+      products.set(code, metadata);
+      registerProductAliases(products, metadata, extractNaverProductIds(row));
     });
     if (rows.length < 1000) break;
   }
@@ -144,6 +170,7 @@ async function extractPage(tabId, pageIndex) {
 function matchesTarget(product, knownProducts, storeName, knownChannelNos) {
   if (product.isAd) return false;
   if (product.productCode && knownProducts.has(product.productCode)) return true;
+  if (product.naverProductId && knownProducts.has(product.naverProductId)) return true;
   if (product.channelNo && knownChannelNos.has(product.channelNo)) return true;
   const store = compact(storeName);
   return !!store && compact(product.cardText).includes(store);
@@ -157,7 +184,7 @@ async function saveKeywordRows(config, keywordMeta, products, knownProducts) {
     .filter((product) => !product.isAd && product.productCode)
     .sort((a, b) => (a.rank || Infinity) - (b.rank || Infinity))
     .forEach((product) => {
-      const master = knownProducts.get(product.productCode);
+      const master = knownProducts.get(product.productCode) || knownProducts.get(product.naverProductId);
       const canonicalCode = master?.canonicalCode || product.productCode;
       if (!unique.has(canonicalCode)) unique.set(canonicalCode, { ...product, canonicalCode, master });
     });
@@ -265,7 +292,8 @@ async function runCollection(config) {
         const result = await extractPage(tab.id, pageIndex);
         if (result.blockedReason) throw new Error(result.blockedReason);
         result.products.forEach((product) => {
-          const directMatch = product.productCode && knownProducts.has(product.productCode);
+          const directMatch = (product.productCode && knownProducts.has(product.productCode))
+            || (product.naverProductId && knownProducts.has(product.naverProductId));
           const storeMatch = compact(product.cardText).includes(compact(config.storeName));
           if ((directMatch || storeMatch) && product.channelNo) knownChannelNos.add(product.channelNo);
         });
