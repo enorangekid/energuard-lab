@@ -24,7 +24,10 @@ function absoluteUrl(value) {
 }
 
 function normalizeStoreName(value) {
-  return String(value || "").replace(/[^0-9a-z가-힣]/gi, "").toLowerCase();
+  return String(value || "")
+    .normalize("NFKC")
+    .replace(/[^\p{L}\p{N}]/gu, "")
+    .toLocaleLowerCase("ko-KR");
 }
 
 function findStoreName(root, storeName) {

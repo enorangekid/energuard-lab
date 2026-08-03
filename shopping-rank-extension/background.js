@@ -2,14 +2,20 @@ const SUPABASE_URL = "https://eukwfypbfqojbaihfqye.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_MiBvlf3d6ulcVBsi7Odcgw_PTXSmXKj";
 const PROGRESS_KEY = "shoppingRankProgress";
 const PENDING_KEY = "shoppingRankPendingConfig";
-const STORE_CHANNEL_NOS = {
-  ["한국단열"]: ["500128955"],
+const STORE_IDENTITIES = {
+  ["\uD55C\uAD6D\uB2E8\uC5F4"]: {
+    channelNos: ["500128955"],
+    providerIds: ["329308"],
+  },
 };
 
 let activeRun = null;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-const compact = (value) => String(value || "").replace(/[^0-9a-z가-힣]/gi, "").toLowerCase();
+const compact = (value) => String(value || "")
+  .normalize("NFKC")
+  .replace(/[^\p{L}\p{N}]/gu, "")
+  .toLocaleLowerCase("ko-KR");
 const sbHeaders = (extra = {}) => ({
   apikey: SUPABASE_ANON_KEY,
   Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
@@ -71,12 +77,34 @@ async function extractPage(tabId, pageIndex, storeName) {
   throw new Error(`페이지 수집 스크립트 연결 실패: ${lastError?.message || "알 수 없는 오류"}`);
 }
 
-function matchesStore(product, storeName, knownChannelNos) {
+function matchesStore(product, storeName, knownChannelNos, knownProviderIds) {
   if (product.isAd) return false;
   if (product.storeMatched) return true;
   if (product.mallName && compact(product.mallName) === compact(storeName)) return true;
   if (product.channelNo && knownChannelNos.has(product.channelNo)) return true;
+  if (product.providerId && knownProviderIds.has(product.providerId)) return true;
   return false;
+}
+
+async function fetchPreviousProductCount(config, keywordMeta, collectedDate) {
+  const url = `${SUPABASE_URL}/rest/v1/keyword_rank_history` +
+    `?store_name=eq.${encodeURIComponent(config.storeName)}` +
+    `&keyword=eq.${encodeURIComponent(keywordMeta.keyword)}` +
+    `&product_code=neq.` +
+    `&collected_date=lt.${encodeURIComponent(collectedDate)}` +
+    `&select=product_code,collected_date` +
+    `&order=collected_date.desc` +
+    `&limit=500`;
+  const response = await fetch(url, { headers: sbHeaders() });
+  if (!response.ok) return 0;
+  const rows = await response.json();
+  const latestDate = rows[0]?.collected_date;
+  if (!latestDate) return 0;
+  return new Set(
+    rows
+      .filter((row) => row.collected_date === latestDate && row.product_code)
+      .map((row) => String(row.product_code))
+  ).size;
 }
 
 async function saveKeywordRows(config, keywordMeta, products) {
@@ -90,6 +118,15 @@ async function saveKeywordRows(config, keywordMeta, products) {
       const canonicalCode = String(product.productCode).trim();
       if (!unique.has(canonicalCode)) unique.set(canonicalCode, { ...product, canonicalCode });
     });
+
+  const previousCount = await fetchPreviousProductCount(config, keywordMeta, collectedDate);
+  const minimumSafeCount = previousCount >= 5 ? Math.max(3, Math.ceil(previousCount * 0.6)) : 0;
+  if (minimumSafeCount && unique.size < minimumSafeCount) {
+    throw new Error(
+      `${keywordMeta.keyword} 수집 결과가 비정상적으로 적습니다 ` +
+      `(이번 ${unique.size}개 / 이전 ${previousCount}개). 기존 순위는 유지했습니다.`
+    );
+  }
 
   const payload = unique.size
     ? [...unique.values()].map((product) => ({
@@ -165,7 +202,9 @@ async function runCollection(config) {
 
     for (const keywordMeta of config.keywords) {
       const found = [];
-      const knownChannelNos = new Set(STORE_CHANNEL_NOS[compact(config.storeName)] || []);
+      const identity = STORE_IDENTITIES[compact(config.storeName)] || {};
+      const knownChannelNos = new Set(identity.channelNos || []);
+      const knownProviderIds = new Set(identity.providerIds || []);
       for (let pageIndex = 1; pageIndex <= config.pageCount; pageIndex += 1) {
         if (!activeRun || activeRun.id !== runId || activeRun.cancelled) throw new Error("사용자가 수집을 중단했습니다.");
         const url = "https://search.shopping.naver.com/search/all?" + new URLSearchParams({
@@ -187,9 +226,12 @@ async function runCollection(config) {
           if ((product.storeMatched || compact(product.mallName) === compact(config.storeName)) && product.channelNo) {
             knownChannelNos.add(product.channelNo);
           }
+          if ((product.storeMatched || compact(product.mallName) === compact(config.storeName)) && product.providerId) {
+            knownProviderIds.add(product.providerId);
+          }
         });
         result.products.forEach((product) => {
-          if (matchesStore(product, config.storeName, knownChannelNos)) found.push(product);
+          if (matchesStore(product, config.storeName, knownChannelNos, knownProviderIds)) found.push(product);
         });
         completed += 1;
         await updateProgress({
