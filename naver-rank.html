@@ -1779,60 +1779,66 @@ async function saveRankRows(keyword, mainKeyword, isSub, collectedDate, rows, vo
   }
 }
 
+function startExtensionBatchCollection(config) {
+  return new Promise((resolve, reject) => {
+    const requestId = `rank-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const timer = setTimeout(() => {
+      window.removeEventListener("message", onResponse);
+      reject(new Error("쇼핑 순위 수집 확장프로그램을 찾지 못했습니다. 확장프로그램을 설치하거나 새로고침하세요."));
+    }, 3000);
+    function onResponse(event) {
+      if (event.source !== window || event.origin !== window.location.origin) return;
+      if (event.data?.type !== "ENERGUARD_SHOPPING_RANK_RESPONSE" || event.data.requestId !== requestId) return;
+      clearTimeout(timer);
+      window.removeEventListener("message", onResponse);
+      if (event.data.ok) resolve(event.data);
+      else reject(new Error(event.data.error || "확장프로그램에서 수집을 시작하지 못했습니다."));
+    }
+    window.addEventListener("message", onResponse);
+    window.postMessage({
+      type: "ENERGUARD_SHOPPING_RANK_START",
+      requestId,
+      config,
+    }, window.location.origin);
+  });
+}
+
+window.addEventListener("message", (event) => {
+  if (event.source !== window || event.origin !== window.location.origin) return;
+  if (event.data?.type !== "ENERGUARD_SHOPPING_RANK_PROGRESS") return;
+  const state = event.data.state || {};
+  const statusEl = document.getElementById("batchStatus");
+  const btn = document.getElementById("batchRunBtn");
+  if (!statusEl || !btn) return;
+  statusEl.style.display = "block";
+  const progress = state.total ? ` ${state.completed || 0}/${state.total}` : "";
+  statusEl.textContent = state.error || state.message || `${state.title || "순위 수집"}${progress}`;
+  if (state.status !== "running") btn.disabled = false;
+});
+
 async function runBatchCollect() {
   const list = [...batchSelected].map(kw => ({ keyword: kw, ...keywordMeta(kw) }));
   if (!list.length) return;
   const btn = document.getElementById("batchRunBtn");
   const statusEl = document.getElementById("batchStatus");
   const listEl = document.getElementById("batchList");
-  const collectedDate = todayKstDate(); // 한국 날짜(YYYY-MM-DD) — 이 값 기준으로 하루 1행 유지
   btn.disabled = true;
   statusEl.style.display = "block";
   listEl.innerHTML = "";
-  showLoading(`[${selectedStore}] 0/${list.length} 키워드 수집 중...`); // 전역 로딩 오버레이 (전 페이지 공통)
-
-  const watchCodes = await fetchTrackedItemCodes(); // 아이템 추적 대상 — 같은 스캔에서 겸사겸사 수집
-
-  for (let i = 0; i < list.length; i++) {
-    const { keyword, mainKeyword, isSub } = list[i];
-    statusEl.innerHTML = `[${esc(selectedStore)}] <b>${i + 1}/${list.length}</b> "${esc(keyword)}" 확인 중...`;
-    setLoadingMessage(`[${selectedStore}] ${i + 1}/${list.length} "${keyword}" 확인 중...`);
-
-    let rows = [];
-    let volume = null;
-    try {
-      const fetched = await fetchRankRows(keyword, watchCodes);
-      rows = fetched.rows;
-      volume = fetched.volume;
-      await saveWatchedRows(keyword, collectedDate, fetched.watched);
-    } catch (e) {
-      rows = [];
-    }
-
-    try {
-      await saveRankRows(keyword, mainKeyword, isSub, collectedDate, rows, volume);
-    } catch (e) {
-      statusEl.innerHTML = `[${esc(selectedStore)}] "${esc(keyword)}" 저장 실패: ${esc(e.message || "오류")}`;
-      btn.disabled = false;
-      hideLoading();
-      return;
-    }
-
-    const best = rows[0]; // results는 이미 rank 오름차순
-    const row = document.createElement("div");
-    row.className = "batch-item";
-    const rankLabel = best ? `${best.rank}위${rows.length > 1 ? ` 외 ${rows.length - 1}개` : ""}` : "이탈";
-    row.innerHTML = `
-      <span class="kw${isSub ? " sub" : ""}">${esc(keyword)}</span>
-      <span class="rk ${!best ? "none" : best.rank <= 40 ? "good" : ""}">${rankLabel}</span>`;
-    listEl.prepend(row);
+  statusEl.textContent = `[${selectedStore}] 선택한 ${list.length}개 키워드를 확장프로그램으로 전달하는 중입니다.`;
+  const maxRank = Math.max(40, Number(document.getElementById("range")?.value) || 400);
+  try {
+    await startExtensionBatchCollection({
+      storeName: selectedStore,
+      keywords: list,
+      pageCount: Math.min(25, Math.ceil(maxRank / 40)),
+      pageDelay: 2500,
+    });
+    statusEl.textContent = `[${selectedStore}] ${list.length}개 키워드 수집을 시작했습니다. 열린 수집 탭에서 진행 상황을 확인하세요.`;
+  } catch (error) {
+    statusEl.textContent = error?.message || "확장프로그램 연결에 실패했습니다.";
+    btn.disabled = false;
   }
-
-  statusEl.innerHTML =
-    `[${esc(selectedStore)}] ${list.length}개 키워드 수집 완료 · ` +
-    `<a href="rank-tracker.html" style="color:var(--accent);font-weight:700;">랭킹추적에서 보기 →</a>`;
-  btn.disabled = false;
-  hideLoading();
 }
 
 window.nrRestoreAnalysis = function nrRestoreAnalysis(keyword, store, data) {

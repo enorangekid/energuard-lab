@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Energuard Lab Shopping Rank Collector",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "description": "직원 브라우저에서 네이버 쇼핑 일반 검색 순위를 수집해 에너가드랩에 저장합니다.",
   "permissions": ["tabs", "storage"],
   "host_permissions": [
@@ -12,10 +12,22 @@
     "default_title": "쇼핑 순위 수집",
     "default_popup": "popup.html"
   },
+  "background": {
+    "service_worker": "service-worker.js"
+  },
   "content_scripts": [
     {
       "matches": ["https://search.shopping.naver.com/search/*"],
       "js": ["parser-core.js", "page-collector.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "http://127.0.0.1/*",
+        "http://localhost/*",
+        "https://enorangekid.github.io/energuard-lab/*"
+      ],
+      "js": ["app-bridge.js"],
       "run_at": "document_idle"
     }
   ]
