@@ -227,11 +227,12 @@ async function saveSearchSnapshot(config, keywordMeta, products, runId, context)
     }
   });
 
-  const snapshotRows = products.map((product) => {
+  const snapshotByKey = new Map();
+  products.forEach((product) => {
     const isTargetStore = matchesStore(
       product, config.storeName, knownChannelNos, knownProviderIds, knownProductCodes
     );
-    return {
+    const row = {
       run_id: runId,
       store_name: config.storeName,
       keyword: keywordMeta.keyword,
@@ -268,7 +269,24 @@ async function saveSearchSnapshot(config, keywordMeta, products, runId, context)
       is_tracked: !!product.productCode && trackedCodes.has(String(product.productCode)),
       extraction_source: product.extractionSource || "",
     };
+    const conflictKey = `${row.is_ad ? "ad" : "prod"}:${row.product_key}`;
+    const current = snapshotByKey.get(conflictKey);
+    const currentRank = Number(current?.organic_rank) || Number.MAX_SAFE_INTEGER;
+    const nextRank = Number(row.organic_rank) || Number.MAX_SAFE_INTEGER;
+    const preferred = !current || nextRank < currentRank ? row : current;
+    const fallback = preferred === row ? current : row;
+    snapshotByKey.set(conflictKey, {
+      ...fallback,
+      ...preferred,
+      product_name: preferred.product_name || fallback?.product_name || "",
+      mall_name: preferred.mall_name || fallback?.mall_name || "",
+      product_image: preferred.product_image || fallback?.product_image || "",
+      product_link: preferred.product_link || fallback?.product_link || "",
+      is_target_store: !!(preferred.is_target_store || fallback?.is_target_store),
+      is_tracked: !!(preferred.is_tracked || fallback?.is_tracked),
+    });
   });
+  const snapshotRows = [...snapshotByKey.values()];
 
   await postRows(
     "shopping_search_snapshots",
@@ -378,7 +396,7 @@ async function runCollection(config) {
   activeRun = { id: runId, cancelled: false, tabId: null };
   await updateProgress({
     status: "running", title: "수집 중", completed: 0, total, saved: 0,
-    message: `${config.storeName} 상품을 검색 결과에서 확인할 준비를 하고 있습니다.`, error: "",
+    message: `선택한 키워드의 네이버 쇼핑 검색결과를 수집할 준비를 하고 있습니다.`, error: "",
   });
 
   let saved = 0;
@@ -411,7 +429,7 @@ async function runCollection(config) {
         await showCollectionStatus(tab.id, {
           status: "running",
           keyword: keywordMeta.keyword,
-          message: `${config.storeName} 상품을 확인하고 있습니다.`,
+          message: `검색결과 원본을 수집하고 있습니다.`,
           pageIndex,
           pageCount: config.pageCount,
           completed: completed + 1,
