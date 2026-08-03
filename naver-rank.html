@@ -1831,7 +1831,7 @@ async function runBatchCollect() {
     await startExtensionBatchCollection({
       storeName: selectedStore,
       keywords: list,
-      pageCount: Math.min(25, Math.ceil(maxRank / 40)),
+      pageCount: Math.min(5, Math.ceil(maxRank / 40)),
       pageDelay: 2500,
     });
     statusEl.textContent = `[${selectedStore}] ${list.length}개 키워드 수집을 시작했습니다. 열린 수집 탭에서 진행 상황을 확인하세요.`;

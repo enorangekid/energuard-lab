@@ -201,7 +201,7 @@ function normalizePageProducts(products, pageIndex) {
 
 function validatePage(products, pageIndex, previousFingerprint) {
   const organic = products.filter((product) => !product.isAd);
-  if (organic.length < 20) {
+  if (pageIndex === 1 && organic.length < 20) {
     throw new Error(`${pageIndex}페이지 일반상품이 ${organic.length}개만 확인되어 저장하지 않았습니다.`);
   }
   const fingerprint = organic.slice(0, 8).map(productKey).join("|");
@@ -442,7 +442,13 @@ async function runCollection(config) {
           ...product,
           extractionSource: result.extractionSource || "dom",
         }));
+        const organicCount = pageProducts.filter((item) => !item.isAd).length;
         previousFingerprint = validatePage(pageProducts, pageIndex, previousFingerprint);
+        if (pageIndex > 1 && organicCount === 0) {
+          completed += config.pageCount - pageIndex + 1;
+          await updateProgress({ completed, message: `${keywordMeta.keyword} 검색결과의 마지막 페이지까지 확인했습니다.` });
+          break;
+        }
         allProducts.push(...pageProducts);
         completed += 1;
         const sourceLabel = String(result.extractionSource || "dom").includes("next-data")
@@ -460,8 +466,13 @@ async function runCollection(config) {
         });
         await updateProgress({
           completed,
-          message: `${keywordMeta.keyword} ${pageIndex}/${config.pageCount}페이지 · ${sourceLabel} 일반상품 ${pageProducts.filter((item) => !item.isAd).length}개 · 원본 누적 ${allProducts.filter((item) => !item.isAd).length}개`,
+          message: `${keywordMeta.keyword} ${pageIndex}/${config.pageCount}페이지 · ${sourceLabel} 일반상품 ${organicCount}개 · 원본 누적 ${allProducts.filter((item) => !item.isAd).length}개`,
         });
+        if (pageIndex > 1 && organicCount < 20) {
+          completed += config.pageCount - pageIndex;
+          await updateProgress({ completed, message: `${keywordMeta.keyword} 검색결과의 마지막 페이지까지 확인했습니다.` });
+          break;
+        }
       }
       const result = await saveSearchSnapshot(config, keywordMeta, allProducts, runId, context);
       saved += result.targetCount;
