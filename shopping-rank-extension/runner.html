@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>에너가드랩 쇼핑 순위 수집</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #f6f8fb; color: #111827; font-family: Pretendard, "Noto Sans KR", Arial, sans-serif; }
+    main { width: min(560px, calc(100vw - 40px)); padding: 30px; border: 1px solid #dfe5ed; border-radius: 6px; background: #fff; box-shadow: 0 14px 38px rgba(17,24,39,.08); }
+    .eyebrow { margin: 0 0 7px; color: #f05a2b; font-size: 11px; font-weight: 800; letter-spacing: 1px; }
+    h1 { margin: 0; font-size: 24px; }
+    .summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 26px; }
+    #runnerMessage { margin: 0; color: #667085; font-size: 13px; line-height: 1.55; }
+    #runnerCount { flex: none; color: #475467; font-size: 12px; font-weight: 750; }
+    .track { height: 7px; margin-top: 14px; overflow: hidden; border-radius: 9px; background: #e7ebf1; }
+    .track i { display: block; width: 0; height: 100%; background: #f05a2b; transition: width .2s ease; }
+    .note { margin: 18px 0 0; padding-top: 16px; border-top: 1px solid #dfe5ed; color: #98a2b3; font-size: 11px; }
+    button { display: block; height: 38px; margin: 22px 0 0 auto; padding: 0 16px; border: 1px solid #dfe5ed; border-radius: 5px; background: #fff; color: #475467; font: inherit; font-weight: 750; cursor: pointer; }
+    button:hover { background: #f6f8fb; }
+    ::selection { background: #ffe1d7; color: #111827; }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="eyebrow">ENERGUARD LAB</p>
+    <h1 id="runnerTitle">쇼핑 순위 수집 준비</h1>
+    <div class="summary">
+      <p id="runnerMessage">수집 설정을 확인하고 있습니다.</p>
+      <span id="runnerCount">0/0</span>
+    </div>
+    <div class="track"><i id="runnerBar"></i></div>
+    <p class="note">수집이 끝날 때까지 이 탭을 닫지 마세요. 실제 검색은 별도의 네이버 쇼핑 탭에서 진행됩니다.</p>
+    <button id="runnerStop" type="button">수집 중단</button>
+  </main>
+  <script src="background.js"></script>
+</body>
+</html>
