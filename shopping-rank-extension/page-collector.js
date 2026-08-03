@@ -57,7 +57,7 @@ function primaryProductAnchors() {
   return [...selected.values()].sort((a, b) => a.index - b.index).map((item) => item.anchor);
 }
 
-function extractProducts(pageIndex) {
+function extractDomProducts(pageIndex) {
   const anchors = primaryProductAnchors();
   const products = [];
   const seen = new Set();
@@ -108,6 +108,63 @@ function extractProducts(pageIndex) {
   return products;
 }
 
+function readNextDataProducts(pageIndex) {
+  const script = document.getElementById("__NEXT_DATA__");
+  if (!script?.textContent?.trim()) return { products: [], path: "" };
+  try {
+    return RankParser.parseNextDataProducts(JSON.parse(script.textContent), pageIndex);
+  } catch (_) {
+    return { products: [], path: "" };
+  }
+}
+
+function productLookupKeys(product) {
+  return [product.productCode, product.naverProductId].filter(Boolean).map(String);
+}
+
+function mergeNextDataWithDom(nextResult, domProducts, pageIndex) {
+  if (!nextResult.products.length) return { products: domProducts, source: "dom", schemaPath: "" };
+  const domById = new Map();
+  domProducts.forEach((product) => {
+    productLookupKeys(product).forEach((key) => domById.set(key, product));
+  });
+
+  let matched = 0;
+  let localOrganicOrder = 0;
+  const merged = nextResult.products.map((product) => {
+    const dom = productLookupKeys(product).map((key) => domById.get(key)).find(Boolean);
+    if (dom) matched += 1;
+    const isAd = dom ? dom.isAd : product.isAd;
+    if (!isAd) localOrganicOrder += 1;
+    return {
+      ...product,
+      isAd,
+      rank: isAd ? null : RankParser.resolveOrganicRank(dom?.rank || product.rank, pageIndex, localOrganicOrder),
+      productCode: product.productCode || dom?.productCode || "",
+      naverProductId: product.naverProductId || dom?.naverProductId || "",
+      title: product.title || dom?.title || "",
+      price: product.price || dom?.price || 0,
+      image: absoluteUrl(product.image || dom?.image || ""),
+      link: absoluteUrl(product.link || dom?.link || ""),
+      providerId: dom?.providerId || "",
+      channelNo: product.channelNo || dom?.channelNo || "",
+      cardText: dom?.cardText || [product.mallName, product.title].filter(Boolean).join(" "),
+    };
+  });
+
+  // 추천상품 같은 다른 배열을 고른 경우 검증된 화면 DOM 결과로 자동 복귀합니다.
+  const minimumMatches = Math.min(5, Math.max(2, Math.ceil(nextResult.products.length * 0.2)));
+  if (domProducts.length && matched < minimumMatches) {
+    return { products: domProducts, source: "dom-fallback", schemaPath: nextResult.path };
+  }
+  return { products: merged, source: "next-data", schemaPath: nextResult.path };
+}
+
+function extractProducts(pageIndex) {
+  const domProducts = extractDomProducts(pageIndex);
+  return mergeNextDataWithDom(readNextDataProducts(pageIndex), domProducts, pageIndex);
+}
+
 async function waitForProducts() {
   const started = Date.now();
   while (Date.now() - started < 18000) {
@@ -127,7 +184,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type !== "EXTRACT_PAGE") return false;
   (async () => {
     await waitForProducts();
-    const products = extractProducts(Number(message.pageIndex) || 1);
+    const extracted = extractProducts(Number(message.pageIndex) || 1);
+    const products = extracted.products;
     const pageText = (document.body?.innerText || "").slice(0, 3000);
     let blockedReason = "";
     if (!products.length && /NAVER\s*로그인|로그인/.test(document.title + pageText)) {
@@ -137,7 +195,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     } else if (!products.length) {
       blockedReason = "상품 카드를 찾지 못했습니다. 페이지 구조가 변경되었을 수 있습니다.";
     }
-    sendResponse({ products, blockedReason, url: location.href, title: document.title });
+    sendResponse({
+      products,
+      blockedReason,
+      extractionSource: extracted.source,
+      schemaPath: extracted.schemaPath,
+      url: location.href,
+      title: document.title,
+    });
   })();
   return true;
 });

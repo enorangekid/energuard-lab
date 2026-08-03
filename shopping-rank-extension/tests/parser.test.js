@@ -38,4 +38,18 @@ assert.equal(parser.resolveOrganicRank(organic.organic_expose_order, 1, 5), 5,
 assert.equal(parser.resolveOrganicRank(5, 2, 5), 45,
   "페이지별 순번으로 제공될 경우 두 번째 페이지 오프셋을 적용해야 합니다.");
 
+const nextDataFixture = {
+  props: { pageProps: { shoppingResult: { products: [
+    { productTitle: "광고 상품", channelProductNo: "AD1", nvMid: "9001", price: 1000, mallName: "광고몰", isAd: true },
+    { productTitle: "일반 상품 A", channelProductNo: "P1", nvMid: "1001", price: 4300, mallName: "한국 단열" },
+    { productTitle: "일반 상품 B", channelProductNo: "P2", nvMid: "1002", price: 5500, mallName: "한국 단열" },
+  ] } } },
+};
+const nextParsed = parser.parseNextDataProducts(nextDataFixture, 1);
+assert.match(nextParsed.path, /products$/);
+assert.equal(nextParsed.products.length, 3);
+assert.equal(nextParsed.products[0].isAd, true);
+assert.equal(nextParsed.products[1].rank, 1);
+assert.equal(nextParsed.products[2].rank, 2);
+
 console.log("parser smoke tests passed");

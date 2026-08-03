@@ -273,7 +273,10 @@ async function runCollection(config) {
           if (matchesTarget(product, knownProducts, config.storeName, knownChannelNos)) found.push(product);
         });
         completed += 1;
-        await updateProgress({ completed });
+        await updateProgress({
+          completed,
+          message: `${keywordMeta.keyword} ${pageIndex}/${config.pageCount}페이지 · ${result.extractionSource || "dom"} ${result.products.length}개`,
+        });
       }
       saved += await saveKeywordRows(config, keywordMeta, found, knownProducts);
       await updateProgress({ saved });
