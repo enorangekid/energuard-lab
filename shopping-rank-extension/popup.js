@@ -7,7 +7,6 @@ const fields = {
   keywords: $("keywords"),
   pageCount: $("pageCount"),
   pageDelay: $("pageDelay"),
-  productCodes: $("productCodes"),
 };
 
 function parseKeywords(value) {
@@ -28,10 +27,6 @@ function parseKeywords(value) {
       seen.add(key);
       return true;
     });
-}
-
-function parseCodes(value) {
-  return [...new Set(String(value || "").split(/[\s,]+/).map((code) => code.trim()).filter(Boolean))];
 }
 
 function setRunning(running) {
@@ -92,7 +87,6 @@ $("startButton").addEventListener("click", async () => {
     keywords,
     pageCount: Number(config.pageCount) || 1,
     pageDelay: Number(config.pageDelay) || 2500,
-    productCodes: parseCodes(config.productCodes),
   };
   await chrome.storage.local.set({ [PENDING_KEY]: runConfig });
   const runnerUrl = chrome.runtime.getURL("runner.html");

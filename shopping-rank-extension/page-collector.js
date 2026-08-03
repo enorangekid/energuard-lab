@@ -23,6 +23,25 @@ function absoluteUrl(value) {
   try { return new URL(source, location.href).href; } catch (_) { return source; }
 }
 
+function normalizeStoreName(value) {
+  return String(value || "").replace(/[^0-9a-z가-힣]/gi, "").toLowerCase();
+}
+
+function findStoreName(root, storeName) {
+  const target = normalizeStoreName(storeName);
+  if (!root || !target) return "";
+
+  const candidates = root.querySelectorAll(
+    '[data-shp-area*="mall"], [data-shp-area-id="mall"], [class*="mall"], [class*="seller"], [class*="store"], a, span'
+  );
+  for (const element of candidates) {
+    const text = String(element.innerText || element.textContent || "").replace(/\s+/g, " ").trim();
+    if (!text || text.length > 60) continue;
+    if (normalizeStoreName(text) === target) return text;
+  }
+  return "";
+}
+
 function productIdentity(anchor, detail, isAd) {
   const productCode = String(detail.chnl_prod_no || "").trim();
   const naverProductId = String(
@@ -59,7 +78,7 @@ function primaryProductAnchors() {
   return [...selected.values()].sort((a, b) => a.index - b.index).map((item) => item.anchor);
 }
 
-function extractDomProducts(pageIndex) {
+function extractDomProducts(pageIndex, storeName) {
   const anchors = primaryProductAnchors();
   const products = [];
   const seen = new Set();
@@ -81,6 +100,7 @@ function extractDomProducts(pageIndex) {
     if (!isAd) localOrganicOrder += 1;
 
     const root = findCardRoot(anchor);
+    const mallName = findStoreName(root, storeName);
     const image = anchor.querySelector("img");
     const imageSource = image?.currentSrc
       || image?.getAttribute("src")
@@ -104,6 +124,8 @@ function extractDomProducts(pageIndex) {
       link: absoluteUrl(anchor.href),
       providerId: anchor.getAttribute("data-shp-contents-provider-id") || "",
       channelNo: provider.chnl_no || "",
+      mallName,
+      storeMatched: !!mallName,
       cardText: (root?.innerText || "").replace(/\s+/g, " ").trim().slice(0, 1200),
     });
   });
@@ -147,6 +169,8 @@ function mergeNextDataWithDom(nextResult, domProducts, pageIndex) {
       image: absoluteUrl(dom.image || next?.image || ""),
       link: absoluteUrl(dom.link || next?.link || ""),
       channelNo: dom.channelNo || next?.channelNo || "",
+      mallName: dom.mallName || next?.mallName || "",
+      storeMatched: dom.storeMatched,
       cardText: dom.cardText || [next?.mallName, next?.title].filter(Boolean).join(" "),
     };
   });
@@ -159,8 +183,8 @@ function mergeNextDataWithDom(nextResult, domProducts, pageIndex) {
   };
 }
 
-function extractProducts(pageIndex) {
-  const domProducts = extractDomProducts(pageIndex);
+function extractProducts(pageIndex, storeName) {
+  const domProducts = extractDomProducts(pageIndex, storeName);
   return mergeNextDataWithDom(readNextDataProducts(pageIndex), domProducts, pageIndex);
 }
 
@@ -185,7 +209,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type !== "EXTRACT_PAGE") return false;
   (async () => {
     await waitForProducts();
-    const extracted = extractProducts(Number(message.pageIndex) || 1);
+    const extracted = extractProducts(Number(message.pageIndex) || 1, message.storeName || "");
     const products = extracted.products;
     const pageText = (document.body?.innerText || "").slice(0, 3000);
     let blockedReason = "";
