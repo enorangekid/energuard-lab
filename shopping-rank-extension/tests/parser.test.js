@@ -119,4 +119,36 @@ assert.equal(richParsed.categoryPath, "생활/건강 > 생활용품 > 단열시�
 assert.deepEqual(richParsed.specs, ["1m", "10T", "결로방지"]);
 assert.deepEqual(richParsed.tags, ["은박단열재", "외벽단열재", "바닥단열재"]);
 
+const wrappedFixture = {
+  props: { pageProps: { products: [
+    { item: {
+      productTitle: "빌트론 열반사단열재 10T",
+      productId: "WRAPPED1",
+      price: 5800,
+      mallName: "한국 단열",
+      characterValue: "1m|10T|결로방지",
+      manuTag: "은박단열재,외벽단열재",
+      nluInfo: { nluTerms: ["열반사", "단열재"] },
+      deliveryFeeContent: "4,300원",
+      purchaseCnt: "924",
+      reviewCount: "12,050",
+      openDate: "20160928",
+      category1Name: "생활/건강",
+      category2Name: "생활용품",
+      category3Name: "단열시트",
+      crUrl: "https://example.com/wrapped",
+    } },
+  ] } },
+};
+const wrappedResult = parser.parseNextDataProducts(wrappedFixture, 1);
+assert.equal(wrappedResult.products.length, 1, "NEXT_DATA의 item 래퍼 상품도 수집해야 합니다.");
+assert.equal(wrappedResult.products[0].mallName, "한국 단열");
+assert.equal(wrappedResult.products[0].shippingFee, 4300);
+assert.equal(wrappedResult.products[0].purchaseCount, 924);
+assert.equal(wrappedResult.products[0].reviewCount, 12050);
+assert.equal(wrappedResult.products[0].categoryPath, "생활/건강 > 생활용품 > 단열시트");
+assert.deepEqual(wrappedResult.products[0].specs, ["1m", "10T", "결로방지"]);
+assert.deepEqual(wrappedResult.products[0].tags, ["은박단열재", "외벽단열재"]);
+assert.equal(wrappedResult.products[0].link, "https://example.com/wrapped");
+
 console.log("parser smoke tests passed");

@@ -44,6 +44,13 @@
     return "";
   }
 
+  function unwrapProductRecord(record) {
+    if (!record || typeof record !== "object" || Array.isArray(record)) return record;
+    const item = record.item;
+    if (!item || typeof item !== "object" || Array.isArray(item)) return record;
+    return { ...record, ...item };
+  }
+
   function asStringList(value) {
     if (value === undefined || value === null || value === "") return [];
     if (Array.isArray(value)) {
@@ -62,6 +69,7 @@
   }
 
   function productMetadata(record) {
+    record = unwrapProductRecord(record);
     const categories = [1, 2, 3, 4]
       .map((index) => firstValue(record, [
         `category${index}Name`, `category${index}Nm`, `category${index}`,
@@ -69,17 +77,18 @@
       .map(String)
       .filter(Boolean);
     const specs = asStringList(firstValue(record, [
-      "characteristic", "characteristics", "spec", "specs", "attributeValue", "attributeValues",
+      "characterValue", "characteristic", "characteristics", "spec", "specs", "attributeValue", "attributeValues",
     ]));
+    const nestedTerms = record?.nluInfo?.nluTerms;
     const tags = asStringList(firstValue(record, [
-      "manuTag", "manuTags", "searchTag", "searchTags", "nluTerms", "tags", "tagList",
-    ]));
+      "manuTag", "manuTags", "searchTag", "searchTags", "terms", "nluTerms", "keepWord", "tags", "tagList",
+    ]) || nestedTerms);
     return {
-      shippingFee: numberValue(record, ["deliveryFee", "shippingFee", "deliveryPrice", "baseDeliveryFee"]),
+      shippingFee: numberValue(record, ["deliveryFeeContent", "deliveryFee", "shippingFee", "deliveryPrice", "baseDeliveryFee"]),
       purchaseCount: numberValue(record, [
-        "purchaseCnt", "purchaseCount", "sixMonthPurchaseCount", "purchaseCnt6m", "saleCount",
+        "purchaseCnt", "purchaseCount", "sixMonthPurchaseCount", "purchaseCnt6m", "salesAmount", "recentSaleCount", "saleCount",
       ]),
-      reviewCount: numberValue(record, ["reviewCount", "reviewCnt", "reviewCntSum", "totalReviewCount"]),
+      reviewCount: numberValue(record, ["reviewCount", "reviewCountLog", "reviewCnt", "reviewCntSum", "totalReviewCount"]),
       registrationDate: String(firstValue(record, ["openDate", "registrationDate", "registeredDate", "productOpenDate"])),
       brand: String(firstValue(record, ["brandName", "brandNm", "brand"])),
       maker: String(firstValue(record, ["makerName", "makerNm", "maker"])),
@@ -91,8 +100,9 @@
 
   function productShapeScore(record) {
     if (!record || Array.isArray(record) || typeof record !== "object") return 0;
+    record = unwrapProductRecord(record);
     const title = firstValue(record, ["productTitle", "productName", "prodName", "title"]);
-    const productCode = firstValue(record, ["channelProductNo", "chnlProdNo", "chnl_prod_no"]);
+    const productCode = firstValue(record, ["channelProductNo", "chnlProdNo", "chnl_prod_no", "productId", "id"]);
     const naverProductId = firstValue(record, ["nvMid", "nv_mid", "catalogNvMid", "catalog_nv_mid"]);
     const price = firstValue(record, ["price", "lowPrice", "salePrice"]);
     const mallName = firstValue(record, ["mallName", "mallNm", "storeName"]);
@@ -146,6 +156,7 @@
   }
 
   function isNextDataAd(record) {
+    record = unwrapProductRecord(record);
     const group = String(firstValue(record, ["contentsGrp", "contentsGroup", "group", "adGroup"])).toLowerCase();
     const type = String(firstValue(record, ["contentsType", "type", "adType"])).toLowerCase();
     const inventory = String(firstValue(record, ["inventory", "shpInventory"])).toLowerCase();
@@ -160,11 +171,12 @@
     if (!candidate) return { products: [], path: "" };
     const enrichment = new Map();
     findProductArrays(root).forEach(({ records }) => {
-      records.forEach((record) => {
-        if (productShapeScore(record) < 8) return;
+      records.forEach((rawRecord) => {
+        if (productShapeScore(rawRecord) < 8) return;
+        const record = unwrapProductRecord(rawRecord);
         const keys = [
-          firstValue(record, ["channelProductNo", "chnlProdNo", "chnl_prod_no"]),
-          firstValue(record, ["nvMid", "nv_mid", "catalogNvMid", "catalog_nv_mid"]),
+          firstValue(record, ["channelProductNo", "chnlProdNo", "chnl_prod_no", "productId", "id"]),
+          firstValue(record, ["nvMid", "nv_mid", "catalogNvMid", "catalog_nv_mid", "productId", "id"]),
         ].filter(Boolean).map(String);
         keys.forEach((key) => {
           const current = enrichment.get(key) || {};
@@ -175,13 +187,14 @@
     const seen = new Set();
     let localOrganicOrder = 0;
     const products = [];
-    candidate.records.forEach((baseRecord, pagePosition) => {
-      const baseCode = String(firstValue(baseRecord, ["channelProductNo", "chnlProdNo", "chnl_prod_no"])).trim();
-      const baseNaverId = String(firstValue(baseRecord, ["nvMid", "nv_mid", "catalogNvMid", "catalog_nv_mid"])).trim();
-      const record = enrichment.get(baseCode) || enrichment.get(baseNaverId) || baseRecord;
+    candidate.records.forEach((rawBaseRecord, pagePosition) => {
+      const baseRecord = unwrapProductRecord(rawBaseRecord);
+      const baseCode = String(firstValue(baseRecord, ["channelProductNo", "chnlProdNo", "chnl_prod_no", "productId", "id"])).trim();
+      const baseNaverId = String(firstValue(baseRecord, ["nvMid", "nv_mid", "catalogNvMid", "catalog_nv_mid", "productId", "id"])).trim();
+      const record = unwrapProductRecord(enrichment.get(baseCode) || enrichment.get(baseNaverId) || baseRecord);
       if (productShapeScore(record) < 8) return;
       const productCode = String(firstValue(record, ["channelProductNo", "chnlProdNo", "chnl_prod_no"])).trim();
-      const naverProductId = String(firstValue(record, ["nvMid", "nv_mid", "catalogNvMid", "catalog_nv_mid"])).trim();
+      const naverProductId = String(firstValue(record, ["nvMid", "nv_mid", "catalogNvMid", "catalog_nv_mid", "productId", "id"])).trim();
       const key = productCode || naverProductId;
       if (!key || seen.has(key)) return;
       seen.add(key);
@@ -197,8 +210,8 @@
         naverProductId,
         title: String(firstValue(record, ["productTitle", "productName", "prodName", "title"])),
         price: Number(firstValue(record, ["price", "lowPrice", "salePrice"])) || 0,
-        image: String(firstValue(record, ["imageUrl", "image_url", "image", "imageSrc"])),
-        link: String(firstValue(record, ["productUrl", "mallProductUrl", "link", "url"])),
+        image: String(firstValue(record, ["imageUrl", "image_url", "image", "imageSrc", "imageUrlLow"])),
+        link: String(firstValue(record, ["productUrl", "mallProductUrl", "crUrl", "link", "url"])),
         channelNo: String(firstValue(record, ["channelNo", "chnlNo", "chnl_no"])),
         providerId: String(firstValue(record, ["providerId", "mallSeq", "mallNo", "provider_id"])),
         mallName: String(firstValue(record, ["mallName", "mallNm", "storeName"])),
@@ -268,6 +281,7 @@
     findBestProductArray,
     findProductArrays,
     productMetadata,
+    unwrapProductRecord,
     parseNextDataProducts,
     mergeProductSources,
   };
