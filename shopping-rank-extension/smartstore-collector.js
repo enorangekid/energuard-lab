@@ -253,6 +253,42 @@
       .filter((button) => textOf(button).includes("내상품 키워드 더보기"));
   }
 
+  function managerRowKey(button) {
+    const row = button?.closest("li");
+    const image = row?.querySelector("img[src]");
+    return `${textOf(row).slice(0, 240)}\n${image?.src || ""}`;
+  }
+
+  function managerScrollContainer(button) {
+    let node = button?.closest("li")?.parentElement;
+    while (node && node !== document.body) {
+      const style = getComputedStyle(node);
+      if (/(auto|scroll)/.test(style.overflowY) && node.scrollHeight > node.clientHeight + 8) return node;
+      node = node.parentElement;
+    }
+    return document.scrollingElement || document.documentElement;
+  }
+
+  async function revealMoreManagerRows(seenRowKeys) {
+    const buttons = managerMoreButtons();
+    const lastButton = buttons.at(-1);
+    if (!lastButton) return false;
+    const container = managerScrollContainer(lastButton);
+    const before = buttons.map(managerRowKey).join("\n---\n");
+    lastButton.scrollIntoView({ block: "end" });
+    if (container === document.scrollingElement || container === document.documentElement) {
+      window.scrollBy(0, Math.max(480, window.innerHeight * 0.8));
+    } else {
+      container.scrollTop += Math.max(480, container.clientHeight * 0.8);
+    }
+    return Boolean(await waitFor(() => {
+      const currentButtons = managerMoreButtons();
+      const hasUnseen = currentButtons.some((button) => !seenRowKeys.has(managerRowKey(button)));
+      const signatureChanged = currentButtons.map(managerRowKey).join("\n---\n") !== before;
+      return hasUnseen || signatureChanged;
+    }, 6000));
+  }
+
   function isManagerDetail() {
     return [...document.querySelectorAll("p")]
       .some((paragraph) => textOf(paragraph).includes("채널 상품 번호"));
@@ -382,7 +418,7 @@
 
     const products = [];
     const seenProductCodes = new Set();
-    const seenListPages = new Set();
+    const seenRowKeys = new Set();
     let processedCount = 0;
     let estimatedTotal = managerMoreButtons().length;
     const bodyText = textOf(document.body);
@@ -390,16 +426,10 @@
     if (productCountMatch) estimatedTotal = Number(productCountMatch[1].replace(/,/g, ""));
 
     const collectionLimit = estimatedTotal > 0 ? estimatedTotal : 500;
-    for (let listPage = 1; listPage <= 100 && processedCount < collectionLimit; listPage += 1) {
-      const pageSignature = managerListSignature();
-      if (!pageSignature || seenListPages.has(pageSignature)) break;
-      seenListPages.add(pageSignature);
-      const available = managerMoreButtons().length;
-      if (!available) break;
-      for (let index = 0; index < available && processedCount < collectionLimit; index += 1) {
-        const buttons = managerMoreButtons();
-        const target = buttons[index];
-        if (!target) continue;
+    for (let cycle = 0; cycle < 1000 && processedCount < collectionLimit; cycle += 1) {
+      const target = managerMoreButtons().find((button) => !seenRowKeys.has(managerRowKey(button)));
+      if (target) {
+        seenRowKeys.add(managerRowKey(target));
         const row = target.closest("li");
         const image = row?.querySelector("img[src]");
         const fallback = {
@@ -425,14 +455,17 @@
         if (!(await returnToManagerList())) {
           throw new Error("다음 상품 수집을 위해 목록으로 돌아가지 못했습니다.");
         }
+        continue;
       }
 
       if (processedCount >= collectionLimit) break;
       const nextButton = managerPaginationButton("다음 페이지");
-      if (!nextButton || nextButton.disabled) break;
-      const previous = managerListSignature();
-      nextButton.click();
-      if (!(await waitForChange(managerListSignature, previous))) break;
+      if (nextButton && !nextButton.disabled) {
+        const previous = managerListSignature();
+        nextButton.click();
+        if (await waitForChange(managerListSignature, previous)) continue;
+      }
+      if (!(await revealMoreManagerRows(seenRowKeys))) break;
     }
 
     if (!products.length) throw new Error("관리자 순위 진단에서 수집된 상품이 없습니다.");
