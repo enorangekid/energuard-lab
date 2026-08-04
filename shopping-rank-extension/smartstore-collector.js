@@ -1,4 +1,5 @@
 (function () {
+  const SMARTSTORE_IMPORT_KEY = "smartstoreRankImportJob";
   const PAGE_RANK_RE = /(\d+)\s*페이지\s*(\d+)\s*위/;
   const STATUS_RE = /^(유지|진입|이탈|상승|하락|신규|▲\s*\d+|▼\s*\d+)$/;
 
@@ -180,4 +181,63 @@
     }
     return false;
   });
+
+  async function finishJob(job, patch) {
+    await chrome.storage.local.set({
+      [SMARTSTORE_IMPORT_KEY]: { ...job, ...patch, finishedAt: Date.now() },
+    });
+  }
+
+  async function runPendingImport() {
+    if (window !== window.top || window.__energuardSmartstoreImportRunning) return;
+    const stored = await chrome.storage.local.get(SMARTSTORE_IMPORT_KEY);
+    const job = stored[SMARTSTORE_IMPORT_KEY];
+    if (!job || job.status !== "pending") return;
+    if (Date.now() - Number(job.startedAt || 0) > 10 * 60 * 1000) {
+      await finishJob(job, { status: "error", error: "수집 요청 시간이 만료되었습니다." });
+      return;
+    }
+
+    window.__energuardSmartstoreImportRunning = true;
+    showResult({ statusMessage: "관리자 검색 순위 화면을 읽고 있습니다." });
+    let best = null;
+    let stableCount = 0;
+    let previousCount = -1;
+
+    for (let attempt = 0; attempt < 90; attempt += 1) {
+      const result = extract();
+      const count = result?.products?.length || 0;
+      if (count > (best?.products?.length || 0)) best = result;
+      stableCount = count > 0 && count === previousCount ? stableCount + 1 : 0;
+      previousCount = count;
+
+      if (count > 0) {
+        showResult({ statusMessage: `관리자 검색 순위 ${count}개 상품을 확인하고 있습니다.` });
+      }
+      if (count > 0 && stableCount >= 2) break;
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+
+    try {
+      if (!best?.products?.length) {
+        throw new Error(best?.error || "관리자 화면에서 순위 데이터를 찾지 못했습니다.");
+      }
+      const saved = await chrome.runtime.sendMessage({
+        type: "SAVE_SMARTSTORE_RANKS",
+        storeName: job.storeName,
+        products: best.products,
+      });
+      if (!saved?.ok) throw new Error(saved?.error || "순위를 저장하지 못했습니다.");
+      await finishJob(job, { status: "done", result: saved });
+      showResult(saved);
+    } catch (error) {
+      const message = error?.message || "관리자 검색 순위를 가져오지 못했습니다.";
+      await finishJob(job, { status: "error", error: message });
+      showResult({ error: message });
+    } finally {
+      window.__energuardSmartstoreImportRunning = false;
+    }
+  }
+
+  runPendingImport().catch((error) => showResult({ error: error?.message || "관리자 순위 수집을 시작하지 못했습니다." }));
 })();

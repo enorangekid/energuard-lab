@@ -1,6 +1,7 @@
 const CONFIG_KEY = "energuardShoppingRankConfig";
 const PENDING_KEY = "shoppingRankPendingConfig";
 const PROGRESS_KEY = "shoppingRankProgress";
+const SMARTSTORE_IMPORT_KEY = "smartstoreRankImportJob";
 const SUPABASE_URL = "https://eukwfypbfqojbaihfqye.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_MiBvlf3d6ulcVBsi7Odcgw_PTXSmXKj";
 
@@ -149,6 +150,13 @@ async function waitForSmartstoreRanks(tabId) {
 
 async function runSmartstoreImport(storeName) {
   const rankingUrl = "https://sell.smartstore.naver.com/#/product/ranking-diagnosis";
+  await chrome.storage.local.set({
+    [SMARTSTORE_IMPORT_KEY]: {
+      status: "pending",
+      storeName,
+      startedAt: Date.now(),
+    },
+  });
   const tabs = await chrome.tabs.query({ url: "https://sell.smartstore.naver.com/*" });
   let tab = tabs.find((item) => String(item.url || "").includes("/product/ranking-diagnosis"));
 
@@ -159,26 +167,7 @@ async function runSmartstoreImport(storeName) {
     tab = await chrome.tabs.create({ active: true, url: rankingUrl });
   }
 
-  try {
-    await sleep(1500);
-    await chrome.tabs.sendMessage(tab.id, {
-      type: "SHOW_SMARTSTORE_IMPORT_STATUS",
-      message: "관리자 검색 순위 화면을 읽고 있습니다.",
-    }).catch(() => {});
-    const extracted = await waitForSmartstoreRanks(tab.id);
-    const saved = await saveSmartstoreRanks(storeName, extracted.products);
-    await chrome.tabs.sendMessage(tab.id, {
-      type: "SHOW_SMARTSTORE_IMPORT_RESULT",
-      result: saved,
-    }).catch(() => {});
-    return saved;
-  } catch (error) {
-    await chrome.tabs.sendMessage(tab.id, {
-      type: "SHOW_SMARTSTORE_IMPORT_RESULT",
-      result: { error: error?.message || "순위를 가져오지 못했습니다." },
-    }).catch(() => {});
-    throw error;
-  }
+  return { started: true, saved: 0, unmatched: 0, skipped: 0 };
 }
 
 function cleanKeyword(item) {
