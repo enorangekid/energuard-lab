@@ -259,34 +259,39 @@
     return `${textOf(row).slice(0, 240)}\n${image?.src || ""}`;
   }
 
-  function managerScrollContainer(button) {
+  function managerScrollTargets(button) {
+    const targets = [];
     let node = button?.closest("li")?.parentElement;
     while (node && node !== document.body) {
       const style = getComputedStyle(node);
-      if (/(auto|scroll)/.test(style.overflowY) && node.scrollHeight > node.clientHeight + 8) return node;
+      if (/(auto|scroll)/.test(style.overflowY) && node.scrollHeight > node.clientHeight + 8) targets.push(node);
       node = node.parentElement;
     }
-    return document.scrollingElement || document.documentElement;
+    const documentScroller = document.scrollingElement || document.documentElement;
+    if (documentScroller && !targets.includes(documentScroller)) targets.push(documentScroller);
+    return targets;
   }
 
   async function revealMoreManagerRows(seenRowKeys) {
-    const buttons = managerMoreButtons();
-    const lastButton = buttons.at(-1);
-    if (!lastButton) return false;
-    const container = managerScrollContainer(lastButton);
-    const before = buttons.map(managerRowKey).join("\n---\n");
-    lastButton.scrollIntoView({ block: "end" });
-    if (container === document.scrollingElement || container === document.documentElement) {
-      window.scrollBy(0, Math.max(480, window.innerHeight * 0.8));
-    } else {
-      container.scrollTop += Math.max(480, container.clientHeight * 0.8);
-    }
-    return Boolean(await waitFor(() => {
+    for (let attempt = 0; attempt < 10; attempt += 1) {
       const currentButtons = managerMoreButtons();
-      const hasUnseen = currentButtons.some((button) => !seenRowKeys.has(managerRowKey(button)));
-      const signatureChanged = currentButtons.map(managerRowKey).join("\n---\n") !== before;
-      return hasUnseen || signatureChanged;
-    }, 6000));
+      const lastButton = currentButtons.at(-1);
+      if (!lastButton) return false;
+      lastButton.scrollIntoView({ block: "end" });
+      managerScrollTargets(lastButton).forEach((container) => {
+        const amount = Math.max(420, Number(container.clientHeight || window.innerHeight) * 0.75);
+        container.scrollTop = Math.min(container.scrollHeight, container.scrollTop + amount);
+        container.dispatchEvent(new Event("scroll", { bubbles: true }));
+      });
+      window.scrollBy(0, Math.max(360, window.innerHeight * 0.55));
+      await sleep(900);
+
+      const revealedButtons = managerMoreButtons();
+      if (revealedButtons.some((button) => !seenRowKeys.has(managerRowKey(button)))) return true;
+      const nextButton = managerPaginationButton("다음 페이지");
+      if (nextButton && !nextButton.disabled) return true;
+    }
+    return false;
   }
 
   function isManagerDetail() {
