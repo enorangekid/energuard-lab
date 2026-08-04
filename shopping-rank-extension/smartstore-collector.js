@@ -141,15 +141,18 @@
     document.getElementById("energuard-smartstore-result")?.remove();
     const panel = document.createElement("div");
     panel.id = "energuard-smartstore-result";
+    const failed = !!result?.error;
     panel.style.cssText = [
       "position:fixed", "right:24px", "bottom:24px", "z-index:2147483647",
       "min-width:260px", "padding:16px 18px", "border:1px solid #dfe4ec",
-      "border-left:4px solid #f15a2b", "border-radius:6px", "background:#fff",
+      `border-left:4px solid ${failed ? "#d92d20" : "#f15a2b"}`, "border-radius:6px", "background:#fff",
       "box-shadow:0 12px 30px rgba(16,24,40,.16)", "font:13px/1.5 Arial,sans-serif",
       "color:#101828",
     ].join(";");
     panel.innerHTML = `<strong style="display:block;margin-bottom:4px">ENERGUARD LAB</strong>` +
-      `<span>${Number(result?.saved) || 0}개 순위 저장 완료</span>` +
+      (failed
+        ? `<span style="color:#d92d20">${String(result.error)}</span>`
+        : `<span>${Number(result?.saved) || 0}개 순위 저장 완료</span>`) +
       (result?.unmatched ? `<small style="display:block;color:#667085">상품 대조 실패 ${result.unmatched}개</small>` : "");
     document.body.appendChild(panel);
     setTimeout(() => panel.remove(), 7000);

@@ -56,44 +56,20 @@ function setRunning(running) {
   Object.values(fields).forEach((field) => { field.disabled = running; });
 }
 
-async function findSmartstoreRankingTab() {
-  const tabs = await chrome.tabs.query({ url: "https://sell.smartstore.naver.com/*" });
-  return tabs.find((tab) => String(tab.url || "").includes("/product/ranking-diagnosis")) || null;
-}
-
 $("smartstoreImportButton").addEventListener("click", async () => {
-  const rankingUrl = "https://sell.smartstore.naver.com/#/product/ranking-diagnosis";
-  const tab = await findSmartstoreRankingTab();
-  if (!tab) {
-    await chrome.tabs.create({ active: true, url: rankingUrl });
-    $("notice").className = "notice";
-    $("notice").textContent = "검색 순위 진단 화면을 열었습니다. 화면 로딩 후 다시 가져오기를 눌러주세요.";
-    return;
-  }
-
   setRunning(true);
   $("notice").className = "notice";
-  $("notice").textContent = "스마트스토어 검색 순위 진단 화면을 읽고 있습니다.";
+  $("notice").textContent = "검색 순위 진단 화면으로 이동한 뒤 자동으로 수집합니다.";
   try {
-    const extracted = await chrome.tabs.sendMessage(tab.id, { type: "EXTRACT_SMARTSTORE_RANKS" });
-    if (!extracted?.ok || !extracted.products?.length) {
-      throw new Error(extracted?.error || "화면에서 상품 순위를 찾지 못했습니다.");
-    }
     const saved = await chrome.runtime.sendMessage({
-      type: "SAVE_SMARTSTORE_RANKS",
+      type: "START_SMARTSTORE_IMPORT",
       storeName: fields.storeName.value,
-      products: extracted.products,
     });
     if (!saved?.ok) throw new Error(saved?.error || "순위를 저장하지 못했습니다.");
     $("notice").className = "notice success";
     $("notice").textContent = `${saved.saved}개 순위를 저장했습니다` +
       (saved.unmatched ? ` · 상품 대조 실패 ${saved.unmatched}개` : "") +
       (saved.skipped ? ` · 중복/미확인 ${saved.skipped}개` : "");
-    await chrome.tabs.sendMessage(tab.id, {
-      type: "SHOW_SMARTSTORE_IMPORT_RESULT",
-      result: saved,
-    }).catch(() => {});
-    await chrome.tabs.update(tab.id, { active: true });
   } catch (error) {
     $("notice").className = "notice error";
     $("notice").textContent = error?.message || "스마트스토어 순위를 가져오지 못했습니다.";

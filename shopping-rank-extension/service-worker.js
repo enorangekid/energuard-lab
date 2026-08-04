@@ -130,6 +130,53 @@ async function saveSmartstoreRanks(storeName, products) {
   return { saved: rows.length, unmatched, skipped };
 }
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function waitForSmartstoreRanks(tabId) {
+  let lastError = "상품 목록을 기다리고 있습니다.";
+  for (let attempt = 0; attempt < 45; attempt += 1) {
+    try {
+      const result = await chrome.tabs.sendMessage(tabId, { type: "EXTRACT_SMARTSTORE_RANKS" });
+      if (result?.ok && result.products?.length) return result;
+      lastError = result?.error || lastError;
+    } catch (error) {
+      lastError = error?.message || lastError;
+    }
+    await sleep(1000);
+  }
+  throw new Error(`검색 순위 진단 화면을 읽지 못했습니다. ${lastError}`);
+}
+
+async function runSmartstoreImport(storeName) {
+  const rankingUrl = "https://sell.smartstore.naver.com/#/product/ranking-diagnosis";
+  const tabs = await chrome.tabs.query({ url: "https://sell.smartstore.naver.com/*" });
+  let tab = tabs.find((item) => String(item.url || "").includes("/product/ranking-diagnosis"));
+
+  if (tab) {
+    await chrome.tabs.update(tab.id, { active: true, url: rankingUrl });
+    await chrome.tabs.reload(tab.id, { bypassCache: false });
+  } else {
+    tab = await chrome.tabs.create({ active: true, url: rankingUrl });
+  }
+
+  try {
+    await sleep(1500);
+    const extracted = await waitForSmartstoreRanks(tab.id);
+    const saved = await saveSmartstoreRanks(storeName, extracted.products);
+    await chrome.tabs.sendMessage(tab.id, {
+      type: "SHOW_SMARTSTORE_IMPORT_RESULT",
+      result: saved,
+    }).catch(() => {});
+    return saved;
+  } catch (error) {
+    await chrome.tabs.sendMessage(tab.id, {
+      type: "SHOW_SMARTSTORE_IMPORT_RESULT",
+      result: { error: error?.message || "순위를 가져오지 못했습니다." },
+    }).catch(() => {});
+    throw error;
+  }
+}
+
 function cleanKeyword(item) {
   const keyword = String(item?.keyword || "").trim();
   const mainKeyword = String(item?.mainKeyword || keyword).trim() || keyword;
@@ -194,6 +241,19 @@ async function openRunner(config) {
 }
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type === "START_SMARTSTORE_IMPORT") {
+    (async () => {
+      try {
+        const storeName = String(message.storeName || "").trim();
+        if (!storeName) throw new Error("스토어를 선택하세요.");
+        const result = await runSmartstoreImport(storeName);
+        sendResponse({ ok: true, ...result });
+      } catch (error) {
+        sendResponse({ ok: false, error: error?.message || "스마트스토어 순위를 가져오지 못했습니다." });
+      }
+    })();
+    return true;
+  }
   if (message?.type === "SAVE_SMARTSTORE_RANKS") {
     (async () => {
       try {
