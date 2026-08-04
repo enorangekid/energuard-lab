@@ -457,8 +457,10 @@
         ? `<span>${String(result.statusMessage)}</span>`
         : failed
         ? `<span style="color:#d92d20">${String(result.error)}</span>`
-        : `<span>${Number(result?.saved) || 0}개 순위 저장 완료</span>`) +
-      (result?.unmatched ? `<small style="display:block;color:#667085">상품 대조 실패 ${result.unmatched}개</small>` : "");
+        : `<span>${Number(result?.scannedProducts) || 0}개 상품 확인 · ${Number(result?.saved) || 0}개 순위 저장</span>`) +
+      ((Number(result?.unmatched) || Number(result?.noRankProducts))
+        ? `<small style="display:block;color:#667085">상품 대조 실패 ${Number(result?.unmatched) || 0}개 · 순위 미확인 ${Number(result?.noRankProducts) || 0}개</small>`
+        : "");
     document.body.appendChild(panel);
     if (!pending) setTimeout(() => panel.remove(), 7000);
   }

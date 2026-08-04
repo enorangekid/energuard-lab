@@ -70,6 +70,9 @@ async function saveSmartstoreRanks(storeName, products) {
   const now = new Date().toISOString();
   const collectedDate = todayKst();
   const payloadByKey = new Map();
+  const savedProductCodes = new Set();
+  let matchedProducts = 0;
+  let noRankProducts = 0;
   let unmatched = 0;
   let skipped = 0;
 
@@ -89,14 +92,19 @@ async function saveSmartstoreRanks(storeName, products) {
       return;
     }
 
+    matchedProducts += 1;
     const productCode = String(known.product_code || extractedCode).trim();
-    (Array.isArray(product.keywords) ? product.keywords : []).forEach((item) => {
+    const productKeywords = Array.isArray(product.keywords) ? product.keywords : [];
+    let hasValidRank = false;
+    productKeywords.forEach((item) => {
       const keyword = String(item?.keyword || "").trim();
       const rank = Number(item?.rank);
       if (!keyword || !Number.isFinite(rank) || rank < 1) {
         skipped += 1;
         return;
       }
+      hasValidRank = true;
+      savedProductCodes.add(productCode);
       const previous = latestByCodeKeyword.get(`${productCode}\n${keyword}`);
       const key = `${storeName}\n${keyword}\n${productCode}\n${collectedDate}`;
       payloadByKey.set(key, {
@@ -115,6 +123,7 @@ async function saveSmartstoreRanks(storeName, products) {
         collected_date: collectedDate,
       });
     });
+    if (!hasValidRank) noRankProducts += 1;
   });
 
   const rows = [...payloadByKey.values()];
@@ -128,7 +137,15 @@ async function saveSmartstoreRanks(storeName, products) {
       "store_name,keyword,product_code,collected_date"
     );
   }
-  return { saved: rows.length, unmatched, skipped };
+  return {
+    saved: rows.length,
+    scannedProducts: Array.isArray(products) ? products.length : 0,
+    matchedProducts,
+    savedProducts: savedProductCodes.size,
+    noRankProducts,
+    unmatched,
+    skipped,
+  };
 }
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
