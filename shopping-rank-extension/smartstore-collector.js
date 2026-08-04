@@ -270,7 +270,27 @@
       const row = button.closest("li");
       if (row) rows.add(row);
     });
+    Array.from(document.querySelectorAll("li")).forEach((row) => {
+      if (!visible(row)) return;
+      const image = Array.from(row.querySelectorAll("img[src]")).find(visible);
+      const text = textOf(row);
+      if (!image || !productNameFrom(row)) return;
+      if (!PAGE_RANK_RE.test(text) && !text.includes("4000위 내")) return;
+      const nestedProductRow = Array.from(row.querySelectorAll("li")).some((child) => {
+        if (!visible(child)) return false;
+        const childText = textOf(child);
+        return child.querySelector("img[src]") && (PAGE_RANK_RE.test(childText) || childText.includes("4000위 내"));
+      });
+      if (!nestedProductRow) rows.add(row);
+    });
     return [...rows];
+  }
+
+  function managerListPageCount() {
+    const pageNumbers = Array.from(document.querySelectorAll("nav button"))
+      .map((button) => Number(textOf(button)))
+      .filter((value) => Number.isInteger(value) && value > 0);
+    return pageNumbers.length ? Math.max(...pageNumbers) : 1;
   }
 
   function managerProductRowKey(row) {
@@ -324,8 +344,9 @@
   }
 
   function managerListSignature() {
-    const item = managerMoreButtons()[0]?.closest("li");
-    return textOf(item).slice(0, 180);
+    const activePage = document.querySelector('nav button[aria-current="page"]');
+    const firstRow = managerVisibleProductRows()[0];
+    return `${textOf(activePage)}\n${managerProductRowKey(firstRow)}`;
   }
 
   function managerRankTable() {
@@ -450,6 +471,8 @@
     const processedDetailRowKeys = new Set();
     const discoveredRowKeys = new Set();
     let processedCount = 0;
+    let currentListPage = 1;
+    let totalListPages = managerListPageCount();
     let estimatedTotal = managerMoreButtons().length;
     const bodyText = textOf(document.body);
     const productCountMatch = bodyText.match(/상품\s*수\s*([\d,]+)개/);
@@ -498,9 +521,9 @@
         };
         await updateManagerProgress(
           job,
-          `${processedCount + 1}/${estimatedTotal || "?"} 상품의 키워드 순위를 확인하고 있습니다.`,
-          processedCount,
-          estimatedTotal
+          `${currentListPage}/${totalListPages} 페이지의 상품 순위를 확인하고 있습니다.`,
+          currentListPage,
+          totalListPages
         );
         target.click();
         if (!(await waitFor(isManagerDetail, 20000))) {
@@ -523,14 +546,19 @@
       if (nextButton && !nextButton.disabled) {
         const previous = managerListSignature();
         nextButton.click();
-        if (await waitForChange(managerListSignature, previous)) continue;
+        if (await waitForChange(managerListSignature, previous)) {
+          currentListPage += 1;
+          totalListPages = Math.max(totalListPages, managerListPageCount());
+          continue;
+        }
       }
       await updateManagerProgress(
         job,
-        `${Math.min(discoveredRowKeys.size, estimatedTotal || discoveredRowKeys.size)}/${estimatedTotal || "?"} 상품의 키워드 순위를 확인하고 있습니다.`,
-        Math.min(discoveredRowKeys.size, estimatedTotal || discoveredRowKeys.size),
-        estimatedTotal
+        `${currentListPage}/${totalListPages} 페이지의 상품 순위를 확인하고 있습니다.`,
+        currentListPage,
+        totalListPages
       );
+      if (totalListPages > 1) break;
       if (!(await revealMoreManagerRows(discoveredRowKeys))) break;
     }
 
