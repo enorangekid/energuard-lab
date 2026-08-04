@@ -223,6 +223,210 @@
     return [...products.values()].filter((product) => product.keywords.length);
   }
 
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  function textOf(element) {
+    return String(element?.innerText || element?.textContent || "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  async function waitFor(getter, timeout = 20000, interval = 180) {
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < timeout) {
+      const value = getter();
+      if (value) return value;
+      await sleep(interval);
+    }
+    return null;
+  }
+
+  async function waitForChange(getter, previous, timeout = 20000) {
+    return waitFor(() => {
+      const value = getter();
+      return value && value !== previous ? value : null;
+    }, timeout);
+  }
+
+  function managerMoreButtons() {
+    return [...document.querySelectorAll("button")]
+      .filter((button) => textOf(button).includes("내상품 키워드 더보기"));
+  }
+
+  function isManagerDetail() {
+    return [...document.querySelectorAll("p")]
+      .some((paragraph) => textOf(paragraph).includes("채널 상품 번호"));
+  }
+
+  function managerListSignature() {
+    const item = managerMoreButtons()[0]?.closest("li");
+    return textOf(item).slice(0, 180);
+  }
+
+  function managerRankTable() {
+    return [...document.querySelectorAll("table")].find((table) => {
+      const header = textOf(table.querySelector("thead") || table);
+      return header.includes("키워드")
+        && header.includes("내 상품 검색순위")
+        && header.includes("주요 카테고리");
+    }) || null;
+  }
+
+  function managerDetailSignature() {
+    const row = managerRankTable()?.querySelector("tbody tr");
+    return textOf(row).slice(0, 160);
+  }
+
+  function managerPaginationButton(labelText, firstPage = false) {
+    const nav = [...document.querySelectorAll("nav")].find((item) =>
+      String(item.getAttribute("aria-label") || "").includes("페이지")
+    );
+    if (!nav) return null;
+    return [...nav.querySelectorAll("button")].find((button) => {
+      const label = String(button.getAttribute("aria-label") || "");
+      if (firstPage) return label.startsWith("1페이지");
+      return label.includes(labelText) || textOf(button).includes(labelText);
+    }) || null;
+  }
+
+  function parseManagerRankRow(row) {
+    const cells = row.querySelectorAll("td");
+    if (cells.length < 3) return null;
+    const keyword = textOf(cells[0].querySelector("a") || cells[0]);
+    const rankText = textOf(cells[1]);
+    const rankMatch = rankText.match(/([\d,]+)위/);
+    if (!keyword || !rankMatch || rankText.includes("이탈")) return null;
+    const pageMatch = rankText.match(/([\d,]+)페이지\s*([\d,]+)위/);
+    return {
+      keyword,
+      rank: Number(rankMatch[1].replace(/,/g, "")),
+      page: pageMatch ? Number(pageMatch[1].replace(/,/g, "")) : null,
+      pageRank: pageMatch ? Number(pageMatch[2].replace(/,/g, "")) : null,
+    };
+  }
+
+  function currentManagerRankRows() {
+    const table = managerRankTable();
+    if (!table) return [];
+    return [...table.querySelectorAll("tbody tr")]
+      .map(parseManagerRankRow)
+      .filter(Boolean);
+  }
+
+  async function updateManagerProgress(job, message, current = 0, total = 0) {
+    await chrome.storage.local.set({
+      [SMARTSTORE_IMPORT_KEY]: {
+        ...job,
+        status: "collecting",
+        message,
+        current,
+        total,
+        updatedAt: Date.now(),
+      },
+    });
+  }
+
+  async function collectManagerDetail(job, fallback) {
+    const meta = [...document.querySelectorAll("p")]
+      .find((paragraph) => textOf(paragraph).includes("채널 상품 번호"));
+    const metaText = textOf(meta);
+    const productCode = metaText.match(/채널\s*상품\s*번호\s*:\s*([\d]+)/)?.[1] || "";
+    const productName = textOf(document.querySelector("h2")) || fallback.productName;
+
+    const ready = await waitFor(() => {
+      const table = managerRankTable();
+      return table ? { table, rows: currentManagerRankRows() } : null;
+    }, 30000);
+    if (!ready) throw new Error("키워드 순위 표를 찾지 못했습니다.");
+
+    const keywords = new Map();
+    const firstButton = managerPaginationButton("", true);
+    if (firstButton && firstButton.getAttribute("aria-current") !== "page") {
+      const previous = managerDetailSignature();
+      firstButton.click();
+      await waitForChange(managerDetailSignature, previous);
+    }
+
+    for (let page = 1; page <= 100; page += 1) {
+      currentManagerRankRows().forEach((item) => keywords.set(item.keyword, item));
+      const nextButton = managerPaginationButton("다음 페이지");
+      if (!nextButton || nextButton.disabled) break;
+      const previous = managerDetailSignature();
+      nextButton.click();
+      const changed = await waitForChange(managerDetailSignature, previous);
+      if (!changed) break;
+    }
+
+    return {
+      productCode,
+      productName,
+      productImage: fallback.productImage,
+      keywords: [...keywords.values()],
+    };
+  }
+
+  async function returnToManagerList() {
+    const listButton = [...document.querySelectorAll("button")]
+      .find((button) => textOf(button) === "목록");
+    if (!listButton) return false;
+    listButton.click();
+    return Boolean(await waitFor(() => managerMoreButtons().length && managerListSignature(), 20000));
+  }
+
+  async function collectManagerRanking(job) {
+    const ready = await waitFor(() => managerMoreButtons().length || isManagerDetail(), 40000);
+    if (!ready) throw new Error("순위 진단 상품 목록을 찾지 못했습니다. 관리자 로그인과 화면을 확인하세요.");
+    if (isManagerDetail() && !(await returnToManagerList())) {
+      throw new Error("순위 진단 상품 목록으로 돌아가지 못했습니다.");
+    }
+
+    const products = [];
+    let estimatedTotal = managerMoreButtons().length;
+    const bodyText = textOf(document.body);
+    const productCountMatch = bodyText.match(/상품\s*수\s*([\d,]+)개/);
+    if (productCountMatch) estimatedTotal = Number(productCountMatch[1].replace(/,/g, ""));
+
+    for (let listPage = 1; listPage <= 100 && products.length < 500; listPage += 1) {
+      const available = managerMoreButtons().length;
+      if (!available) break;
+      for (let index = 0; index < available && products.length < 500; index += 1) {
+        const buttons = managerMoreButtons();
+        const target = buttons[index];
+        if (!target) continue;
+        const row = target.closest("li");
+        const image = row?.querySelector("img[src]");
+        const fallback = {
+          productName: textOf(row).slice(0, 180),
+          productImage: image?.src || "",
+        };
+        await updateManagerProgress(
+          job,
+          `${products.length + 1}/${estimatedTotal || "?"} 상품의 키워드 순위를 확인하고 있습니다.`,
+          products.length,
+          estimatedTotal
+        );
+        target.click();
+        if (!(await waitFor(isManagerDetail, 20000))) {
+          throw new Error(`${fallback.productName || "상품"} 상세 화면을 열지 못했습니다.`);
+        }
+        const product = await collectManagerDetail(job, fallback);
+        if (product.productCode && product.keywords.length) products.push(product);
+        if (!(await returnToManagerList())) {
+          throw new Error("다음 상품 수집을 위해 목록으로 돌아가지 못했습니다.");
+        }
+      }
+
+      const nextButton = managerPaginationButton("다음 페이지");
+      if (!nextButton || nextButton.disabled) break;
+      const previous = managerListSignature();
+      nextButton.click();
+      if (!(await waitForChange(managerListSignature, previous))) break;
+    }
+
+    if (!products.length) throw new Error("관리자 순위 진단에서 수집된 상품이 없습니다.");
+    return products;
+  }
+
   function showResult(result) {
     document.getElementById("energuard-smartstore-result")?.remove();
     const panel = document.createElement("div");
@@ -277,75 +481,61 @@
     if (window.__energuardSmartstoreImportRunning) return;
     const stored = await chrome.storage.local.get(SMARTSTORE_IMPORT_KEY);
     const job = stored[SMARTSTORE_IMPORT_KEY];
-    if (!job || job.status !== "pending") return;
+    if (!job || !["pending", "collecting"].includes(job.status)) return;
     if (Date.now() - Number(job.startedAt || 0) > 10 * 60 * 1000) {
       await finishJob(job, { status: "error", error: "수집 요청 시간이 만료되었습니다." });
       return;
     }
 
     window.__energuardSmartstoreImportRunning = true;
+    const isCollectorFrame = location.hostname === "in-app.memopan.io"
+      && location.pathname.includes("ranking-diagnosis");
+
+    if (isCollectorFrame) {
+      try {
+        const products = await collectManagerRanking(job);
+        const saved = await chrome.runtime.sendMessage({
+          type: "SAVE_SMARTSTORE_RANKS",
+          storeName: job.storeName,
+          products,
+        });
+        if (!saved?.ok) throw new Error(saved?.error || "순위를 저장하지 못했습니다.");
+        await finishJob(job, { status: "done", result: saved, productCount: products.length });
+      } catch (error) {
+        await finishJob(job, {
+          status: "error",
+          error: error?.message || "관리자 검색 순위를 가져오지 못했습니다.",
+        });
+      } finally {
+        window.__energuardSmartstoreImportRunning = false;
+      }
+      return;
+    }
 
     if (window !== window.top) {
-      for (let attempt = 0; attempt < 90; attempt += 1) {
-        const result = extract();
-        window.top.postMessage({
-          source: FRAME_RESULT_SOURCE,
-          frameId,
-          products: result.products || [],
-          debug: result.debug || {},
-        }, "*");
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-      }
       window.__energuardSmartstoreImportRunning = false;
       return;
     }
 
-    showResult({ statusMessage: "관리자 검색 순위 화면을 읽고 있습니다." });
-    let best = null;
-    let stableCount = 0;
-    let previousCount = -1;
-
-    for (let attempt = 0; attempt < 90; attempt += 1) {
-      const ownResult = extract();
-      const products = mergeProducts([
-        ownResult.products || [],
-        productsFromNetwork(),
-        ...[...frameResults.values()].map((item) => item.products || []),
-      ]);
-      const result = { ...ownResult, products };
-      const count = products.length;
-      if (count > (best?.products?.length || 0)) best = result;
-      stableCount = count > 0 && count === previousCount ? stableCount + 1 : 0;
-      previousCount = count;
-
-      const rankElements = Number(ownResult?.debug?.rankElements || 0) +
-        [...frameResults.values()].reduce((sum, item) => sum + Number(item?.debug?.rankElements || 0), 0);
-      showResult({
-        statusMessage: `내부 응답 ${networkPayloads.length}건 · 순위 문구 ${rankElements}개 · 상품 ${count}개`,
-      });
-      if (count > 0 && stableCount >= 2) break;
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-    }
-
-    try {
-      if (!best?.products?.length) {
-        throw new Error(best?.error || "관리자 화면에서 순위 데이터를 찾지 못했습니다.");
+    showResult({ statusMessage: "관리자 검색 순위 화면을 준비하고 있습니다." });
+    for (let attempt = 0; attempt < 900; attempt += 1) {
+      const current = (await chrome.storage.local.get(SMARTSTORE_IMPORT_KEY))[SMARTSTORE_IMPORT_KEY];
+      if (!current) break;
+      if (current.status === "done") {
+        showResult(current.result || { saved: 0 });
+        window.__energuardSmartstoreImportRunning = false;
+        return;
       }
-      const saved = await chrome.runtime.sendMessage({
-        type: "SAVE_SMARTSTORE_RANKS",
-        storeName: job.storeName,
-        products: best.products,
-      });
-      if (!saved?.ok) throw new Error(saved?.error || "순위를 저장하지 못했습니다.");
-      await finishJob(job, { status: "done", result: saved });
-      showResult(saved);
-    } catch (error) {
-      const message = error?.message || "관리자 검색 순위를 가져오지 못했습니다.";
-      await finishJob(job, { status: "error", error: message });
-      showResult({ error: message });
-    } finally {
-      window.__energuardSmartstoreImportRunning = false;
+      if (current.status === "error") {
+        showResult({ error: current.error || "관리자 검색 순위를 가져오지 못했습니다." });
+        window.__energuardSmartstoreImportRunning = false;
+        return;
+      }
+      showResult({ statusMessage: current.message || "관리자 검색 순위 화면을 준비하고 있습니다." });
+      await sleep(1000);
     }
+    showResult({ error: "관리자 순위 수집 시간이 초과되었습니다." });
+    window.__energuardSmartstoreImportRunning = false;
   }
 
   if (window === window.top) {
