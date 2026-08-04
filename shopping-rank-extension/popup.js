@@ -9,6 +9,23 @@ const fields = {
   pageDelay: $("pageDelay"),
 };
 
+function parseProductCode(value) {
+  const text = String(value || "").trim();
+  return text.match(/\/products\/(\d+)/)?.[1] || (/^\d+$/.test(text) ? text : "");
+}
+
+async function openRunner(runConfig) {
+  await chrome.storage.local.set({ [PENDING_KEY]: runConfig });
+  const runnerUrl = chrome.runtime.getURL("runner.html");
+  const existing = await chrome.tabs.query({ url: `${runnerUrl}*` });
+  if (existing[0]) {
+    await chrome.tabs.reload(existing[0].id);
+    await chrome.tabs.update(existing[0].id, { active: true });
+  } else {
+    await chrome.tabs.create({ active: true, url: runnerUrl });
+  }
+}
+
 function parseKeywords(value) {
   const seen = new Set();
   return String(value || "")
@@ -31,10 +48,33 @@ function parseKeywords(value) {
 
 function setRunning(running) {
   $("startButton").disabled = running;
+  $("singleLookupButton").disabled = running;
+  $("singleProductUrl").disabled = running;
   $("stopButton").hidden = !running;
   $("statusDot").classList.toggle("running", running);
   Object.values(fields).forEach((field) => { field.disabled = running; });
 }
+
+$("singleLookupButton").addEventListener("click", async () => {
+  const productUrl = $("singleProductUrl").value.trim();
+  const productCode = parseProductCode(productUrl);
+  if (!productCode) {
+    $("notice").className = "notice error";
+    $("notice").textContent = "스마트스토어 상품 URL을 확인하세요.";
+    return;
+  }
+  $("notice").className = "notice";
+  $("notice").textContent = "등록된 추적 키워드를 찾아 1페이지만 확인합니다.";
+  setRunning(true);
+  await openRunner({
+    mode: "singleProduct",
+    targetProductUrl: productUrl,
+    targetProductCode: productCode,
+    pageCount: 1,
+    pageDelay: Number(fields.pageDelay.value) || 2500,
+    openReport: false,
+  });
+});
 
 function renderProgress(state) {
   if (!state) return;
@@ -92,15 +132,7 @@ $("startButton").addEventListener("click", async () => {
     pageCount: 5,
     pageDelay: Number(config.pageDelay) || 2500,
   };
-  await chrome.storage.local.set({ [PENDING_KEY]: runConfig });
-  const runnerUrl = chrome.runtime.getURL("runner.html");
-  const existing = await chrome.tabs.query({ url: `${runnerUrl}*` });
-  if (existing[0]) {
-    await chrome.tabs.reload(existing[0].id);
-    await chrome.tabs.update(existing[0].id, { active: true });
-  } else {
-    await chrome.tabs.create({ active: true, url: runnerUrl });
-  }
+  await openRunner(runConfig);
 });
 
 $("stopButton").addEventListener("click", async () => {

@@ -174,6 +174,120 @@ async function postRows(table, rows, onConflict, chunkSize = 100) {
   }
 }
 
+function parseProductCode(value) {
+  const text = String(value || "").trim();
+  return text.match(/\/products\/(\d+)/)?.[1] || (/^\d+$/.test(text) ? text : "");
+}
+
+function parseCodeList(value) {
+  if (Array.isArray(value)) return value.map(String).map((item) => item.trim()).filter(Boolean);
+  try {
+    return (JSON.parse(value || "[]") || []).map(String).map((item) => item.trim()).filter(Boolean);
+  } catch (_) {
+    return [];
+  }
+}
+
+async function runSingleProductLookup(config) {
+  const runId = crypto.randomUUID();
+  const productCode = String(config.targetProductCode || parseProductCode(config.targetProductUrl)).trim();
+  if (!productCode) throw new Error("상품 URL에서 상품번호를 확인할 수 없습니다.");
+
+  activeRun = { id: runId, cancelled: false, tabId: null };
+  await updateProgress({
+    status: "running", title: "단건 순위 확인", completed: 0, total: 1, saved: 0,
+    runId, mode: "singleProduct", message: "아이템 추적에 등록된 상품 정보를 불러오고 있습니다.", error: "",
+  });
+
+  let finishedSuccessfully = false;
+  try {
+    const rows = await fetchJson(
+      `/rest/v1/tracked_items?product_code=eq.${encodeURIComponent(productCode)}` +
+      "&select=*&limit=1"
+    );
+    const item = rows[0];
+    if (!item) throw new Error(`아이템 추적에서 상품번호 ${productCode}을 찾지 못했습니다.`);
+    const keywords = Array.isArray(item.keywords) ? item.keywords.map(String).filter(Boolean) : [];
+    const keyword = String(config.targetKeyword || keywords[0] || "").trim();
+    if (!keyword) throw new Error("이 상품에 등록된 추적 키워드가 없습니다.");
+
+    const matchingCodes = new Set([productCode, ...parseCodeList(item.alt_codes)]);
+    const searchUrl = "https://search.shopping.naver.com/search/all?" + new URLSearchParams({
+      query: keyword, pagingIndex: "1", pagingSize: "40", viewType: "list",
+    });
+    const tab = await chrome.tabs.create({ active: true, url: searchUrl });
+    activeRun.tabId = tab.id;
+    await updateProgress({ message: `“${keyword}” 1페이지에서 ${item.product_name || productCode} 상품을 찾고 있습니다.` });
+    await waitForTabComplete(tab.id);
+    await showCollectionStatus(tab.id, {
+      status: "running", keyword, message: "상품 URL의 상품번호를 1페이지 검색결과와 대조하고 있습니다.",
+      pageIndex: 1, pageCount: 1, completed: 0, total: 1,
+    });
+    await sleep(Math.max(1500, Number(config.pageDelay) || 2500));
+    const extracted = await extractPage(tab.id, 1, item.mall_name || "");
+    if (extracted.blockedReason) throw new Error(extracted.blockedReason);
+    const products = normalizePageProducts(extracted.products, 1);
+    validatePage(products, 1);
+    const found = products.find((product) => (
+      !product.isAd && matchingCodes.has(String(product.productCode || ""))
+    ));
+    const now = new Date().toISOString();
+    const collectedDate = todayKst();
+
+    await postRows("tracked_item_history", [{
+      product_code: productCode,
+      keyword,
+      rank: found?.rank ?? null,
+      price: Number(found?.price) || 0,
+      mall_name: found?.mallName || item.mall_name || "",
+      collected_date: collectedDate,
+      checked_at: now,
+    }], "product_code,keyword,collected_date");
+
+    if (found) {
+      const metadata = {
+        product_name: found.title || item.product_name || "",
+        product_image: found.image || item.product_image || "",
+        product_link: found.link || item.product_link || "",
+        mall_name: found.mallName || item.mall_name || "",
+        updated_at: now,
+      };
+      const response = await fetch(
+        `${SUPABASE_URL}/rest/v1/tracked_items?product_code=eq.${encodeURIComponent(productCode)}`,
+        {
+          method: "PATCH",
+          headers: sbHeaders({ "Content-Type": "application/json", Prefer: "return=minimal" }),
+          body: JSON.stringify(metadata),
+        }
+      );
+      if (!response.ok) throw new Error(`추적 상품 정보 갱신 실패: ${await response.text()}`);
+    }
+
+    const sourceLabel = String(extracted.extractionSource || "dom").includes("next-data") ? "NEXT_DATA" : "DOM";
+    const message = found
+      ? `${item.mall_name || "추적 상품"} · ${keyword} 일반검색 ${found.rank}위 · 광고 제외 · ${sourceLabel}`
+      : `${item.mall_name || "추적 상품"} · ${keyword} 1페이지 미노출 · 광고 제외 · ${sourceLabel}`;
+    await showCollectionStatus(tab.id, {
+      status: "done", keyword, message, source: sourceLabel,
+      pageIndex: 1, pageCount: 1, completed: 1, total: 1,
+    });
+    await updateProgress({
+      status: "done", title: found ? `${found.rank}위 확인` : "1페이지 미노출",
+      completed: 1, total: 1, saved: 1, runId, mode: "singleProduct", message,
+    });
+    finishedSuccessfully = true;
+  } catch (error) {
+    await updateProgress({
+      status: "error", title: "단건 조회 실패", completed: 0, total: 1,
+      runId, mode: "singleProduct", message: error?.message || "순위 확인 중 오류가 발생했습니다.",
+      error: error?.message || "순위 확인 중 오류가 발생했습니다.", saved: 0,
+    });
+  } finally {
+    if (finishedSuccessfully && activeRun?.tabId) chrome.tabs.remove(activeRun.tabId).catch(() => {});
+    activeRun = null;
+  }
+}
+
 async function cleanupOldSnapshots(retentionDays = 8) {
   const cutoff = kstDateDaysAgo(retentionDays);
   const response = await fetch(
@@ -396,6 +510,10 @@ async function saveSearchSnapshot(config, keywordMeta, products, runId, context)
 }
 
 async function runCollection(config) {
+  if (config.mode === "singleProduct") {
+    await runSingleProductLookup(config);
+    return;
+  }
   const runId = crypto.randomUUID();
   const total = config.keywords.length * config.pageCount;
   activeRun = { id: runId, cancelled: false, tabId: null };
