@@ -253,10 +253,34 @@
       .filter((button) => textOf(button).includes("내상품 키워드 더보기"));
   }
 
+  function managerVisibleProductRows() {
+    const rows = new Set();
+    const rankElements = Array.from(document.querySelectorAll("body *")).filter((element) => {
+      if (!visible(element)) return false;
+      const text = String(element.innerText || "").trim();
+      if (!PAGE_RANK_RE.test(text)) return false;
+      return !Array.from(element.children).some((child) => PAGE_RANK_RE.test(String(child.innerText || "")));
+    });
+
+    rankElements.forEach((element) => {
+      const row = findProductRow(element);
+      if (row) rows.add(row);
+    });
+    managerMoreButtons().forEach((button) => {
+      const row = button.closest("li");
+      if (row) rows.add(row);
+    });
+    return [...rows];
+  }
+
+  function managerProductRowKey(row) {
+    const image = row?.querySelector("img[src]");
+    return `${productCodeFrom(row) || productNameFrom(row) || textOf(row).slice(0, 240)}\n${image?.src || ""}`;
+  }
+
   function managerRowKey(button) {
     const row = button?.closest("li");
-    const image = row?.querySelector("img[src]");
-    return `${textOf(row).slice(0, 240)}\n${image?.src || ""}`;
+    return managerProductRowKey(row);
   }
 
   function managerScrollTargets(button) {
@@ -274,11 +298,11 @@
 
   async function revealMoreManagerRows(seenRowKeys) {
     for (let attempt = 0; attempt < 10; attempt += 1) {
-      const currentButtons = managerMoreButtons();
-      const lastButton = currentButtons.at(-1);
-      if (!lastButton) return false;
-      lastButton.scrollIntoView({ block: "end" });
-      managerScrollTargets(lastButton).forEach((container) => {
+      const currentRows = managerVisibleProductRows();
+      const scrollAnchor = currentRows.at(-1) || managerMoreButtons().at(-1);
+      if (!scrollAnchor) return false;
+      scrollAnchor.scrollIntoView({ block: "end" });
+      managerScrollTargets(scrollAnchor).forEach((container) => {
         const amount = Math.max(420, Number(container.clientHeight || window.innerHeight) * 0.75);
         container.scrollTop = Math.min(container.scrollHeight, container.scrollTop + amount);
         container.dispatchEvent(new Event("scroll", { bubbles: true }));
@@ -286,8 +310,8 @@
       window.scrollBy(0, Math.max(360, window.innerHeight * 0.55));
       await sleep(900);
 
-      const revealedButtons = managerMoreButtons();
-      if (revealedButtons.some((button) => !seenRowKeys.has(managerRowKey(button)))) return true;
+      const revealedRows = managerVisibleProductRows();
+      if (revealedRows.some((row) => !seenRowKeys.has(managerProductRowKey(row)))) return true;
       const nextButton = managerPaginationButton("다음 페이지");
       if (nextButton && !nextButton.disabled) return true;
     }
@@ -421,9 +445,10 @@
       throw new Error("순위 진단 상품 목록으로 돌아가지 못했습니다.");
     }
 
-    const products = [];
+    const products = new Map();
     const seenProductCodes = new Set();
-    const seenRowKeys = new Set();
+    const processedDetailRowKeys = new Set();
+    const discoveredRowKeys = new Set();
     let processedCount = 0;
     let estimatedTotal = managerMoreButtons().length;
     const bodyText = textOf(document.body);
@@ -431,10 +456,40 @@
     if (productCountMatch) estimatedTotal = Number(productCountMatch[1].replace(/,/g, ""));
 
     const collectionLimit = estimatedTotal > 0 ? estimatedTotal : 500;
+    const productKey = (product) => {
+      const normalizedName = String(product?.productName || "")
+        .toLowerCase()
+        .replace(/<[^>]*>/g, "")
+        .replace(/[^0-9a-z가-힣]/g, "");
+      return normalizedName || String(product?.productCode || "").trim();
+    };
+    const mergeProduct = (product, preferIncoming = false) => {
+      const key = productKey(product);
+      if (!key) return;
+      const current = products.get(key) || { ...product, keywords: [] };
+      const keywordMap = new Map((current.keywords || []).map((item) => [item.keyword, item]));
+      (product.keywords || []).forEach((item) => {
+        if (preferIncoming || !keywordMap.has(item.keyword)) keywordMap.set(item.keyword, item);
+      });
+      products.set(key, {
+        ...current,
+        ...(preferIncoming ? product : {}),
+        productCode: product.productCode || current.productCode || "",
+        productName: product.productName || current.productName || "",
+        productImage: product.productImage || current.productImage || "",
+        keywords: [...keywordMap.values()],
+      });
+    };
+
     for (let cycle = 0; cycle < 1000 && processedCount < collectionLimit; cycle += 1) {
-      const target = managerMoreButtons().find((button) => !seenRowKeys.has(managerRowKey(button)));
+      const visibleRows = managerVisibleProductRows();
+      visibleRows.forEach((row) => discoveredRowKeys.add(managerProductRowKey(row)));
+      const listSnapshot = extract();
+      (listSnapshot.products || []).forEach((product) => mergeProduct(product));
+
+      const target = managerMoreButtons().find((button) => !processedDetailRowKeys.has(managerRowKey(button)));
       if (target) {
-        seenRowKeys.add(managerRowKey(target));
+        processedDetailRowKeys.add(managerRowKey(target));
         const row = target.closest("li");
         const image = row?.querySelector("img[src]");
         const fallback = {
@@ -455,7 +510,7 @@
         processedCount += 1;
         if (product.productCode && !seenProductCodes.has(product.productCode)) {
           seenProductCodes.add(product.productCode);
-          if (product.keywords.length) products.push(product);
+          if (product.keywords.length) mergeProduct(product, true);
         }
         if (!(await returnToManagerList())) {
           throw new Error("다음 상품 수집을 위해 목록으로 돌아가지 못했습니다.");
@@ -470,11 +525,18 @@
         nextButton.click();
         if (await waitForChange(managerListSignature, previous)) continue;
       }
-      if (!(await revealMoreManagerRows(seenRowKeys))) break;
+      await updateManagerProgress(
+        job,
+        `${Math.min(discoveredRowKeys.size, estimatedTotal || discoveredRowKeys.size)}/${estimatedTotal || "?"} 상품의 키워드 순위를 확인하고 있습니다.`,
+        Math.min(discoveredRowKeys.size, estimatedTotal || discoveredRowKeys.size),
+        estimatedTotal
+      );
+      if (!(await revealMoreManagerRows(discoveredRowKeys))) break;
     }
 
-    if (!products.length) throw new Error("관리자 순위 진단에서 수집된 상품이 없습니다.");
-    return products;
+    const result = [...products.values()].filter((product) => product.keywords?.length);
+    if (!result.length) throw new Error("관리자 순위 진단에서 수집된 상품이 없습니다.");
+    return result;
   }
 
   function showResult(result) {
