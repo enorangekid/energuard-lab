@@ -1,6 +1,134 @@
 const CONFIG_KEY = "energuardShoppingRankConfig";
 const PENDING_KEY = "shoppingRankPendingConfig";
 const PROGRESS_KEY = "shoppingRankProgress";
+const SUPABASE_URL = "https://eukwfypbfqojbaihfqye.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_MiBvlf3d6ulcVBsi7Odcgw_PTXSmXKj";
+
+const sbHeaders = (extra = {}) => ({
+  apikey: SUPABASE_ANON_KEY,
+  Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+  ...extra,
+});
+
+function compactProductName(value) {
+  return String(value || "")
+    .normalize("NFKC")
+    .replace(/[^\p{L}\p{N}]/gu, "")
+    .toLocaleLowerCase("ko-KR");
+}
+
+function todayKst() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(new Date());
+  const map = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${map.year}-${map.month}-${map.day}`;
+}
+
+async function fetchSupabase(path) {
+  const response = await fetch(`${SUPABASE_URL}${path}`, { headers: sbHeaders() });
+  if (!response.ok) throw new Error(`기존 순위 조회 실패: ${await response.text()}`);
+  return response.json();
+}
+
+async function postSupabaseRows(table, rows, conflictKey) {
+  const response = await fetch(
+    `${SUPABASE_URL}/rest/v1/${table}?on_conflict=${encodeURIComponent(conflictKey)}`,
+    {
+      method: "POST",
+      headers: sbHeaders({
+        "Content-Type": "application/json",
+        Prefer: "resolution=merge-duplicates,return=minimal",
+      }),
+      body: JSON.stringify(rows),
+    }
+  );
+  if (!response.ok) throw new Error(`순위 저장 실패: ${await response.text()}`);
+}
+
+async function saveSmartstoreRanks(storeName, products) {
+  const encodedStore = encodeURIComponent(storeName);
+  const history = await fetchSupabase(
+    `/rest/v1/keyword_rank_history?store_name=eq.${encodedStore}` +
+    "&product_code=neq.&select=keyword,main_keyword,is_sub,product_code,product_name,product_image,product_link,product_price,checked_at,collected_date" +
+    "&order=checked_at.desc&limit=10000"
+  );
+
+  const latestByCode = new Map();
+  const latestByName = new Map();
+  const latestByCodeKeyword = new Map();
+  history.forEach((row) => {
+    const code = String(row.product_code || "").trim();
+    const name = compactProductName(row.product_name);
+    if (code && !latestByCode.has(code)) latestByCode.set(code, row);
+    if (name && !latestByName.has(name)) latestByName.set(name, row);
+    const pairKey = `${code}\n${row.keyword || ""}`;
+    if (code && row.keyword && !latestByCodeKeyword.has(pairKey)) latestByCodeKeyword.set(pairKey, row);
+  });
+
+  const now = new Date().toISOString();
+  const collectedDate = todayKst();
+  const payloadByKey = new Map();
+  let unmatched = 0;
+  let skipped = 0;
+
+  (Array.isArray(products) ? products : []).forEach((product) => {
+    const extractedCode = String(product?.productCode || "").trim();
+    const extractedName = compactProductName(product?.productName);
+    let known = extractedCode ? latestByCode.get(extractedCode) : null;
+    if (!known && extractedName) known = latestByName.get(extractedName);
+    if (!known && extractedName.length >= 12) {
+      const candidates = [...latestByName.entries()].filter(([name]) =>
+        name.length >= 12 && (name.includes(extractedName) || extractedName.includes(name))
+      );
+      if (candidates.length === 1) known = candidates[0][1];
+    }
+    if (!known) {
+      unmatched += 1;
+      return;
+    }
+
+    const productCode = String(known.product_code || extractedCode).trim();
+    (Array.isArray(product.keywords) ? product.keywords : []).forEach((item) => {
+      const keyword = String(item?.keyword || "").trim();
+      const rank = Number(item?.rank);
+      if (!keyword || !Number.isFinite(rank) || rank < 1) {
+        skipped += 1;
+        return;
+      }
+      const previous = latestByCodeKeyword.get(`${productCode}\n${keyword}`);
+      const key = `${storeName}\n${keyword}\n${productCode}\n${collectedDate}`;
+      payloadByKey.set(key, {
+        store_name: storeName,
+        keyword,
+        main_keyword: previous?.main_keyword || keyword,
+        is_sub: previous ? !!previous.is_sub : false,
+        rank,
+        max_rank: 4000,
+        checked_at: now,
+        product_code: productCode,
+        product_name: known.product_name || product.productName || "",
+        product_image: product.productImage || known.product_image || "",
+        product_link: known.product_link || "",
+        product_price: Number(known.product_price) || 0,
+        collected_date: collectedDate,
+      });
+    });
+  });
+
+  const rows = [...payloadByKey.values()];
+  if (!rows.length) {
+    throw new Error(`저장할 순위를 찾지 못했습니다. 상품 대조 실패 ${unmatched}개 · 순위 미확인 ${skipped}개`);
+  }
+  for (let index = 0; index < rows.length; index += 100) {
+    await postSupabaseRows(
+      "keyword_rank_history",
+      rows.slice(index, index + 100),
+      "store_name,keyword,product_code,collected_date"
+    );
+  }
+  return { saved: rows.length, unmatched, skipped };
+}
 
 function cleanKeyword(item) {
   const keyword = String(item?.keyword || "").trim();
@@ -66,6 +194,19 @@ async function openRunner(config) {
 }
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type === "SAVE_SMARTSTORE_RANKS") {
+    (async () => {
+      try {
+        const storeName = String(message.storeName || "").trim();
+        if (!storeName) throw new Error("스토어를 선택하세요.");
+        const result = await saveSmartstoreRanks(storeName, message.products);
+        sendResponse({ ok: true, ...result });
+      } catch (error) {
+        sendResponse({ ok: false, error: error?.message || "스마트스토어 순위를 저장하지 못했습니다." });
+      }
+    })();
+    return true;
+  }
   if (message?.type !== "START_COLLECTION_FROM_APP") return false;
   (async () => {
     try {
