@@ -148,17 +148,32 @@ function createCsv() {
   return `\uFEFF${headers.map(csvCell).join(",")}\r\n${lines.join("\r\n")}`;
 }
 
+async function fetchAllReportRows(runId) {
+  const rows = [];
+  const pageSize = 1000;
+  for (let offset = 0; ; offset += pageSize) {
+    const query = new URLSearchParams({
+      select: "*",
+      run_id: `eq.${runId}`,
+      order: "keyword.asc,is_ad.asc,organic_rank.asc",
+      limit: String(pageSize),
+      offset: String(offset),
+    });
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/shopping_search_snapshots?${query}`, {
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+    });
+    if (!response.ok) throw new Error(`리포트 조회 실패: ${await response.text()}`);
+    const page = await response.json();
+    rows.push(...page);
+    if (page.length < pageSize) break;
+  }
+  return rows;
+}
+
 async function loadReport() {
   const runId = new URLSearchParams(location.search).get("runId");
   if (!runId) throw new Error("리포트 실행 ID가 없습니다.");
-  const query = new URLSearchParams({
-    select: "*", run_id: `eq.${runId}`, order: "keyword.asc,is_ad.asc,organic_rank.asc", limit: "2000",
-  });
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/shopping_search_snapshots?${query}`, {
-    headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
-  });
-  if (!response.ok) throw new Error(`리포트 조회 실패: ${await response.text()}`);
-  state.rows = await response.json();
+  state.rows = await fetchAllReportRows(runId);
   const keywords = [...new Set(state.rows.map((row) => row.keyword).filter(Boolean))];
   state.keyword = keywords[0] || "";
   const select = document.getElementById("keywordSelect");
