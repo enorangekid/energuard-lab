@@ -142,23 +142,31 @@
     const panel = document.createElement("div");
     panel.id = "energuard-smartstore-result";
     const failed = !!result?.error;
+    const pending = !!result?.statusMessage;
     panel.style.cssText = [
       "position:fixed", "right:24px", "bottom:24px", "z-index:2147483647",
       "min-width:260px", "padding:16px 18px", "border:1px solid #dfe4ec",
-      `border-left:4px solid ${failed ? "#d92d20" : "#f15a2b"}`, "border-radius:6px", "background:#fff",
+      `border-left:4px solid ${failed ? "#d92d20" : pending ? "#12b76a" : "#f15a2b"}`, "border-radius:6px", "background:#fff",
       "box-shadow:0 12px 30px rgba(16,24,40,.16)", "font:13px/1.5 Arial,sans-serif",
       "color:#101828",
     ].join(";");
     panel.innerHTML = `<strong style="display:block;margin-bottom:4px">ENERGUARD LAB</strong>` +
-      (failed
+      (pending
+        ? `<span>${String(result.statusMessage)}</span>`
+        : failed
         ? `<span style="color:#d92d20">${String(result.error)}</span>`
         : `<span>${Number(result?.saved) || 0}개 순위 저장 완료</span>`) +
       (result?.unmatched ? `<small style="display:block;color:#667085">상품 대조 실패 ${result.unmatched}개</small>` : "");
     document.body.appendChild(panel);
-    setTimeout(() => panel.remove(), 7000);
+    if (!pending) setTimeout(() => panel.remove(), 7000);
   }
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message?.type === "SHOW_SMARTSTORE_IMPORT_STATUS") {
+      showResult({ statusMessage: message.message || "관리자 검색 순위를 확인하고 있습니다." });
+      sendResponse({ ok: true });
+      return false;
+    }
     if (message?.type === "SHOW_SMARTSTORE_IMPORT_RESULT") {
       showResult(message.result);
       sendResponse({ ok: true });

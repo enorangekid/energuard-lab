@@ -161,6 +161,10 @@ async function runSmartstoreImport(storeName) {
 
   try {
     await sleep(1500);
+    await chrome.tabs.sendMessage(tab.id, {
+      type: "SHOW_SMARTSTORE_IMPORT_STATUS",
+      message: "관리자 검색 순위 화면을 읽고 있습니다.",
+    }).catch(() => {});
     const extracted = await waitForSmartstoreRanks(tab.id);
     const saved = await saveSmartstoreRanks(storeName, extracted.products);
     await chrome.tabs.sendMessage(tab.id, {

@@ -48,7 +48,6 @@ function parseKeywords(value) {
 
 function setRunning(running) {
   $("startButton").disabled = running;
-  $("smartstoreImportButton").disabled = running;
   $("singleLookupButton").disabled = running;
   $("singleProductUrl").disabled = running;
   $("stopButton").hidden = !running;
@@ -57,7 +56,8 @@ function setRunning(running) {
 }
 
 $("smartstoreImportButton").addEventListener("click", async () => {
-  setRunning(true);
+  const button = $("smartstoreImportButton");
+  button.disabled = true;
   $("notice").className = "notice";
   $("notice").textContent = "검색 순위 진단 화면으로 이동한 뒤 자동으로 수집합니다.";
   try {
@@ -74,7 +74,7 @@ $("smartstoreImportButton").addEventListener("click", async () => {
     $("notice").className = "notice error";
     $("notice").textContent = error?.message || "스마트스토어 순위를 가져오지 못했습니다.";
   } finally {
-    setRunning(false);
+    button.disabled = false;
   }
 });
 
@@ -129,7 +129,20 @@ async function loadConfig() {
       field.value = config[key];
     }
   });
-  if (stored.shoppingRankProgress) renderProgress(stored.shoppingRankProgress);
+  if (stored.shoppingRankProgress) {
+    const progress = stored.shoppingRankProgress;
+    if (progress.status === "running") {
+      const runnerUrl = chrome.runtime.getURL("runner.html");
+      const runnerTabs = await chrome.tabs.query({ url: `${runnerUrl}*` });
+      if (!runnerTabs.length) {
+        progress.status = "cancelled";
+        progress.title = "수집 중단";
+        progress.message = "실행 중인 수집 탭이 없어 이전 진행 상태를 정리했습니다.";
+        await chrome.storage.local.set({ shoppingRankProgress: progress });
+      }
+    }
+    renderProgress(progress);
+  }
 }
 
 async function saveConfig() {
