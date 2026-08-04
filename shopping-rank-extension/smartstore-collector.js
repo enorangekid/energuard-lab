@@ -1,5 +1,8 @@
 (function () {
   const SMARTSTORE_IMPORT_KEY = "smartstoreRankImportJob";
+  const FRAME_RESULT_SOURCE = "energuard-smartstore-frame-result";
+  const frameResults = new Map();
+  const frameId = `${location.href}:${Math.random().toString(36).slice(2)}`;
   const PAGE_RANK_RE = /(\d+)\s*페이지\s*(\d+)\s*위/;
   const STATUS_RE = /^(유지|진입|이탈|상승|하락|신규|▲\s*\d+|▼\s*\d+)$/;
 
@@ -138,6 +141,27 @@
     };
   }
 
+  function mergeProducts(groups) {
+    const merged = new Map();
+    groups.flat().forEach((product) => {
+      const key = String(product?.productCode || product?.productName || "").trim();
+      if (!key) return;
+      if (!merged.has(key)) merged.set(key, { ...product, keywords: [] });
+      const target = merged.get(key);
+      const seen = new Set(target.keywords.map((item) => `${item.keyword}\n${item.rank}`));
+      (product.keywords || []).forEach((item) => {
+        const itemKey = `${item.keyword}\n${item.rank}`;
+        if (!seen.has(itemKey)) {
+          seen.add(itemKey);
+          target.keywords.push(item);
+        }
+      });
+      if (!target.productImage && product.productImage) target.productImage = product.productImage;
+      if (!target.productCode && product.productCode) target.productCode = product.productCode;
+    });
+    return [...merged.values()];
+  }
+
   function showResult(result) {
     document.getElementById("energuard-smartstore-result")?.remove();
     const panel = document.createElement("div");
@@ -189,7 +213,7 @@
   }
 
   async function runPendingImport() {
-    if (window !== window.top || window.__energuardSmartstoreImportRunning) return;
+    if (window.__energuardSmartstoreImportRunning) return;
     const stored = await chrome.storage.local.get(SMARTSTORE_IMPORT_KEY);
     const job = stored[SMARTSTORE_IMPORT_KEY];
     if (!job || job.status !== "pending") return;
@@ -199,21 +223,44 @@
     }
 
     window.__energuardSmartstoreImportRunning = true;
+
+    if (window !== window.top) {
+      for (let attempt = 0; attempt < 90; attempt += 1) {
+        const result = extract();
+        window.top.postMessage({
+          source: FRAME_RESULT_SOURCE,
+          frameId,
+          products: result.products || [],
+          debug: result.debug || {},
+        }, "*");
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+      window.__energuardSmartstoreImportRunning = false;
+      return;
+    }
+
     showResult({ statusMessage: "관리자 검색 순위 화면을 읽고 있습니다." });
     let best = null;
     let stableCount = 0;
     let previousCount = -1;
 
     for (let attempt = 0; attempt < 90; attempt += 1) {
-      const result = extract();
-      const count = result?.products?.length || 0;
+      const ownResult = extract();
+      const products = mergeProducts([
+        ownResult.products || [],
+        ...[...frameResults.values()].map((item) => item.products || []),
+      ]);
+      const result = { ...ownResult, products };
+      const count = products.length;
       if (count > (best?.products?.length || 0)) best = result;
       stableCount = count > 0 && count === previousCount ? stableCount + 1 : 0;
       previousCount = count;
 
-      if (count > 0) {
-        showResult({ statusMessage: `관리자 검색 순위 ${count}개 상품을 확인하고 있습니다.` });
-      }
+      const rankElements = Number(ownResult?.debug?.rankElements || 0) +
+        [...frameResults.values()].reduce((sum, item) => sum + Number(item?.debug?.rankElements || 0), 0);
+      showResult({
+        statusMessage: `순위 문구 ${rankElements}개 · 상품 ${count}개를 확인하고 있습니다.`,
+      });
       if (count > 0 && stableCount >= 2) break;
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
@@ -237,6 +284,16 @@
     } finally {
       window.__energuardSmartstoreImportRunning = false;
     }
+  }
+
+  if (window === window.top) {
+    window.addEventListener("message", (event) => {
+      if (event.data?.source !== FRAME_RESULT_SOURCE || !event.data.frameId) return;
+      frameResults.set(event.data.frameId, {
+        products: Array.isArray(event.data.products) ? event.data.products : [],
+        debug: event.data.debug || {},
+      });
+    });
   }
 
   runPendingImport().catch((error) => showResult({ error: error?.message || "관리자 순위 수집을 시작하지 못했습니다." }));
