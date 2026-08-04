@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Energuard Lab Shopping Rank Collector",
-  "version": "0.10.3",
+  "version": "0.11.0",
   "description": "직원 브라우저에서 네이버 쇼핑 검색결과 전체를 수집하고 자사·추적 상품을 분류합니다.",
   "permissions": ["tabs", "storage"],
   "host_permissions": [
@@ -17,6 +17,14 @@
     "service_worker": "service-worker.js"
   },
   "content_scripts": [
+    {
+      "matches": ["https://sell.smartstore.naver.com/*"],
+      "js": ["smartstore-network-tap.js"],
+      "run_at": "document_start",
+      "world": "MAIN",
+      "all_frames": true,
+      "match_about_blank": true
+    },
     {
       "matches": ["https://search.shopping.naver.com/search/*"],
       "js": ["parser-core.js", "page-collector.js"],

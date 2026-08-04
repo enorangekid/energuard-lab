@@ -1,7 +1,9 @@
 (function () {
   const SMARTSTORE_IMPORT_KEY = "smartstoreRankImportJob";
   const FRAME_RESULT_SOURCE = "energuard-smartstore-frame-result";
+  const NETWORK_SOURCE = "energuard-smartstore-network";
   const frameResults = new Map();
+  const networkPayloads = [];
   const frameId = `${location.href}:${Math.random().toString(36).slice(2)}`;
   const PAGE_RANK_RE = /(\d+)\s*페이지\s*(\d+)\s*위/;
   const STATUS_RE = /^(유지|진입|이탈|상승|하락|신규|▲\s*\d+|▼\s*\d+)$/;
@@ -162,6 +164,65 @@
     return [...merged.values()];
   }
 
+  function firstValue(object, keys) {
+    for (const key of keys) {
+      const value = object?.[key];
+      if (value !== undefined && value !== null && value !== "") return value;
+    }
+    return "";
+  }
+
+  function numberValue(value) {
+    const parsed = Number(String(value ?? "").replace(/[^0-9.-]/g, ""));
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  function productsFromNetwork() {
+    const products = new Map();
+    const visited = new WeakSet();
+    const codeKeys = ["channelProductNo", "channelProductId", "productNo", "productId", "productCode"];
+    const nameKeys = ["productName", "channelProductName", "productTitle", "name"];
+    const imageKeys = ["representativeImageUrl", "imageUrl", "productImageUrl", "thumbnailUrl"];
+    const keywordKeys = ["keyword", "keywordName", "searchKeyword", "query"];
+    const rankKeys = ["currentRank", "searchRank", "keywordRank", "ranking", "rank"];
+    const pageKeys = ["page", "pageNo", "pageIndex"];
+    const pageRankKeys = ["rankInPage", "pageRank", "position"];
+
+    function visit(value, inherited = {}) {
+      if (!value || typeof value !== "object") return;
+      if (visited.has(value)) return;
+      visited.add(value);
+      if (Array.isArray(value)) {
+        value.forEach((item) => visit(item, inherited));
+        return;
+      }
+
+      const context = {
+        productCode: String(firstValue(value, codeKeys) || inherited.productCode || "").trim(),
+        productName: String(firstValue(value, nameKeys) || inherited.productName || "").trim(),
+        productImage: String(firstValue(value, imageKeys) || inherited.productImage || "").trim(),
+      };
+      const keyword = String(firstValue(value, keywordKeys) || "").trim();
+      const page = numberValue(firstValue(value, pageKeys));
+      const pageRank = numberValue(firstValue(value, pageRankKeys));
+      let rank = numberValue(firstValue(value, rankKeys));
+      if (!rank && page > 0 && pageRank > 0) rank = (page - 1) * 40 + pageRank;
+
+      if ((context.productCode || context.productName) && keyword && rank > 0) {
+        const key = context.productCode || context.productName;
+        if (!products.has(key)) products.set(key, { ...context, keywords: [] });
+        const target = products.get(key);
+        if (!target.keywords.some((item) => item.keyword === keyword && item.rank === rank)) {
+          target.keywords.push({ keyword, rank, page, pageRank });
+        }
+      }
+      Object.values(value).forEach((child) => visit(child, context));
+    }
+
+    networkPayloads.forEach((payload) => visit(payload.data));
+    return [...products.values()].filter((product) => product.keywords.length);
+  }
+
   function showResult(result) {
     document.getElementById("energuard-smartstore-result")?.remove();
     const panel = document.createElement("div");
@@ -248,6 +309,7 @@
       const ownResult = extract();
       const products = mergeProducts([
         ownResult.products || [],
+        productsFromNetwork(),
         ...[...frameResults.values()].map((item) => item.products || []),
       ]);
       const result = { ...ownResult, products };
@@ -259,7 +321,7 @@
       const rankElements = Number(ownResult?.debug?.rankElements || 0) +
         [...frameResults.values()].reduce((sum, item) => sum + Number(item?.debug?.rankElements || 0), 0);
       showResult({
-        statusMessage: `순위 문구 ${rankElements}개 · 상품 ${count}개를 확인하고 있습니다.`,
+        statusMessage: `내부 응답 ${networkPayloads.length}건 · 순위 문구 ${rankElements}개 · 상품 ${count}개`,
       });
       if (count > 0 && stableCount >= 2) break;
       await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -295,6 +357,12 @@
       });
     });
   }
+
+  window.addEventListener("message", (event) => {
+    if (event.source !== window || event.data?.source !== NETWORK_SOURCE) return;
+    networkPayloads.push({ url: event.data.url || "", data: event.data.data });
+    if (networkPayloads.length > 100) networkPayloads.shift();
+  });
 
   runPendingImport().catch((error) => showResult({ error: error?.message || "관리자 순위 수집을 시작하지 못했습니다." }));
 })();
