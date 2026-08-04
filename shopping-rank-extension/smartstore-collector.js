@@ -381,15 +381,22 @@
     }
 
     const products = [];
+    const seenProductCodes = new Set();
+    const seenListPages = new Set();
+    let processedCount = 0;
     let estimatedTotal = managerMoreButtons().length;
     const bodyText = textOf(document.body);
     const productCountMatch = bodyText.match(/상품\s*수\s*([\d,]+)개/);
     if (productCountMatch) estimatedTotal = Number(productCountMatch[1].replace(/,/g, ""));
 
-    for (let listPage = 1; listPage <= 100 && products.length < 500; listPage += 1) {
+    const collectionLimit = estimatedTotal > 0 ? estimatedTotal : 500;
+    for (let listPage = 1; listPage <= 100 && processedCount < collectionLimit; listPage += 1) {
+      const pageSignature = managerListSignature();
+      if (!pageSignature || seenListPages.has(pageSignature)) break;
+      seenListPages.add(pageSignature);
       const available = managerMoreButtons().length;
       if (!available) break;
-      for (let index = 0; index < available && products.length < 500; index += 1) {
+      for (let index = 0; index < available && processedCount < collectionLimit; index += 1) {
         const buttons = managerMoreButtons();
         const target = buttons[index];
         if (!target) continue;
@@ -401,8 +408,8 @@
         };
         await updateManagerProgress(
           job,
-          `${products.length + 1}/${estimatedTotal || "?"} 상품의 키워드 순위를 확인하고 있습니다.`,
-          products.length,
+          `${processedCount + 1}/${estimatedTotal || "?"} 상품의 키워드 순위를 확인하고 있습니다.`,
+          processedCount,
           estimatedTotal
         );
         target.click();
@@ -410,12 +417,17 @@
           throw new Error(`${fallback.productName || "상품"} 상세 화면을 열지 못했습니다.`);
         }
         const product = await collectManagerDetail(job, fallback);
-        if (product.productCode && product.keywords.length) products.push(product);
+        processedCount += 1;
+        if (product.productCode && !seenProductCodes.has(product.productCode)) {
+          seenProductCodes.add(product.productCode);
+          if (product.keywords.length) products.push(product);
+        }
         if (!(await returnToManagerList())) {
           throw new Error("다음 상품 수집을 위해 목록으로 돌아가지 못했습니다.");
         }
       }
 
+      if (processedCount >= collectionLimit) break;
       const nextButton = managerPaginationButton("다음 페이지");
       if (!nextButton || nextButton.disabled) break;
       const previous = managerListSignature();
