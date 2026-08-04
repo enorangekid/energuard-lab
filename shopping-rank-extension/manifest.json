@@ -30,6 +30,12 @@
       "match_about_blank": true
     },
     {
+      "matches": ["https://search.shopping.naver.com/*"],
+      "js": ["search-network-tap.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
       "matches": ["https://search.shopping.naver.com/search/*"],
       "js": ["parser-core.js", "page-collector.js"],
       "run_at": "document_idle"

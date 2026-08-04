@@ -68,7 +68,6 @@ $("smartstoreImportButton").addEventListener("click", async () => {
     if (!saved?.ok) throw new Error(saved?.error || "순위를 저장하지 못했습니다.");
     $("notice").className = "notice success";
     $("notice").textContent = `${saved.saved}개 순위를 저장했습니다` +
-      (saved.unmatched ? ` · 상품 대조 실패 ${saved.unmatched}개` : "") +
       (saved.skipped ? ` · 중복/미확인 ${saved.skipped}개` : "");
   } catch (error) {
     $("notice").className = "notice error";

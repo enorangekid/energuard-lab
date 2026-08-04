@@ -2,6 +2,31 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// 셀러몬(경쟁 확장)처럼 페이지가 내부적으로 쏘는 검색 API 응답(JSON)을 search-network-tap.js가
+// 가로채서 postMessage로 넘겨준다. DOM 속성은 카드가 화면에 그려지고 지연로딩까지 끝나야
+// 채워지지만, 이 응답은 도착하는 즉시 완전한 데이터라 스크롤/대기가 훨씬 덜 필요하다.
+const NETWORK_SOURCE = "energuard-search-network";
+const networkPayloads = [];
+window.addEventListener("message", (event) => {
+  if (event.source !== window || event.data?.source !== NETWORK_SOURCE) return;
+  const url = String(event.data.url || "");
+  if (!/search\/(all|contents)|search-national/i.test(url)) return;
+  networkPayloads.push({ url, data: event.data.data, capturedAt: Date.now() });
+  if (networkPayloads.length > 20) networkPayloads.shift();
+});
+
+function readNetworkProducts(pageIndex, sinceTs) {
+  const relevant = networkPayloads.filter((payload) => !sinceTs || payload.capturedAt >= sinceTs);
+  let best = { products: [], path: "" };
+  relevant.forEach((payload) => {
+    try {
+      const result = RankParser.parseNextDataProducts(payload.data, pageIndex);
+      if (result.products.length > best.products.length) best = result;
+    } catch (_) {}
+  });
+  return best;
+}
+
 const STATUS_HOST_ID = "energuard-shopping-rank-status";
 
 function renderCollectionStatus(state = {}) {
@@ -286,21 +311,44 @@ async function collectDomProductsAcrossPage(pageIndex, storeName) {
   return mergeDomSnapshots(snapshots);
 }
 
-async function waitForProducts() {
-  const started = Date.now();
-  while (Date.now() - started < 18000) {
-    const count = document.querySelectorAll(
-      'a[data-shp-inventory="lst*N"][data-shp-area="lst*N.img"], a[data-shp-inventory="lst*A"][data-shp-area="lst*A.img"]'
-    ).length;
-    if (count) {
-      window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" });
-      await sleep(900);
-      window.scrollTo({ top: 0, behavior: "instant" });
-      await sleep(250);
-      return;
-    }
+const PRODUCT_ANCHOR_SELECTOR =
+  'a[data-shp-inventory="lst*N"][data-shp-area="lst*N.img"], a[data-shp-inventory="lst*A"][data-shp-area="lst*A.img"]';
+
+// 네트워크 응답을 못 잡았을 때만 쓰는 안전망 — 카드가 화면에 그려지고 지연로딩까지 끝나길
+// 기다린다. 여러 단계로 나눠 천천히 내려가며 data-shp-contents-dtl이 채워질 시간을 준다.
+async function waitForDomSettled() {
+  const steps = 6;
+  for (let step = 1; step <= steps; step += 1) {
+    window.scrollTo({ top: Math.round((document.documentElement.scrollHeight * step) / steps), behavior: "instant" });
     await sleep(500);
   }
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    const unfilled = [...document.querySelectorAll(PRODUCT_ANCHOR_SELECTOR)]
+      .filter((anchor) => !anchor.getAttribute("data-shp-contents-dtl"));
+    if (!unfilled.length) break;
+    unfilled[0].scrollIntoView({ block: "center" });
+    await sleep(500);
+  }
+  window.scrollTo({ top: 0, behavior: "instant" });
+  await sleep(250);
+}
+
+// 셀러몬처럼 네트워크 응답이 먼저 잡히면 그걸로 충분하다 — DOM 지연로딩을 기다릴 필요가
+// 없어서 스크롤 없이 짧게만 기다린다. 응답을 못 잡으면(간헐적으로 SSR만 오는 경우 등)
+// 기존의 느리지만 안전한 DOM 스크롤 대기로 폴백한다.
+async function waitForProducts(pageIndex, requestStartedAt) {
+  const started = Date.now();
+  while (Date.now() - started < 8000) {
+    if (readNetworkProducts(pageIndex, requestStartedAt).products.length >= 15) return true;
+    if (document.querySelectorAll(PRODUCT_ANCHOR_SELECTOR).length) break;
+    await sleep(200);
+  }
+  // 앵커는 떴는데 네트워크 응답이 아직이면 짧게 한 번 더 기다려본다(요청이 막 도착 중일 수 있다).
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    if (readNetworkProducts(pageIndex, requestStartedAt).products.length >= 15) return true;
+    await sleep(200);
+  }
+  return false;
 }
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -311,11 +359,27 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
   if (message?.type !== "EXTRACT_PAGE") return false;
   (async () => {
-    await waitForProducts();
+    const requestStartedAt = Date.now();
     const pageIndex = Number(message.pageIndex) || 1;
     const storeName = message.storeName || "";
-    const domProducts = await collectDomProductsAcrossPage(pageIndex, storeName);
-    const extracted = mergeNextDataWithDom(readNextDataProducts(pageIndex), domProducts, pageIndex);
+    const gotNetwork = await waitForProducts(pageIndex, requestStartedAt);
+    const networkResult = readNetworkProducts(pageIndex, requestStartedAt);
+
+    let domProducts;
+    let extracted;
+    if (gotNetwork && networkResult.products.length >= 15) {
+      // 네트워크 데이터가 이미 완전하니 DOM은 매장명 대조용으로 가볍게 한 번만 읽는다
+      // (긴 멀티패스 스크롤 없이 — 그게 느려서 이번에 걷어낸 부분).
+      domProducts = extractDomProducts(pageIndex, storeName);
+      extracted = mergeNextDataWithDom(networkResult, domProducts, pageIndex);
+    } else {
+      // 네트워크 응답을 못 잡았으면 예전처럼 DOM이 다 채워지길 기다렸다가 멀티패스로 긁는다.
+      await waitForDomSettled();
+      domProducts = await collectDomProductsAcrossPage(pageIndex, storeName);
+      const nextDataResult = readNextDataProducts(pageIndex);
+      const primary = nextDataResult.products.length >= networkResult.products.length ? nextDataResult : networkResult;
+      extracted = mergeNextDataWithDom(primary, domProducts, pageIndex);
+    }
     const products = extracted.products;
     const pageText = (document.body?.innerText || "").slice(0, 3000);
     let blockedReason = "";

@@ -131,9 +131,13 @@ async function fetchJson(path) {
 
 async function fetchCollectionContext(config) {
   const encodedStore = encodeURIComponent(config.storeName);
-  const [historyRows, trackedItems] = await Promise.all([
+  const [historyRows, trackedItems, snapshotIdRows] = await Promise.all([
     fetchJson(`/rest/v1/keyword_rank_history?store_name=eq.${encodedStore}&product_code=neq.&select=keyword,product_code,product_name,product_image,product_link,product_price,collected_date,checked_at&order=collected_date.desc,checked_at.desc&limit=10000`),
     fetchJson("/rest/v1/tracked_items?select=product_code,product_name,product_image,product_link,mall_name,keywords&limit=5000"),
+    // 가격비교(카탈로그)형으로 렌더링된 카드는 chnl_prod_no(product_code)가 안 잡히고
+    // naver_product_id만 잡힐 때가 있다 — 예전에 이 카드의 product_code가 잡혔던 적이 있으면
+    // naver_product_id로 역추적해서 같은 상품으로 이어붙이기 위한 매핑.
+    fetchJson(`/rest/v1/shopping_search_snapshots?store_name=eq.${encodedStore}&product_code=neq.&naver_product_id=neq.&select=product_code,naver_product_id,collected_date&order=collected_date.desc&limit=5000`),
   ]);
   const knownProducts = new Map();
   const keywordProducts = new Map();
@@ -147,9 +151,17 @@ async function fetchCollectionContext(config) {
     if (!keywordProducts.has(row.keyword)) keywordProducts.set(row.keyword, new Map());
     if (!keywordProducts.get(row.keyword).has(code)) keywordProducts.get(row.keyword).set(code, row);
   });
+  const naverIdToCode = new Map();
+  snapshotIdRows.forEach((row) => {
+    const naverId = String(row.naver_product_id || "").trim();
+    const code = String(row.product_code || "").trim();
+    if (!naverId || !code) return;
+    if (!naverIdToCode.has(naverId)) naverIdToCode.set(naverId, code);
+  });
   return {
     knownProducts,
     keywordProducts,
+    naverIdToCode,
     trackedItems: trackedItems.map((item) => ({
       ...item,
       product_code: String(item.product_code || "").trim(),
@@ -420,14 +432,30 @@ async function saveSearchSnapshot(config, keywordMeta, products, runId, context)
   const cleanupSnapshot = await fetch(cleanupSnapshotUrl, { method: "DELETE", headers: sbHeaders() });
   if (!cleanupSnapshot.ok) throw new Error(`이전 검색 스냅샷 정리 실패: ${await cleanupSnapshot.text()}`);
 
+  // 가격비교(카탈로그)형으로 렌더링된 카드는 product_code(chnl_prod_no)가 안 잡히고
+  // naver_product_id만 잡힐 때가 있다 — 예전엔 이런 경우 product_code가 없다고 통째로
+  // 버려서, 실제로는 노출 중인 자사 상품이 "이탈"로 잘못 저장됐다. naver_product_id로
+  // 예전에 알아낸 진짜 코드를 역추적하고, 그마저 없으면 naver_product_id 자체를 코드로 써서
+  // 최소한 데이터가 사라지지는 않게 한다.
   const targetProducts = snapshotRows
-    .filter((product) => !product.is_ad && product.is_target_store && product.product_code)
+    .filter((product) => !product.is_ad && product.is_target_store)
+    .map((product) => ({
+      ...product,
+      resolvedCode: product.product_code
+        || context.naverIdToCode?.get(product.naver_product_id)
+        || product.naver_product_id
+        || "",
+    }))
+    .filter((product) => product.resolvedCode)
     .sort((a, b) => a.organic_rank - b.organic_rank);
   const targetByCode = new Map();
   targetProducts.forEach((product) => {
-    if (!targetByCode.has(product.product_code)) targetByCode.set(product.product_code, product);
+    if (!targetByCode.has(product.resolvedCode)) targetByCode.set(product.resolvedCode, product);
   });
   const previousKeywordProducts = context.keywordProducts.get(keywordMeta.keyword) || new Map();
+  // source: "curated" — 메인/보조 키워드를 직접 검색해서 얻은 값임을 표시한다.
+  // 네이버 순위진단 스크래핑("naver_diagnosis")과 같은 store+keyword+product+날짜 조합이 겹쳐도
+  // 서로 다른 행으로 남아야 하고, 아래 정리(DELETE)가 그쪽 데이터를 지우면 안 된다.
   const targetPayload = [...targetByCode.values()].map((product) => ({
         store_name: config.storeName,
         keyword: keywordMeta.keyword,
@@ -436,12 +464,13 @@ async function saveSearchSnapshot(config, keywordMeta, products, runId, context)
         rank: product.organic_rank,
         max_rank: config.pageCount * 40,
         checked_at: now,
-        product_code: product.product_code,
+        product_code: product.resolvedCode,
         product_name: product.product_name,
         product_image: product.product_image,
         product_link: product.product_link,
         product_price: product.product_price,
         collected_date: collectedDate,
+        source: "curated",
   }));
   previousKeywordProducts.forEach((previous, code) => {
     if (targetByCode.has(code)) return;
@@ -459,6 +488,7 @@ async function saveSearchSnapshot(config, keywordMeta, products, runId, context)
         product_link: previous.product_link || "",
         product_price: Number(previous.product_price) || 0,
         collected_date: collectedDate,
+        source: "curated",
     });
   });
   if (!targetPayload.length) {
@@ -468,19 +498,23 @@ async function saveSearchSnapshot(config, keywordMeta, products, runId, context)
       rank: null, max_rank: config.pageCount * 40, checked_at: now,
       product_code: "", product_name: "", product_image: "", product_link: "",
       product_price: 0, collected_date: collectedDate,
+      source: "curated",
     });
   }
   await postRows(
     "keyword_rank_history",
     targetPayload,
-    "store_name,keyword,product_code,collected_date"
+    "store_name,keyword,product_code,collected_date,source"
   );
 
   // 같은 날 다시 수집하면 이번 배치에 없는 예전 오탐 행이 남지 않게 정리합니다.
+  // source=curated로 반드시 좁혀야 한다 — 안 그러면 같은 키워드로 저장된 naver_diagnosis 행까지
+  // "이번 배치에 없는 예전 행"으로 오인해서 지워버린다.
   const cleanupUrl = `${SUPABASE_URL}/rest/v1/keyword_rank_history` +
     `?store_name=eq.${encodeURIComponent(config.storeName)}` +
     `&keyword=eq.${encodeURIComponent(keywordMeta.keyword)}` +
     `&collected_date=eq.${encodeURIComponent(collectedDate)}` +
+    `&source=eq.curated` +
     `&checked_at=neq.${encodeURIComponent(now)}`;
   const cleanup = await fetch(cleanupUrl, { method: "DELETE", headers: sbHeaders() });
   if (!cleanup.ok) throw new Error(`이전 오탐 행 정리 실패: ${await cleanup.text()}`);

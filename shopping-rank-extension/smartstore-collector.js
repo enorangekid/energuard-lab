@@ -7,6 +7,9 @@
   const frameId = `${location.href}:${Math.random().toString(36).slice(2)}`;
   const PAGE_RANK_RE = /(\d+)\s*페이지\s*(\d+)\s*위/;
   const STATUS_RE = /^(유지|진입|이탈|상승|하락|신규|▲\s*\d+|▼\s*\d+)$/;
+  // 카테고리 순위 칩의 "N위" 요약 텍스트가 진짜 키워드로 오인되는 걸 막는다 —
+  // 실제 키워드가 숫자+"위" 형태로만 이루어질 일은 없다.
+  const RANK_ONLY_RE = /^[\d,]+\s*위$/;
 
   function visible(element) {
     if (!(element instanceof HTMLElement)) return false;
@@ -72,7 +75,7 @@
     const lines = linesOf(card);
     const pageIndex = lines.findIndex((line) => line.includes(pageLine));
     const candidates = lines.slice(0, pageIndex < 0 ? lines.length : pageIndex).filter((line) => {
-      if (PAGE_RANK_RE.test(line) || STATUS_RE.test(line) || /^\d+$/.test(line)) return false;
+      if (PAGE_RANK_RE.test(line) || STATUS_RE.test(line) || RANK_ONLY_RE.test(line) || /^\d+$/.test(line)) return false;
       return !/^(키워드 순위|카테고리 순위|1페이지)$/.test(line);
     });
     return candidates[0] || "";
@@ -253,100 +256,18 @@
       .filter((button) => textOf(button).includes("내상품 키워드 더보기"));
   }
 
-  function managerVisibleProductRows() {
-    const rows = new Set();
-    const rankElements = Array.from(document.querySelectorAll("body *")).filter((element) => {
-      if (!visible(element)) return false;
-      const text = String(element.innerText || "").trim();
-      if (!PAGE_RANK_RE.test(text)) return false;
-      return !Array.from(element.children).some((child) => PAGE_RANK_RE.test(String(child.innerText || "")));
-    });
-
-    rankElements.forEach((element) => {
-      const row = findProductRow(element);
-      if (row) rows.add(row);
-    });
-    managerMoreButtons().forEach((button) => {
-      const row = button.closest("li");
-      if (row) rows.add(row);
-    });
-    Array.from(document.querySelectorAll("li")).forEach((row) => {
-      if (!visible(row)) return;
-      const image = Array.from(row.querySelectorAll("img[src]")).find(visible);
-      const text = textOf(row);
-      if (!image || !productNameFrom(row)) return;
-      if (!PAGE_RANK_RE.test(text) && !text.includes("4000위 내")) return;
-      const nestedProductRow = Array.from(row.querySelectorAll("li")).some((child) => {
-        if (!visible(child)) return false;
-        const childText = textOf(child);
-        return child.querySelector("img[src]") && (PAGE_RANK_RE.test(childText) || childText.includes("4000위 내"));
-      });
-      if (!nestedProductRow) rows.add(row);
-    });
-    return [...rows];
-  }
-
-  function managerListPageCount() {
-    const pageNumbers = Array.from(document.querySelectorAll("nav button"))
-      .map((button) => Number(textOf(button)))
-      .filter((value) => Number.isInteger(value) && value > 0);
-    return pageNumbers.length ? Math.max(...pageNumbers) : 1;
-  }
-
-  function managerProductRowKey(row) {
-    const image = row?.querySelector("img[src]");
-    return `${productCodeFrom(row) || productNameFrom(row) || textOf(row).slice(0, 240)}\n${image?.src || ""}`;
-  }
-
-  function managerRowKey(button) {
-    const row = button?.closest("li");
-    return managerProductRowKey(row);
-  }
-
-  function managerScrollTargets(button) {
-    const targets = [];
-    let node = button?.closest("li")?.parentElement;
-    while (node && node !== document.body) {
-      const style = getComputedStyle(node);
-      if (/(auto|scroll)/.test(style.overflowY) && node.scrollHeight > node.clientHeight + 8) targets.push(node);
-      node = node.parentElement;
-    }
-    const documentScroller = document.scrollingElement || document.documentElement;
-    if (documentScroller && !targets.includes(documentScroller)) targets.push(documentScroller);
-    return targets;
-  }
-
-  async function revealMoreManagerRows(seenRowKeys) {
-    for (let attempt = 0; attempt < 10; attempt += 1) {
-      const currentRows = managerVisibleProductRows();
-      const scrollAnchor = currentRows.at(-1) || managerMoreButtons().at(-1);
-      if (!scrollAnchor) return false;
-      scrollAnchor.scrollIntoView({ block: "end" });
-      managerScrollTargets(scrollAnchor).forEach((container) => {
-        const amount = Math.max(420, Number(container.clientHeight || window.innerHeight) * 0.75);
-        container.scrollTop = Math.min(container.scrollHeight, container.scrollTop + amount);
-        container.dispatchEvent(new Event("scroll", { bubbles: true }));
-      });
-      window.scrollBy(0, Math.max(360, window.innerHeight * 0.55));
-      await sleep(900);
-
-      const revealedRows = managerVisibleProductRows();
-      if (revealedRows.some((row) => !seenRowKeys.has(managerProductRowKey(row)))) return true;
-      const nextButton = managerPaginationButton("다음 페이지");
-      if (nextButton && !nextButton.disabled) return true;
-    }
-    return false;
-  }
-
   function isManagerDetail() {
     return [...document.querySelectorAll("p")]
       .some((paragraph) => textOf(paragraph).includes("채널 상품 번호"));
   }
 
+  // 예전엔 body 전체를 훑는 managerVisibleProductRows()[0]과 aria-current 속성에 의존했는데,
+  // 둘 다 렌더링 타이밍에 따라 흔들릴 여지가 있었다. 실제로 클릭할 대상(더보기 버튼)이 속한
+  // <li> 텍스트만 비교하는 게 훨씬 안정적이다.
   function managerListSignature() {
-    const activePage = document.querySelector('nav button[aria-current="page"]');
-    const firstRow = managerVisibleProductRows()[0];
-    return `${textOf(activePage)}\n${managerProductRowKey(firstRow)}`;
+    const button = managerMoreButtons()[0];
+    const item = button?.closest("li");
+    return textOf(item).slice(0, 180);
   }
 
   function managerRankTable() {
@@ -364,9 +285,7 @@
   }
 
   function managerPaginationButton(labelText, firstPage = false) {
-    const nav = [...document.querySelectorAll("nav")].find((item) =>
-      String(item.getAttribute("aria-label") || "").includes("페이지")
-    );
+    const nav = document.querySelector('nav[aria-label="페이지네이션"]');
     if (!nav) return null;
     return [...nav.querySelectorAll("button")].find((button) => {
       const label = String(button.getAttribute("aria-label") || "");
@@ -381,7 +300,7 @@
     const keyword = textOf(cells[0].querySelector("a") || cells[0]);
     const rankText = textOf(cells[1]);
     const rankMatch = rankText.match(/([\d,]+)위/);
-    if (!keyword || !rankMatch || rankText.includes("이탈")) return null;
+    if (!keyword || RANK_ONLY_RE.test(keyword) || !rankMatch || rankText.includes("이탈")) return null;
     const pageMatch = rankText.match(/([\d,]+)페이지\s*([\d,]+)위/);
     return {
       keyword,
@@ -412,6 +331,29 @@
     });
   }
 
+  // 셀로몬(경쟁 확장)이 실제로 이 화면에서 안정적으로 200개 상품까지 수집하는 걸 확인하고
+  // 그 구조를 그대로 옮겼다 — "전체 N개" 필터에서 총 키워드 수를 읽어, 테이블이 존재하는지뿐
+  // 아니라 행 데이터가 실제로 채워졌는지까지 확인한 뒤에야 준비됐다고 본다.
+  function managerTotalKeywordCount() {
+    const allFilter = [...document.querySelectorAll('[role="radio"]')]
+      .find((radio) => /^전체\s*[\d,]+개/.test(textOf(radio)));
+    const match = textOf(allFilter).match(/^전체\s*([\d,]+)개/);
+    return match ? Number(match[1].replace(/,/g, "")) : null;
+  }
+
+  async function waitForManagerKeywordTable() {
+    const toggle = [...document.querySelectorAll("button")].find((button) => textOf(button).includes("키워드 순위"));
+    toggle?.scrollIntoView({ block: "center" });
+    return waitFor(() => {
+      const table = managerRankTable();
+      const total = managerTotalKeywordCount();
+      const rows = currentManagerRankRows();
+      if (!table || total === null) return null;
+      if (total > 0 && !rows.length) return null;
+      return { total, rows };
+    }, 30000);
+  }
+
   async function collectManagerDetail(job, fallback) {
     const meta = [...document.querySelectorAll("p")]
       .find((paragraph) => textOf(paragraph).includes("채널 상품 번호"));
@@ -419,11 +361,8 @@
     const productCode = metaText.match(/채널\s*상품\s*번호\s*:\s*([\d]+)/)?.[1] || "";
     const productName = textOf(document.querySelector("h2")) || fallback.productName;
 
-    const ready = await waitFor(() => {
-      const table = managerRankTable();
-      return table ? { table, rows: currentManagerRankRows() } : null;
-    }, 30000);
-    if (!ready) throw new Error("키워드 순위 표를 찾지 못했습니다.");
+    const ready = await waitForManagerKeywordTable();
+    if (!ready) throw new Error("키워드 순위 표가 준비되지 않았습니다. 잠시 후 다시 가져오세요.");
 
     const keywords = new Map();
     const firstButton = managerPaginationButton("", true);
@@ -443,6 +382,10 @@
       if (!changed) break;
     }
 
+    if (ready.total > 0 && !keywords.size) {
+      throw new Error(`키워드 ${ready.total}개가 표시됐지만 순위 행을 읽지 못했습니다.`);
+    }
+
     return {
       productCode,
       productName,
@@ -459,6 +402,12 @@
     return Boolean(await waitFor(() => managerMoreButtons().length && managerListSignature(), 20000));
   }
 
+  // 셀로몬 코드를 그대로 옮겼다 — 페이지당 "더보기" 버튼을 인덱스 순서로 하나씩 처리하고,
+  // 한 페이지 분을 다 처리한 뒤에만 다음 페이지로 넘어간다. 리스트 스냅샷 병합이나 스크롤
+  // 폴백, 키 기반 중복추적 같은 우리가 얹었던 레이어가 오히려 타이밍을 불안정하게 만든
+  // 것으로 보여 전부 걷어냈다.
+  const MAX_MANAGER_PRODUCTS = 200;
+
   async function collectManagerRanking(job) {
     const ready = await waitFor(() => managerMoreButtons().length || isManagerDetail(), 40000);
     if (!ready) throw new Error("순위 진단 상품 목록을 찾지 못했습니다. 관리자 로그인과 화면을 확인하세요.");
@@ -466,53 +415,27 @@
       throw new Error("순위 진단 상품 목록으로 돌아가지 못했습니다.");
     }
 
-    const products = new Map();
-    const seenProductCodes = new Set();
-    const processedDetailRowKeys = new Set();
-    const discoveredRowKeys = new Set();
-    let processedCount = 0;
-    let currentListPage = 1;
-    let totalListPages = managerListPageCount();
-    let estimatedTotal = managerMoreButtons().length;
     const bodyText = textOf(document.body);
     const productCountMatch = bodyText.match(/상품\s*수\s*([\d,]+)개/);
-    if (productCountMatch) estimatedTotal = Number(productCountMatch[1].replace(/,/g, ""));
+    const productCount = productCountMatch
+      ? Number(productCountMatch[1].replace(/,/g, ""))
+      : managerMoreButtons().length;
+    // "다음 페이지" 버튼이 마지막 페이지에서도 disabled로 안 잡히고 1페이지로 되돌아가
+    // 무한히 재수집되는 경우가 있어(200 안전상한까지 계속 돎), 화면에 적힌 실제 상품 수를
+    // 알고 있으면 그걸 진짜 상한으로 쓴다 — "다음 페이지" 판정 오류에 기대지 않는다.
+    const collectLimit = productCount > 0 ? Math.min(MAX_MANAGER_PRODUCTS, productCount) : MAX_MANAGER_PRODUCTS;
 
-    const collectionLimit = estimatedTotal > 0 ? estimatedTotal : 500;
-    const productKey = (product) => {
-      const normalizedName = String(product?.productName || "")
-        .toLowerCase()
-        .replace(/<[^>]*>/g, "")
-        .replace(/[^0-9a-z가-힣]/g, "");
-      return normalizedName || String(product?.productCode || "").trim();
-    };
-    const mergeProduct = (product, preferIncoming = false) => {
-      const key = productKey(product);
-      if (!key) return;
-      const current = products.get(key) || { ...product, keywords: [] };
-      const keywordMap = new Map((current.keywords || []).map((item) => [item.keyword, item]));
-      (product.keywords || []).forEach((item) => {
-        if (preferIncoming || !keywordMap.has(item.keyword)) keywordMap.set(item.keyword, item);
-      });
-      products.set(key, {
-        ...current,
-        ...(preferIncoming ? product : {}),
-        productCode: product.productCode || current.productCode || "",
-        productName: product.productName || current.productName || "",
-        productImage: product.productImage || current.productImage || "",
-        keywords: [...keywordMap.values()],
-      });
-    };
+    const products = [];
+    const errors = [];
 
-    for (let cycle = 0; cycle < 1000 && processedCount < collectionLimit; cycle += 1) {
-      const visibleRows = managerVisibleProductRows();
-      visibleRows.forEach((row) => discoveredRowKeys.add(managerProductRowKey(row)));
-      const listSnapshot = extract();
-      (listSnapshot.products || []).forEach((product) => mergeProduct(product));
+    for (let listPage = 1; listPage <= 100 && products.length < collectLimit; listPage += 1) {
+      const available = managerMoreButtons().length;
+      if (!available) break;
 
-      const target = managerMoreButtons().find((button) => !processedDetailRowKeys.has(managerRowKey(button)));
-      if (target) {
-        processedDetailRowKeys.add(managerRowKey(target));
+      for (let index = 0; index < available && products.length < collectLimit; index += 1) {
+        const buttons = managerMoreButtons();
+        const target = buttons[index];
+        if (!target) continue;
         const row = target.closest("li");
         const image = row?.querySelector("img[src]");
         const fallback = {
@@ -521,50 +444,36 @@
         };
         await updateManagerProgress(
           job,
-          `${currentListPage}/${totalListPages} 페이지의 상품 순위를 확인하고 있습니다.`,
-          currentListPage,
-          totalListPages
+          `상품 순위를 확인하고 있습니다. (${products.length + 1}/${productCount || "?"})`,
+          products.length + 1,
+          productCount
         );
         target.click();
-        if (!(await waitFor(isManagerDetail, 20000))) {
-          throw new Error(`${fallback.productName || "상품"} 상세 화면을 열지 못했습니다.`);
+        const opened = await waitFor(isManagerDetail, 20000);
+        if (!opened) {
+          errors.push({ product: fallback.productName, message: "상세 화면을 열지 못했습니다." });
+        } else {
+          try {
+            const product = await collectManagerDetail(job, fallback);
+            if (product) products.push(product);
+          } catch (error) {
+            errors.push({ product: fallback.productName, message: error?.message || "키워드를 읽지 못했습니다." });
+          }
         }
-        const product = await collectManagerDetail(job, fallback);
-        processedCount += 1;
-        if (product.productCode && !seenProductCodes.has(product.productCode)) {
-          seenProductCodes.add(product.productCode);
-          if (product.keywords.length) mergeProduct(product, true);
-        }
-        if (!(await returnToManagerList())) {
-          throw new Error("다음 상품 수집을 위해 목록으로 돌아가지 못했습니다.");
-        }
-        continue;
+        const returned = await returnToManagerList();
+        if (!returned) throw new Error("다음 상품 수집을 위해 목록으로 돌아가지 못했습니다.");
       }
 
-      if (processedCount >= collectionLimit) break;
       const nextButton = managerPaginationButton("다음 페이지");
-      if (nextButton && !nextButton.disabled) {
-        const previous = managerListSignature();
-        nextButton.click();
-        if (await waitForChange(managerListSignature, previous)) {
-          currentListPage += 1;
-          totalListPages = Math.max(totalListPages, managerListPageCount());
-          continue;
-        }
-      }
-      await updateManagerProgress(
-        job,
-        `${currentListPage}/${totalListPages} 페이지의 상품 순위를 확인하고 있습니다.`,
-        currentListPage,
-        totalListPages
-      );
-      if (totalListPages > 1) break;
-      if (!(await revealMoreManagerRows(discoveredRowKeys))) break;
+      if (!nextButton || nextButton.disabled) break;
+      const previous = managerListSignature();
+      nextButton.click();
+      const changed = await waitForChange(managerListSignature, previous);
+      if (!changed) break;
     }
 
-    const result = [...products.values()].filter((product) => product.keywords?.length);
-    if (!result.length) throw new Error("관리자 순위 진단에서 수집된 상품이 없습니다.");
-    return result;
+    if (!products.length) throw new Error("관리자 순위 진단에서 수집된 상품이 없습니다.");
+    return products;
   }
 
   function showResult(result) {
@@ -586,8 +495,8 @@
         : failed
         ? `<span style="color:#d92d20">${String(result.error)}</span>`
         : `<span>${Number(result?.scannedProducts) || 0}개 상품 확인 · ${Number(result?.saved) || 0}개 순위 저장</span>`) +
-      ((Number(result?.unmatched) || Number(result?.noRankProducts))
-        ? `<small style="display:block;color:#667085">상품 대조 실패 ${Number(result?.unmatched) || 0}개 · 순위 미확인 ${Number(result?.noRankProducts) || 0}개</small>`
+      (Number(result?.noRankProducts)
+        ? `<small style="display:block;color:#667085">순위 미확인 ${Number(result?.noRankProducts) || 0}개</small>`
         : "");
     document.body.appendChild(panel);
     if (!pending) setTimeout(() => panel.remove(), 7000);

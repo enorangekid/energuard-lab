@@ -11,13 +11,6 @@ const sbHeaders = (extra = {}) => ({
   ...extra,
 });
 
-function compactProductName(value) {
-  return String(value || "")
-    .normalize("NFKC")
-    .replace(/[^\p{L}\p{N}]/gu, "")
-    .toLocaleLowerCase("ko-KR");
-}
-
 function todayKst() {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit",
@@ -49,57 +42,47 @@ async function postSupabaseRows(table, rows, conflictKey) {
 
 async function saveSmartstoreRanks(storeName, products) {
   const encodedStore = encodeURIComponent(storeName);
+  // 이 스캔이 직접 넘겨준 productCode(관리자 화면 "채널 상품 번호")를 그대로 신뢰해서 저장한다.
+  // 예전엔 기존 keyword_rank_history 이력에 상품명/코드가 매칭이 안 되면(신상품 등) 통째로
+  // 스킵했는데, 그러면 실제로 존재하는 데이터가 조용히 사라졌다. 기존 이력은 이제 오직
+  // main_keyword/is_sub 분류와 product_link/가격을 물려받는 "보강" 용도로만 쓴다.
   const history = await fetchSupabase(
     `/rest/v1/keyword_rank_history?store_name=eq.${encodedStore}` +
-    "&product_code=neq.&select=keyword,main_keyword,is_sub,product_code,product_name,product_image,product_link,product_price,checked_at,collected_date" +
+    "&product_code=neq.&select=keyword,main_keyword,is_sub,product_code,product_name,product_link,product_price,checked_at" +
     "&order=checked_at.desc&limit=10000"
   );
 
-  const latestByCode = new Map();
-  const latestByName = new Map();
   const latestByCodeKeyword = new Map();
+  const latestByCode = new Map();
   history.forEach((row) => {
     const code = String(row.product_code || "").trim();
-    const name = compactProductName(row.product_name);
-    if (code && !latestByCode.has(code)) latestByCode.set(code, row);
-    if (name && !latestByName.has(name)) latestByName.set(name, row);
+    if (!code) return;
+    if (!latestByCode.has(code)) latestByCode.set(code, row);
     const pairKey = `${code}\n${row.keyword || ""}`;
-    if (code && row.keyword && !latestByCodeKeyword.has(pairKey)) latestByCodeKeyword.set(pairKey, row);
+    if (row.keyword && !latestByCodeKeyword.has(pairKey)) latestByCodeKeyword.set(pairKey, row);
   });
 
   const now = new Date().toISOString();
   const collectedDate = todayKst();
   const payloadByKey = new Map();
   const savedProductCodes = new Set();
-  let matchedProducts = 0;
+  let scannedProducts = 0;
   let noRankProducts = 0;
-  let unmatched = 0;
   let skipped = 0;
 
   (Array.isArray(products) ? products : []).forEach((product) => {
-    const extractedCode = String(product?.productCode || "").trim();
-    const extractedName = compactProductName(product?.productName);
-    let known = extractedCode ? latestByCode.get(extractedCode) : null;
-    if (!known && extractedName) known = latestByName.get(extractedName);
-    if (!known && extractedName.length >= 12) {
-      const candidates = [...latestByName.entries()].filter(([name]) =>
-        name.length >= 12 && (name.includes(extractedName) || extractedName.includes(name))
-      );
-      if (candidates.length === 1) known = candidates[0][1];
-    }
-    if (!known) {
-      unmatched += 1;
-      return;
-    }
+    const productCode = String(product?.productCode || "").trim();
+    if (!productCode) { skipped += 1; return; } // 상품코드가 없으면 이력으로 식별할 방법이 없다
+    scannedProducts += 1;
 
-    matchedProducts += 1;
-    const productCode = String(known.product_code || extractedCode).trim();
+    const linkFallback = latestByCode.get(productCode);
     const productKeywords = Array.isArray(product.keywords) ? product.keywords : [];
     let hasValidRank = false;
     productKeywords.forEach((item) => {
       const keyword = String(item?.keyword || "").trim();
       const rank = Number(item?.rank);
-      if (!keyword || !Number.isFinite(rank) || rank < 1) {
+      // 화면 파싱이 "N위" 순위 요약 텍스트를 키워드로 잘못 넘기는 경우를 마지막 방어선에서 걸러낸다.
+      if (!keyword || /^[\d,]+\s*위$/.test(keyword) || !Number.isFinite(rank) || rank < 1) {
         skipped += 1;
         return;
       }
@@ -110,17 +93,20 @@ async function saveSmartstoreRanks(storeName, products) {
       payloadByKey.set(key, {
         store_name: storeName,
         keyword,
+        // 이 키워드가 예전에 큐레이션 트리(메인/보조 직접크롤링)에 이미 있었으면 그 분류를
+        // 물려받고, 없으면 자기 자신을 메인으로 하는 독립 키워드로 저장한다.
         main_keyword: previous?.main_keyword || keyword,
         is_sub: previous ? !!previous.is_sub : false,
         rank,
         max_rank: 4000,
         checked_at: now,
         product_code: productCode,
-        product_name: known.product_name || product.productName || "",
-        product_image: product.productImage || known.product_image || "",
-        product_link: known.product_link || "",
-        product_price: Number(known.product_price) || 0,
+        product_name: product.productName || linkFallback?.product_name || "",
+        product_image: product.productImage || "",
+        product_link: linkFallback?.product_link || "",
+        product_price: Number(linkFallback?.product_price) || 0,
         collected_date: collectedDate,
+        source: "naver_diagnosis",
       });
     });
     if (!hasValidRank) noRankProducts += 1;
@@ -128,22 +114,20 @@ async function saveSmartstoreRanks(storeName, products) {
 
   const rows = [...payloadByKey.values()];
   if (!rows.length) {
-    throw new Error(`저장할 순위를 찾지 못했습니다. 상품 대조 실패 ${unmatched}개 · 순위 미확인 ${skipped}개`);
+    throw new Error(`저장할 순위를 찾지 못했습니다. 순위 미확인 상품 ${noRankProducts}개 · 스킵 ${skipped}개`);
   }
   for (let index = 0; index < rows.length; index += 100) {
     await postSupabaseRows(
       "keyword_rank_history",
       rows.slice(index, index + 100),
-      "store_name,keyword,product_code,collected_date"
+      "store_name,keyword,product_code,collected_date,source"
     );
   }
   return {
     saved: rows.length,
-    scannedProducts: Array.isArray(products) ? products.length : 0,
-    matchedProducts,
+    scannedProducts,
     savedProducts: savedProductCodes.size,
     noRankProducts,
-    unmatched,
     skipped,
   };
 }
@@ -184,7 +168,7 @@ async function runSmartstoreImport(storeName) {
     tab = await chrome.tabs.create({ active: true, url: rankingUrl });
   }
 
-  return { started: true, saved: 0, unmatched: 0, skipped: 0 };
+  return { started: true, saved: 0, skipped: 0 };
 }
 
 function cleanKeyword(item) {

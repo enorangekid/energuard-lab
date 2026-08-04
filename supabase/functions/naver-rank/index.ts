@@ -658,6 +658,7 @@ async function collectStoreKeywords(storeName: string, half?: 1 | 2) {
           product_image: r.image || "", product_link: r.link || "",
           product_price: Number(r.price) || 0,
           collected_date: collectedDate,
+          source: "curated",
           ...volumeFields,
         }))
         : [{
@@ -665,10 +666,11 @@ async function collectStoreKeywords(storeName: string, half?: 1 | 2) {
           rank: null, max_rank: 1000,
           product_code: "", product_name: "", product_image: "", product_link: "", product_price: 0,
           collected_date: collectedDate,
+          source: "curated",
           ...volumeFields,
         }];
 
-      await supabaseRequest(`/rest/v1/keyword_rank_history?on_conflict=store_name,keyword,product_code,collected_date`, {
+      await supabaseRequest(`/rest/v1/keyword_rank_history?on_conflict=store_name,keyword,product_code,collected_date,source`, {
         method: "POST",
         headers: { "Prefer": "resolution=merge-duplicates,return=minimal" },
         body: JSON.stringify(payload),

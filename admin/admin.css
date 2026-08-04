@@ -218,8 +218,17 @@ select.nt-tl-input { cursor: pointer; }
 
 /* Quill 에디터 */
 #editor-wrapper { display: flex; flex-direction: column; }
-#editor { min-height: 420px; background: #fff; }
-#editor .ql-editor { font-family: "NanumSquare", sans-serif; font-size: 15px; }
+/* 툴바는 항상 보이게 두고, 본문(.ql-editor)만 내부 스크롤 — 글이 길어져도 서식 버튼에
+   바로 손이 가도록. #editor 자체가 Quill의 .ql-container(테마 클래스 포함)가 된다. */
+#editor {
+  background: #fff;
+  height: calc(100vh - 360px);
+  min-height: 360px;
+  max-height: 680px;
+  display: flex;
+  flex-direction: column;
+}
+#editor .ql-editor { flex: 1; overflow-y: auto; font-family: "NanumSquare", sans-serif; font-size: 15px; }
 .ql-container.ql-snow { border-color: var(--line); border-radius: 0 0 8px 8px; }
 
 /* 툴바 — 네이버 블로그 에디터 참고: 한 줄 컴팩트 배치, 그룹 사이 세로 구분선 */

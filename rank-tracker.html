@@ -359,6 +359,7 @@
     font-weight: 800;
   }
   .keyword-type.main { background: var(--accent-tint); color: var(--accent-dark); }
+  .keyword-type.discovered { background: #ede9fe; color: #6d28d9; }
   .empty { margin-top: 16px; padding: 18px; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); color: var(--sub); font-size: 13px; }
   .rank-loading-shell {
     width: 100%;
@@ -634,6 +635,15 @@
   <div id="rankView">
     <div class="rank-filterbar app-filterbar">
       <div class="store-chips" id="storeChips"></div>
+      <button type="button" class="item-btn item-icon-btn collect" id="naverStoreCollectBtn" onclick="collectNaverStoreRank()" aria-label="네이버스토어 순위 수집" title="네이버스토어 순위 수집(검색순위진단)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12a9 9 0 0 1-15.5 6.2"></path>
+          <path d="M3 12a9 9 0 0 1 15.5-6.2"></path>
+          <path d="M18 3v4h-4"></path>
+          <path d="M6 21v-4h4"></path>
+        </svg>
+      </button>
+      <span class="item-collect-status" id="naverStoreCollectStatus"></span>
       <div class="summary app-filter-summary" id="summary">불러오는 중...</div>
     </div>
 
@@ -776,6 +786,26 @@ const STORE_CATEGORY_DETAIL_KEYWORDS = {
     "불연단열재": ["불연단열재", "불연열반사", "미네랄울", "글라스울"],
     "열반사단열재": ["열반사단열재", "은박단열재", "온도리"],
   },
+  // 한국 단열은 STORE_CATEGORY_DISPLAY_KEYWORDS가 없어서(=탭 분류는 그대로 product_rankings.category
+  // 마스터 필드가 결정) DETAIL 목록만 둔다 — 대표(메인) 키워드 우선순위와 칩 필터링에만 쓰이고,
+  // 어느 탭에 들어가는지 자체는 안 바뀐다. 사용자가 정리해준 실제 규칙(keyword0804.xlsx) 그대로:
+  "한국 단열": {
+    // 대표는 "아이소핑크"지만, 그걸로는 안 잡히고 "압축스티로폼"으로만 잡히는 상품이 정확히
+    // 1개 있다 — 그건 정상이라 압축스티로폼도 후보에 넣되 맨 뒤(최후순위)로 둔다.
+    "아이소핑크": ["아이소핑크", "벽산아이소핑크", "아이소핑크특호", "아이소핑크규격", "압출법단열재", "XPS단열재", "압출법보온판", "압축스티로폼"],
+    // 열반사단열재 탭엔 같은 빌트론 브랜드로 같이 나가는 캠핑단열재/은박매트/길고양이겨울집/
+    // 차박창문가리개/에어컨커버 상품도 섞여 들어온다 — 그 계열 키워드까지 다 포함해야
+    // 칩이 안 비고 대표 키워드도 제대로 잡힌다.
+    "열반사단열재": [
+      "열반사단열재", "은박단열재", "온도리",
+      "캠핑단열재", "장박단열재", "캠핑바닥공사", "장박바닥공사", "텐트바닥공사",
+      "은박매트", "은박돗자리", "두꺼운돗자리", "돗자리",
+      "길고양이겨울집", "고양이겨울집", "고보협겨울집", "길냥이급식소",
+      "차박창문가리개", "뒷유리햇빛가리개", "조수석햇빛가리개", "운전석햇빛가리개", "자동차햇빛가리개", "차량용햇빛가리개",
+      "에어컨커버", "실외기커버",
+    ],
+    "단열벽지": ["단열벽지", "접착식단열벽지", "보온벽지", "결로방지벽지", "곰팡이벽지", "방한벽지"],
+  },
 };
 // 카테고리 안에서 상품 수가 너무 많아지면(예: 준불연단열재) 재질별로 한 번 더 나눠서 보여준다.
 // 여기 등록 안 된 카테고리는 지금처럼 하위탭 없이 그대로 보인다.
@@ -899,7 +929,9 @@ function getDetailKeywords(categoryName) {
 function getVisibleKeywords(product, categoryName) {
   const detailKeywords = getDetailKeywords(categoryName);
   if (!detailKeywords) return product.keywords;
-  return product.keywords.filter(k => detailKeywords.includes(k.keyword));
+  // detailKeywords는 "이 카테고리 소속 큐레이션 키워드"만 좁히는 목록이라, 새로 발견된
+  // 주목 키워드(애초에 어느 큐레이션 목록에도 없음)는 여기 걸리면 안 되고 항상 보여야 한다.
+  return product.keywords.filter(k => detailKeywords.includes(k.keyword) || isDiscoveredKeyword(k));
 }
 
 function productHasKeywordOrName(product, keywords) {
@@ -1001,9 +1033,9 @@ async function fetchHistory(store) {
   const order = `&order=collected_date.desc,checked_at.desc`;
   const headers = { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer " + SUPABASE_ANON_KEY };
   const selects = [
-    `&select=keyword,main_keyword,is_sub,rank,max_rank,product_code,product_name,product_image,product_link,product_price,search_volume_pc,search_volume_mobile,search_volume_total,collected_date,checked_at`,
-    `&select=keyword,main_keyword,is_sub,rank,max_rank,product_code,product_name,product_image,product_link,product_price,collected_date,checked_at`,
-    `&select=keyword,main_keyword,is_sub,rank,max_rank,product_code,product_name,product_image,collected_date,checked_at`,
+    `&select=keyword,main_keyword,is_sub,source,rank,max_rank,product_code,product_name,product_image,product_link,product_price,search_volume_pc,search_volume_mobile,search_volume_total,collected_date,checked_at`,
+    `&select=keyword,main_keyword,is_sub,source,rank,max_rank,product_code,product_name,product_image,product_link,product_price,collected_date,checked_at`,
+    `&select=keyword,main_keyword,is_sub,source,rank,max_rank,product_code,product_name,product_image,collected_date,checked_at`,
     `&select=keyword,main_keyword,is_sub,rank,max_rank,product_code,product_name,collected_date,checked_at`,
   ];
   for (const select of selects) {
@@ -1123,6 +1155,27 @@ function keywordSortIndex(row) {
   if (!row.is_sub) return mainIdx * 1000;
   const subIdx = group.subs.indexOf(row.keyword);
   return mainIdx * 1000 + 1 + (subIdx < 0 ? 500 : subIdx);
+}
+
+// "주목"인지 아닌지는 이 행을 오늘 어느 수집기가 썼는지(row.source)가 아니라, 그 키워드
+// 텍스트가 큐레이션 트리(KW_TREE, keywords.js) 안에 있는지로 판단한다 — 큐레이션 메인
+// 키워드가 오늘 하필 순위진단 쪽에서만 잡혔다고 해서 "주목"으로 보이면 안 된다.
+const CURATED_KEYWORD_SET = new Set();
+KW_TREE.forEach(g => {
+  CURATED_KEYWORD_SET.add(g.main);
+  g.subs.forEach(s => CURATED_KEYWORD_SET.add(s));
+});
+function isDiscoveredKeyword(row) {
+  if (!row) return false;
+  if (CURATED_KEYWORD_SET.has(row.keyword)) return false;
+  return row.source === "naver_diagnosis";
+}
+
+// 카드에 보이는 키워드 칩 순서: 메인 → 보조 → 주목(우리가 직접 지정한 큐레이션 키워드가
+// 아니라 네이버가 알아서 잡아준 키워드) 순으로 항상 고정한다.
+function keywordGroupIndex(row) {
+  if (isDiscoveredKeyword(row)) return 2;
+  return row?.is_sub ? 1 : 0;
 }
 
 function normalizeCategory(category) {
@@ -1321,6 +1374,19 @@ function buildProducts(rows, masterMaps, collectedKeywords) {
     const history = [...historyMap.entries()]
       .map(([date, rank]) => ({ date, rank }))
       .sort((a, b) => a.date.localeCompare(b.date));
+    // 같은 키워드 문자열이 curated(메인/보조)와 naver_diagnosis(주목) 양쪽에 다 있으면
+    // 칩이 두 번 뜬다 — 큐레이션 트리 소속 키워드가 이미 있으면 그걸 우선하고, 진짜
+    // 발견된(주목) 쪽 칩만 안 만든다. is_sub=false(메인)를 is_sub=true(보조)보다도 우선한다.
+    const dupIndex = product.keywords.findIndex(k => k.keyword === row.keyword);
+    if (dupIndex >= 0) {
+      const existing = product.keywords[dupIndex];
+      const existingScore = (isDiscoveredKeyword(existing) ? 2 : 0) + (existing.is_sub ? 1 : 0);
+      const newScore = (isDiscoveredKeyword(row) ? 2 : 0) + (row.is_sub ? 1 : 0);
+      if (newScore < existingScore) {
+        product.keywords[dupIndex] = { ...row, delta, history };
+      }
+      return;
+    }
     product.keywords.push({ ...row, delta, history });
   });
 
@@ -1376,7 +1442,7 @@ function buildProducts(rows, masterMaps, collectedKeywords) {
   });
 
   return [...byProduct.values()].map(product => {
-    product.keywords.sort((a, b) => Number(a.is_sub) - Number(b.is_sub) || rankSortValue(a.rank) - rankSortValue(b.rank) || keywordSortIndex(a) - keywordSortIndex(b));
+    product.keywords.sort((a, b) => keywordGroupIndex(a) - keywordGroupIndex(b) || rankSortValue(a.rank) - rankSortValue(b.rank) || keywordSortIndex(a) - keywordSortIndex(b));
     product.bestRank = product.keywords[0]?.rank ?? null;
     product.mainBestRank = product.keywords.filter(k => !k.is_sub).sort((a, b) => rankSortValue(a.rank) - rankSortValue(b.rank) || keywordSortIndex(a) - keywordSortIndex(b))[0]?.rank ?? null;
     product.mainKeywordCount = product.keywords.filter(k => !k.is_sub).length;
@@ -1454,10 +1520,14 @@ function getCategoryLeadKeyword(product, categoryName) {
     // 대표 키워드(예: 아이소핑크)가 오늘 이탈/미수집이라고 해서 순위가 있는 보조 키워드(예:
     // XPS단열재)를 "메인 키워드"로 대신 보여주면 안 된다 — 대표 키워드 우선순위(leadPool
     // 순서)를 항상 먼저 따지고, 순위 유무는 같은 순서 안에서만 부차적으로 쓴다.
+    // 단, 그 상품 자신의 진짜 메인(is_sub=false)이 leadPool 뒤쪽에 있더라도(예: 압축스티로폼),
+    // 다른 메인의 보조 키워드(예: 벽산아이소핑크, is_sub=true)에 밀리면 안 된다 — is_sub 여부를
+    // leadPool 순서보다 먼저 따진다.
     return getVisibleKeywords(product, categoryName)
       .filter(k => leadPool.includes(k.keyword))
       .sort((a, b) =>
-        leadPool.indexOf(a.keyword) - leadPool.indexOf(b.keyword)
+        Number(a.is_sub) - Number(b.is_sub)
+        || leadPool.indexOf(a.keyword) - leadPool.indexOf(b.keyword)
         || Number(a.rank == null) - Number(b.rank == null)
         || (a.rank ?? 9999) - (b.rank ?? 9999)
       )[0] || null;
@@ -1550,18 +1620,26 @@ function renderProductCard(product, categoryName) {
         <div>${esc(m.text || "")}</div>
       </div>`).join("")
   }</div>` : "";
-  const keywordRows = visibleKeywords.map(k => `
+  // 네이버 순위진단(naver_diagnosis)에서 긁어온 키워드는 우리가 직접 메인으로 지정한 게
+  // 아니라 네이버가 알아서 골라준 것이라 "메인" 개념이 아니다 — "주목"으로 따로 표시한다.
+  const keywordRows = visibleKeywords.map(k => {
+    const isDiscovered = isDiscoveredKeyword(k);
+    const typeLabel = k.is_sub ? "보조" : (isDiscovered ? "주목" : "메인");
+    const typeClass = k.is_sub ? "" : (isDiscovered ? " discovered" : " main");
+    const mainLabel = k.is_sub ? k.main_keyword : (isDiscovered ? "주목 키워드" : "메인 키워드");
+    return `
     <div class="keyword-rank-item">
       <div class="keyword-rank-row">
-        <span class="keyword-type${k.is_sub ? "" : " main"}">${k.is_sub ? "보조" : "메인"}</span>
+        <span class="keyword-type${typeClass}">${typeLabel}</span>
         <a class="keyword-name" href="${esc(keywordUrl(k.keyword))}" title="${esc(k.keyword)}" onclick="event.stopPropagation()">${esc(k.keyword)}</a>
-        <span class="keyword-main" title="${esc(k.main_keyword)}">${esc(k.is_sub ? k.main_keyword : "메인 키워드")}</span>
+        <span class="keyword-main" title="${esc(k.main_keyword)}">${esc(mainLabel)}</span>
         ${rankBadgeHtml(k.rank)}
         ${deltaHtml(k.delta)}
         ${volumeHtml(k.search_volume_total)}
       </div>
       ${renderRankTrend(k)}
-    </div>`).join("");
+    </div>`;
+  }).join("");
 
   const isCategoryExpanded = expandedCategories.has(categoryName);
 
@@ -2387,6 +2465,46 @@ async function deleteTrackedItem(event, code) {
   });
   if (!res.ok) return alert("삭제 실패 (" + res.status + ")");
   await loadTrackedData();
+}
+
+/* 네이버스토어 검색순위진단(naver_diagnosis) 수집 — 확장프로그램에 요청만 보낸다.
+   실제 수집은 확장프로그램이 새 탭을 열어 진행하고(스마트스토어센터 로그인 필요),
+   진행 상황/결과는 그 탭의 자체 패널에 뜬다 — 이 페이지로 실시간 진행률까진 안 돌아온다. */
+function startSmartstoreImport(storeName) {
+  return new Promise((resolve, reject) => {
+    const requestId = `smartstore-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const timer = setTimeout(() => {
+      window.removeEventListener("message", onResponse);
+      reject(new Error("확장프로그램과 연결되지 않았습니다. chrome://extensions에서 확장프로그램을 새로고침한 뒤 이 페이지도 새로고침하세요."));
+    }, 5000);
+    function onResponse(event) {
+      if (event.source !== window || event.origin !== window.location.origin) return;
+      if (event.data?.type !== "ENERGUARD_SMARTSTORE_IMPORT_RESPONSE" || event.data.requestId !== requestId) return;
+      clearTimeout(timer);
+      window.removeEventListener("message", onResponse);
+      if (event.data.ok) resolve(event.data);
+      else reject(new Error(event.data.error || "확장프로그램에서 수집을 시작하지 못했습니다."));
+    }
+    window.addEventListener("message", onResponse);
+    window.postMessage({ type: "ENERGUARD_SMARTSTORE_IMPORT_START", requestId, storeName }, window.location.origin);
+  });
+}
+
+async function collectNaverStoreRank() {
+  const btn = document.getElementById("naverStoreCollectBtn");
+  const status = document.getElementById("naverStoreCollectStatus");
+  if (btn.disabled) return;
+  btn.disabled = true;
+  status.textContent = "확장프로그램에 요청 중...";
+  try {
+    await startSmartstoreImport(selectedStore);
+    status.textContent = "요청 완료 — 새로 열린 탭에서 진행 상황을 확인하세요.";
+  } catch (e) {
+    status.textContent = e.message || "수집 요청 실패";
+  } finally {
+    btn.disabled = false;
+    setTimeout(() => { if (status.textContent) status.textContent = ""; }, 6000);
+  }
 }
 
 /* 수집: 추적 키워드를 모아 키워드당 1회 스캔, watched 결과를 이력으로 저장.
