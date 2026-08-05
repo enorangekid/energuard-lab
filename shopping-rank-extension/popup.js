@@ -93,7 +93,7 @@ $("singleLookupButton").addEventListener("click", async () => {
     targetProductUrl: productUrl,
     targetProductCode: productCode,
     pageCount: 1,
-    pageDelay: Number(fields.pageDelay.value) || 2500,
+    pageDelay: Number(fields.pageDelay.value) || 1500,
     openReport: false,
   });
 });
@@ -165,7 +165,7 @@ $("startButton").addEventListener("click", async () => {
     storeName: config.storeName,
     keywords,
     pageCount: 5,
-    pageDelay: Number(config.pageDelay) || 2500,
+    pageDelay: Number(config.pageDelay) || 1500,
   };
   await openRunner(runConfig);
 });

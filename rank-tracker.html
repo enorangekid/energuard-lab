@@ -470,6 +470,10 @@
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
+  /* 키워드 랭킹 필터바 — 공용 .app-filterbar 기본 gap(16px)이 아이템 추적(.item-toolbar,
+     gap:8px)보다 넓어서 스토어 드롭다운과 수집 버튼 사이 간격이 서로 달라 보였다. 맞춘다. */
+  .rank-filterbar { gap: 8px; }
+
   /* ── 아이템 추적 ── */
   .item-toolbar {
     display: flex; align-items: center; gap: 8px; padding-bottom: 22px;
@@ -761,11 +765,15 @@ const TRACKER_CATEGORIES = [
   "기타",
 ];
 const STORE_TRACKER_CATEGORIES = {
+  // PF보드/경질우레탄보드/준불연비드법/준불연열반사는 "준불연단열재" 탭 안의 하위탭으로
+  // 묶는다(사용자 지정) — product_rankings.category_tab="준불연단열재" + detail_category로
+  // 4개 재질을 구분해서 고정 배정해뒀다. 카드에 뜨는 "메인 키워드"는 절대 "준불연단열재"라는
+  // 범용 라벨이 아니라 항상 이 4개 중 구체적인 키워드로 표시돼야 한다(getCategoryLeadKeyword).
   "에너가드컴퍼니": [
     "아이소핑크",
     "비드법단열재",
     "준불연단열재",
-    "불연단열재",
+    "불연열반사",
     "열반사단열재",
   ],
 };
@@ -774,7 +782,7 @@ const STORE_CATEGORY_DISPLAY_KEYWORDS = {
     "아이소핑크": ["아이소핑크"],
     "비드법단열재": ["비드법단열재"],
     "준불연단열재": ["PF보드", "경질우레탄보드", "준불연비드법", "준불연열반사"],
-    "불연단열재": ["불연단열재"],
+    "불연열반사": ["불연열반사"],
     "열반사단열재": ["열반사단열재"],
   },
 };
@@ -782,8 +790,8 @@ const STORE_CATEGORY_DETAIL_KEYWORDS = {
   "에너가드컴퍼니": {
     "아이소핑크": ["아이소핑크", "XPS단열재", "압출법단열재"],
     "비드법단열재": ["비드법단열재", "EPS단열재", "스티로폼단열재"],
-    "준불연단열재": ["PF보드", "경질우레탄보드", "준불연비드법", "준불연열반사", "준불연단열재", "우레탄보드", "페놀폼", "심재준불연", "난연단열재"],
-    "불연단열재": ["불연단열재", "불연열반사", "미네랄울", "글라스울"],
+    "준불연단열재": ["PF보드", "경질우레탄보드", "준불연비드법", "준불연열반사", "페놀폼", "심재준불연", "우레탄보드", "난연단열재", "준불연단열재"],
+    "불연열반사": ["불연열반사", "불연단열재", "미네랄울", "글라스울"],
     "열반사단열재": ["열반사단열재", "은박단열재", "온도리"],
   },
   // 한국 단열은 STORE_CATEGORY_DISPLAY_KEYWORDS가 없어서(=탭 분류는 그대로 product_rankings.category
@@ -807,16 +815,16 @@ const STORE_CATEGORY_DETAIL_KEYWORDS = {
     "단열벽지": ["단열벽지", "접착식단열벽지", "보온벽지", "결로방지벽지", "곰팡이벽지", "방한벽지"],
   },
 };
-// 카테고리 안에서 상품 수가 너무 많아지면(예: 준불연단열재) 재질별로 한 번 더 나눠서 보여준다.
-// 여기 등록 안 된 카테고리는 지금처럼 하위탭 없이 그대로 보인다.
-// "심재준불연"·"난연단열재"·"준불연단열재" 같은 키워드는 PF보드·비드법·열반사 어디에나 붙는
-// 등급 표기라 키워드만으로는 재질을 구분할 수 없다 — 상품명에 실제 재질명이 있으므로 이름으로 구분한다.
+// 카테고리 안에서 상품 수가 너무 많아지면 재질별로 한 번 더 나눠서 보여주는 하위탭 기능.
+// 여기 등록 안 된 카테고리는 하위탭 없이 그대로 보인다.
+// "준불연단열재"는 product_rankings.detail_category에 재질(PF보드/경질우레탄보드/준불연비드법/
+// 준불연열반사)이 이미 고정 배정돼 있어(사용자 지정), 이름 정규식 추측 없이 그 값을 그대로 쓴다.
 const CATEGORY_SUBGROUPS = {
   "준불연단열재": [
-    { key: "pf", label: "PF보드/페놀폼", test: /PF보드|페놀폼/ },
-    { key: "urethane", label: "경질우레탄보드", test: /우레탄보드/ },
-    { key: "bead", label: "비드법", test: /비드법|EPS|스티로폼/ },
-    { key: "mineral", label: "미네랄울/열반사", test: /미네랄울|락울|열반사/ },
+    { key: "pf", label: "PF보드", detail: "PF보드" },
+    { key: "urethane", label: "경질우레탄보드", detail: "경질우레탄보드" },
+    { key: "bead", label: "준불연비드법", detail: "준불연비드법" },
+    { key: "mineral", label: "준불연열반사", detail: "준불연열반사" },
   ],
 };
 const activeSubgroups = {}; // 카테고리명 -> 선택된 하위탭 key ("all"이면 전체)
@@ -824,9 +832,9 @@ const activeSubgroups = {}; // 카테고리명 -> 선택된 하위탭 key ("all"
 function resolveSubgroup(product, categoryName) {
   const groups = CATEGORY_SUBGROUPS[categoryName];
   if (!groups) return null;
-  const name = String(product.name || "");
-  const hit = groups.find(group => group.test.test(name));
-  return hit ? hit.key : "etc";
+  const byDetail = groups.find(group => group.detail === product.detailCategory);
+  if (byDetail) return byDetail.key;
+  return "etc";
 }
 
 const CATEGORY_MAIN_KEYWORD = {
@@ -934,6 +942,19 @@ function getVisibleKeywords(product, categoryName) {
   return product.keywords.filter(k => detailKeywords.includes(k.keyword) || isDiscoveredKeyword(k));
 }
 
+// 이 상품이 진짜 이 카테고리 소속인지 — 주목 키워드는 여기서 판단 근거로 못 쓴다(주목은
+// 어느 카테고리에도 안 걸려있어서, 그걸 기준으로 삼으면 주목 키워드 하나만 있는 상품이
+// 목록 맨 앞 카테고리에 전부 끌려들어간다. 실제로 "준불연단열재" 상품이 다른 키워드 기록이
+// 밀려나서 "단열재"(주목) 하나만 남았을 때 "아이소핑크" 탭에 들어간 사고가 있었다).
+function productBelongsToCategory(product, categoryName) {
+  const detailKeywords = getDetailKeywords(categoryName);
+  if (!detailKeywords) return true;
+  // rank===undefined("미수집" = 오늘 이 키워드 자체를 시도조차 안 함)인 행은 소속 근거로
+  // 못 쓴다 — 안 그러면 EPS 상품에 옛날에 잘못 붙은 죽은 태그만으로 엉뚱한 탭에 끌려들어온다.
+  // rank===null(오늘 찾아봤는데 이탈)은 여전히 소속 근거로 인정한다(이탈 유지 원칙).
+  return product.keywords.some(k => detailKeywords.includes(k.keyword) && k.rank !== undefined);
+}
+
 function productHasKeywordOrName(product, keywords) {
   const name = normalizeText(product.name);
   return product.keywords.some(k => keywords.includes(k.keyword) || keywords.includes(k.main_keyword))
@@ -944,8 +965,12 @@ function productHasKeywordOrName(product, keywords) {
 // k.main_keyword(그 키워드가 속한 그룹명)까지 같이 체크하면, 압출법단열재(main_keyword=아이소핑크)로
 // 교차 노출된 비드법(EPS) 상품이 "아이소핑크 키워드가 있다"고 오판돼 비드법단열재 카테고리에서
 // 통째로 차단되는 문제가 있었다 — keyword 문자열 자체만 비교한다.
+// rank가 있는(=지금도 실제로 그 키워드로 잡히는) 행만 인정한다 — 예전에 며칠 잠깐
+// 교차노출됐다가 지금은 이탈된 죽은 태그 때문에 원래 카테고리에서 영구 차단되면 안 된다
+// (XPS 아이소핑크 상품이 "스티로폼단열재"에 옛날에 딱 한 번 걸렸다가 지금은 이탈인데도
+// 계속 아이소핑크 탭에서 빠지던 사고가 있었다).
 function productHasKeyword(product, keywords) {
-  return product.keywords.some(k => keywords.includes(k.keyword));
+  return product.keywords.some(k => keywords.includes(k.keyword) && k.rank != null);
 }
 
 function isBlockedFromCategory(product, categoryName) {
@@ -1044,9 +1069,12 @@ async function fetchHistory(store) {
       if (first.status === 400) continue; // 없는 컬럼이면 다음 select로 재시도
       throw new Error("조회 실패 (" + first.status + ")");
     }
-    // Supabase는 요청당 최대 1,000행만 주므로 페이지를 돌며 최대 6,000행까지 수집
+    // Supabase는 요청당 최대 1,000행만 주므로 페이지를 돌며 수집한다. 예전엔 6,000행에서
+    // 끊었는데, 수집량이 늘면서(예: 에너가드컴퍼니 17,000행+) 상품의 진짜 메인/보조 키워드
+    // 기록이 최근 며칠치 물량에 밀려 잘려나가는 사고가 있었다(그 상품엔 "주목" 키워드 한
+    // 줄만 남아서 엉뚱한 카테고리 탭에 끌려들어감) — 상한을 30,000행으로 넉넉히 올린다.
     const rows = await first.json();
-    for (let page = 1; page < 6 && rows.length === page * 1000; page++) {
+    for (let page = 1; page < 30 && rows.length === page * 1000; page++) {
       const res = await fetch(base + select + order + `&offset=${page * 1000}&limit=1000`, { headers });
       if (!res.ok) break;
       const more = await res.json();
@@ -1063,6 +1091,7 @@ async function fetchProductMasters() {
   const headers = { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer " + SUPABASE_ANON_KEY };
   // alt_codes(그룹상품 대체 코드) 컬럼이 아직 마이그레이션 전이면 400이 나므로, 없는 채로도 동작하게 폴백
   const selects = [
+    `?select=code,keyword,category_tab,detail_category,image_url,name,memo,is_checked,alt_codes`,
     `?select=code,keyword,category_tab,image_url,name,memo,is_checked,alt_codes`,
     `?select=code,keyword,category_tab,image_url,name,memo,is_checked`,
   ];
@@ -1228,10 +1257,10 @@ function hasMainKeyword(keywords, keywordList) {
 
 function resolveProductCategory(product) {
   if (PRODUCT_CATEGORY_OVERRIDES[product.code]) return PRODUCT_CATEGORY_OVERRIDES[product.code];
-  if (selectedStore === "에너가드컴퍼니") return inferCategoryFromKeywords(product.keywords);
-  if (hasMainKeyword(product.keywords, HARD_ETC_MAIN_KEYWORDS)) return "기타";
   const normalized = normalizeCategory(product.category);
   if (normalized !== "기타") return normalized;
+  if (selectedStore === "에너가드컴퍼니") return inferCategoryFromKeywords(product.keywords);
+  if (hasMainKeyword(product.keywords, HARD_ETC_MAIN_KEYWORDS)) return "기타";
   return inferCategoryFromKeywords(product.keywords);
 }
 
@@ -1269,6 +1298,7 @@ function buildMasterMaps(masters) {
     const normalized = {
       code,
       category: normalizeCategory(master.category_tab),
+      detailCategory: master.detail_category || "",
       image: master.image_url || "",
       name: master.name || "",
       memos: parseMemos(master.memo),
@@ -1350,6 +1380,7 @@ function buildProducts(rows, masterMaps, collectedKeywords) {
         link: row.product_link || "",
         price: Number(row.product_price) || 0,
         category: master?.category || "기타",
+        detailCategory: master?.detailCategory || "",
         masterCode: master?.code || code,
         memos: master?.memos || [],
         isChecked: master?.isChecked || false,
@@ -1359,6 +1390,7 @@ function buildProducts(rows, masterMaps, collectedKeywords) {
     }
     const product = byProduct.get(code);
     if (product.category === "기타" && master?.category) product.category = master.category;
+    if (!product.detailCategory && master?.detailCategory) product.detailCategory = master.detailCategory;
     if (!product.masterCode && master?.code) product.masterCode = master.code;
     if (!product.isChecked && master?.isChecked) product.isChecked = true;
     if ((!product.memos || !product.memos.length) && master?.memos?.length) product.memos = master.memos;
@@ -1380,8 +1412,13 @@ function buildProducts(rows, masterMaps, collectedKeywords) {
     const dupIndex = product.keywords.findIndex(k => k.keyword === row.keyword);
     if (dupIndex >= 0) {
       const existing = product.keywords[dupIndex];
-      const existingScore = (isDiscoveredKeyword(existing) ? 2 : 0) + (existing.is_sub ? 1 : 0);
-      const newScore = (isDiscoveredKeyword(row) ? 2 : 0) + (row.is_sub ? 1 : 0);
+      // 같은 상품이 코드 파편화(가격비교ID 등)로 두 코드에 나뉘어 있다가 alt_codes로
+      // 병합되면, 같은 키워드에 대해 "진짜 순위가 찍힌 행"과 "그 파편 코드는 이번엔 안
+      // 잡혔다"는 이탈(null) 행이 동시에 들어올 수 있다 — 순위가 있는 쪽이 무조건 이겨야
+      // 한다(없으면 멀쩡한 순위가 이탈로 덮여씌워진다). 순위 유무를 최우선으로 비교하고,
+      // 그다음에만 메인/보조/주목 우선순위를 본다.
+      const existingScore = (existing.rank == null ? 10 : 0) + (isDiscoveredKeyword(existing) ? 2 : 0) + (existing.is_sub ? 1 : 0);
+      const newScore = (row.rank == null ? 10 : 0) + (isDiscoveredKeyword(row) ? 2 : 0) + (row.is_sub ? 1 : 0);
       if (newScore < existingScore) {
         product.keywords[dupIndex] = { ...row, delta, history };
       }
@@ -1403,6 +1440,7 @@ function buildProducts(rows, masterMaps, collectedKeywords) {
       link: row.product_link || "",
       price: Number(row.product_price) || 0,
       category: master?.category || "기타",
+      detailCategory: master?.detailCategory || "",
       masterCode: master?.code || code,
       memos: master?.memos || [],
       isChecked: master?.isChecked || false,
@@ -1447,7 +1485,12 @@ function buildProducts(rows, masterMaps, collectedKeywords) {
     product.mainBestRank = product.keywords.filter(k => !k.is_sub).sort((a, b) => rankSortValue(a.rank) - rankSortValue(b.rank) || keywordSortIndex(a) - keywordSortIndex(b))[0]?.rank ?? null;
     product.mainKeywordCount = product.keywords.filter(k => !k.is_sub).length;
     return product;
-  }).sort((a, b) => (a.mainBestRank ?? 9999) - (b.mainBestRank ?? 9999) || (a.bestRank ?? 9999) - (b.bestRank ?? 9999) || b.keywords.length - a.keywords.length || a.name.localeCompare(b.name, "ko"));
+  })
+    // 큐레이션(메인/보조)으로 추적된 키워드가 하나도 없고 전부 "주목"(네이버 진단이 우연히
+    // 잡아준 키워드)뿐인 상품은 애초에 우리가 의도적으로 추적하는 게 아니다 — 폼본드/접착제/
+    // 테이프처럼 완전히 다른 상품군이 "기타" 탭에 노이즈로 섞여 들어오는 원인이었다.
+    .filter(product => product.keywords.some(k => !isDiscoveredKeyword(k)))
+    .sort((a, b) => (a.mainBestRank ?? 9999) - (b.mainBestRank ?? 9999) || (a.bestRank ?? 9999) - (b.bestRank ?? 9999) || b.keywords.length - a.keywords.length || a.name.localeCompare(b.name, "ko"));
 }
 
 /* 이탈(수집 누락) 키워드 — 특정 상품이 특정 키워드 검색에서 max_rank 밖으로 밀려나거나
@@ -1523,10 +1566,15 @@ function getCategoryLeadKeyword(product, categoryName) {
     // 단, 그 상품 자신의 진짜 메인(is_sub=false)이 leadPool 뒤쪽에 있더라도(예: 압축스티로폼),
     // 다른 메인의 보조 키워드(예: 벽산아이소핑크, is_sub=true)에 밀리면 안 된다 — is_sub 여부를
     // leadPool 순서보다 먼저 따진다.
+    // 준불연단열재만 예외: "준불연단열재"라는 범용 키워드는 어느 상품에도 대표로 뜨면 안
+    // 된다(사용자 지정) — PF보드/경질우레탄보드/준불연비드법/준불연열반사 중 하나가 항상
+    // 있어야 하고, 그게 이 상품의 진짜 세부 소속이니 절대 우선한다.
+    const genericPenalty = (k) => (categoryName === "준불연단열재" && k.keyword === "준불연단열재") ? 1 : 0;
     return getVisibleKeywords(product, categoryName)
       .filter(k => leadPool.includes(k.keyword))
       .sort((a, b) =>
-        Number(a.is_sub) - Number(b.is_sub)
+        genericPenalty(a) - genericPenalty(b)
+        || Number(a.is_sub) - Number(b.is_sub)
         || leadPool.indexOf(a.keyword) - leadPool.indexOf(b.keyword)
         || Number(a.rank == null) - Number(b.rank == null)
         || (a.rank ?? 9999) - (b.rank ?? 9999)
@@ -1575,10 +1623,19 @@ function buildCategorySections(products) {
   const displayGroups = STORE_CATEGORY_DISPLAY_KEYWORDS[selectedStore];
 
   products.forEach(product => {
+    // product_rankings.category_tab에 고정값이 박혀있으면 무조건 그걸 쓴다 — 키워드가
+    // 어느 카테고리에 교차로 잡히든 흔들리지 않는다(한국단열이 원래 이 방식). 아직 고정값이
+    // 없는(신규 등록 전) 상품만 예전처럼 키워드로 추론한다.
+    const fixedCategory = normalizeCategory(product.category);
+    if (fixedCategory !== "기타" && allowedCategories.includes(fixedCategory)) {
+      if (!byCategory.has(fixedCategory)) byCategory.set(fixedCategory, []);
+      byCategory.get(fixedCategory).push(product);
+      return;
+    }
     if (displayGroups) {
       allowedCategories.forEach(categoryName => {
         if (isBlockedFromCategory(product, categoryName)) return;
-        if (!getVisibleKeywords(product, categoryName).length) return;
+        if (!productBelongsToCategory(product, categoryName)) return;
         if (!byCategory.has(categoryName)) byCategory.set(categoryName, []);
         byCategory.get(categoryName).push(product);
       });
@@ -1939,12 +1996,11 @@ function renderSubgroupTabs(section) {
     const key = resolveSubgroup(product, section.name);
     counts.set(key, (counts.get(key) || 0) + 1);
   });
-  const activeKey = activeSubgroups[section.name] || "all";
-  const tabs = [{ key: "all", label: "전체", count: section.products.length }]
-    .concat(groups.map(g => ({ key: g.key, label: g.label, count: counts.get(g.key) || 0 })))
+  const activeKey = activeSubgroups[section.name] || groups[0]?.key;
+  const tabs = groups.map(g => ({ key: g.key, label: g.label, count: counts.get(g.key) || 0 }))
     .concat(counts.get("etc") ? [{ key: "etc", label: "기타", count: counts.get("etc") }] : []);
   return `<div class="subcategory-tabs">
-    ${tabs.filter(t => t.key === "all" || t.count > 0).map(t => `
+    ${tabs.filter(t => t.count > 0).map(t => `
       <button type="button" class="subcategory-tab${t.key === activeKey ? " active" : ""}" data-subgroup="${esc(t.key)}" data-subgroup-category="${esc(section.name)}">
         ${esc(t.label)}<span class="subcategory-tab-count">${t.count}</span>
       </button>`).join("")}
@@ -1954,8 +2010,8 @@ function renderSubgroupTabs(section) {
 function filterBySubgroup(section) {
   const groups = CATEGORY_SUBGROUPS[section.name];
   if (!groups) return section.products;
-  const activeKey = activeSubgroups[section.name] || "all";
-  if (activeKey === "all") return section.products;
+  const activeKey = activeSubgroups[section.name] || groups[0]?.key;
+  if (!activeKey) return section.products;
   return section.products.filter(product => resolveSubgroup(product, section.name) === activeKey);
 }
 
@@ -2446,7 +2502,8 @@ async function saveItemModal() {
     closeItemModal();
     await loadTrackedData();
     if (cachedProducts.length) renderProducts(cachedProducts);
-    if (isNew) collectTrackedItems([targetCode]); // 등록 직후 첫 스냅샷 수집 (이때 상품명/이미지도 자동으로 채워짐)
+    // 등록 직후 자동 수집은 더 이상 안 한다 — 이제 배치 수집이 새 탭을 여는 방식이라
+    // 상품 하나 등록할 때마다 탭이 뜨면 방해된다. 필요하면 수집 버튼을 직접 눌러서 모아서 한다.
   } catch (e) {
     setItemLinkHint(e.message || "저장에 실패했습니다.", "error");
   } finally {
@@ -2507,113 +2564,47 @@ async function collectNaverStoreRank() {
   }
 }
 
-/* 수집: 추적 키워드를 모아 키워드당 1회 스캔, watched 결과를 이력으로 저장.
-   onlyCodes를 주면 그 상품이 추적하는 키워드만 수집(등록 직후 첫 스냅샷용). */
-async function collectTrackedItems(onlyCodes) {
-  if (itemCollecting) return;
-  const targets = onlyCodes ? trackedItems.filter(i => onlyCodes.includes(i.product_code)) : trackedItems;
-  if (!targets.length) return;
-  const keywordMap = new Map(); // keyword → 이 키워드를 추적하는 상품코드들
-  targets.forEach(item => itemKeywords(item).forEach(kw => {
-    if (!keywordMap.has(kw)) keywordMap.set(kw, new Set());
-    keywordMap.get(kw).add(item.product_code);
-  }));
-  if (!keywordMap.size) return;
+/* 수집 — 예전엔 Supabase Edge Function(naver-rank)을 직접 호출했는데, 그 함수가 쓰는
+   네이버쇼핑 상품검색 API 자체가 막혀서(크롤링도 IP 차단) 계속 실패하고 있었다. 확장프로그램의
+   실제 브라우저 검색 스크래핑(스마트스토어 진단 수집과 같은 방식)으로 바꿨다 — 요청만 보내고,
+   실제 수집은 확장프로그램이 새 탭에서 진행한다(진행 상황은 그 탭에서 확인).
+   onlyCodes 인자는 더 이상 안 쓴다 — 배치 수집기가 등록된 추적 상품 전체의 키워드를 알아서 모은다. */
+function startTrackedItemsCollection() {
+  return new Promise((resolve, reject) => {
+    const requestId = `tracked-items-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const timer = setTimeout(() => {
+      window.removeEventListener("message", onResponse);
+      reject(new Error("확장프로그램과 연결되지 않았습니다. chrome://extensions에서 확장프로그램을 새로고침한 뒤 이 페이지도 새로고침하세요."));
+    }, 5000);
+    function onResponse(event) {
+      if (event.source !== window || event.origin !== window.location.origin) return;
+      if (event.data?.type !== "ENERGUARD_TRACKED_ITEMS_RESPONSE" || event.data.requestId !== requestId) return;
+      clearTimeout(timer);
+      window.removeEventListener("message", onResponse);
+      if (event.data.ok) resolve(event.data);
+      else reject(new Error(event.data.error || "확장프로그램에서 수집을 시작하지 못했습니다."));
+    }
+    window.addEventListener("message", onResponse);
+    window.postMessage({ type: "ENERGUARD_TRACKED_ITEMS_START", requestId, pageDelay: 1500 }, window.location.origin);
+  });
+}
 
-  const codeToCanonical = buildCodeToCanonicalMap();
-  const allCodes = [...codeToCanonical.keys()]; // 기준 코드 + alt_codes 전부 — 스캔은 공짜이므로 전체 감시 목록을 넘겨 겸사겸사 수집
+async function collectTrackedItems() {
+  if (itemCollecting) return;
   const status = document.getElementById("itemCollectStatus");
   const btn = document.getElementById("itemCollectBtn");
   itemCollecting = true;
   btn.disabled = true;
-  showLoading(`아이템 추적 수집 중... (0/${keywordMap.size})`); // 전역 로딩 오버레이 (전 페이지 공통)
-  const collectedDate = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10); // KST
-  let done = 0;
-
+  status.textContent = "확장프로그램에 요청 중...";
   try {
-    for (const [keyword, codes] of keywordMap) {
-      status.textContent = `수집 중... (${++done}/${keywordMap.size}) ${keyword}`;
-      setLoadingMessage(`아이템 추적 수집 중... (${done}/${keywordMap.size}) ${keyword}`);
-      try {
-        const res = await fetch(RANK_FN_URL, {
-          method: "POST",
-          headers: sbHeaders(),
-          body: JSON.stringify({ keyword, maxRank: 1000, withInsight: false, watchProductIds: allCodes }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || res.status);
-        const watched = data.watched || [];
-        // 검색에 걸린 코드가 기준 코드든 alt_codes든 항상 기준 코드로 모아서 저장한다.
-        const foundByCode = new Map();
-        watched.forEach(w => {
-          const canon = codeToCanonical.get(String(w.productId)) || String(w.productId);
-          if (!foundByCode.has(canon)) foundByCode.set(canon, w);
-        });
-
-        // 이력 저장: 이 키워드를 추적하는 상품은 못 찾았어도 "이탈" 행을 남긴다.
-        // 추적 키워드가 아니어도 스캔에 걸린 감시 상품은 보너스로 저장(나중에 키워드 추가 시 이력이 이미 있음).
-        const rows = [];
-        const seen = new Set();
-        codes.forEach(codeInSet => {
-          const w = foundByCode.get(String(codeInSet));
-          rows.push({
-            product_code: codeInSet, keyword,
-            rank: w ? w.rank : null,
-            price: w ? (Number(w.price) || 0) : 0,
-            mall_name: w ? (w.mallName || "") : "",
-            collected_date: collectedDate,
-            checked_at: new Date().toISOString(),
-          });
-          seen.add(String(codeInSet));
-        });
-        foundByCode.forEach((w, canon) => {
-          if (seen.has(canon)) return;
-          rows.push({
-            product_code: canon, keyword,
-            rank: w.rank, price: Number(w.price) || 0, mall_name: w.mallName || "",
-            collected_date: collectedDate, checked_at: new Date().toISOString(),
-          });
-        });
-        if (rows.length) {
-          await fetch(`${SUPABASE_URL}/rest/v1/tracked_item_history?on_conflict=product_code,keyword,collected_date`, {
-            method: "POST",
-            headers: sbHeaders({ "Prefer": "resolution=merge-duplicates,return=minimal" }),
-            body: JSON.stringify(rows),
-          });
-        }
-
-        // 검색 결과에서 상품명/이미지/판매처 메타 자동 갱신 — alt_codes로 걸렸어도 기준 코드 행을 갱신
-        for (const w of watched) {
-          const canon = codeToCanonical.get(String(w.productId)) || String(w.productId);
-          const item = trackedItems.find(i => i.product_code === canon);
-          if (!item) continue;
-          const patch = {};
-          if (w.title && w.title !== item.product_name) patch.product_name = w.title;
-          if (w.image && w.image !== item.product_image) patch.product_image = w.image;
-          if (w.mallName && w.mallName !== item.mall_name) patch.mall_name = w.mallName;
-          if (w.link && !item.product_link) patch.product_link = w.link;
-          if (Object.keys(patch).length) {
-            patch.updated_at = new Date().toISOString();
-            await fetch(`${SUPABASE_URL}/rest/v1/tracked_items?product_code=eq.${encodeURIComponent(item.product_code)}`, {
-              method: "PATCH",
-              headers: sbHeaders({ "Prefer": "return=minimal" }),
-              body: JSON.stringify(patch),
-            });
-            Object.assign(item, patch);
-          }
-        }
-      } catch (e) {
-        console.warn("아이템 추적 수집 실패:", keyword, e);
-      }
-    }
-    status.textContent = `수집 완료 (${keywordMap.size}개 키워드)`;
+    await startTrackedItemsCollection();
+    status.textContent = "요청 완료 — 새로 열린 탭에서 진행 상황을 확인하세요.";
+  } catch (e) {
+    status.textContent = e.message || "수집 요청 실패";
   } finally {
     itemCollecting = false;
     btn.disabled = false;
-    hideLoading();
-    await loadTrackedData();
-    if (cachedProducts.length) renderProducts(cachedProducts);
-    setTimeout(() => { if (!itemCollecting) status.textContent = ""; }, 4000);
+    setTimeout(() => { if (status.textContent) status.textContent = ""; }, 6000);
   }
 }
 

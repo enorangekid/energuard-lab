@@ -251,9 +251,16 @@
     }, timeout);
   }
 
-  function managerMoreButtons() {
-    return [...document.querySelectorAll("button")]
-      .filter((button) => textOf(button).includes("내상품 키워드 더보기"));
+  // "내상품 키워드 더보기" 버튼은 키워드가 많은 상품에만 있다 — 그래서 버튼 기준으로만 상품을
+  // 찾으면 버튼 없는 상품(키워드 4개 이하)이 통째로 빠졌다. 실제로는 상품명/썸네일 자체가
+  // role="link"라 어떤 상품이든 클릭하면 channelProductNo가 URL에 찍히는 같은 상세 페이지로
+  // 이동한다 — 그래서 버튼 대신 "상품 행(li)" 자체를 기준으로 순회해야 전체가 다 잡힌다.
+  function managerProductRows() {
+    return [...document.querySelectorAll('li[class*="Products-module__product"]')];
+  }
+
+  function managerRowClickTarget(row) {
+    return row?.querySelector('[role="link"]') || null;
   }
 
   function isManagerDetail() {
@@ -261,13 +268,13 @@
       .some((paragraph) => textOf(paragraph).includes("채널 상품 번호"));
   }
 
-  // 예전엔 body 전체를 훑는 managerVisibleProductRows()[0]과 aria-current 속성에 의존했는데,
-  // 둘 다 렌더링 타이밍에 따라 흔들릴 여지가 있었다. 실제로 클릭할 대상(더보기 버튼)이 속한
-  // <li> 텍스트만 비교하는 게 훨씬 안정적이다.
-  function managerListSignature() {
-    const button = managerMoreButtons()[0];
-    const item = button?.closest("li");
-    return textOf(item).slice(0, 180);
+  // 더보기 버튼이 속한 <li> 텍스트로 페이지 전환을 감지했었는데, 키워드 4개 이하라 버튼
+  // 자체가 없는 상품만 있는 페이지(뒤쪽 페이지 대부분이 이랬다)에서는 이 값이 계속 빈 문자열이라
+  // "페이지가 넘어갔는지"를 영영 알 수 없었다 — 그래서 4번 재시도 후 포기하고 그 지점에서
+  // 수집이 끝나버렸다(88개 중 30여 개에서 항상 멈추던 진짜 원인). 버튼 유무와 무관한
+  // 페이지네이션의 "현재 페이지" 숫자로 판단해야 버튼 없는 페이지도 안전하게 넘어갈 수 있다.
+  function managerListReady() {
+    return !isManagerDetail() && !!document.querySelector('nav[aria-label="페이지네이션"]');
   }
 
   function managerRankTable() {
@@ -292,6 +299,37 @@
       if (firstPage) return label.startsWith("1페이지");
       return label.includes(labelText) || textOf(button).includes(labelText);
     }) || null;
+  }
+
+  // 상세를 열었다가 "목록"으로 돌아가면 몇 페이지째였는지와 무관하게 1페이지로 리셋되는
+  // 경우가 있다 — 실제로 몇 페이지에 있는지 직접 읽어서, 원래 있던 깊이까지 다시 넘긴다.
+  function managerCurrentPageNumber() {
+    const nav = document.querySelector('nav[aria-label="페이지네이션"]');
+    const current = nav?.querySelector('button[aria-current="page"]');
+    const num = Number(textOf(current));
+    return Number.isFinite(num) && num > 0 ? num : 1;
+  }
+
+  async function waitForManagerPageAdvance(previousPage, timeout = 20000) {
+    const target = await waitFor(() => {
+      const current = managerCurrentPageNumber();
+      return current > previousPage ? current : null;
+    }, timeout);
+    if (target) await sleep(350); // 페이지 번호는 바뀌어도 목록 내용은 아직 그려지는 중일 수 있다.
+    return target;
+  }
+
+  async function ensureManagerListPage(targetPage) {
+    for (let guard = 0; guard < 30; guard += 1) {
+      const current = managerCurrentPageNumber();
+      if (current >= targetPage) return true;
+      const nextButton = managerPaginationButton("다음 페이지");
+      if (!nextButton || nextButton.disabled) return false;
+      nextButton.click();
+      const changed = await waitForManagerPageAdvance(current);
+      if (!changed) return false;
+    }
+    return false;
   }
 
   function parseManagerRankRow(row) {
@@ -399,81 +437,226 @@
       .find((button) => textOf(button) === "목록");
     if (!listButton) return false;
     listButton.click();
-    return Boolean(await waitFor(() => managerMoreButtons().length && managerListSignature(), 20000));
+    // 더보기 버튼 존재 여부로 "돌아갔는지"를 판단하면 안 된다 — 버튼 없는 상품만 있는
+    // 페이지로 돌아갈 수도 있다. 상세 화면이 아니고 목록 페이지네이션이 보이면 충분하다.
+    const ok = await waitFor(managerListReady, 20000);
+    if (ok) await sleep(200);
+    return Boolean(ok);
   }
 
-  // 셀로몬 코드를 그대로 옮겼다 — 페이지당 "더보기" 버튼을 인덱스 순서로 하나씩 처리하고,
-  // 한 페이지 분을 다 처리한 뒤에만 다음 페이지로 넘어간다. 리스트 스냅샷 병합이나 스크롤
-  // 폴백, 키 기반 중복추적 같은 우리가 얹었던 레이어가 오히려 타이밍을 불안정하게 만든
-  // 것으로 보여 전부 걷어냈다.
   const MAX_MANAGER_PRODUCTS = 200;
 
+  // 상품 목록의 "더보기" 버튼이 속한 <li>에서 상품코드/상품명을 뽑아 식별자로 쓴다 —
+  // 상세를 열었다가 "목록"으로 돌아가면 페이지가 항상 1페이지로 리셋되는 것으로 보여서,
+  // 인덱스나 "몇 페이지째"로는 진행 상황을 믿을 수 없다. 실제로 처리한 상품 자체를
+  // 기억해뒀다가 건너뛰는 방식만이 페이지 리셋과 무관하게 안전하다.
+  function managerRowKey(row) {
+    if (!row) return "";
+    return productCodeFrom(row) || productNameFrom(row) || textOf(row).slice(0, 200);
+  }
+
+  async function resolveManagerProductCount() {
+    // 카드가 1개라도 뜨자마자 바로 "상품 수 N개"를 재면, 그 문구도 목록도 아직 다 안 그려진
+    // 상태에서 훨씬 적은 값으로 상한이 굳어버릴 수 있다(예: 91개인데 8개로 고정돼 "정상 종료").
+    for (let attempt = 0; attempt < 15; attempt += 1) {
+      const match = textOf(document.body).match(/상품\s*수\s*([\d,]+)개/);
+      if (match) return Number(match[1].replace(/,/g, ""));
+      await sleep(300);
+    }
+    let previousCount = -1;
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      const currentCount = managerProductRows().length;
+      if (currentCount === previousCount) break;
+      previousCount = currentCount;
+      await sleep(400);
+    }
+    return previousCount;
+  }
+
+  // 목록 화면이 그리는 데이터 자체가 이 API에서 온다 — channelProductNo(진짜 상품코드)와
+  // 키워드별 순위(keywordRanks[].rankToday)가 한 응답에 다 들어있다. 직접 fetch()로 흉내내면
+  // 화면의 실제 요청과 헤더/타이밍이 미묘하게 달라 실패할 수 있어(실제로 그랬다), 대신 이미
+  // 붙어있는 네트워크 감청(smartstore-network-tap.js → networkPayloads)으로 화면이 "다음 페이지"를
+  // 누를 때 실제로 받는 응답을 그대로 가로채 쓴다 — 인증/헤더 걱정이 없다.
+  function findNetworkProductsPayload(pageNumber) {
+    for (let i = networkPayloads.length - 1; i >= 0; i -= 1) {
+      const payload = networkPayloads[i];
+      if (!String(payload?.url || "").includes("/diagnosis/ranking/products")) continue;
+      if (Number(payload?.data?.currentPage) === pageNumber) return payload.data;
+    }
+    return null;
+  }
+
+  async function waitForNetworkProductsPayload(pageNumber, timeout = 15000) {
+    return waitFor(() => findNetworkProductsPayload(pageNumber), timeout);
+  }
+
+  function parseManagerProductsApiPage(data) {
+    const items = Array.isArray(data?.items) ? data.items : [];
+    return items.map((item) => ({
+      productCode: String(item?.channelProductNo || "").trim(),
+      productName: String(item?.productName || "").trim(),
+      productImage: String(item?.imageUrl || "").trim(),
+      keywords: (Array.isArray(item?.keywordRanks) ? item.keywordRanks : [])
+        .filter((k) => k && k.query && Number.isFinite(Number(k.rankToday)) && Number(k.rankToday) > 0)
+        .map((k) => ({ keyword: String(k.query).trim(), rank: Number(k.rankToday), page: null, pageRank: null })),
+    }));
+  }
+
+  async function collectManagerRankingViaApi(job) {
+    await waitFor(() => managerProductRows().length || isManagerDetail() || findNetworkProductsPayload(1), 20000);
+    if (isManagerDetail() && !(await returnToManagerList())) {
+      throw new Error("순위 진단 상품 목록으로 돌아가지 못했습니다.");
+    }
+
+    // 목록이 로드되면서 1페이지 응답이 이미 캡처됐을 수 있다 — 없으면 잠깐 더 기다린다.
+    let first = findNetworkProductsPayload(1) || await waitForNetworkProductsPayload(1, 12000);
+    if (!first) {
+      // 페이지 로드 시점 경쟁으로 놓쳤을 수 있다 — "1페이지" 버튼을 눌러 강제로 다시 받아본다.
+      const firstPageButton = managerPaginationButton("", true);
+      if (firstPageButton) {
+        firstPageButton.click();
+        first = await waitForNetworkProductsPayload(1, 15000);
+      }
+    }
+    if (!first) throw new Error("상품 목록 데이터를 받지 못했습니다.");
+
+    const totalPages = Number(first?.totalPages) || 1;
+    const totalItemCount = Number(first?.totalItemCount) || 0;
+    const products = parseManagerProductsApiPage(first);
+    await updateManagerProgress(
+      job,
+      `상품 목록을 가져오고 있습니다. (1/${totalPages}페이지)`,
+      products.length,
+      totalItemCount
+    );
+
+    for (let page = 2; page <= totalPages; page += 1) {
+      let data = findNetworkProductsPayload(page);
+      if (!data) {
+        const nextButton = managerPaginationButton("다음 페이지");
+        if (!nextButton || nextButton.disabled) break;
+        nextButton.click();
+        data = await waitForNetworkProductsPayload(page, 15000);
+      }
+      if (!data) throw new Error(`${page}페이지 상품 목록 데이터를 받지 못했습니다.`);
+      products.push(...parseManagerProductsApiPage(data));
+      await updateManagerProgress(
+        job,
+        `상품 목록을 가져오고 있습니다. (${page}/${totalPages}페이지)`,
+        products.length,
+        totalItemCount
+      );
+    }
+
+    if (!products.length) throw new Error("API 응답에서 상품을 찾지 못했습니다.");
+    return { products, errors: [] };
+  }
+
+  // API 방식이 막히면(로그인 세션 문제, API 변경 등) 예전처럼 화면을 직접 클릭해서 모으는
+  // 방식으로 폴백한다 — 느리지만 화면만 떠 있으면 항상 동작하는 게 확인된 방식이다.
   async function collectManagerRanking(job) {
-    const ready = await waitFor(() => managerMoreButtons().length || isManagerDetail(), 40000);
+    const ready = await waitFor(() => managerProductRows().length || isManagerDetail(), 40000);
     if (!ready) throw new Error("순위 진단 상품 목록을 찾지 못했습니다. 관리자 로그인과 화면을 확인하세요.");
     if (isManagerDetail() && !(await returnToManagerList())) {
       throw new Error("순위 진단 상품 목록으로 돌아가지 못했습니다.");
     }
 
-    const bodyText = textOf(document.body);
-    const productCountMatch = bodyText.match(/상품\s*수\s*([\d,]+)개/);
-    const productCount = productCountMatch
-      ? Number(productCountMatch[1].replace(/,/g, ""))
-      : managerMoreButtons().length;
-    // "다음 페이지" 버튼이 마지막 페이지에서도 disabled로 안 잡히고 1페이지로 되돌아가
-    // 무한히 재수집되는 경우가 있어(200 안전상한까지 계속 돎), 화면에 적힌 실제 상품 수를
-    // 알고 있으면 그걸 진짜 상한으로 쓴다 — "다음 페이지" 판정 오류에 기대지 않는다.
+    const productCount = await resolveManagerProductCount();
+    // "다음 페이지" 버튼이 마지막 페이지에서도 disabled로 안 잡히는 경우가 있어(200 안전상한까지
+    // 계속 돎), 화면에 적힌 실제 상품 수를 알고 있으면 그걸 진짜 상한으로 쓴다.
     const collectLimit = productCount > 0 ? Math.min(MAX_MANAGER_PRODUCTS, productCount) : MAX_MANAGER_PRODUCTS;
 
     const products = [];
     const errors = [];
+    const processedKeys = new Set();
+    let staleRounds = 0;
+    let currentPage = 1; // 지금 몇 페이지째를 보고 있어야 하는지(목표 깊이)
 
-    for (let listPage = 1; listPage <= 100 && products.length < collectLimit; listPage += 1) {
-      const available = managerMoreButtons().length;
-      if (!available) break;
+    for (let cycle = 0; cycle < 1000 && products.length < collectLimit; cycle += 1) {
+      try {
+      // "목록"으로 돌아오면 1페이지로 리셋될 수 있다 — 실제 페이지 번호를 읽어서 목표 깊이까지
+      // 다시 넘긴다. 리셋이 안 됐으면(이미 currentPage 이상) 아무것도 안 하고 바로 통과한다.
+      await ensureManagerListPage(currentPage);
 
-      for (let index = 0; index < available && products.length < collectLimit; index += 1) {
-        const buttons = managerMoreButtons();
-        const target = buttons[index];
-        if (!target) continue;
-        const row = target.closest("li");
+      // 더보기 버튼이 아니라 상품 행(li) 자체를 기준으로 순회한다 — 버튼 유무와 무관하게
+      // 상품명/썸네일(role="link")을 클릭하면 어떤 상품이든 같은 상세 페이지로 이동한다.
+      const target = managerProductRows().find((row) => !processedKeys.has(managerRowKey(row)));
+      if (target) {
+        const row = target;
+        const key = managerRowKey(row);
+        processedKeys.add(key);
+        staleRounds = 0;
+        const clickTarget = managerRowClickTarget(row);
         const image = row?.querySelector("img[src]");
         const fallback = {
           productName: textOf(row).slice(0, 180),
           productImage: image?.src || "",
         };
+        if (!clickTarget) {
+          errors.push({ product: fallback.productName, message: "클릭할 상품 링크를 찾지 못했습니다." });
+          continue;
+        }
         await updateManagerProgress(
           job,
           `상품 순위를 확인하고 있습니다. (${products.length + 1}/${productCount || "?"})`,
           products.length + 1,
           productCount
         );
-        target.click();
+        clickTarget.click();
         const opened = await waitFor(isManagerDetail, 20000);
         if (!opened) {
+          // 상세가 안 열렸으면 여전히 목록 화면이다 — "목록"으로 돌아가려 할 필요가 없다.
           errors.push({ product: fallback.productName, message: "상세 화면을 열지 못했습니다." });
-        } else {
-          try {
-            const product = await collectManagerDetail(job, fallback);
-            if (product) products.push(product);
-          } catch (error) {
-            errors.push({ product: fallback.productName, message: error?.message || "키워드를 읽지 못했습니다." });
-          }
+          await sleep(600);
+          continue;
         }
-        const returned = await returnToManagerList();
-        if (!returned) throw new Error("다음 상품 수집을 위해 목록으로 돌아가지 못했습니다.");
+        try {
+          const product = await collectManagerDetail(job, fallback);
+          if (product) products.push(product);
+        } catch (error) {
+          errors.push({ product: fallback.productName, message: error?.message || "키워드를 읽지 못했습니다." });
+        }
+
+        // 목록 복귀는 한 번 실패해도 잠깐 뒤에 재시도해본다 — 여기서 바로 throw하면 지금까지
+        // 모은 상품이 전부 버려진다(88개 중 30개째에서 죽으면 30개조차 저장 안 되던 원인).
+        let returned = await returnToManagerList();
+        if (!returned) {
+          await sleep(1000);
+          returned = await returnToManagerList();
+        }
+        if (!returned) {
+          // 계속 못 돌아가면 여기서 멈추되, 지금까지 모은 건 그대로 반환해서 저장은 되게 한다.
+          errors.push({ product: fallback.productName, message: "목록으로 돌아가지 못해 수집을 중단했습니다." });
+          break;
+        }
+        await sleep(300); // 너무 빠르게 연속 클릭하면 관리자 화면이 못 따라오는 경우가 있어 약간 쉰다.
+        continue;
       }
 
+      // 지금 보이는 페이지(목표 깊이)엔 처리 안 한 게 없다 — 한 페이지 더 깊이 들어가본다.
       const nextButton = managerPaginationButton("다음 페이지");
       if (!nextButton || nextButton.disabled) break;
-      const previous = managerListSignature();
+      const previousPage = managerCurrentPageNumber();
       nextButton.click();
-      const changed = await waitForChange(managerListSignature, previous);
-      if (!changed) break;
+      const changed = await waitForManagerPageAdvance(previousPage);
+      if (!changed) {
+        staleRounds += 1;
+        if (staleRounds > 3) break; // 페이지도 안 넘어가고 새 상품도 없으면 진짜 끝난 것
+        continue;
+      }
+      staleRounds = 0;
+      currentPage = changed;
+      } catch (loopError) {
+        // 사이클 도중 예상 못한 오류가 나도 지금까지 모은 상품은 버리지 않는다 — 88개 중
+        // N개째에서 죽으면 N개조차 저장이 안 되던 게 원래 문제였다.
+        errors.push({ product: "", message: loopError?.message || "수집 중 오류가 발생했습니다." });
+        break;
+      }
     }
 
     if (!products.length) throw new Error("관리자 순위 진단에서 수집된 상품이 없습니다.");
-    return products;
+    return { products, errors };
   }
 
   function showResult(result) {
@@ -497,9 +680,18 @@
         : `<span>${Number(result?.scannedProducts) || 0}개 상품 확인 · ${Number(result?.saved) || 0}개 순위 저장</span>`) +
       (Number(result?.noRankProducts)
         ? `<small style="display:block;color:#667085">순위 미확인 ${Number(result?.noRankProducts) || 0}개</small>`
+        : "") +
+      (Number(result?.collectErrors)
+        ? `<small style="display:block;color:#d92d20">일부 상품 수집 실패 ${Number(result?.collectErrors) || 0}건 (중간에 중단됨)</small>`
+        : "") +
+      (Number(result?.nameMatched)
+        ? `<small style="display:block;color:#667085">상품코드 없어 상품명으로 매칭: ${Number(result?.nameMatched) || 0}개</small>`
+        : "") +
+      (Number(result?.nameUnmatched)
+        ? `<small style="display:block;color:#d92d20">상품코드·매칭 모두 실패로 스킵: ${Number(result?.nameUnmatched) || 0}개</small>`
         : "");
     document.body.appendChild(panel);
-    if (!pending) setTimeout(() => panel.remove(), 7000);
+    if (!pending) setTimeout(() => panel.remove(), 10000);
   }
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -544,14 +736,28 @@
 
     if (isCollectorFrame) {
       try {
-        const products = await collectManagerRanking(job);
+        let products;
+        let collectErrors = [];
+        try {
+          const apiResult = await collectManagerRankingViaApi(job);
+          products = apiResult.products;
+        } catch (apiError) {
+          // API 방식이 실패하면(세션/CORS/응답 형태 변경 등) 느리지만 검증된 클릭 방식으로 대체한다.
+          const clickResult = await collectManagerRanking(job);
+          products = clickResult.products;
+          collectErrors = clickResult.errors;
+        }
         const saved = await chrome.runtime.sendMessage({
           type: "SAVE_SMARTSTORE_RANKS",
           storeName: job.storeName,
           products,
         });
         if (!saved?.ok) throw new Error(saved?.error || "순위를 저장하지 못했습니다.");
-        await finishJob(job, { status: "done", result: saved, productCount: products.length });
+        await finishJob(job, {
+          status: "done",
+          result: { ...saved, collectErrors: collectErrors.length },
+          productCount: products.length,
+        });
       } catch (error) {
         await finishJob(job, {
           status: "error",

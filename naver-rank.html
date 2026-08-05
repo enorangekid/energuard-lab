@@ -732,13 +732,20 @@ const FN_URL = SUPABASE_URL + "/functions/v1/naver-rank";
 const KEYWORD_IDEA_FN_URL = SUPABASE_URL + "/functions/v1/shopping-trend";
 
 const MY_STORES = ["한국단열", "에너가드"];
+// 준불연단열재/불연단열재는 더 이상 메인이 아니다(사용자 지정) — PF보드/경질우레탄보드/
+// 준불연비드법/준불연열반사/불연열반사가 각각 독립된 메인이고, "준불연단열재"·"불연단열재"
+// 같은 범용 등급 표기는 특정 재질 하나로 딱 떨어지지 않아 그나마 제일 가까운 메인의 보조로
+// 붙여뒀다 — rank-tracker.html의 keyword_rank_history.is_sub 재배정과 반드시 같이 맞춰야 한다.
 const STORE_BATCH_KEYWORDS = {
   "에너가드컴퍼니": [
     { main: "아이소핑크", subs: ["XPS단열재", "압출법단열재"] },
     { main: "비드법단열재", subs: ["EPS단열재", "스티로폼단열재"] },
-    { main: "준불연단열재", subs: ["PF보드", "경질우레탄보드", "준불연비드법", "준불연열반사", "우레탄보드", "페놀폼", "심재준불연", "난연단열재"] },
-    { main: "불연단열재", subs: ["불연열반사", "미네랄울", "글라스울"] },
+    { main: "준불연비드법", subs: ["준불연단열재"] },
+    { main: "PF보드", subs: ["페놀폼", "심재준불연"] },
+    { main: "경질우레탄보드", subs: ["우레탄보드", "난연단열재"] },
     { main: "열반사단열재", subs: ["은박단열재", "온도리"] },
+    { main: "준불연열반사", subs: ["미네랄울"] },
+    { main: "불연열반사", subs: ["불연단열재", "글라스울"] },
   ],
 };
 
@@ -1058,7 +1065,7 @@ async function runSearch(kwOverride) {
       storeName: store,
       keywords: [{ keyword, mainKeyword: keyword, isSub: false }],
       pageCount,
-      pageDelay: 2500,
+      pageDelay: 1500,
       mode: "analysis",
       requestToken,
       openReport: false,
@@ -1977,7 +1984,7 @@ async function runBatchCollect() {
       storeName: selectedStore,
       keywords: list,
       pageCount: 5,
-      pageDelay: 2500,
+      pageDelay: 1500,
     });
     statusEl.textContent = `[${selectedStore}] ${list.length}개 키워드 수집을 시작했습니다. 열린 수집 탭에서 진행 상황을 확인하세요.`;
   } catch (error) {

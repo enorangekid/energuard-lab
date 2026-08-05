@@ -40,26 +40,51 @@ async function postSupabaseRows(table, rows, conflictKey) {
   if (!response.ok) throw new Error(`순위 저장 실패: ${await response.text()}`);
 }
 
+// 네이버가 상품명에 zero-width space(​) 같은 보이지 않는 문자를 끼워 넣는 경우가 있어(스크래핑
+// 방지 목적으로 추정), 상품명으로 매칭할 땐 이런 문자를 지우고 공백을 정리한 뒤 비교해야 한다.
+function normalizeProductName(name) {
+  return String(name || "")
+    .replace(/[​-‍﻿]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 async function saveSmartstoreRanks(storeName, products) {
   const encodedStore = encodeURIComponent(storeName);
   // 이 스캔이 직접 넘겨준 productCode(관리자 화면 "채널 상품 번호")를 그대로 신뢰해서 저장한다.
   // 예전엔 기존 keyword_rank_history 이력에 상품명/코드가 매칭이 안 되면(신상품 등) 통째로
   // 스킵했는데, 그러면 실제로 존재하는 데이터가 조용히 사라졌다. 기존 이력은 이제 오직
   // main_keyword/is_sub 분류와 product_link/가격을 물려받는 "보강" 용도로만 쓴다.
-  const history = await fetchSupabase(
-    `/rest/v1/keyword_rank_history?store_name=eq.${encodedStore}` +
-    "&product_code=neq.&select=keyword,main_keyword,is_sub,product_code,product_name,product_link,product_price,checked_at" +
-    "&order=checked_at.desc&limit=10000"
-  );
+  //
+  // 목록 화면에 키워드가 바로 보이는(더보기 버튼이 없는) 상품은 상세화면을 아예 열지 않으므로
+  // "채널 상품 번호"를 볼 방법이 없다 — 화면 어디에도 코드가 노출되지 않는다. 이런 상품은
+  // 상품명으로 기존 마스터(product_rankings)/이력(keyword_rank_history)과 매칭해 코드를 역으로 찾는다.
+  const [history, productMasters] = await Promise.all([
+    fetchSupabase(
+      `/rest/v1/keyword_rank_history?store_name=eq.${encodedStore}` +
+      "&product_code=neq.&select=keyword,main_keyword,is_sub,product_code,product_name,product_link,product_price,checked_at" +
+      "&order=checked_at.desc&limit=10000"
+    ),
+    fetchSupabase(`/rest/v1/product_rankings?select=code,name&code=neq.&name=neq.&limit=5000`).catch(() => []),
+  ]);
 
   const latestByCodeKeyword = new Map();
   const latestByCode = new Map();
+  const codeByName = new Map();
   history.forEach((row) => {
     const code = String(row.product_code || "").trim();
     if (!code) return;
     if (!latestByCode.has(code)) latestByCode.set(code, row);
     const pairKey = `${code}\n${row.keyword || ""}`;
     if (row.keyword && !latestByCodeKeyword.has(pairKey)) latestByCodeKeyword.set(pairKey, row);
+    const nameKey = normalizeProductName(row.product_name);
+    if (nameKey && !codeByName.has(nameKey)) codeByName.set(nameKey, code);
+  });
+  // product_rankings(자사 상품 마스터)가 더 정확한 출처라 이력보다 우선한다.
+  productMasters.forEach((row) => {
+    const code = String(row.code || "").trim();
+    const nameKey = normalizeProductName(row.name);
+    if (code && nameKey) codeByName.set(nameKey, code);
   });
 
   const now = new Date().toISOString();
@@ -69,10 +94,23 @@ async function saveSmartstoreRanks(storeName, products) {
   let scannedProducts = 0;
   let noRankProducts = 0;
   let skipped = 0;
+  let nameMatched = 0;
+  let nameUnmatched = 0;
 
   (Array.isArray(products) ? products : []).forEach((product) => {
-    const productCode = String(product?.productCode || "").trim();
-    if (!productCode) { skipped += 1; return; } // 상품코드가 없으면 이력으로 식별할 방법이 없다
+    const rawCode = String(product?.productCode || "").trim();
+    let productCode = rawCode;
+    if (!productCode) {
+      const matched = codeByName.get(normalizeProductName(product?.productName));
+      if (matched) { productCode = matched; nameMatched += 1; }
+    }
+    if (!productCode) {
+      // 상품코드도 없고 상품명으로도 기존 마스터/이력에 없으면(한 번도 본 적 없는 신상품 등)
+      // 저장할 방법이 없다 — product_rankings에 먼저 등록되면 다음 수집부터는 잡힌다.
+      nameUnmatched += 1;
+      skipped += 1;
+      return;
+    }
     scannedProducts += 1;
 
     const linkFallback = latestByCode.get(productCode);
@@ -129,6 +167,8 @@ async function saveSmartstoreRanks(storeName, products) {
     savedProducts: savedProductCodes.size,
     noRankProducts,
     skipped,
+    nameMatched,
+    nameUnmatched,
   };
 }
 
@@ -197,7 +237,7 @@ function validateConfig(raw) {
     storeName,
     keywords,
     pageCount: Math.min(5, Math.max(1, Number(raw?.pageCount) || 5)),
-    pageDelay: Math.min(10000, Math.max(1500, Number(raw?.pageDelay) || 2500)),
+    pageDelay: Math.min(10000, Math.max(1500, Number(raw?.pageDelay) || 1500)),
     mode: raw?.mode === "analysis" ? "analysis" : "batch",
     requestToken: String(raw?.requestToken || ""),
     openReport: raw?.openReport !== false,
@@ -234,6 +274,31 @@ async function openRunner(config) {
   return tab.id;
 }
 
+// 아이템 추적 일괄 수집 전용 — 키워드 선택 UI가 없으니 validateConfig(키워드 필수)를 안 거치고
+// 바로 runner.html을 연다. 실제 수집 로직(runTrackedItemsBatchLookup)이 등록된 추적 상품에서
+// 알아서 키워드를 모은다.
+async function openTrackedItemsRunner(pageDelay) {
+  const current = await chrome.storage.local.get(PROGRESS_KEY);
+  const runnerUrl = chrome.runtime.getURL("runner.html");
+  const existing = await chrome.tabs.query({ url: `${runnerUrl}*` });
+  if (current[PROGRESS_KEY]?.status === "running" && existing[0]) {
+    throw new Error("이미 수집을 진행하고 있습니다.");
+  }
+  await chrome.storage.local.set({
+    [PENDING_KEY]: {
+      mode: "trackedItems",
+      pageDelay: Math.min(10000, Math.max(1500, Number(pageDelay) || 1500)),
+    },
+  });
+  if (existing[0]) {
+    await chrome.tabs.reload(existing[0].id);
+    await chrome.tabs.update(existing[0].id, { active: true });
+    return existing[0].id;
+  }
+  const tab = await chrome.tabs.create({ active: true, url: runnerUrl });
+  return tab.id;
+}
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "START_SMARTSTORE_IMPORT") {
     (async () => {
@@ -244,6 +309,17 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         sendResponse({ ok: true, ...result });
       } catch (error) {
         sendResponse({ ok: false, error: error?.message || "스마트스토어 순위를 가져오지 못했습니다." });
+      }
+    })();
+    return true;
+  }
+  if (message?.type === "START_TRACKED_ITEMS_COLLECTION") {
+    (async () => {
+      try {
+        const tabId = await openTrackedItemsRunner(message.pageDelay);
+        sendResponse({ ok: true, tabId });
+      } catch (error) {
+        sendResponse({ ok: false, error: error?.message || "아이템 추적 수집을 시작하지 못했습니다." });
       }
     })();
     return true;

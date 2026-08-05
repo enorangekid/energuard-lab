@@ -7,6 +7,14 @@ const STORE_IDENTITIES = {
     channelNos: ["500128955"],
     providerIds: ["329308"],
   },
+  // \uC774\uAC8C \uC5C6\uC73C\uBA74 mallName\uC774 \uC548 \uC7A1\uD788\uB294 \uCE74\uB4DC\uB294 "\uC774\uBBF8 \uC54C\uB824\uC9C4 \uC0C1\uD488\uCF54\uB4DC"\uB85C\uB9CC \uB9E4\uCE6D\uD558\uB294\uB370, \uADF8 \uBAA9\uB85D\uC774
+  // fetchCollectionContext\uC758 limit(10000)\uBCF4\uB2E4 \uC774\uB825\uC774 \uB9CE\uC544\uC9C0\uBA74 \uC624\uB798\uB41C \uCF54\uB4DC\uBD80\uD130 \uBC00\uB824\uB098
+  // \uC2E4\uC81C\uB85C \uC21C\uC704\uAD8C\uC778\uB370\uB3C4 "\uC774\uD0C8"\uB85C \uC798\uBABB \uAE30\uB85D\uB41C\uB2E4(\uC5D0\uB108\uAC00\uB4DC\uCEF4\uD37C\uB2C8 8/3 \uC774\uD6C4 \uC900\uBD88\uC5F0\uB2E8\uC5F4\uC7AC \uB4F1\uC5D0\uC11C
+  // \uC2E4\uC81C\uB85C \uC774 \uC0AC\uACE0\uAC00 \uB0AC\uB2E4). \uC9C1\uC811 channelNo/providerId\uB85C \uB9E4\uCE6D\uD558\uBA74 \uC774\uB825 \uD06C\uAE30\uC640 \uBB34\uAD00\uD558\uAC8C \uC548\uC804\uD558\uB2E4.
+  ["\uC5D0\uB108\uAC00\uB4DC\uCEF4\uD37C\uB2C8"]: {
+    channelNos: ["102352173"],
+    providerIds: ["10864584"],
+  },
 };
 
 let activeRun = null;
@@ -131,25 +139,42 @@ async function fetchJson(path) {
 
 async function fetchCollectionContext(config) {
   const encodedStore = encodeURIComponent(config.storeName);
-  const [historyRows, trackedItems, snapshotIdRows] = await Promise.all([
+  const [historyRows, trackedItems, snapshotIdRows, productMasters] = await Promise.all([
     fetchJson(`/rest/v1/keyword_rank_history?store_name=eq.${encodedStore}&product_code=neq.&select=keyword,product_code,product_name,product_image,product_link,product_price,collected_date,checked_at&order=collected_date.desc,checked_at.desc&limit=10000`),
     fetchJson("/rest/v1/tracked_items?select=product_code,product_name,product_image,product_link,mall_name,keywords&limit=5000"),
     // 가격비교(카탈로그)형으로 렌더링된 카드는 chnl_prod_no(product_code)가 안 잡히고
     // naver_product_id만 잡힐 때가 있다 — 예전에 이 카드의 product_code가 잡혔던 적이 있으면
     // naver_product_id로 역추적해서 같은 상품으로 이어붙이기 위한 매핑.
     fetchJson(`/rest/v1/shopping_search_snapshots?store_name=eq.${encodedStore}&product_code=neq.&naver_product_id=neq.&select=product_code,naver_product_id,collected_date&order=collected_date.desc&limit=5000`),
+    // naver_product_id(가격비교 ID)는 상품마다 계속 바뀔 수 있어서 naverIdToCode 매핑조차
+    // 못 찾는 경우가 있다 — 그럴 땐 상품명으로 마스터/이력과 매칭해서 진짜 코드를 역추적한다.
+    fetchJson(`/rest/v1/product_rankings?select=code,name&code=neq.&name=neq.&limit=5000`).catch(() => []),
   ]);
   const knownProducts = new Map();
   const keywordProducts = new Map();
   const latestDateByKeyword = new Map();
+  const codeByName = new Map();
   historyRows.forEach((row) => {
     const code = String(row.product_code || "").trim();
     if (!code) return;
     if (!knownProducts.has(code)) knownProducts.set(code, row);
     if (!latestDateByKeyword.has(row.keyword)) latestDateByKeyword.set(row.keyword, row.collected_date);
+    const nameKey = compact(row.product_name);
+    if (nameKey && !codeByName.has(nameKey)) codeByName.set(nameKey, code);
     if (row.collected_date !== latestDateByKeyword.get(row.keyword)) return;
     if (!keywordProducts.has(row.keyword)) keywordProducts.set(row.keyword, new Map());
     if (!keywordProducts.get(row.keyword).has(code)) keywordProducts.get(row.keyword).set(code, row);
+  });
+  trackedItems.forEach((row) => {
+    const code = String(row.product_code || "").trim();
+    const nameKey = compact(row.product_name);
+    if (code && nameKey && !codeByName.has(nameKey)) codeByName.set(nameKey, code);
+  });
+  // product_rankings(상품 마스터)가 가장 정확한 출처라 이력/추적목록보다 우선한다.
+  productMasters.forEach((row) => {
+    const code = String(row.code || "").trim();
+    const nameKey = compact(row.name);
+    if (code && nameKey) codeByName.set(nameKey, code);
   });
   const naverIdToCode = new Map();
   snapshotIdRows.forEach((row) => {
@@ -162,6 +187,7 @@ async function fetchCollectionContext(config) {
     knownProducts,
     keywordProducts,
     naverIdToCode,
+    codeByName,
     trackedItems: trackedItems.map((item) => ({
       ...item,
       product_code: String(item.product_code || "").trim(),
@@ -235,7 +261,7 @@ async function runSingleProductLookup(config) {
       status: "running", keyword, message: "상품 URL의 상품번호를 1페이지 검색결과와 대조하고 있습니다.",
       pageIndex: 1, pageCount: 1, completed: 0, total: 1,
     });
-    await sleep(Math.max(1500, Number(config.pageDelay) || 2500));
+    await sleep(Math.max(1500, Number(config.pageDelay) || 1500));
     const extracted = await extractPage(tab.id, 1, item.mall_name || "");
     if (extracted.blockedReason) throw new Error(extracted.blockedReason);
     const products = normalizePageProducts(extracted.products, 1);
@@ -293,6 +319,149 @@ async function runSingleProductLookup(config) {
       status: "error", title: "단건 조회 실패", completed: 0, total: 1,
       runId, mode: "singleProduct", message: error?.message || "순위 확인 중 오류가 발생했습니다.",
       error: error?.message || "순위 확인 중 오류가 발생했습니다.", saved: 0,
+    });
+  } finally {
+    if (finishedSuccessfully && activeRun?.tabId) chrome.tabs.remove(activeRun.tabId).catch(() => {});
+    activeRun = null;
+  }
+}
+
+// 아이템 추적 일괄 수집 — 예전엔 Supabase Edge Function(naver-rank)을 직접 호출했는데, 그 함수가
+// 쓰는 네이버쇼핑 상품검색 API 자체가 막혀서(크롤링도 IP 차단) 계속 실패하고 있었다. 단건 조회
+// (runSingleProductLookup)는 이미 확장프로그램의 실제 브라우저 검색 스크래핑으로 잘 동작하는 걸
+// 확인했으니, 그 방식을 키워드별로 묶어서 등록된 추적 상품 전체에 한 번에 적용한다.
+async function runTrackedItemsBatchLookup(config) {
+  const runId = crypto.randomUUID();
+  activeRun = { id: runId, cancelled: false, tabId: null };
+
+  const items = await fetchJson("/rest/v1/tracked_items?select=*&limit=2000");
+  if (!items.length) throw new Error("아이템 추적에 등록된 상품이 없습니다.");
+
+  const itemByCode = new Map();
+  const codeToCanonical = new Map();
+  const keywordMap = new Map(); // keyword -> Set(canonical product_code)
+  items.forEach((item) => {
+    itemByCode.set(item.product_code, item);
+    codeToCanonical.set(item.product_code, item.product_code);
+    parseCodeList(item.alt_codes).forEach((alt) => codeToCanonical.set(alt, item.product_code));
+    const keywords = Array.isArray(item.keywords) ? item.keywords : [];
+    keywords.map(String).map((k) => k.trim()).filter(Boolean).forEach((keyword) => {
+      if (!keywordMap.has(keyword)) keywordMap.set(keyword, new Set());
+      keywordMap.get(keyword).add(item.product_code);
+    });
+  });
+  if (!keywordMap.size) throw new Error("추적 상품에 등록된 키워드가 없습니다.");
+
+  const total = keywordMap.size;
+  await updateProgress({
+    status: "running", title: "아이템 추적 수집", completed: 0, total, saved: 0,
+    runId, mode: "trackedItems", message: "준비하고 있습니다.", error: "",
+  });
+
+  const tab = await chrome.tabs.create({ active: true, url: "about:blank" });
+  activeRun.tabId = tab.id;
+  let completed = 0;
+  let saved = 0;
+  let finishedSuccessfully = false;
+
+  try {
+    for (const [keyword, codes] of keywordMap) {
+      if (!activeRun || activeRun.id !== runId || activeRun.cancelled) throw new Error("사용자가 수집을 중단했습니다.");
+      completed += 1;
+      await updateProgress({ completed, message: `“${keyword}” 검색 중입니다. (${completed}/${total})` });
+
+      const url = "https://search.shopping.naver.com/search/all?" + new URLSearchParams({
+        query: keyword, pagingIndex: "1", pagingSize: "40", viewType: "list",
+      });
+      await chrome.tabs.update(tab.id, { url });
+      await waitForTabComplete(tab.id);
+      await showCollectionStatus(tab.id, {
+        status: "running", keyword, message: "검색결과에서 추적 상품을 찾고 있습니다.",
+        pageIndex: 1, pageCount: 1, completed, total,
+      });
+      await sleep(Math.max(1500, Number(config.pageDelay) || 1500));
+
+      let products = [];
+      try {
+        const extracted = await extractPage(tab.id, 1, "");
+        if (extracted.blockedReason) throw new Error(extracted.blockedReason);
+        products = normalizePageProducts(extracted.products, 1);
+        validatePage(products, 1);
+      } catch (error) {
+        // 이 키워드 하나가 실패해도(차단/파싱 오류 등) 나머지 키워드는 계속 진행한다.
+        await showCollectionStatus(tab.id, {
+          status: "running", keyword, message: `실패: ${error?.message || "알 수 없는 오류"} — 다음 키워드로 넘어갑니다.`,
+          pageIndex: 1, pageCount: 1, completed, total,
+        });
+        continue;
+      }
+
+      const foundByCanon = new Map();
+      products.forEach((product) => {
+        if (product.isAd) return;
+        const canon = codeToCanonical.get(String(product.productCode || ""));
+        if (canon && !foundByCanon.has(canon)) foundByCanon.set(canon, product);
+      });
+
+      const now = new Date().toISOString();
+      const collectedDate = todayKst();
+      const rows = [...codes].map((code) => {
+        const found = foundByCanon.get(code);
+        return {
+          product_code: code, keyword,
+          rank: found?.rank ?? null,
+          price: Number(found?.price) || 0,
+          mall_name: found?.mallName || itemByCode.get(code)?.mall_name || "",
+          collected_date: collectedDate, checked_at: now,
+        };
+      });
+      if (rows.length) {
+        await postRows("tracked_item_history", rows, "product_code,keyword,collected_date");
+        saved += rows.length;
+      }
+
+      // 검색 결과에서 상품명/이미지/판매처 메타 자동 갱신 — alt_codes로 걸렸어도 기준 코드 행을 갱신
+      for (const [canon, found] of foundByCanon) {
+        const item = itemByCode.get(canon);
+        if (!item) continue;
+        const patch = {};
+        if (found.title && found.title !== item.product_name) patch.product_name = found.title;
+        if (found.image && found.image !== item.product_image) patch.product_image = found.image;
+        if (found.mallName && found.mallName !== item.mall_name) patch.mall_name = found.mallName;
+        if (found.link && !item.product_link) patch.product_link = found.link;
+        if (Object.keys(patch).length) {
+          patch.updated_at = now;
+          const response = await fetch(
+            `${SUPABASE_URL}/rest/v1/tracked_items?product_code=eq.${encodeURIComponent(canon)}`,
+            { method: "PATCH", headers: sbHeaders({ "Content-Type": "application/json", Prefer: "return=minimal" }), body: JSON.stringify(patch) }
+          );
+          if (response.ok) Object.assign(item, patch);
+        }
+      }
+
+      const sourceLabel = String(products[0]?.extractionSource || "dom").includes("next-data") ? "NEXT_DATA" : "DOM";
+      await showCollectionStatus(tab.id, {
+        status: "running", keyword,
+        message: `${keyword} · 추적 상품 ${foundByCanon.size}/${codes.size}개 확인 · ${sourceLabel}`,
+        source: sourceLabel, pageIndex: 1, pageCount: 1, completed, total,
+      });
+      await updateProgress({ saved });
+    }
+
+    await updateProgress({
+      status: "done", title: "수집 완료", completed: total, total, saved,
+      runId, mode: "trackedItems", message: `${total}개 키워드 · ${saved}개 순위를 저장했습니다.`,
+    });
+    finishedSuccessfully = true;
+  } catch (error) {
+    const cancelled = /중단/.test(error?.message || "");
+    await updateProgress({
+      status: cancelled ? "cancelled" : "error",
+      title: cancelled ? "수집 중단" : "수집 실패",
+      runId, mode: "trackedItems",
+      message: error?.message || "수집 중 오류가 발생했습니다.",
+      error: cancelled ? "" : (error?.message || "수집 중 오류가 발생했습니다."),
+      saved,
     });
   } finally {
     if (finishedSuccessfully && activeRun?.tabId) chrome.tabs.remove(activeRun.tabId).catch(() => {});
@@ -435,19 +604,34 @@ async function saveSearchSnapshot(config, keywordMeta, products, runId, context)
   // 가격비교(카탈로그)형으로 렌더링된 카드는 product_code(chnl_prod_no)가 안 잡히고
   // naver_product_id만 잡힐 때가 있다 — 예전엔 이런 경우 product_code가 없다고 통째로
   // 버려서, 실제로는 노출 중인 자사 상품이 "이탈"로 잘못 저장됐다. naver_product_id로
-  // 예전에 알아낸 진짜 코드를 역추적하고, 그마저 없으면 naver_product_id 자체를 코드로 써서
-  // 최소한 데이터가 사라지지는 않게 한다.
+  // 예전에 알아낸 진짜 코드를 역추적하고, naver_product_id 자체가 낯설면(가격비교 ID가
+  // 자꾸 바뀌는 상품이라 naverIdToCode에도 없음) 상품명으로 마스터/이력을 한 번 더 뒤진다.
+  // 그마저 없으면 naver_product_id 자체를 코드로 써서 최소한 데이터가 사라지지는 않게 한다
+  // (다만 이 마지막 경우는 나중에 진짜 코드가 잡히면 별도 코드로 쪼개질 수 있다).
   const targetProducts = snapshotRows
     .filter((product) => !product.is_ad && product.is_target_store)
     .map((product) => ({
       ...product,
       resolvedCode: product.product_code
         || context.naverIdToCode?.get(product.naver_product_id)
+        || context.codeByName?.get(compact(product.product_name))
         || product.naver_product_id
         || "",
     }))
     .filter((product) => product.resolvedCode)
     .sort((a, b) => a.organic_rank - b.organic_rank);
+  // context는 이 수집 실행(러닝) 시작 시점에 한 번만 만들어져서, 키워드를 넘어갈 때마다
+  // 다시 안 채워졌다 — 그래서 "아이소핑크" 키워드에서 방금 알아낸 진짜 코드를 바로 다음
+  // "XPS단열재" 키워드 처리할 땐 몰라서 또 가격비교ID로 쪼개졌다. 이번에 실제 DOM에서
+  // 코드를 직접 잡은 상품은(=확실한 값만) 같은 실행 안의 나머지 키워드에도 바로 넘겨준다.
+  targetProducts.forEach((product) => {
+    if (!product.product_code) return;
+    const code = String(product.product_code).trim();
+    const naverId = String(product.naver_product_id || "").trim();
+    const nameKey = compact(product.product_name);
+    if (naverId) context.naverIdToCode.set(naverId, code);
+    if (nameKey) context.codeByName.set(nameKey, code);
+  });
   const targetByCode = new Map();
   targetProducts.forEach((product) => {
     if (!targetByCode.has(product.resolvedCode)) targetByCode.set(product.resolvedCode, product);
@@ -546,6 +730,10 @@ async function saveSearchSnapshot(config, keywordMeta, products, runId, context)
 async function runCollection(config) {
   if (config.mode === "singleProduct") {
     await runSingleProductLookup(config);
+    return;
+  }
+  if (config.mode === "trackedItems") {
+    await runTrackedItemsBatchLookup(config);
     return;
   }
   const runId = crypto.randomUUID();
