@@ -26,9 +26,58 @@ const STORE_IDENTITIES = {
 // 실패(캡차/차단/파싱 실패)하면 호출부에서 기존 탭 방식으로 안전하게 폴백한다.
 const FAST_FETCH_RULE_ID = 90001;
 
+// 판다랭크 확장프로그램(설치돼있는 실제 크롬 프로필에서 압축 해제해 코드 확인, 2026-08-06)이
+// 첫 요청부터도 캡차 없이 통과하는 이유를 찾다가 발견 — 우리는 sec-fetch-*/referer만 위장했는데
+// 판다랭크는 여기에 더해 navigator.userAgentData.getHighEntropyValues()로 "지금 이 브라우저의
+// 진짜 User-Agent/Client Hints"를 그대로 읽어서 user-agent·sec-ch-ua* 헤더 전체를 채워 넣는다.
+// 우리 쪽은 이 헤더들을 아예 안 보내서(Chrome 서비스워커/백그라운드 fetch의 기본값이 실제
+// 문서 탐색과 다를 수 있음), "sec-fetch-mode:navigate인데 UA/클라이언트힌트가 없거나 다르다"는
+// 모순이 탐지 신호였을 가능성이 크다. 판다랭크와 동일한 방식으로 재현한다.
+async function buildBrowserHeaderHints() {
+  const ua = navigator.userAgent;
+  const uaData = navigator.userAgentData;
+  const brands = uaData?.brands ?? [];
+  let secChUa = brands.length
+    ? brands.map((b) => `"${b.brand}";v="${b.version}"`).join(", ")
+    : (() => {
+        const m = ua.match(/Chrome\/(\d+)/);
+        const v = m ? m[1] : "144";
+        return `"Not(A:Brand";v="8", "Chromium";v="${v}", "Google Chrome";v="${v}"`;
+      })();
+  let arch = '"arm"', bitness = '"64"', formFactors = '"Desktop"', fullVersionList = secChUa,
+    model = '""', platformVersion = '"12.5.0"', wow64 = "?0";
+  if (uaData) {
+    try {
+      const h = await uaData.getHighEntropyValues([
+        "architecture", "bitness", "formFactors", "fullVersionList", "model", "platformVersion", "wow64",
+      ]);
+      if (h.fullVersionList?.length) fullVersionList = h.fullVersionList.map((b) => `"${b.brand}";v="${b.version}"`).join(", ");
+      if (h.architecture) arch = `"${h.architecture}"`;
+      if (h.bitness) bitness = `"${h.bitness}"`;
+      if (h.formFactors?.length) formFactors = h.formFactors.map((f) => `"${f}"`).join(", ");
+      if (h.model !== undefined) model = `"${h.model}"`;
+      if (h.platformVersion) platformVersion = `"${h.platformVersion}"`;
+      wow64 = h.wow64 ? "?1" : "?0";
+    } catch (_) {
+      // 하이엔트로피 힌트 조회 실패해도 기본값으로 진행 — 그래도 sec-fetch-*는 정상 위장된다.
+    }
+  }
+  let platform;
+  if (ua.includes("Windows")) platform = '"Windows"';
+  else if (ua.includes("Macintosh") || ua.includes("Mac OS X")) platform = '"macOS"';
+  else if (ua.includes("Linux")) platform = '"Linux"';
+  else platform = '"Unknown"';
+  const mobile = uaData?.mobile ? "?1" : "?0";
+  return {
+    ua, secChUa, secChUaArch: arch, secChUaBitness: bitness, secChUaFormFactors: formFactors,
+    secChUaFullVersionList: fullVersionList, secChUaModel: model, secChUaPlatformVersion: platformVersion,
+    secChUaWow64: wow64, platform, mobile,
+  };
+}
+
 async function withFastFetchHeaders(referer, fn) {
   const SET = chrome.declarativeNetRequest.HeaderOperation.SET;
-  const REMOVE = chrome.declarativeNetRequest.HeaderOperation.REMOVE;
+  const hints = await buildBrowserHeaderHints();
   const rule = {
     id: FAST_FETCH_RULE_ID,
     priority: 1,
@@ -42,19 +91,27 @@ async function withFastFetchHeaders(referer, fn) {
     action: {
       type: chrome.declarativeNetRequest.RuleActionType.MODIFY_HEADERS,
       requestHeaders: [
+        { header: "accept", operation: SET, value: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7" },
+        { header: "accept-language", operation: SET, value: "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7" },
+        { header: "cache-control", operation: SET, value: "max-age=0" },
+        { header: "priority", operation: SET, value: "u=0, i" },
+        { header: "referer", operation: SET, value: referer },
+        { header: "sec-ch-ua", operation: SET, value: hints.secChUa },
+        { header: "sec-ch-ua-arch", operation: SET, value: hints.secChUaArch },
+        { header: "sec-ch-ua-bitness", operation: SET, value: hints.secChUaBitness },
+        { header: "sec-ch-ua-form-factors", operation: SET, value: hints.secChUaFormFactors },
+        { header: "sec-ch-ua-full-version-list", operation: SET, value: hints.secChUaFullVersionList },
+        { header: "sec-ch-ua-mobile", operation: SET, value: hints.mobile },
+        { header: "sec-ch-ua-model", operation: SET, value: hints.secChUaModel },
+        { header: "sec-ch-ua-platform", operation: SET, value: hints.platform },
+        { header: "sec-ch-ua-platform-version", operation: SET, value: hints.secChUaPlatformVersion },
+        { header: "sec-ch-ua-wow64", operation: SET, value: hints.secChUaWow64 },
         { header: "sec-fetch-dest", operation: SET, value: "document" },
         { header: "sec-fetch-mode", operation: SET, value: "navigate" },
         { header: "sec-fetch-site", operation: SET, value: "same-origin" },
         { header: "sec-fetch-user", operation: SET, value: "?1" },
         { header: "upgrade-insecure-requests", operation: SET, value: "1" },
-        { header: "cache-control", operation: SET, value: "max-age=0" },
-        { header: "referer", operation: SET, value: referer },
-        // sec-fetch-site를 same-origin으로 위장해도, fetch()가 크로스오리진(chrome-extension://
-        // → https://search.shopping.naver.com)으로 실제 보내는 Origin 헤더는 그대로 남아있어서
-        // "same-origin이라면서 Origin이 확장프로그램"이라는 모순이 그대로 서버에 노출된다.
-        // 진짜 페이지 이동(document navigation)은 애초에 Origin 헤더를 안 보내므로 맞춰서 제거한다
-        // (2026-08-06, 첫 요청부터 즉시 418이 뜨는 문제 조사 중 발견).
-        { header: "origin", operation: REMOVE },
+        { header: "user-agent", operation: SET, value: hints.ua },
       ],
     },
   };

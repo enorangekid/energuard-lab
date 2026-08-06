@@ -14,9 +14,52 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 // 필요 없다 — 서비스워커 안에서 조용히 끝내고 결과만 돌려준다(2026-08-06).
 const FAST_FETCH_RULE_ID = 90002; // background.js(90001)와 겹치지 않게 별도 id
 
+// background.js와 동일 — 판다랭크 확장프로그램을 직접 압축 해제해서 확인한 결과, User-Agent/
+// sec-ch-ua* Client Hints를 실제 브라우저 값 그대로 채워 넣는 게 우리와의 결정적 차이였다
+// (2026-08-06). 자세한 이유는 background.js의 buildBrowserHeaderHints 주석 참고.
+async function buildBrowserHeaderHints() {
+  const ua = navigator.userAgent;
+  const uaData = navigator.userAgentData;
+  const brands = uaData?.brands ?? [];
+  let secChUa = brands.length
+    ? brands.map((b) => `"${b.brand}";v="${b.version}"`).join(", ")
+    : (() => {
+        const m = ua.match(/Chrome\/(\d+)/);
+        const v = m ? m[1] : "144";
+        return `"Not(A:Brand";v="8", "Chromium";v="${v}", "Google Chrome";v="${v}"`;
+      })();
+  let arch = '"arm"', bitness = '"64"', formFactors = '"Desktop"', fullVersionList = secChUa,
+    model = '""', platformVersion = '"12.5.0"', wow64 = "?0";
+  if (uaData) {
+    try {
+      const h = await uaData.getHighEntropyValues([
+        "architecture", "bitness", "formFactors", "fullVersionList", "model", "platformVersion", "wow64",
+      ]);
+      if (h.fullVersionList?.length) fullVersionList = h.fullVersionList.map((b) => `"${b.brand}";v="${b.version}"`).join(", ");
+      if (h.architecture) arch = `"${h.architecture}"`;
+      if (h.bitness) bitness = `"${h.bitness}"`;
+      if (h.formFactors?.length) formFactors = h.formFactors.map((f) => `"${f}"`).join(", ");
+      if (h.model !== undefined) model = `"${h.model}"`;
+      if (h.platformVersion) platformVersion = `"${h.platformVersion}"`;
+      wow64 = h.wow64 ? "?1" : "?0";
+    } catch (_) {}
+  }
+  let platform;
+  if (ua.includes("Windows")) platform = '"Windows"';
+  else if (ua.includes("Macintosh") || ua.includes("Mac OS X")) platform = '"macOS"';
+  else if (ua.includes("Linux")) platform = '"Linux"';
+  else platform = '"Unknown"';
+  const mobile = uaData?.mobile ? "?1" : "?0";
+  return {
+    ua, secChUa, secChUaArch: arch, secChUaBitness: bitness, secChUaFormFactors: formFactors,
+    secChUaFullVersionList: fullVersionList, secChUaModel: model, secChUaPlatformVersion: platformVersion,
+    secChUaWow64: wow64, platform, mobile,
+  };
+}
+
 async function withFastFetchHeaders(referer, fn) {
   const SET = chrome.declarativeNetRequest.HeaderOperation.SET;
-  const REMOVE = chrome.declarativeNetRequest.HeaderOperation.REMOVE;
+  const hints = await buildBrowserHeaderHints();
   const rule = {
     id: FAST_FETCH_RULE_ID,
     priority: 1,
@@ -30,16 +73,27 @@ async function withFastFetchHeaders(referer, fn) {
     action: {
       type: chrome.declarativeNetRequest.RuleActionType.MODIFY_HEADERS,
       requestHeaders: [
+        { header: "accept", operation: SET, value: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7" },
+        { header: "accept-language", operation: SET, value: "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7" },
+        { header: "cache-control", operation: SET, value: "max-age=0" },
+        { header: "priority", operation: SET, value: "u=0, i" },
+        { header: "referer", operation: SET, value: referer },
+        { header: "sec-ch-ua", operation: SET, value: hints.secChUa },
+        { header: "sec-ch-ua-arch", operation: SET, value: hints.secChUaArch },
+        { header: "sec-ch-ua-bitness", operation: SET, value: hints.secChUaBitness },
+        { header: "sec-ch-ua-form-factors", operation: SET, value: hints.secChUaFormFactors },
+        { header: "sec-ch-ua-full-version-list", operation: SET, value: hints.secChUaFullVersionList },
+        { header: "sec-ch-ua-mobile", operation: SET, value: hints.mobile },
+        { header: "sec-ch-ua-model", operation: SET, value: hints.secChUaModel },
+        { header: "sec-ch-ua-platform", operation: SET, value: hints.platform },
+        { header: "sec-ch-ua-platform-version", operation: SET, value: hints.secChUaPlatformVersion },
+        { header: "sec-ch-ua-wow64", operation: SET, value: hints.secChUaWow64 },
         { header: "sec-fetch-dest", operation: SET, value: "document" },
         { header: "sec-fetch-mode", operation: SET, value: "navigate" },
         { header: "sec-fetch-site", operation: SET, value: "same-origin" },
         { header: "sec-fetch-user", operation: SET, value: "?1" },
         { header: "upgrade-insecure-requests", operation: SET, value: "1" },
-        { header: "cache-control", operation: SET, value: "max-age=0" },
-        { header: "referer", operation: SET, value: referer },
-        // background.js와 동일한 이유로 제거 — sec-fetch-site:same-origin으로 위장해도 실제
-        // Origin 헤더(chrome-extension://...)가 그대로 나가면 모순이 드러난다(2026-08-06).
-        { header: "origin", operation: REMOVE },
+        { header: "user-agent", operation: SET, value: hints.ua },
       ],
     },
   };
