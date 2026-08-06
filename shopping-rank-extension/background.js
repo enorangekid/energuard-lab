@@ -84,18 +84,35 @@ async function fastFetchSearchPage(keyword, pageIndex) {
     try {
       res = await fetch(url, { credentials: "include", signal: AbortSignal.timeout(15000) });
     } catch (error) {
+      console.warn(`[FastFetch] ${keyword} p${pageIndex} 네트워크 오류:`, error);
       return { blockedReason: `네트워크 오류: ${error?.message || "알 수 없는 오류"}` };
     }
+    // 실패 사유를 전부 뭉뚱그려 "캡차"로 표시하면 실제 원인(진짜 캡차인지, 다른 차단/구조
+    // 변경인지) 구분이 안 돼서, 콘솔에 실제 HTTP 상태와 판정 근거를 남긴다(서비스워커
+    // 콘솔에서 chrome://extensions > 세부정보 > 서비스워커 검사로 확인 가능, 2026-08-06).
     if (res.status === 418 || res.status === 403) {
+      console.warn(`[FastFetch] ${keyword} p${pageIndex} 상태코드 ${res.status} → 캡차 판정`);
       return { blockedReason: "네이버 쇼핑 접속이 제한되었습니다(캡차)." };
     }
-    if (!res.ok) return { blockedReason: `네이버 응답 오류 (${res.status})` };
+    if (!res.ok) {
+      console.warn(`[FastFetch] ${keyword} p${pageIndex} 응답 오류 ${res.status}`);
+      return { blockedReason: `네이버 응답 오류 (${res.status})` };
+    }
     const html = await res.text();
-    if (isBlockedHtml(html)) return { blockedReason: "네이버 쇼핑 접속이 제한되었습니다(캡차)." };
+    if (isBlockedHtml(html)) {
+      console.warn(`[FastFetch] ${keyword} p${pageIndex} 본문에서 캡차/차단 문구 감지`);
+      return { blockedReason: "네이버 쇼핑 접속이 제한되었습니다(캡차)." };
+    }
     const nextData = extractNextDataFromHtml(html);
-    if (!nextData) return { blockedReason: "상품 데이터를 찾지 못했습니다(페이지 구조 변경 가능성)." };
+    if (!nextData) {
+      console.warn(`[FastFetch] ${keyword} p${pageIndex} __NEXT_DATA__ 없음, html 길이=${html.length}`);
+      return { blockedReason: "상품 데이터를 찾지 못했습니다(페이지 구조 변경 가능성)." };
+    }
     const parsed = RankParser.parseNextDataProducts(nextData, pageIndex);
-    if (!parsed.products.length) return { blockedReason: "상품 카드를 찾지 못했습니다." };
+    if (!parsed.products.length) {
+      console.warn(`[FastFetch] ${keyword} p${pageIndex} 상품 파싱 결과 0개`);
+      return { blockedReason: "상품 카드를 찾지 못했습니다." };
+    }
     // 이 raw HTML의 __NEXT_DATA__ 스키마(props.pageProps.compositeList.list)엔 스토어 자체
     // 상품코드(chnl_prod_no)가 안 들어있고 네이버 통합ID(nvMid)만 있다(2026-08-06 실측 확인) —
     // 라이브 DOM/기존 tracked_items 코드는 전부 smartstore 상품코드 기준이라 이대로면 전혀 매칭이
@@ -1216,11 +1233,16 @@ async function runCollection(config) {
               }));
               sourceLabel = "FAST";
               usedFast = true;
-            } else if (fast.blockedReason && /캡차/.test(fast.blockedReason)) {
-              fastFetchDisabled = true;
+            } else if (fast.blockedReason) {
+              console.warn(`[FastFetch] ${keywordMeta.keyword} p${pageIndex} 실패 → 탭 폴백: ${fast.blockedReason}`);
+              if (/캡차/.test(fast.blockedReason)) {
+                console.warn(`[FastFetch] 캡차 판정 — 이 실행의 나머지 키워드는 전부 탭 방식으로 전환됩니다.`);
+                fastFetchDisabled = true;
+              }
             }
-          } catch (_) {
+          } catch (error) {
             // 빠른 경로 파싱/검증 실패 — 아래에서 탭 방식으로 폴백
+            console.warn(`[FastFetch] ${keywordMeta.keyword} p${pageIndex} 예외 발생 → 탭 폴백:`, error);
           }
         }
         if (!pageProducts) {
