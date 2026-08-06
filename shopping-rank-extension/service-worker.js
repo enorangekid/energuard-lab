@@ -59,6 +59,7 @@ async function buildBrowserHeaderHints() {
 
 async function withFastFetchHeaders(referer, fn) {
   const SET = chrome.declarativeNetRequest.HeaderOperation.SET;
+  const REMOVE = chrome.declarativeNetRequest.HeaderOperation.REMOVE;
   const hints = await buildBrowserHeaderHints();
   const rule = {
     id: FAST_FETCH_RULE_ID,
@@ -94,6 +95,8 @@ async function withFastFetchHeaders(referer, fn) {
         { header: "sec-fetch-user", operation: SET, value: "?1" },
         { header: "upgrade-insecure-requests", operation: SET, value: "1" },
         { header: "user-agent", operation: SET, value: hints.ua },
+        // background.js와 동일 — 아이템스카우트 확장프로그램 코드에서 확인(2026-08-07).
+        { header: "sec-fetch-storage-access", operation: REMOVE },
       ],
     },
   };

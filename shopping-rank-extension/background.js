@@ -77,6 +77,7 @@ async function buildBrowserHeaderHints() {
 
 async function withFastFetchHeaders(referer, fn) {
   const SET = chrome.declarativeNetRequest.HeaderOperation.SET;
+  const REMOVE = chrome.declarativeNetRequest.HeaderOperation.REMOVE;
   const hints = await buildBrowserHeaderHints();
   const rule = {
     id: FAST_FETCH_RULE_ID,
@@ -112,6 +113,10 @@ async function withFastFetchHeaders(referer, fn) {
         { header: "sec-fetch-user", operation: SET, value: "?1" },
         { header: "upgrade-insecure-requests", operation: SET, value: "1" },
         { header: "user-agent", operation: SET, value: hints.ua },
+        // 아이템스카우트 확장프로그램 코드를 확인해서 발견 — 크롬이 fetch()에 자동으로 붙이는
+        // sec-fetch-storage-access 헤더는 진짜 문서 탐색엔 안 붙는데, 이것도 제거해야 한다더라
+        // (2026-08-07, 판다랭크에 이어 두 번째로 실제 경쟁사 확장프로그램 코드 확인).
+        { header: "sec-fetch-storage-access", operation: REMOVE },
       ],
     },
   };
