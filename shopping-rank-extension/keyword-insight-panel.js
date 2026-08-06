@@ -198,11 +198,14 @@
     .tab-links{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
     .card.floating .tab-links{display:none}
     /* item-discovery.html의 트렌드 분석 탭(.trend-tab)과 같은 뱃지 스타일 */
-    .tab-link{display:inline-flex;align-items:center;height:28px;padding:0 12px;font-size:11.5px;
+    .tab-link{display:inline-flex;align-items:center;height:30px;padding:0 13px;font-size:13px;
       color:#5a6378;font-weight:900;text-decoration:none;white-space:nowrap;
       border:1px solid #e8ecf2;border-radius:6px;background:#fff;
       transition:background .12s ease,color .12s ease,border-color .12s ease}
     .tab-link:hover{border-color:#c8cdd4;background:#fafbfc;color:#07111f}
+    /* "키워드 분석 확인하기"만 대표 오렌지색으로 강조 — 나머지 두 뱃지는 기본 톤 유지 */
+    .tab-link.primary{color:#e85d2f;border-color:#f3c9b2;background:#fff5ef}
+    .tab-link.primary:hover{border-color:#e85d2f;background:#ffe9dc;color:#e85d2f}
     .tab-panel.hidden{display:none}
     .tab-divider{border:none;border-top:1px solid #e4e7ec;margin:0 -22px 22px;height:0}
     .related-rows{display:flex;flex-direction:column;max-height:420px;overflow-y:auto}
@@ -545,7 +548,7 @@
         <button type="button" class="tab-btn${activeTab === "related" ? " active" : ""}" data-tab="related">연관키워드</button>
       </div>
       <div class="tab-links">
-        <a class="tab-link" href="${analysisUrl}" target="_blank" rel="noopener">키워드 분석 확인하기</a>
+        <a class="tab-link primary" href="${analysisUrl}" target="_blank" rel="noopener">"${keyword}" 키워드 분석 확인하기</a>
         <a class="tab-link" href="${ENERGUARD_LAB_URL}rank-tracker.html" target="_blank" rel="noopener">상품 순위 추적하기</a>
         <a class="tab-link" href="${ENERGUARD_LAB_URL}item-discovery.html" target="_blank" rel="noopener">키워드 발굴하기</a>
       </div>
