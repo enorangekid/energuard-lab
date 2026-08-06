@@ -146,7 +146,7 @@ async function fastFetchSearchPages(keyword, maxRank, onPage) {
     allProducts.push(...result.products);
     const organicCount = result.products.filter((p) => !p.isAd).length;
     if (organicCount < 20) break; // 검색결과의 마지막 페이지로 판단
-    if (pageIndex < maxPages) await sleep(400 + Math.random() * 400);
+    if (pageIndex < maxPages) await sleep(1000 + Math.random() * 1000);
   }
   return { products: allProducts };
 }
@@ -550,6 +550,9 @@ async function runTrackedItemsBatchLookup(config) {
         } catch (_) {
           // 빠른 경로 파싱/검증 실패 — 아래에서 탭 방식으로 폴백
         }
+        // 키워드 사이에 전혀 쉬지 않고 fast 요청을 연달아 쏘고 있었다 — 판다랭크의 요청 간격
+        // (1~2초)에 맞춰 다음 키워드로 넘어가기 전에 쉰다(2026-08-06, 배치 수집 캡차 빈발 조사).
+        if (usedFastPath) await sleep(1000 + Math.random() * 1000);
       }
 
       if (!products) {
@@ -1214,6 +1217,12 @@ async function runCollection(config) {
     for (const keywordMeta of config.keywords) {
       const allProducts = [];
       let previousFingerprint = "";
+      let usedFastInKeyword = false; // 이 키워드에서 fast로 마지막 요청을 보냈는지 — 다음 키워드로
+        // 넘어가기 전 대기(아래 finally 블록)를 넣을지 판단하는 데 쓴다. pageCount 마지막 페이지든
+        // organicCount<20 등으로 중간에 break하든 상관없이 항상 다음 키워드 전에 쉬어야 한다 —
+        // 예전엔 "이 키워드의 마지막 페이지가 아닐 때만" 쉬어서, 페이지 루프가 break로 끝나거나
+        // 키워드마다 1페이지만 보는 경우엔 키워드 사이에 대기가 전혀 없었다(2026-08-06 실측,
+        // 82개 키워드 배치에서 캡차가 자주 걸린 원인 중 하나로 추정).
       for (let pageIndex = 1; pageIndex <= config.pageCount; pageIndex += 1) {
         if (!activeRun || activeRun.id !== runId || activeRun.cancelled) throw new Error("사용자가 수집을 중단했습니다.");
         await updateProgress({
@@ -1233,6 +1242,7 @@ async function runCollection(config) {
               }));
               sourceLabel = "FAST";
               usedFast = true;
+              usedFastInKeyword = true;
             } else if (fast.blockedReason) {
               console.warn(`[FastFetch] ${keywordMeta.keyword} p${pageIndex} 실패 → 탭 폴백: ${fast.blockedReason}`);
               if (/캡차/.test(fast.blockedReason)) {
@@ -1312,8 +1322,11 @@ async function runCollection(config) {
           await updateProgress({ completed, message: `${keywordMeta.keyword} 검색결과의 마지막 페이지까지 확인했습니다.` });
           break;
         }
-        if (usedFast && pageIndex < config.pageCount) await sleep(400 + Math.random() * 400);
+        if (usedFast && pageIndex < config.pageCount) await sleep(1000 + Math.random() * 1000);
       }
+      // 이 키워드에서 fast 경로를 한 번이라도 썼으면, 페이지 루프가 어떻게 끝났든(break 포함)
+      // 다음 키워드로 넘어가기 전에 한 번 더 쉰다 — 판다랭크의 요청 간격(1~2초)에 맞춘다.
+      if (usedFastInKeyword) await sleep(1000 + Math.random() * 1000);
       const result = await saveSearchSnapshot(config, keywordMeta, allProducts, runId, context);
       saved += result.targetCount;
       snapshotSaved += result.snapshotCount;
