@@ -1279,6 +1279,7 @@ async function runCollection(config) {
     await cleanupOldSnapshots();
 
     for (const keywordMeta of config.keywords) {
+      const completedBeforeKeyword = completed; // 이 키워드가 통째로 실패했을 때 진행률을 채우는 데 씀
       const allProducts = [];
       let previousFingerprint = "";
       let usedFastInKeyword = false; // 이 키워드에서 fast로 마지막 요청을 보냈는지 — 다음 키워드로
@@ -1287,6 +1288,7 @@ async function runCollection(config) {
         // 예전엔 "이 키워드의 마지막 페이지가 아닐 때만" 쉬어서, 페이지 루프가 break로 끝나거나
         // 키워드마다 1페이지만 보는 경우엔 키워드 사이에 대기가 전혀 없었다(2026-08-06 실측,
         // 82개 키워드 배치에서 캡차가 자주 걸린 원인 중 하나로 추정).
+      try {
       for (let pageIndex = 1; pageIndex <= config.pageCount; pageIndex += 1) {
         if (!activeRun || activeRun.id !== runId || activeRun.cancelled) throw new Error("사용자가 수집을 중단했습니다.");
         await updateProgress({
@@ -1395,6 +1397,21 @@ async function runCollection(config) {
       saved += result.targetCount;
       snapshotSaved += result.snapshotCount;
       await updateProgress({ saved, snapshotSaved });
+      } catch (error) {
+        // 사용자가 직접 중단한 건 이 키워드만 건너뛸 게 아니라 전체 실행을 진짜로 멈춰야 하므로
+        // 그대로 다시 던진다. 그 외(캡차 후 탭 리로드로 메시지 채널이 끊기는 것 같은 일시적
+        // 오류 등)는 이 키워드 하나만 건너뛰고 나머지 키워드는 계속 진행한다 — 예전엔 여기 try/
+        // catch가 없어서 키워드 하나의 일시적 오류가 나머지 전체(예: 110개 중 40개째에서 멈춤)를
+        // 통째로 실패시켰다(2026-08-07, 캡차를 직접 풀고 난 직후 탭 리로드로 인한 메시지 채널
+        // 끊김 실측).
+        if (/중단/.test(error?.message || "")) throw error;
+        console.warn(`[FastFetch] ${keywordMeta.keyword} 키워드 전체 실패 → 건너뜀:`, error);
+        completed = completedBeforeKeyword + config.pageCount;
+        await updateProgress({
+          completed,
+          message: `${keywordMeta.keyword} 실패: ${error?.message || "알 수 없는 오류"} — 다음 키워드로 넘어갑니다.`,
+        });
+      }
     }
 
     await updateProgress({
