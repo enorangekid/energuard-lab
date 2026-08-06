@@ -1,214 +1,109 @@
+importScripts("parser-core.js");
+
 const CONFIG_KEY = "energuardShoppingRankConfig";
 const PENDING_KEY = "shoppingRankPendingConfig";
 const PROGRESS_KEY = "shoppingRankProgress";
-const SMARTSTORE_IMPORT_KEY = "smartstoreRankImportJob";
 const SUPABASE_URL = "https://eukwfypbfqojbaihfqye.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_MiBvlf3d6ulcVBsi7Odcgw_PTXSmXKj";
 
-const sbHeaders = (extra = {}) => ({
-  apikey: SUPABASE_ANON_KEY,
-  Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-  ...extra,
-});
-
-function todayKst() {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit",
-  }).formatToParts(new Date());
-  const map = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  return `${map.year}-${map.month}-${map.day}`;
-}
-
-async function fetchSupabase(path) {
-  const response = await fetch(`${SUPABASE_URL}${path}`, { headers: sbHeaders() });
-  if (!response.ok) throw new Error(`기존 순위 조회 실패: ${await response.text()}`);
-  return response.json();
-}
-
-async function postSupabaseRows(table, rows, conflictKey) {
-  const response = await fetch(
-    `${SUPABASE_URL}/rest/v1/${table}?on_conflict=${encodeURIComponent(conflictKey)}`,
-    {
-      method: "POST",
-      headers: sbHeaders({
-        "Content-Type": "application/json",
-        Prefer: "resolution=merge-duplicates,return=minimal",
-      }),
-      body: JSON.stringify(rows),
-    }
-  );
-  if (!response.ok) throw new Error(`순위 저장 실패: ${await response.text()}`);
-}
-
-// 네이버가 상품명에 zero-width space(​) 같은 보이지 않는 문자를 끼워 넣는 경우가 있어(스크래핑
-// 방지 목적으로 추정), 상품명으로 매칭할 땐 이런 문자를 지우고 공백을 정리한 뒤 비교해야 한다.
-function normalizeProductName(name) {
-  return String(name || "")
-    .replace(/[​-‍﻿]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-async function saveSmartstoreRanks(storeName, products) {
-  const encodedStore = encodeURIComponent(storeName);
-  // 이 스캔이 직접 넘겨준 productCode(관리자 화면 "채널 상품 번호")를 그대로 신뢰해서 저장한다.
-  // 예전엔 기존 keyword_rank_history 이력에 상품명/코드가 매칭이 안 되면(신상품 등) 통째로
-  // 스킵했는데, 그러면 실제로 존재하는 데이터가 조용히 사라졌다. 기존 이력은 이제 오직
-  // main_keyword/is_sub 분류와 product_link/가격을 물려받는 "보강" 용도로만 쓴다.
-  //
-  // 목록 화면에 키워드가 바로 보이는(더보기 버튼이 없는) 상품은 상세화면을 아예 열지 않으므로
-  // "채널 상품 번호"를 볼 방법이 없다 — 화면 어디에도 코드가 노출되지 않는다. 이런 상품은
-  // 상품명으로 기존 마스터(product_rankings)/이력(keyword_rank_history)과 매칭해 코드를 역으로 찾는다.
-  const [history, productMasters] = await Promise.all([
-    fetchSupabase(
-      `/rest/v1/keyword_rank_history?store_name=eq.${encodedStore}` +
-      "&product_code=neq.&select=keyword,main_keyword,is_sub,product_code,product_name,product_link,product_price,checked_at" +
-      "&order=checked_at.desc&limit=10000"
-    ),
-    fetchSupabase(`/rest/v1/product_rankings?select=code,name&code=neq.&name=neq.&limit=5000`).catch(() => []),
-  ]);
-
-  const latestByCodeKeyword = new Map();
-  const latestByCode = new Map();
-  const codeByName = new Map();
-  history.forEach((row) => {
-    const code = String(row.product_code || "").trim();
-    if (!code) return;
-    if (!latestByCode.has(code)) latestByCode.set(code, row);
-    const pairKey = `${code}\n${row.keyword || ""}`;
-    if (row.keyword && !latestByCodeKeyword.has(pairKey)) latestByCodeKeyword.set(pairKey, row);
-    const nameKey = normalizeProductName(row.product_name);
-    if (nameKey && !codeByName.has(nameKey)) codeByName.set(nameKey, code);
-  });
-  // product_rankings(자사 상품 마스터)가 더 정확한 출처라 이력보다 우선한다.
-  productMasters.forEach((row) => {
-    const code = String(row.code || "").trim();
-    const nameKey = normalizeProductName(row.name);
-    if (code && nameKey) codeByName.set(nameKey, code);
-  });
-
-  const now = new Date().toISOString();
-  const collectedDate = todayKst();
-  const payloadByKey = new Map();
-  const savedProductCodes = new Set();
-  let scannedProducts = 0;
-  let noRankProducts = 0;
-  let skipped = 0;
-  let nameMatched = 0;
-  let nameUnmatched = 0;
-
-  (Array.isArray(products) ? products : []).forEach((product) => {
-    const rawCode = String(product?.productCode || "").trim();
-    let productCode = rawCode;
-    if (!productCode) {
-      const matched = codeByName.get(normalizeProductName(product?.productName));
-      if (matched) { productCode = matched; nameMatched += 1; }
-    }
-    if (!productCode) {
-      // 상품코드도 없고 상품명으로도 기존 마스터/이력에 없으면(한 번도 본 적 없는 신상품 등)
-      // 저장할 방법이 없다 — product_rankings에 먼저 등록되면 다음 수집부터는 잡힌다.
-      nameUnmatched += 1;
-      skipped += 1;
-      return;
-    }
-    scannedProducts += 1;
-
-    const linkFallback = latestByCode.get(productCode);
-    const productKeywords = Array.isArray(product.keywords) ? product.keywords : [];
-    let hasValidRank = false;
-    productKeywords.forEach((item) => {
-      const keyword = String(item?.keyword || "").trim();
-      const rank = Number(item?.rank);
-      // 화면 파싱이 "N위" 순위 요약 텍스트를 키워드로 잘못 넘기는 경우를 마지막 방어선에서 걸러낸다.
-      if (!keyword || /^[\d,]+\s*위$/.test(keyword) || !Number.isFinite(rank) || rank < 1) {
-        skipped += 1;
-        return;
-      }
-      hasValidRank = true;
-      savedProductCodes.add(productCode);
-      const previous = latestByCodeKeyword.get(`${productCode}\n${keyword}`);
-      const key = `${storeName}\n${keyword}\n${productCode}\n${collectedDate}`;
-      payloadByKey.set(key, {
-        store_name: storeName,
-        keyword,
-        // 이 키워드가 예전에 큐레이션 트리(메인/보조 직접크롤링)에 이미 있었으면 그 분류를
-        // 물려받고, 없으면 자기 자신을 메인으로 하는 독립 키워드로 저장한다.
-        main_keyword: previous?.main_keyword || keyword,
-        is_sub: previous ? !!previous.is_sub : false,
-        rank,
-        max_rank: 4000,
-        checked_at: now,
-        product_code: productCode,
-        product_name: product.productName || linkFallback?.product_name || "",
-        product_image: product.productImage || "",
-        product_link: linkFallback?.product_link || "",
-        product_price: Number(linkFallback?.product_price) || 0,
-        collected_date: collectedDate,
-        source: "naver_diagnosis",
-      });
-    });
-    if (!hasValidRank) noRankProducts += 1;
-  });
-
-  const rows = [...payloadByKey.values()];
-  if (!rows.length) {
-    throw new Error(`저장할 순위를 찾지 못했습니다. 순위 미확인 상품 ${noRankProducts}개 · 스킵 ${skipped}개`);
-  }
-  for (let index = 0; index < rows.length; index += 100) {
-    await postSupabaseRows(
-      "keyword_rank_history",
-      rows.slice(index, index + 100),
-      "store_name,keyword,product_code,collected_date,source"
-    );
-  }
-  return {
-    saved: rows.length,
-    scannedProducts,
-    savedProducts: savedProductCodes.size,
-    noRankProducts,
-    skipped,
-    nameMatched,
-    nameUnmatched,
-  };
-}
-
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function waitForSmartstoreRanks(tabId) {
-  let lastError = "상품 목록을 기다리고 있습니다.";
-  for (let attempt = 0; attempt < 45; attempt += 1) {
-    try {
-      const result = await chrome.tabs.sendMessage(tabId, { type: "EXTRACT_SMARTSTORE_RANKS" });
-      if (result?.ok && result.products?.length) return result;
-      lastError = result?.error || lastError;
-    } catch (error) {
-      lastError = error?.message || lastError;
-    }
-    await sleep(1000);
+// ═══ 단발성 키워드 분석용 빠른 스캔(백그라운드 fetch, 탭 없음) ═══
+// background.js(runner.html 안에서 돌던 배치 수집)의 fast-fetch 로직을 그대로 옮겨왔다.
+// 키워드 분석은 한두 페이지만 훑고 바로 끝나서, 탭을 열어 화면을 뺏어가는 배치 수집용 UX가
+// 필요 없다 — 서비스워커 안에서 조용히 끝내고 결과만 돌려준다(2026-08-06).
+const FAST_FETCH_RULE_ID = 90002; // background.js(90001)와 겹치지 않게 별도 id
+
+async function withFastFetchHeaders(referer, fn) {
+  const SET = chrome.declarativeNetRequest.HeaderOperation.SET;
+  const rule = {
+    id: FAST_FETCH_RULE_ID,
+    priority: 1,
+    condition: {
+      urlFilter: "https://search.shopping.naver.com/search/*",
+      resourceTypes: [
+        chrome.declarativeNetRequest.ResourceType.XMLHTTPREQUEST,
+        chrome.declarativeNetRequest.ResourceType.OTHER,
+      ],
+    },
+    action: {
+      type: chrome.declarativeNetRequest.RuleActionType.MODIFY_HEADERS,
+      requestHeaders: [
+        { header: "sec-fetch-dest", operation: SET, value: "document" },
+        { header: "sec-fetch-mode", operation: SET, value: "navigate" },
+        { header: "sec-fetch-site", operation: SET, value: "same-origin" },
+        { header: "sec-fetch-user", operation: SET, value: "?1" },
+        { header: "upgrade-insecure-requests", operation: SET, value: "1" },
+        { header: "cache-control", operation: SET, value: "max-age=0" },
+        { header: "referer", operation: SET, value: referer },
+      ],
+    },
+  };
+  await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds: [FAST_FETCH_RULE_ID], addRules: [rule] });
+  try {
+    return await fn();
+  } finally {
+    await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds: [FAST_FETCH_RULE_ID] }).catch(() => {});
   }
-  throw new Error(`검색 순위 진단 화면을 읽지 못했습니다. ${lastError}`);
 }
 
-async function runSmartstoreImport(storeName) {
-  const rankingUrl = "https://sell.smartstore.naver.com/#/product/ranking-diagnosis";
-  await chrome.storage.local.set({
-    [SMARTSTORE_IMPORT_KEY]: {
-      status: "pending",
-      storeName,
-      startedAt: Date.now(),
-    },
+function extractNextDataFromHtml(html) {
+  const match = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+  if (!match) return null;
+  try { return JSON.parse(match[1]); } catch (_) { return null; }
+}
+
+function isBlockedHtml(html) {
+  return /보안\s*확인을\s*완료|WtmCaptcha|접속이 일시적으로 제한|서비스 이용이 제한/.test(html || "");
+}
+
+async function fastFetchSearchPage(keyword, pageIndex) {
+  const q = encodeURIComponent(keyword);
+  const url = `https://search.shopping.naver.com/search/all?` +
+    `query=${q}&pagingIndex=${pageIndex}&pagingSize=40&viewType=list`;
+  const referer = `https://search.shopping.naver.com/ns/search?query=${q}`;
+  return withFastFetchHeaders(referer, async () => {
+    let res;
+    try {
+      res = await fetch(url, { credentials: "include", signal: AbortSignal.timeout(15000) });
+    } catch (error) {
+      return { blockedReason: `네트워크 오류: ${error?.message || "알 수 없는 오류"}` };
+    }
+    if (res.status === 418 || res.status === 403) {
+      return { blockedReason: "네이버 쇼핑 접속이 제한되었습니다(캡차)." };
+    }
+    if (!res.ok) return { blockedReason: `네이버 응답 오류 (${res.status})` };
+    const html = await res.text();
+    if (isBlockedHtml(html)) return { blockedReason: "네이버 쇼핑 접속이 제한되었습니다(캡차)." };
+    const nextData = extractNextDataFromHtml(html);
+    if (!nextData) return { blockedReason: "상품 데이터를 찾지 못했습니다(페이지 구조 변경 가능성)." };
+    const parsed = RankParser.parseNextDataProducts(nextData, pageIndex);
+    if (!parsed.products.length) return { blockedReason: "상품 카드를 찾지 못했습니다." };
+    const products = parsed.products.map((p) => {
+      if (p.productCode) return p;
+      const linkId = (String(p.link || "").match(/\/products\/(\d+)/) || [])[1] || "";
+      return linkId ? { ...p, productCode: linkId } : p;
+    });
+    return { products };
   });
-  const tabs = await chrome.tabs.query({ url: "https://sell.smartstore.naver.com/*" });
-  let tab = tabs.find((item) => String(item.url || "").includes("/product/ranking-diagnosis"));
+}
 
-  if (tab) {
-    await chrome.tabs.update(tab.id, { active: true, url: rankingUrl });
-    await chrome.tabs.reload(tab.id, { bypassCache: false });
-  } else {
-    tab = await chrome.tabs.create({ active: true, url: rankingUrl });
+async function fastFetchSearchPages(keyword, maxRank) {
+  const pageSize = 40;
+  const maxPages = Math.max(1, Math.ceil(maxRank / pageSize));
+  const allProducts = [];
+  for (let pageIndex = 1; pageIndex <= maxPages; pageIndex += 1) {
+    const result = await fastFetchSearchPage(keyword, pageIndex);
+    if (result.blockedReason) {
+      if (pageIndex === 1) return { blockedReason: result.blockedReason };
+      break;
+    }
+    allProducts.push(...result.products);
+    const organicCount = result.products.filter((p) => !p.isAd).length;
+    if (organicCount < 20) break;
+    if (pageIndex < maxPages) await sleep(400 + Math.random() * 400);
   }
-
-  return { started: true, saved: 0, skipped: 0 };
+  return { products: allProducts };
 }
 
 function cleanKeyword(item) {
@@ -299,18 +194,60 @@ async function openTrackedItemsRunner(pageDelay) {
   return tab.id;
 }
 
+// 네이버 가격비교 검색 페이지에 띄우는 키워드 분석 패널(keyword-insight-panel.js)용 데이터 조회.
+// 콘텐츠 스크립트가 직접 fetch하면 네이버 페이지의 CSP에 걸릴 수 있어, 이 서비스워커가 대신
+// Supabase를 호출해 결과만 돌려준다(기존 확장프로그램의 다른 Supabase 호출도 전부 이 방식).
+async function fetchKeywordInsight(keyword) {
+  const headers = {
+    "Content-Type": "application/json",
+    apikey: SUPABASE_ANON_KEY,
+    Authorization: "Bearer " + SUPABASE_ANON_KEY,
+  };
+  const normalized = keyword.replace(/\s+/g, "").toLowerCase();
+  // keywordInsight 호출이 내부에서 이번 달 검색량을 keyword_search_volume_monthly에 먼저 저장한
+  // 뒤에야 그 값이 존재한다. 두 요청을 Promise.all로 동시에 쏘면, 이번 달 그 키워드를 처음 조회할
+  // 때 저장이 끝나기 전에 추이 조회가 먼저 도착해서 방금 만든 값을 자기가 못 보는 경우가 있었다
+  // (2026-08-06 실측). 순서를 강제해서 저장이 끝난 뒤에 추이를 읽는다.
+  const insightRes = await fetch(`${SUPABASE_URL}/functions/v1/naver-rank`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ action: "keywordInsight", keyword }),
+  });
+  const trendRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/keyword_search_volume_monthly?keyword=eq.${encodeURIComponent(normalized)}` +
+    `&select=snapshot_month,total&order=snapshot_month.desc&limit=36`,
+    { headers },
+  );
+  const insight = insightRes.ok ? await insightRes.json() : null;
+  const trendRows = trendRes.ok ? await trendRes.json() : [];
+  return { insight, trendRows };
+}
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message?.type === "START_SMARTSTORE_IMPORT") {
-    (async () => {
-      try {
-        const storeName = String(message.storeName || "").trim();
-        if (!storeName) throw new Error("스토어를 선택하세요.");
-        const result = await runSmartstoreImport(storeName);
-        sendResponse({ ok: true, ...result });
-      } catch (error) {
-        sendResponse({ ok: false, error: error?.message || "스마트스토어 순위를 가져오지 못했습니다." });
-      }
-    })();
+  if (message?.type === "FETCH_KEYWORD_ANALYSIS") {
+    const keyword = String(message.keyword || "").trim();
+    const maxRank = Math.min(1000, Math.max(40, Number(message.maxRank) || 200));
+    if (!keyword) {
+      sendResponse({ ok: false, error: "키워드 없음" });
+      return false;
+    }
+    fastFetchSearchPages(keyword, maxRank)
+      .then((result) => {
+        if (result.blockedReason) sendResponse({ ok: false, error: result.blockedReason });
+        else sendResponse({ ok: true, products: result.products });
+      })
+      .catch((error) => sendResponse({ ok: false, error: error?.message || "분석 실패" }));
+    return true;
+  }
+  if (message?.type === "FETCH_KEYWORD_INSIGHT") {
+    const keyword = String(message.keyword || "").trim();
+    if (!keyword) {
+      sendResponse({ ok: false, error: "키워드 없음" });
+      return false;
+    }
+    fetchKeywordInsight(keyword)
+      .then((data) => sendResponse({ ok: true, ...data }))
+      .catch((error) => sendResponse({ ok: false, error: error?.message || "조회 실패" }));
     return true;
   }
   if (message?.type === "START_TRACKED_ITEMS_COLLECTION") {
@@ -320,19 +257,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         sendResponse({ ok: true, tabId });
       } catch (error) {
         sendResponse({ ok: false, error: error?.message || "아이템 추적 수집을 시작하지 못했습니다." });
-      }
-    })();
-    return true;
-  }
-  if (message?.type === "SAVE_SMARTSTORE_RANKS") {
-    (async () => {
-      try {
-        const storeName = String(message.storeName || "").trim();
-        if (!storeName) throw new Error("스토어를 선택하세요.");
-        const result = await saveSmartstoreRanks(storeName, message.products);
-        sendResponse({ ok: true, ...result });
-      } catch (error) {
-        sendResponse({ ok: false, error: error?.message || "스마트스토어 순위를 저장하지 못했습니다." });
       }
     })();
     return true;

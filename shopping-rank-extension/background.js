@@ -17,6 +17,123 @@ const STORE_IDENTITIES = {
   },
 };
 
+// ═══ 빠른 가격비교 수집 (백그라운드 fetch, 탭 없음) ═══
+// 판다랭크 확장프로그램을 참고해서 구현: declarativeNetRequest로 sec-fetch-*/referer 헤더를
+// "실제 페이지 이동"처럼 위장하면, 탭을 열지 않고 fetch()만으로 검색결과 HTML을 받을 수 있다.
+// HTML 안에 이미 __NEXT_DATA__로 상품 데이터가 박혀있어(page-collector.js가 라이브 DOM에서 읽는
+// 것과 같은 데이터) parser-core.js(RankParser, runner.html에서 같이 로드됨)를 그대로 재사용해서
+// 파싱한다. 탭 렌더링을 안 기다려서 훨씬 빠르고, 광고/위젯 로딩 타이밍 문제 자체가 없다.
+// 실패(캡차/차단/파싱 실패)하면 호출부에서 기존 탭 방식으로 안전하게 폴백한다.
+const FAST_FETCH_RULE_ID = 90001;
+
+async function withFastFetchHeaders(referer, fn) {
+  const SET = chrome.declarativeNetRequest.HeaderOperation.SET;
+  const rule = {
+    id: FAST_FETCH_RULE_ID,
+    priority: 1,
+    condition: {
+      urlFilter: "https://search.shopping.naver.com/search/*",
+      resourceTypes: [
+        chrome.declarativeNetRequest.ResourceType.XMLHTTPREQUEST,
+        chrome.declarativeNetRequest.ResourceType.OTHER,
+      ],
+    },
+    action: {
+      type: chrome.declarativeNetRequest.RuleActionType.MODIFY_HEADERS,
+      requestHeaders: [
+        { header: "sec-fetch-dest", operation: SET, value: "document" },
+        { header: "sec-fetch-mode", operation: SET, value: "navigate" },
+        { header: "sec-fetch-site", operation: SET, value: "same-origin" },
+        { header: "sec-fetch-user", operation: SET, value: "?1" },
+        { header: "upgrade-insecure-requests", operation: SET, value: "1" },
+        { header: "cache-control", operation: SET, value: "max-age=0" },
+        { header: "referer", operation: SET, value: referer },
+      ],
+    },
+  };
+  await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds: [FAST_FETCH_RULE_ID], addRules: [rule] });
+  try {
+    return await fn();
+  } finally {
+    await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds: [FAST_FETCH_RULE_ID] }).catch(() => {});
+  }
+}
+
+function extractNextDataFromHtml(html) {
+  const match = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+  if (!match) return null;
+  try { return JSON.parse(match[1]); } catch (_) { return null; }
+}
+
+function isBlockedHtml(html) {
+  return /보안\s*확인을\s*완료|WtmCaptcha|접속이 일시적으로 제한|서비스 이용이 제한/.test(html || "");
+}
+
+async function fastFetchSearchPage(keyword, pageIndex) {
+  const q = encodeURIComponent(keyword);
+  // 기존 탭 방식(waitForTabComplete + extractPage)이 쓰는 것과 동일한 URL 파라미터로 맞춘다 —
+  // adQuery/origQuery/productSet=total/sort=rel을 추가하면 카탈로그 통합형 등 다른 응답
+  // 형태가 와서 __NEXT_DATA__의 상품 식별 필드 자체가 달라지는 것으로 보였다(2026-08-06 실측).
+  // pagingSize는 반드시 40 — RankParser.resolveOrganicRank가 "한 페이지=40개"를 전제로 2페이지부터
+  // 절대 순위를 (페이지번호-1)*40+순번으로 계산한다. 80으로 받으면 2페이지부터 순위가 틀어진다.
+  const url = `https://search.shopping.naver.com/search/all?` +
+    `query=${q}&pagingIndex=${pageIndex}&pagingSize=40&viewType=list`;
+  const referer = `https://search.shopping.naver.com/ns/search?query=${q}`;
+  return withFastFetchHeaders(referer, async () => {
+    let res;
+    try {
+      res = await fetch(url, { credentials: "include", signal: AbortSignal.timeout(15000) });
+    } catch (error) {
+      return { blockedReason: `네트워크 오류: ${error?.message || "알 수 없는 오류"}` };
+    }
+    if (res.status === 418 || res.status === 403) {
+      return { blockedReason: "네이버 쇼핑 접속이 제한되었습니다(캡차)." };
+    }
+    if (!res.ok) return { blockedReason: `네이버 응답 오류 (${res.status})` };
+    const html = await res.text();
+    if (isBlockedHtml(html)) return { blockedReason: "네이버 쇼핑 접속이 제한되었습니다(캡차)." };
+    const nextData = extractNextDataFromHtml(html);
+    if (!nextData) return { blockedReason: "상품 데이터를 찾지 못했습니다(페이지 구조 변경 가능성)." };
+    const parsed = RankParser.parseNextDataProducts(nextData, pageIndex);
+    if (!parsed.products.length) return { blockedReason: "상품 카드를 찾지 못했습니다." };
+    // 이 raw HTML의 __NEXT_DATA__ 스키마(props.pageProps.compositeList.list)엔 스토어 자체
+    // 상품코드(chnl_prod_no)가 안 들어있고 네이버 통합ID(nvMid)만 있다(2026-08-06 실측 확인) —
+    // 라이브 DOM/기존 tracked_items 코드는 전부 smartstore 상품코드 기준이라 이대로면 전혀 매칭이
+    // 안 된다. 상품 링크(smartstore.naver.com/main/products/{코드})에서 진짜 코드를 뽑아낸다
+    // (naver-rank 엣지펑션 fetchShopItems 등 이 코드베이스 다른 곳에서도 쓰는 방식과 동일).
+    const products = parsed.products.map((p) => {
+      if (p.productCode) return p;
+      const linkId = (String(p.link || "").match(/\/products\/(\d+)/) || [])[1] || "";
+      return linkId ? { ...p, productCode: linkId } : p;
+    });
+    return { products };
+  });
+}
+
+// 여러 페이지를 이어서 받아 maxRank까지 모은다. 마지막 페이지 판단(일반상품 20개 미만)은 기존
+// 탭 방식(runCollection)과 동일한 기준을 쓴다. 페이지 사이 대기(봇 탐지 완화용)는 판다랭크의
+// 1~2초보다 짧게(0.4~0.8초) — 캡차 발생하면 다시 늘리는 걸 고려할 것. 중간 페이지에서
+// 막히면(캡차 등) 그때까지 모은 페이지는 그대로 살려서 반환한다 — 1페이지부터 막혔을 때만
+// 완전 실패로 처리한다.
+async function fastFetchSearchPages(keyword, maxRank, onPage) {
+  const pageSize = 40;
+  const maxPages = Math.max(1, Math.ceil(maxRank / pageSize));
+  const allProducts = [];
+  for (let pageIndex = 1; pageIndex <= maxPages; pageIndex += 1) {
+    onPage?.(pageIndex, maxPages);
+    const result = await fastFetchSearchPage(keyword, pageIndex);
+    if (result.blockedReason) {
+      if (pageIndex === 1) return { blockedReason: result.blockedReason };
+      break; // 이미 모은 페이지까지는 그대로 활용
+    }
+    allProducts.push(...result.products);
+    const organicCount = result.products.filter((p) => !p.isAd).length;
+    if (organicCount < 20) break; // 검색결과의 마지막 페이지로 판단
+    if (pageIndex < maxPages) await sleep(400 + Math.random() * 400);
+  }
+  return { products: allProducts };
+}
+
 let activeRun = null;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -336,19 +453,35 @@ async function runTrackedItemsBatchLookup(config) {
 
   const items = await fetchJson("/rest/v1/tracked_items?select=*&limit=2000");
   if (!items.length) throw new Error("아이템 추적에 등록된 상품이 없습니다.");
+  // 그룹상품은 "대표 옵션" 코드가 며칠 사이 다른 코드로 로테이션될 수 있다 — 코드로만 매칭하면
+  // 실제로 1페이지에 떠 있는데도 처음 보는 코드라 "이탈"로 잘못 기록된다(에너가드컴퍼니 8/3 이후
+  // 준불연단열재 등에서 실제로 이 사고가 났음, saveSearchSnapshot에서 이미 겪은 문제와 동일).
+  // 코드가 안 걸리면 상품명으로 한 번 더 대조한다.
+  const productMasters = await fetchJson(
+    `/rest/v1/product_rankings?select=code,name&code=neq.&name=neq.&limit=5000`
+  ).catch(() => []);
 
   const itemByCode = new Map();
   const codeToCanonical = new Map();
+  const codeByName = new Map();
   const keywordMap = new Map(); // keyword -> Set(canonical product_code)
   items.forEach((item) => {
     itemByCode.set(item.product_code, item);
     codeToCanonical.set(item.product_code, item.product_code);
     parseCodeList(item.alt_codes).forEach((alt) => codeToCanonical.set(alt, item.product_code));
+    const nameKey = compact(item.product_name);
+    if (nameKey && !codeByName.has(nameKey)) codeByName.set(nameKey, item.product_code);
     const keywords = Array.isArray(item.keywords) ? item.keywords : [];
     keywords.map(String).map((k) => k.trim()).filter(Boolean).forEach((keyword) => {
       if (!keywordMap.has(keyword)) keywordMap.set(keyword, new Set());
       keywordMap.get(keyword).add(item.product_code);
     });
+  });
+  // product_rankings(상품 마스터)가 tracked_items 이름보다 더 정확한 출처라 나중에 덮어써서 우선한다.
+  productMasters.forEach((row) => {
+    const code = String(row.code || "").trim();
+    const nameKey = compact(row.name);
+    if (code && nameKey && itemByCode.has(code)) codeByName.set(nameKey, code);
   });
   if (!keywordMap.size) throw new Error("추적 상품에 등록된 키워드가 없습니다.");
 
@@ -358,11 +491,23 @@ async function runTrackedItemsBatchLookup(config) {
     runId, mode: "trackedItems", message: "준비하고 있습니다.", error: "",
   });
 
-  const tab = await chrome.tabs.create({ active: true, url: "about:blank" });
-  activeRun.tabId = tab.id;
+  // 탭은 필요할 때(빠른 경로가 막혔을 때만) 그때 연다 — 빠른 경로가 계속 통하면 탭을 아예 안 연다.
+  let tab = null;
+  async function ensureTab() {
+    if (!tab) {
+      tab = await chrome.tabs.create({ active: true, url: "about:blank" });
+      activeRun.tabId = tab.id;
+    }
+    return tab;
+  }
   let completed = 0;
   let saved = 0;
   let finishedSuccessfully = false;
+  let fastFetchDisabled = false; // 캡차 한 번 걸리면 이후 키워드도 계속 막힐 가능성이 높아 탭 방식으로 전환
+  // 1000위(25페이지)는 키워드당 페이지 사이 대기(1~2초)가 누적되면서 너무 오래 걸렸다
+  // (2026-08-06 실측 확인) — 판다랭크도 200위까지만 제공하는 걸로 보여 기존 관례(200위=5페이지)로
+  // 되돌린다.
+  const trackedMaxRank = Math.min(1000, Math.max(40, Number(config.maxRank) || 200));
 
   try {
     for (const [keyword, codes] of keywordMap) {
@@ -370,36 +515,73 @@ async function runTrackedItemsBatchLookup(config) {
       completed += 1;
       await updateProgress({ completed, message: `“${keyword}” 검색 중입니다. (${completed}/${total})` });
 
-      const url = "https://search.shopping.naver.com/search/all?" + new URLSearchParams({
-        query: keyword, pagingIndex: "1", pagingSize: "40", viewType: "list",
-      });
-      await chrome.tabs.update(tab.id, { url });
-      await waitForTabComplete(tab.id);
-      await showCollectionStatus(tab.id, {
-        status: "running", keyword, message: "검색결과에서 추적 상품을 찾고 있습니다.",
-        pageIndex: 1, pageCount: 1, completed, total,
-      });
-      await sleep(Math.max(1500, Number(config.pageDelay) || 1500));
+      let products = null;
+      let usedFastPath = false;
+      if (!fastFetchDisabled) {
+        try {
+          const fast = await fastFetchSearchPages(keyword, trackedMaxRank, (pageIndex, pageCount) => {
+            updateProgress({ message: `“${keyword}” 검색 중입니다. (${completed}/${total}) · ${pageIndex}/${pageCount}페이지` });
+          });
+          if (fast.products?.length) {
+            const candidate = normalizePageProducts(fast.products, 1);
+            validatePage(candidate, 1);
+            products = candidate;
+            usedFastPath = true;
+          } else if (fast.blockedReason && /캡차/.test(fast.blockedReason)) {
+            fastFetchDisabled = true;
+          }
+        } catch (_) {
+          // 빠른 경로 파싱/검증 실패 — 아래에서 탭 방식으로 폴백
+        }
+      }
 
-      let products = [];
-      try {
-        const extracted = await extractPage(tab.id, 1, "");
-        if (extracted.blockedReason) throw new Error(extracted.blockedReason);
-        products = normalizePageProducts(extracted.products, 1);
-        validatePage(products, 1);
-      } catch (error) {
-        // 이 키워드 하나가 실패해도(차단/파싱 오류 등) 나머지 키워드는 계속 진행한다.
+      if (!products) {
+        await ensureTab();
+        const url = "https://search.shopping.naver.com/search/all?" + new URLSearchParams({
+          query: keyword, pagingIndex: "1", pagingSize: "40", viewType: "list",
+        });
+        await chrome.tabs.update(tab.id, { url });
+        await waitForTabComplete(tab.id);
         await showCollectionStatus(tab.id, {
-          status: "running", keyword, message: `실패: ${error?.message || "알 수 없는 오류"} — 다음 키워드로 넘어갑니다.`,
+          status: "running", keyword, message: "검색결과에서 추적 상품을 찾고 있습니다.",
           pageIndex: 1, pageCount: 1, completed, total,
         });
-        continue;
+        await sleep(Math.max(1500, Number(config.pageDelay) || 1500));
+
+        try {
+          const extracted = await extractPage(tab.id, 1, "");
+          if (extracted.blockedReason) throw new Error(extracted.blockedReason);
+          products = normalizePageProducts(extracted.products, 1);
+          validatePage(products, 1);
+        } catch (error) {
+          // 이 키워드 하나가 실패해도(차단/파싱 오류 등) 나머지 키워드는 계속 진행한다.
+          await showCollectionStatus(tab.id, {
+            status: "running", keyword, message: `실패: ${error?.message || "알 수 없는 오류"} — 다음 키워드로 넘어갑니다.`,
+            pageIndex: 1, pageCount: 1, completed, total,
+          });
+          continue;
+        }
       }
 
       const foundByCanon = new Map();
+      const rotatedCodesByCanon = new Map(); // canon -> Set(코드 매칭 실패해서 상품명으로 찾아낸 새 코드)
       products.forEach((product) => {
         if (product.isAd) return;
-        const canon = codeToCanonical.get(String(product.productCode || ""));
+        const rawCode = String(product.productCode || "").trim();
+        let canon = rawCode ? codeToCanonical.get(rawCode) : undefined;
+        if (!canon) {
+          // 코드로 못 찾으면 상품명으로 한 번 더 대조한다 — 그룹상품 대표옵션 코드가
+          // 로테이션돼서 처음 보는 코드인 경우, 실제로는 1페이지에 있는데 "이탈"로
+          // 잘못 기록되는 걸 막는다.
+          const nameMatch = codeByName.get(compact(product.title));
+          if (nameMatch) {
+            canon = nameMatch;
+            if (rawCode) {
+              if (!rotatedCodesByCanon.has(canon)) rotatedCodesByCanon.set(canon, new Set());
+              rotatedCodesByCanon.get(canon).add(rawCode);
+            }
+          }
+        }
         if (canon && !foundByCanon.has(canon)) foundByCanon.set(canon, product);
       });
 
@@ -429,6 +611,17 @@ async function runTrackedItemsBatchLookup(config) {
         if (found.image && found.image !== item.product_image) patch.product_image = found.image;
         if (found.mallName && found.mallName !== item.mall_name) patch.mall_name = found.mallName;
         if (found.link && !item.product_link) patch.product_link = found.link;
+        const rotatedCodes = rotatedCodesByCanon.get(canon);
+        if (rotatedCodes && rotatedCodes.size) {
+          // 상품명으로 새로 찾아낸 로테이션 코드를 alt_codes에 등록 — 다음 수집부터는
+          // 코드만으로 바로 매칭돼서 매번 이름 대조에 의존하지 않게 된다.
+          const existingAlt = new Set(parseCodeList(item.alt_codes));
+          let altChanged = false;
+          rotatedCodes.forEach((code) => {
+            if (!existingAlt.has(code)) { existingAlt.add(code); altChanged = true; }
+          });
+          if (altChanged) patch.alt_codes = [...existingAlt];
+        }
         if (Object.keys(patch).length) {
           patch.updated_at = now;
           const response = await fetch(
@@ -439,13 +632,17 @@ async function runTrackedItemsBatchLookup(config) {
         }
       }
 
-      const sourceLabel = String(products[0]?.extractionSource || "dom").includes("next-data") ? "NEXT_DATA" : "DOM";
-      await showCollectionStatus(tab.id, {
-        status: "running", keyword,
-        message: `${keyword} · 추적 상품 ${foundByCanon.size}/${codes.size}개 확인 · ${sourceLabel}`,
-        source: sourceLabel, pageIndex: 1, pageCount: 1, completed, total,
-      });
-      await updateProgress({ saved });
+      const sourceLabel = usedFastPath
+        ? "FAST"
+        : (String(products[0]?.extractionSource || "dom").includes("next-data") ? "NEXT_DATA" : "DOM");
+      if (tab) {
+        await showCollectionStatus(tab.id, {
+          status: "running", keyword,
+          message: `${keyword} · 추적 상품 ${foundByCanon.size}/${codes.size}개 확인 · ${sourceLabel}`,
+          source: sourceLabel, pageIndex: 1, pageCount: 1, completed, total,
+        });
+      }
+      await updateProgress({ saved, message: `${keyword} · ${sourceLabel} · 추적 상품 ${foundByCanon.size}/${codes.size}개 확인` });
     }
 
     await updateProgress({
@@ -459,6 +656,183 @@ async function runTrackedItemsBatchLookup(config) {
       status: cancelled ? "cancelled" : "error",
       title: cancelled ? "수집 중단" : "수집 실패",
       runId, mode: "trackedItems",
+      message: error?.message || "수집 중 오류가 발생했습니다.",
+      error: cancelled ? "" : (error?.message || "수집 중 오류가 발생했습니다."),
+      saved,
+    });
+  } finally {
+    if (finishedSuccessfully && activeRun?.tabId) chrome.tabs.remove(activeRun.tabId).catch(() => {});
+    activeRun = null;
+  }
+}
+
+// ═══ N+스토어(search.shopping.naver.com/ns/search) 순위 수집 ═══
+// 가격비교와 개념이 다른 별도 랭킹(프로모션/멤버십 맥락이 섞인 결과셋)이라, 저장은 같은
+// keyword_rank_history 테이블에 source="nplus_store"로 분리해서 넣는다 — curated(가격비교)/
+// naver_diagnosis(관리자 진단)와 절대 안 섞이게 정리 쿼리도 source로 좁힌다.
+async function extractNplusPage(tabId, targetRank, storeName) {
+  let lastError;
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    try {
+      return await chrome.tabs.sendMessage(tabId, { type: "EXTRACT_NPLUS_PAGE", targetRank, storeName });
+    } catch (error) {
+      lastError = error;
+      await sleep(700);
+    }
+  }
+  throw new Error(`N+스토어 수집 스크립트 연결 실패: ${lastError?.message || "알 수 없는 오류"}`);
+}
+
+async function saveNplusSnapshot(config, keywordMeta, products) {
+  const collectedDate = todayKst();
+  const now = new Date().toISOString();
+  const matched = products.filter(
+    (p) => !p.isAd && p.mallName && compact(p.mallName) === compact(config.storeName)
+  );
+
+  const byCode = new Map();
+  matched.forEach((p) => {
+    const code = String(p.productCode || p.naverProductId || "").trim();
+    if (!code || byCode.has(code)) return;
+    byCode.set(code, p);
+  });
+
+  const rows = [...byCode.values()].map((p) => ({
+    store_name: config.storeName,
+    keyword: keywordMeta.keyword,
+    main_keyword: keywordMeta.mainKeyword,
+    is_sub: keywordMeta.isSub,
+    rank: p.rank,
+    max_rank: config.targetRank || 200,
+    checked_at: now,
+    product_code: String(p.productCode || p.naverProductId || ""),
+    product_name: p.title || "",
+    product_image: p.image || "",
+    product_link: p.link || "",
+    product_price: Number(p.price) || 0,
+    collected_date: collectedDate,
+    source: "nplus_store",
+  }));
+  if (!rows.length) {
+    rows.push({
+      store_name: config.storeName, keyword: keywordMeta.keyword,
+      main_keyword: keywordMeta.mainKeyword, is_sub: keywordMeta.isSub,
+      rank: null, max_rank: config.targetRank || 200, checked_at: now,
+      product_code: "", product_name: "", product_image: "", product_link: "",
+      product_price: 0, collected_date: collectedDate, source: "nplus_store",
+    });
+  }
+  await postRows("keyword_rank_history", rows, "store_name,keyword,product_code,collected_date,source");
+
+  const cleanupUrl = `${SUPABASE_URL}/rest/v1/keyword_rank_history` +
+    `?store_name=eq.${encodeURIComponent(config.storeName)}` +
+    `&keyword=eq.${encodeURIComponent(keywordMeta.keyword)}` +
+    `&collected_date=eq.${encodeURIComponent(collectedDate)}` +
+    `&source=eq.nplus_store` +
+    `&checked_at=neq.${encodeURIComponent(now)}`;
+  const cleanup = await fetch(cleanupUrl, { method: "DELETE", headers: sbHeaders() });
+  if (!cleanup.ok) throw new Error(`이전 N+스토어 순위 정리 실패: ${await cleanup.text()}`);
+
+  return { targetCount: rows.filter((row) => row.product_code).length };
+}
+
+async function runNplusStoreCollection(config) {
+  const runId = crypto.randomUUID();
+  const total = config.keywords.length;
+  activeRun = { id: runId, cancelled: false, tabId: null };
+  await updateProgress({
+    status: "running", title: "N+스토어 순위 수집", completed: 0, total, saved: 0,
+    runId, mode: "nplusStore", message: "네이버플러스스토어 검색결과를 수집할 준비를 하고 있습니다.", error: "",
+  });
+
+  let saved = 0;
+  let completed = 0;
+  let finishedSuccessfully = false;
+  const failedKeywords = [];
+  const targetRank = config.targetRank || 200;
+  try {
+    const tab = await chrome.tabs.create({ active: true, url: "about:blank" });
+    activeRun.tabId = tab.id;
+
+    for (const keywordMeta of config.keywords) {
+      if (!activeRun || activeRun.id !== runId || activeRun.cancelled) throw new Error("사용자가 수집을 중단했습니다.");
+      const url = "https://search.shopping.naver.com/ns/search?" + new URLSearchParams({
+        query: keywordMeta.keyword, prevQuery: keywordMeta.keyword, sort: "RECOMMEND",
+      });
+      await updateProgress({ completed, message: `“${keywordMeta.keyword}” 검색 중입니다. (${completed + 1}/${total})` });
+      await chrome.tabs.update(tab.id, { url });
+      await waitForTabComplete(tab.id);
+      await showCollectionStatus(tab.id, {
+        status: "running", keyword: keywordMeta.keyword,
+        message: "스크롤하며 N+스토어 검색결과를 수집하고 있습니다.",
+        pageIndex: 1, pageCount: 1, completed: completed + 1, total,
+      });
+
+      let products = [];
+      try {
+        const extracted = await extractNplusPage(tab.id, targetRank, config.storeName);
+        if (extracted.blockedReason) throw new Error(extracted.blockedReason);
+        products = extracted.products || [];
+        const organic = products.filter((p) => !p.isAd);
+        if (organic.length < Math.min(15, targetRank)) {
+          throw new Error(`일반상품이 ${organic.length}개만 확인되어 저장하지 않았습니다.`);
+        }
+      } catch (error) {
+        const reason = error?.message || "알 수 없는 오류";
+        failedKeywords.push({ keyword: keywordMeta.keyword, reason });
+        await showCollectionStatus(tab.id, {
+          status: "running", keyword: keywordMeta.keyword,
+          message: `실패: ${reason} — 다음 키워드로 넘어갑니다.`,
+          pageIndex: 1, pageCount: 1, completed: completed + 1, total,
+        });
+        completed += 1;
+        await updateProgress({ completed, message: `${keywordMeta.keyword} 실패: ${reason}` });
+        continue;
+      }
+
+      const result = await saveNplusSnapshot(config, keywordMeta, products);
+      saved += result.targetCount;
+      completed += 1;
+      await showCollectionStatus(tab.id, {
+        status: "running", keyword: keywordMeta.keyword,
+        message: `${keywordMeta.keyword} · 일반상품 ${products.filter((p) => !p.isAd).length}개 확인 · 자사 매칭 ${result.targetCount}개`,
+        pageIndex: 1, pageCount: 1, completed, total,
+      });
+      await updateProgress({ completed, saved });
+    }
+
+    const allFailed = failedKeywords.length > 0 && failedKeywords.length === total;
+    const failureNote = failedKeywords.length
+      ? ` · 실패 ${failedKeywords.length}개(${failedKeywords.map((f) => `${f.keyword}: ${f.reason}`).join(" / ")})`
+      : "";
+    await updateProgress({
+      status: allFailed ? "error" : "done",
+      title: allFailed ? "수집 실패" : "수집 완료",
+      completed: total, total, saved,
+      runId, mode: "nplusStore",
+      message: `${total}개 키워드의 N+스토어 검색결과에서 ${saved}개 순위를 저장했습니다.${failureNote}`,
+      error: allFailed ? failedKeywords.map((f) => `${f.keyword}: ${f.reason}`).join(" / ") : "",
+    });
+    // 전부 실패(캡차 등)했으면 수집 탭을 자동으로 닫지 않는다 — 사용자가 그 탭에서 직접
+    // 인증하거나 상태를 확인할 수 있어야 한다.
+    finishedSuccessfully = !allFailed;
+    if (!allFailed) {
+      const reportParams = new URLSearchParams({
+        storeName: config.storeName,
+        date: todayKst(),
+        keywords: config.keywords.map((k) => k.keyword).join(","),
+      });
+      chrome.tabs.create({
+        active: true,
+        url: chrome.runtime.getURL(`nplus-report.html?${reportParams.toString()}`),
+      }).catch(() => {});
+    }
+  } catch (error) {
+    const cancelled = /중단/.test(error?.message || "");
+    await updateProgress({
+      status: cancelled ? "cancelled" : "error",
+      title: cancelled ? "수집 중단" : "수집 실패",
+      runId, mode: "nplusStore",
       message: error?.message || "수집 중 오류가 발생했습니다.",
       error: cancelled ? "" : (error?.message || "수집 중 오류가 발생했습니다."),
       saved,
@@ -511,8 +885,35 @@ function validatePage(products, pageIndex) {
   return fingerprint;
 }
 
+// 메인/보조 키워드 일괄 수집에도 검색량을 같이 채운다 — naver-rank 엣지함수의 keywordInsight
+// 액션(검색광고 API, 순위 스캔과 무관하게 살아있음)을 그대로 재활용한다. 이 호출 자체가 서버에서
+// keyword_search_volume_monthly에도 이번 달 검색량을 자동 저장해주므로 별도 저장 코드가 필요 없다.
+// 실패해도 순위 저장 자체는 그대로 진행해야 하므로 여기서 에러를 삼킨다.
+async function fetchKeywordVolume(keyword) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/naver-rank`, {
+      method: "POST",
+      headers: sbHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ action: "keywordInsight", keyword }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const ad = data?.ad;
+    if (!ad || ad.monthlyTotal == null) return null;
+    return {
+      pc: Number(ad.monthlyPc) || 0,
+      mobile: Number(ad.monthlyMobile) || 0,
+      total: Number(ad.monthlyTotal) || 0,
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
 async function saveSearchSnapshot(config, keywordMeta, products, runId, context) {
   const collectedDate = todayKst();
+  // 순위 데이터 저장(POST/DELETE)과 겹치게 미리 던져둔다 — 나중에 targetPayload 만들 때만 기다리면 된다.
+  const volumePromise = fetchKeywordVolume(keywordMeta.keyword);
   const now = new Date().toISOString();
   const identity = STORE_IDENTITIES[compact(config.storeName)] || {};
   const knownChannelNos = new Set(identity.channelNos || []);
@@ -637,6 +1038,12 @@ async function saveSearchSnapshot(config, keywordMeta, products, runId, context)
     if (!targetByCode.has(product.resolvedCode)) targetByCode.set(product.resolvedCode, product);
   });
   const previousKeywordProducts = context.keywordProducts.get(keywordMeta.keyword) || new Map();
+  const volume = await volumePromise;
+  const volumeFields = {
+    search_volume_pc: volume?.pc ?? null,
+    search_volume_mobile: volume?.mobile ?? null,
+    search_volume_total: volume?.total ?? null,
+  };
   // source: "curated" — 메인/보조 키워드를 직접 검색해서 얻은 값임을 표시한다.
   // 네이버 순위진단 스크래핑("naver_diagnosis")과 같은 store+keyword+product+날짜 조합이 겹쳐도
   // 서로 다른 행으로 남아야 하고, 아래 정리(DELETE)가 그쪽 데이터를 지우면 안 된다.
@@ -655,6 +1062,7 @@ async function saveSearchSnapshot(config, keywordMeta, products, runId, context)
         product_price: product.product_price,
         collected_date: collectedDate,
         source: "curated",
+        ...volumeFields,
   }));
   previousKeywordProducts.forEach((previous, code) => {
     if (targetByCode.has(code)) return;
@@ -673,6 +1081,7 @@ async function saveSearchSnapshot(config, keywordMeta, products, runId, context)
         product_price: Number(previous.product_price) || 0,
         collected_date: collectedDate,
         source: "curated",
+        ...volumeFields,
     });
   });
   if (!targetPayload.length) {
@@ -683,6 +1092,7 @@ async function saveSearchSnapshot(config, keywordMeta, products, runId, context)
       product_code: "", product_name: "", product_image: "", product_link: "",
       product_price: 0, collected_date: collectedDate,
       source: "curated",
+      ...volumeFields,
     });
   }
   await postRows(
@@ -736,6 +1146,10 @@ async function runCollection(config) {
     await runTrackedItemsBatchLookup(config);
     return;
   }
+  if (config.mode === "nplusStore") {
+    await runNplusStoreCollection(config);
+    return;
+  }
   const runId = crypto.randomUUID();
   const total = config.keywords.length * config.pageCount;
   activeRun = { id: runId, cancelled: false, tabId: null };
@@ -748,9 +1162,34 @@ async function runCollection(config) {
   let saved = 0;
   let snapshotSaved = 0;
   let finishedSuccessfully = false;
+  // 탭은 필요할 때(빠른 경로가 막혔을 때만) 그때 연다 — trackedItems와 동일한 패턴.
+  let tab = null;
+  async function ensureTab() {
+    if (!tab) {
+      tab = await chrome.tabs.create({ active: true, url: "about:blank" });
+      activeRun.tabId = tab.id;
+    }
+    return tab;
+  }
+  async function fetchPageViaTab(pageIndex, keyword) {
+    await ensureTab();
+    const url = "https://search.shopping.naver.com/search/all?" + new URLSearchParams({
+      query: keyword, pagingIndex: String(pageIndex), pagingSize: "40", viewType: "list",
+    });
+    await chrome.tabs.update(tab.id, { url });
+    await waitForTabComplete(tab.id);
+    await sleep(config.pageDelay);
+    const result = await extractPage(tab.id, pageIndex, config.storeName);
+    if (result.blockedReason) throw new Error(result.blockedReason);
+    const pageProducts = normalizePageProducts(result.products, pageIndex).map((product) => ({
+      ...product, extractionSource: result.extractionSource || "dom",
+    }));
+    const sourceLabel = String(result.extractionSource || "dom").includes("next-data") ? "NEXT_DATA" : "DOM";
+    return { pageProducts, sourceLabel };
+  }
+  let fastFetchDisabled = false; // 캡차 한 번 걸리면 이후 페이지도 계속 막힐 가능성이 높아 탭 방식으로 전환
+
   try {
-    const tab = await chrome.tabs.create({ active: true, url: "about:blank" });
-    activeRun.tabId = tab.id;
     let completed = 0;
     const context = await fetchCollectionContext(config);
     await cleanupOldSnapshots();
@@ -760,53 +1199,56 @@ async function runCollection(config) {
       let previousFingerprint = "";
       for (let pageIndex = 1; pageIndex <= config.pageCount; pageIndex += 1) {
         if (!activeRun || activeRun.id !== runId || activeRun.cancelled) throw new Error("사용자가 수집을 중단했습니다.");
-        const url = "https://search.shopping.naver.com/search/all?" + new URLSearchParams({
-          query: keywordMeta.keyword,
-          pagingIndex: String(pageIndex),
-          pagingSize: "40",
-          viewType: "list",
-        });
         await updateProgress({
           completed,
           message: `“${keywordMeta.keyword}” ${pageIndex}/${config.pageCount}페이지를 확인하고 있습니다.`,
         });
-        await chrome.tabs.update(tab.id, { url });
-        await waitForTabComplete(tab.id);
-        await showCollectionStatus(tab.id, {
-          status: "running",
-          keyword: keywordMeta.keyword,
-          message: `검색결과 원본을 수집하고 있습니다.`,
-          pageIndex,
-          pageCount: config.pageCount,
-          completed: completed + 1,
-          total,
-        });
-        await sleep(config.pageDelay);
-        let result = await extractPage(tab.id, pageIndex, config.storeName);
-        if (result.blockedReason) throw new Error(result.blockedReason);
-        let pageProducts = normalizePageProducts(result.products, pageIndex).map((product) => ({
-          ...product,
-          extractionSource: result.extractionSource || "dom",
-        }));
+
+        let pageProducts = null;
+        let sourceLabel = "";
+        let usedFast = false;
+        if (!fastFetchDisabled) {
+          try {
+            const fast = await fastFetchSearchPage(keywordMeta.keyword, pageIndex);
+            if (fast.products) {
+              pageProducts = normalizePageProducts(fast.products, pageIndex).map((product) => ({
+                ...product, extractionSource: "fast",
+              }));
+              sourceLabel = "FAST";
+              usedFast = true;
+            } else if (fast.blockedReason && /캡차/.test(fast.blockedReason)) {
+              fastFetchDisabled = true;
+            }
+          } catch (_) {
+            // 빠른 경로 파싱/검증 실패 — 아래에서 탭 방식으로 폴백
+          }
+        }
+        if (!pageProducts) {
+          if (tab) {
+            await showCollectionStatus(tab.id, {
+              status: "running", keyword: keywordMeta.keyword, message: `검색결과 원본을 수집하고 있습니다.`,
+              pageIndex, pageCount: config.pageCount, completed: completed + 1, total,
+            });
+          }
+          const viaTab = await fetchPageViaTab(pageIndex, keywordMeta.keyword);
+          pageProducts = viaTab.pageProducts;
+          sourceLabel = viaTab.sourceLabel;
+        }
+
         let organicCount = pageProducts.filter((item) => !item.isAd).length;
         let currentFingerprint = validatePage(pageProducts, pageIndex);
 
         // 네이버가 간헐적으로 pagingIndex 이동 후 이전 페이지 데이터를 다시 보여주는 경우가 있다.
-        // 한 번 강제 재로딩해 확인하고, 그래도 같으면 이 키워드의 마지막 페이지로 처리한다.
+        // 탭 방식으로 한 번 더 확인하고(빠른 경로는 매번 새 요청이라 재시도해도 같은 결과일 뿐이라
+        // 탭으로 바꿔서 재확인한다), 그래도 같으면 이 키워드의 마지막 페이지로 처리한다.
         if (pageIndex > 1 && currentFingerprint && currentFingerprint === previousFingerprint) {
           await updateProgress({
             completed,
             message: `“${keywordMeta.keyword}” ${pageIndex}페이지 이동을 다시 확인하고 있습니다.`,
           });
-          await chrome.tabs.reload(tab.id, { bypassCache: true });
-          await waitForTabComplete(tab.id);
-          await sleep(config.pageDelay);
-          result = await extractPage(tab.id, pageIndex, config.storeName);
-          if (result.blockedReason) throw new Error(result.blockedReason);
-          pageProducts = normalizePageProducts(result.products, pageIndex).map((product) => ({
-            ...product,
-            extractionSource: result.extractionSource || "dom",
-          }));
+          const retry = await fetchPageViaTab(pageIndex, keywordMeta.keyword);
+          pageProducts = retry.pageProducts;
+          sourceLabel = retry.sourceLabel;
           organicCount = pageProducts.filter((item) => !item.isAd).length;
           currentFingerprint = validatePage(pageProducts, pageIndex);
           if (currentFingerprint && currentFingerprint === previousFingerprint) {
@@ -827,19 +1269,18 @@ async function runCollection(config) {
         }
         allProducts.push(...pageProducts);
         completed += 1;
-        const sourceLabel = String(result.extractionSource || "dom").includes("next-data")
-          ? "NEXT_DATA"
-          : "DOM";
-        await showCollectionStatus(tab.id, {
-          status: "running",
-          keyword: keywordMeta.keyword,
-          message: `검색결과 원본 누적 ${allProducts.filter((item) => !item.isAd).length}개를 수집했습니다.`,
-          source: sourceLabel,
-          pageIndex,
-          pageCount: config.pageCount,
-          completed,
-          total,
-        });
+        if (tab) {
+          await showCollectionStatus(tab.id, {
+            status: "running",
+            keyword: keywordMeta.keyword,
+            message: `검색결과 원본 누적 ${allProducts.filter((item) => !item.isAd).length}개를 수집했습니다.`,
+            source: sourceLabel,
+            pageIndex,
+            pageCount: config.pageCount,
+            completed,
+            total,
+          });
+        }
         await updateProgress({
           completed,
           message: `${keywordMeta.keyword} ${pageIndex}/${config.pageCount}페이지 · ${sourceLabel} 일반상품 ${organicCount}개 · 원본 누적 ${allProducts.filter((item) => !item.isAd).length}개`,
@@ -849,6 +1290,7 @@ async function runCollection(config) {
           await updateProgress({ completed, message: `${keywordMeta.keyword} 검색결과의 마지막 페이지까지 확인했습니다.` });
           break;
         }
+        if (usedFast && pageIndex < config.pageCount) await sleep(400 + Math.random() * 400);
       }
       const result = await saveSearchSnapshot(config, keywordMeta, allProducts, runId, context);
       saved += result.targetCount;

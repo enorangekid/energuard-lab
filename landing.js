@@ -1,125 +1,79 @@
 /* ─────────────────────────────────────────
    ENERGUARD LAB — 메인 홈 화면 전용 스크립트
-   (키워드 Best는 trend-widget.js 가 실데이터로 채워줍니다)
+   (왼쪽 "키워드 Best"는 trend-widget.js 가 채웁니다)
    ───────────────────────────────────────── */
 
-/* TOP 노출 상품 — naver-rank 엣지펑션 배치 모드 재사용.
-   [로딩 UX 원칙]
-   1) 키워드 조합별 결과를 메모리 캐시 → 방문했던 탭은 재요청 없이 즉시 렌더
-   2) 이미 카드가 떠 있으면 지우지 않고 흐리게(is-loading)만 표시 후 도착 시 교체
-      → innerHTML을 로딩 문구로 갈아끼우며 생기던 높이 붕괴(출렁임) 제거
-   3) 최초 진입에만 카드와 동일 크기의 스켈레톤을 그려 높이를 선확보 */
-const FN_URL = SUPABASE_URL + "/functions/v1/naver-rank";
-const FALLBACK_TOP_KEYWORDS = ["비데", "안마의자", "금고", "멀티탭", "텀블러", "빨래건조대", "차량용방향제", "스타벅스텀블러"];
-let topGridToken = 0;
-const topCache = {};        // { "kw1|kw2|...": results }
-let lastKeywordsKey = null; // 현재 그리드에 렌더된 키워드 조합
+/* TOP 노출 상품 — 네이버 쇼핑 상품검색 API(openapi.naver.com/v1/search/shop.json) 종료로
+   더 이상 키워드별 검색 결과를 못 가져와서, 네이버플러스스토어의 공개 BEST 상품 API
+   (snxbest.naver.com, 엣지펑션 snxbest-product로 프록시)로 대체했다. "이 키워드의 1위 상품"이
+   아니라 "이 카테고리에서 많이 본 상품"으로 개념이 바뀌었고, 카테고리·기간은 왼쪽 "키워드 Best"와
+   같은 cat-tabs/trend-tabs(trCat/trUnit)를 그대로 공유한다. */
+const SNXBEST_PRODUCT_FN_URL = SUPABASE_URL + "/functions/v1/snxbest-product";
 const TOP_CARD_COUNT = 6;
-const TOP_CANDIDATE_COUNT = 20;
-let fallbackTopResults = null;
+const topCache = {};
 
-async function fetchTopProducts(keywords) {
-  const res = await fetch(FN_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": "Bearer " + SUPABASE_ANON_KEY,
-      "apikey": SUPABASE_ANON_KEY,
-    },
-    body: JSON.stringify({ keywords }),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || res.status);
-  return data.results || [];
+async function loadTopProducts() {
+  const el = document.getElementById("salesGrid");
+  if (!el) return;
+  const key = `${trCat}|${trUnit}`;
+  if (topCache[key]) { renderSalesCards(el, topCache[key]); return; }
+
+  if (!el.querySelector(".sales-card:not(.sales-card--skel)")) {
+    el.innerHTML = skeletonCards(TOP_CARD_COUNT);
+  } else {
+    el.classList.add("is-loading");
+  }
+
+  try {
+    const res = await fetch(SNXBEST_PRODUCT_FN_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + SUPABASE_ANON_KEY,
+        "apikey": SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({ category: trCat, timeUnit: trUnit, count: TOP_CARD_COUNT }),
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || ("HTTP " + res.status));
+    topCache[key] = data.products || [];
+    el.classList.remove("is-loading");
+    renderSalesCards(el, topCache[key]);
+  } catch (e) {
+    el.classList.remove("is-loading");
+    if (!el.querySelector(".sales-card:not(.sales-card--skel)")) {
+      el.innerHTML = `<div class="tr-status">TOP 노출 상품을 불러오지 못했습니다: ${lsEsc(e.message || "오류")}</div>`;
+    }
+  }
 }
 
-function salesCard({ keyword, product }) {
-  const thumb = product.image
-    ? `<img src="${lsEsc(product.image)}" loading="lazy" alt="" onload="this.classList.add('is-loaded')">`
-    : lsEsc(keyword);
+function salesCard(p) {
+  const thumb = p.image
+    ? `<img src="${lsEsc(p.image)}" loading="lazy" alt="" onload="this.classList.add('is-loaded')">`
+    : lsEsc(p.title);
+  const sub = [p.mall, p.price ? Number(p.price).toLocaleString() + "원" : ""].filter(Boolean).join(" · ");
   return `
-    <a class="sales-card" href="${lsEsc(product.link)}" target="_blank" rel="noopener">
+    <a class="sales-card" href="${lsEsc(p.link)}" target="_blank" rel="noopener">
       <div class="sales-thumb">${thumb}</div>
       <div class="sales-body">
-        <span class="sales-badge">${lsEsc(keyword)} 1위</span>
-        <div class="sales-title">${lsEsc(product.title)}</div>
-        <div class="sales-sub">${lsEsc(product.mall)} · ${product.price ? product.price.toLocaleString() + "원" : ""}</div>
+        <span class="sales-badge">${p.rank}위</span>
+        <div class="sales-title">${lsEsc(p.title)}</div>
+        <div class="sales-sub">${lsEsc(sub)}</div>
+        ${p.reviewScore ? `<div class="sales-review">★${lsEsc(p.reviewScore)} 리뷰 ${lsEsc(p.reviewCount || "0")}</div>` : ""}
       </div>
     </a>`;
 }
 
-function normalizeTopResults(keywords, results) {
-  const byKeyword = new Map();
-  (results || []).forEach(item => {
-    if (item && item.keyword) byKeyword.set(item.keyword, item);
-  });
-  return keywords.map(keyword =>
-    byKeyword.get(keyword) || { keyword, product: null }
-  );
-}
-
-function pickDisplayResults(results) {
-  const seen = new Set();
-  return results.filter(item => {
-    if (!item || !item.product) return false;
-    const id = item.product.link || item.product.title || item.keyword;
-    if (seen.has(id)) return false;
-    seen.add(id);
-    return true;
-  }).slice(0, TOP_CARD_COUNT);
-}
-
-function hasLoadedCard(el) {
-  return !!el.querySelector(".sales-card:not(.sales-card--skel)");
-}
-
-function hasAnyProduct(results) {
-  return (results || []).some(item => item && item.product);
-}
-
-function holdGridHeight(el) {
-  if (hasLoadedCard(el)) {
-    el.style.setProperty("--sales-grid-height", `${Math.round(el.getBoundingClientRect().height)}px`);
+function renderSalesCards(el, products) {
+  if (!products.length) {
+    el.innerHTML = `<div class="tr-status">TOP 노출 상품을 준비 중입니다.</div>`;
+    el.dataset.count = "0";
+    return;
   }
+  el.dataset.count = String(products.length);
+  el.innerHTML = products.map(salesCard).join("");
 }
 
-function releaseGridHeight(el) {
-  requestAnimationFrame(() => el.style.removeProperty("--sales-grid-height"));
-}
-
-function renderSalesCards(el, results) {
-  el.dataset.count = String(results.length);
-  el.innerHTML = results.map(salesCard).join("");
-}
-
-async function getFallbackTopResults() {
-  if (!fallbackTopResults) {
-    fallbackTopResults = pickDisplayResults(normalizeTopResults(
-      FALLBACK_TOP_KEYWORDS,
-      await fetchTopProducts(FALLBACK_TOP_KEYWORDS)
-    ));
-  }
-  return fallbackTopResults;
-}
-
-async function fillTopResults(results) {
-  const productResults = pickDisplayResults(results);
-  if (productResults.length >= TOP_CARD_COUNT) return productResults.slice(0, TOP_CARD_COUNT);
-
-  const used = new Set(productResults.map(item => item.keyword + "|" + (item.product.link || item.product.title || "")));
-  const fillers = (await getFallbackTopResults()).filter(item => {
-    const id = item.keyword + "|" + (item.product.link || item.product.title || "");
-    if (used.has(id)) return false;
-    used.add(id);
-    return true;
-  });
-
-  return productResults
-    .concat(fillers)
-    .slice(0, TOP_CARD_COUNT);
-}
-
-/* 실제 카드와 동일한 골격의 스켈레톤 → 첫 로드에도 그리드 높이가 유지됨 */
 function skeletonCards(n) {
   return Array.from({ length: n }, () => `
     <div class="sales-card sales-card--skel">
@@ -132,75 +86,10 @@ function skeletonCards(n) {
     </div>`).join("");
 }
 
-async function renderTopGrid(keywords) {
-  const el = document.getElementById("salesGrid");
-  if (!el || !keywords.length) return;
-  const candidateKeywords = keywords.slice(0, TOP_CANDIDATE_COUNT);
-  const key = candidateKeywords.join("|");
-
-  /* 동일 키워드 조합이 이미 화면에 있으면 아무것도 안 함 */
-  if (key === lastKeywordsKey) return;
-
-  const token = ++topGridToken;
-
-  /* 캐시 히트 → 네트워크 없이 즉시 교체 */
-  if (topCache[key]) {
-    lastKeywordsKey = key;
-    el.classList.remove("is-loading");
-    renderSalesCards(el, topCache[key]);
-    releaseGridHeight(el);
-    return;
-  }
-
-  /* 기존 카드가 있으면 유지한 채 흐림 처리, 없으면(최초) 스켈레톤 */
-  if (hasLoadedCard(el)) {
-    holdGridHeight(el);
-    el.classList.add("is-loading");
-  } else {
-    el.innerHTML = skeletonCards(TOP_CARD_COUNT);
-  }
-
-  try {
-    const results = await fillTopResults(pickDisplayResults(
-      normalizeTopResults(candidateKeywords, await fetchTopProducts(candidateKeywords))
-    ));
-    if (token !== topGridToken) return; // 이후 탭 전환으로 무효화된 응답
-    if (!hasAnyProduct(results)) {
-      el.classList.remove("is-loading");
-      releaseGridHeight(el);
-      if (!hasLoadedCard(el)) {
-        el.dataset.count = "0";
-        el.innerHTML = `<div class="tr-status">TOP 노출 상품을 준비 중입니다.</div>`;
-      }
-      return;
-    }
-    topCache[key] = results;
-    lastKeywordsKey = key;
-    el.classList.remove("is-loading");
-    renderSalesCards(el, results);
-    releaseGridHeight(el);
-  } catch (e) {
-    if (token !== topGridToken) return;
-    el.classList.remove("is-loading");
-    releaseGridHeight(el);
-    /* 기존 카드가 떠 있었다면 굳이 지우지 않고 그대로 둠 (조용한 실패) */
-    if (!hasLoadedCard(el)) {
-      el.dataset.count = "0";
-      el.innerHTML = `<div class="tr-status">TOP 노출 상품을 불러오지 못했습니다: ${lsEsc(e.message || "오류")}</div>`;
-    }
-  }
-}
-
-/* 실제 트렌드 키워드가 도착하기 전에는 임의 키워드 상품을 먼저 보여주지 않는다. */
-const initialSalesGrid = document.getElementById("salesGrid");
-if (initialSalesGrid) {
-  initialSalesGrid.innerHTML = skeletonCards(TOP_CARD_COUNT);
-}
-
-/* trend-widget.js가 카테고리별 트렌드 키워드를 새로 불러올 때마다 호출된다 */
-function onTrendKeywords(d) {
-  const keywords = (d.keywords || []).slice(0, TOP_CANDIDATE_COUNT).map(k => k.keyword).filter(Boolean);
-  if (keywords.length) renderTopGrid(keywords);
+/* trend-widget.js가 카테고리·기간 탭 변경으로 왼쪽 목록을 새로 불러올 때마다
+   이 위젯도 같은 카테고리·기간으로 다시 불러온다 */
+function onTrendKeywords() {
+  loadTopProducts();
 }
 
 function lsEsc(s) {

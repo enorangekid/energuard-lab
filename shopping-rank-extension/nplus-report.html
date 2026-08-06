@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Energuard Lab N+스토어 순위 리포트</title>
+<link rel="stylesheet" href="report.css">
+</head>
+<body>
+  <main class="report-shell">
+    <header class="report-header">
+      <div>
+        <p class="eyebrow">ENERGUARD LAB</p>
+        <h1>N+스토어 순위 리포트</h1>
+        <p id="reportMeta" class="meta">수집 결과를 불러오는 중입니다.</p>
+      </div>
+      <div class="header-actions">
+        <label class="keyword-select-wrap">
+          <span>키워드</span>
+          <select id="keywordSelect" aria-label="분석 키워드"></select>
+        </label>
+      </div>
+    </header>
+
+    <section class="table-section">
+      <div class="table-heading">
+        <div>
+          <h2 id="tableTitle">검색결과 상품</h2>
+          <p>네이버플러스스토어에서 매칭된 자사 상품 순위입니다(광고 제외).</p>
+        </div>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th class="rank-col">순위</th>
+              <th class="image-col">이미지</th>
+              <th>상품명</th>
+              <th class="number-col">판매가</th>
+            </tr>
+          </thead>
+          <tbody id="reportRows"></tbody>
+        </table>
+      </div>
+      <div id="emptyState" class="empty-state" hidden>
+        <strong>표시할 수집 결과가 없습니다.</strong>
+        <span>이 키워드에서는 자사 상품이 매칭되지 않았습니다.</span>
+      </div>
+    </section>
+  </main>
+  <script src="nplus-report.js"></script>
+</body>
+</html>

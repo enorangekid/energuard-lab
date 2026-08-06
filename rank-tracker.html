@@ -639,15 +639,6 @@
   <div id="rankView">
     <div class="rank-filterbar app-filterbar">
       <div class="store-chips" id="storeChips"></div>
-      <button type="button" class="item-btn item-icon-btn collect" id="naverStoreCollectBtn" onclick="collectNaverStoreRank()" aria-label="네이버스토어 순위 수집" title="네이버스토어 순위 수집(검색순위진단)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 12a9 9 0 0 1-15.5 6.2"></path>
-          <path d="M3 12a9 9 0 0 1 15.5-6.2"></path>
-          <path d="M18 3v4h-4"></path>
-          <path d="M6 21v-4h4"></path>
-        </svg>
-      </button>
-      <span class="item-collect-status" id="naverStoreCollectStatus"></span>
       <div class="summary app-filter-summary" id="summary">불러오는 중...</div>
     </div>
 
@@ -1053,8 +1044,36 @@ document.addEventListener("click", (e) => {
   if (itemGroupBox && !itemGroupBox.contains(e.target)) itemGroupBox.classList.remove("open");
 });
 
+// 전체 테이블을 1,000행씩 순차로 받으면 수집량 많은 스토어(1만행+)에서 왕복이 20번 가까이
+// 걸려 그것만으로 몇 초씩 든다 — 첫 요청에서 count=exact로 전체 개수를 알아낸 뒤 나머지
+// 페이지를 한꺼번에 병렬로 쏴서 왕복 횟수를 사실상 1번으로 줄인다.
+async function fetchAllPaged(url, headers, pageSize = 1000, maxPages = 30) {
+  const first = await fetch(`${url}&offset=0&limit=${pageSize}`, {
+    headers: { ...headers, Prefer: "count=exact" },
+  });
+  if (!first.ok) return { ok: false, status: first.status };
+  const rows = await first.json();
+  const total = Number((first.headers.get("content-range") || "").split("/")[1]) || rows.length;
+  const totalPages = Math.min(maxPages, Math.ceil(total / pageSize));
+  if (totalPages > 1 && rows.length === pageSize) {
+    const rest = await Promise.all(
+      Array.from({ length: totalPages - 1 }, (_, i) =>
+        fetch(`${url}&offset=${(i + 1) * pageSize}&limit=${pageSize}`, { headers })
+          .then(r => r.ok ? r.json() : [])
+      ),
+    );
+    rest.forEach(more => rows.push(...more));
+  }
+  return { ok: true, rows };
+}
+
 async function fetchHistory(store) {
-  const base = `${SUPABASE_URL}/rest/v1/keyword_rank_history?store_name=eq.${encodeURIComponent(store)}`;
+  // source=naver_diagnosis(네이버 관리자 순위진단 "주목" 키워드)는 수집기 자체를 없앴고
+  // 의미 있는 발견도 거의 없어 화면에서도 걷어낸다 — 조회 단계에서부터 빼면 isDiscoveredKeyword를
+  // 쓰던 하위 로직(뱃지 표시·카테고리 분류·중복 정리) 전부가 자연스럽게 무력화된다.
+  // source=nplus_store(N+스토어 실험용 수집)도 제외 — 실험 중단 후에도 남아있던 행이 checked_at
+  // 기준 "최신"으로 잡혀 가격비교(curated) 순위 위에 덮어써 보이는 문제가 있었다(2026-08-06).
+  const base = `${SUPABASE_URL}/rest/v1/keyword_rank_history?store_name=eq.${encodeURIComponent(store)}&source=neq.naver_diagnosis&source=neq.nplus_store`;
   const order = `&order=collected_date.desc,checked_at.desc`;
   const headers = { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer " + SUPABASE_ANON_KEY };
   const selects = [
@@ -1064,24 +1083,16 @@ async function fetchHistory(store) {
     `&select=keyword,main_keyword,is_sub,rank,max_rank,product_code,product_name,collected_date,checked_at`,
   ];
   for (const select of selects) {
-    const first = await fetch(base + select + order + `&offset=0&limit=1000`, { headers });
-    if (!first.ok) {
-      if (first.status === 400) continue; // 없는 컬럼이면 다음 select로 재시도
-      throw new Error("조회 실패 (" + first.status + ")");
-    }
-    // Supabase는 요청당 최대 1,000행만 주므로 페이지를 돌며 수집한다. 예전엔 6,000행에서
+    // Supabase는 요청당 최대 1,000행만 주므로 페이지를 나눠 받는다. 예전엔 6,000행에서
     // 끊었는데, 수집량이 늘면서(예: 에너가드컴퍼니 17,000행+) 상품의 진짜 메인/보조 키워드
     // 기록이 최근 며칠치 물량에 밀려 잘려나가는 사고가 있었다(그 상품엔 "주목" 키워드 한
     // 줄만 남아서 엉뚱한 카테고리 탭에 끌려들어감) — 상한을 30,000행으로 넉넉히 올린다.
-    const rows = await first.json();
-    for (let page = 1; page < 30 && rows.length === page * 1000; page++) {
-      const res = await fetch(base + select + order + `&offset=${page * 1000}&limit=1000`, { headers });
-      if (!res.ok) break;
-      const more = await res.json();
-      rows.push(...more);
-      if (more.length < 1000) break;
+    const result = await fetchAllPaged(base + select + order, headers, 1000, 30);
+    if (!result.ok) {
+      if (result.status === 400) continue; // 없는 컬럼이면 다음 select로 재시도
+      throw new Error("조회 실패 (" + result.status + ")");
     }
-    return rows;
+    return result.rows;
   }
   throw new Error("조회 실패 (컬럼 불일치)");
 }
@@ -1096,20 +1107,12 @@ async function fetchProductMasters() {
     `?select=code,keyword,category_tab,image_url,name,memo,is_checked`,
   ];
   for (const select of selects) {
-    const first = await fetch(base + select + `&offset=0&limit=1000`, { headers });
-    if (!first.ok) {
-      if (first.status === 400) continue;
-      throw new Error("상품 마스터 조회 실패 (" + first.status + ")");
+    const result = await fetchAllPaged(base + select, headers, 1000, 10);
+    if (!result.ok) {
+      if (result.status === 400) continue;
+      throw new Error("상품 마스터 조회 실패 (" + result.status + ")");
     }
-    const rows = await first.json();
-    for (let page = 1; page < 10 && rows.length === page * 1000; page++) {
-      const res = await fetch(base + select + `&offset=${page * 1000}&limit=1000`, { headers });
-      if (!res.ok) break;
-      const more = await res.json();
-      rows.push(...more);
-      if (more.length < 1000) break;
-    }
-    return rows;
+    return result.rows;
   }
   throw new Error("상품 마스터 조회 실패 (컬럼 불일치)");
 }
@@ -1949,15 +1952,17 @@ function renderCategoryDashboard(section) {
   const dropKey = `mover-drop-${section.name}`;
   const sliceFor = (key, list) => list.slice(0, moverExpandedCards.has(key) ? MOVER_EXPANDED_LIMIT : 3);
 
+  // 4개 중 데이터 없는 항목이 있어도 카드 자체는 항상 유지한다(dashMoverSubCard의 빈 상태 문구로 채움) —
+  // 데이터 있는 카드만 보이면 3개·2개로 줄어들며 레이아웃이 흔들려서 항상 4개를 고정한다.
   const moverCards = [
-    s.upMovers.length ? dashMoverSubCard("키워드 순위 상승 TOP", sliceFor(upKey, s.upMovers).map((k, i) => moverKeywordRowHtml(k, i + 1)).join("") + moverMoreBtnHtml(upKey, s.upMovers.length)) : "",
-    s.downMovers.length ? dashMoverSubCard("키워드 순위 하락 TOP", sliceFor(downKey, s.downMovers).map((k, i) => moverKeywordRowHtml(k, i + 1)).join("") + moverMoreBtnHtml(downKey, s.downMovers.length)) : "",
-    notable.rising.length ? dashMoverSubCard("급상승 상품", sliceFor(riseKey, notable.rising).map((m, i) => moverProductRowHtml(m.product, m.best.k, i + 1)).join("") + moverMoreBtnHtml(riseKey, notable.rising.length)) : "",
-    notable.falling.length ? dashMoverSubCard("급하락 상품", sliceFor(fallKey, notable.falling).map((m, i) => moverProductRowHtml(m.product, m.worst.k, i + 1)).join("") + moverMoreBtnHtml(fallKey, notable.falling.length)) : "",
+    dashMoverSubCard("키워드 순위 상승 TOP", sliceFor(upKey, s.upMovers).map((k, i) => moverKeywordRowHtml(k, i + 1)).join("") + moverMoreBtnHtml(upKey, s.upMovers.length)),
+    dashMoverSubCard("키워드 순위 하락 TOP", sliceFor(downKey, s.downMovers).map((k, i) => moverKeywordRowHtml(k, i + 1)).join("") + moverMoreBtnHtml(downKey, s.downMovers.length)),
+    dashMoverSubCard("급상승 상품", sliceFor(riseKey, notable.rising).map((m, i) => moverProductRowHtml(m.product, m.best.k, i + 1)).join("") + moverMoreBtnHtml(riseKey, notable.rising.length)),
+    dashMoverSubCard("급하락 상품", sliceFor(fallKey, notable.falling).map((m, i) => moverProductRowHtml(m.product, m.worst.k, i + 1)).join("") + moverMoreBtnHtml(fallKey, notable.falling.length)),
   ].join("");
-  const moversHtml = moverCards ? `
+  const moversHtml = `
     <div class="summary-divider" style="margin:18px 0;"></div>
-    <div class="summary-top3-row-wrap summary-mover-grid">${moverCards}</div>` : "";
+    <div class="summary-top3-row-wrap summary-mover-grid">${moverCards}</div>`;
 
   const dropoutHtml = droppedProducts.length ? `
     <div class="summary-divider" style="margin:18px 0;"></div>
@@ -2522,46 +2527,6 @@ async function deleteTrackedItem(event, code) {
   });
   if (!res.ok) return alert("삭제 실패 (" + res.status + ")");
   await loadTrackedData();
-}
-
-/* 네이버스토어 검색순위진단(naver_diagnosis) 수집 — 확장프로그램에 요청만 보낸다.
-   실제 수집은 확장프로그램이 새 탭을 열어 진행하고(스마트스토어센터 로그인 필요),
-   진행 상황/결과는 그 탭의 자체 패널에 뜬다 — 이 페이지로 실시간 진행률까진 안 돌아온다. */
-function startSmartstoreImport(storeName) {
-  return new Promise((resolve, reject) => {
-    const requestId = `smartstore-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const timer = setTimeout(() => {
-      window.removeEventListener("message", onResponse);
-      reject(new Error("확장프로그램과 연결되지 않았습니다. chrome://extensions에서 확장프로그램을 새로고침한 뒤 이 페이지도 새로고침하세요."));
-    }, 5000);
-    function onResponse(event) {
-      if (event.source !== window || event.origin !== window.location.origin) return;
-      if (event.data?.type !== "ENERGUARD_SMARTSTORE_IMPORT_RESPONSE" || event.data.requestId !== requestId) return;
-      clearTimeout(timer);
-      window.removeEventListener("message", onResponse);
-      if (event.data.ok) resolve(event.data);
-      else reject(new Error(event.data.error || "확장프로그램에서 수집을 시작하지 못했습니다."));
-    }
-    window.addEventListener("message", onResponse);
-    window.postMessage({ type: "ENERGUARD_SMARTSTORE_IMPORT_START", requestId, storeName }, window.location.origin);
-  });
-}
-
-async function collectNaverStoreRank() {
-  const btn = document.getElementById("naverStoreCollectBtn");
-  const status = document.getElementById("naverStoreCollectStatus");
-  if (btn.disabled) return;
-  btn.disabled = true;
-  status.textContent = "확장프로그램에 요청 중...";
-  try {
-    await startSmartstoreImport(selectedStore);
-    status.textContent = "요청 완료 — 새로 열린 탭에서 진행 상황을 확인하세요.";
-  } catch (e) {
-    status.textContent = e.message || "수집 요청 실패";
-  } finally {
-    btn.disabled = false;
-    setTimeout(() => { if (status.textContent) status.textContent = ""; }, 6000);
-  }
 }
 
 /* 수집 — 예전엔 Supabase Edge Function(naver-rank)을 직접 호출했는데, 그 함수가 쓰는

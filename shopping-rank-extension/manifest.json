@@ -1,34 +1,38 @@
 {
   "manifest_version": 3,
   "name": "Energuard Lab Shopping Rank Collector",
-  "version": "0.13.1",
+  "version": "0.21.0",
   "description": "직원 브라우저에서 네이버 쇼핑 검색결과 전체를 수집하고 자사·추적 상품을 분류합니다.",
-  "permissions": ["tabs", "storage"],
+  "permissions": ["tabs", "storage", "declarativeNetRequest"],
   "host_permissions": [
     "https://search.shopping.naver.com/*",
-    "https://sell.smartstore.naver.com/*",
-    "https://in-app.memopan.io/*",
     "https://eukwfypbfqojbaihfqye.supabase.co/*"
   ],
+  "icons": {
+    "16": "icon.png",
+    "32": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
+  },
   "action": {
-    "default_title": "쇼핑 순위 수집",
-    "default_popup": "popup.html"
+    "default_title": "쇼핑 순위 수집 — 에너가드랩에서 실행하세요",
+    "default_icon": {
+      "16": "icon.png",
+      "32": "icon.png",
+      "48": "icon.png",
+      "128": "icon.png"
+    }
   },
   "background": {
     "service_worker": "service-worker.js"
   },
-  "content_scripts": [
+  "web_accessible_resources": [
     {
-      "matches": [
-        "https://sell.smartstore.naver.com/*",
-        "https://in-app.memopan.io/*"
-      ],
-      "js": ["smartstore-network-tap.js"],
-      "run_at": "document_start",
-      "world": "MAIN",
-      "all_frames": true,
-      "match_about_blank": true
-    },
+      "resources": ["icon.png"],
+      "matches": ["https://search.shopping.naver.com/*"]
+    }
+  ],
+  "content_scripts": [
     {
       "matches": ["https://search.shopping.naver.com/*"],
       "js": ["search-network-tap.js"],
@@ -41,14 +45,14 @@
       "run_at": "document_idle"
     },
     {
-      "matches": [
-        "https://sell.smartstore.naver.com/*",
-        "https://in-app.memopan.io/*"
-      ],
-      "js": ["smartstore-collector.js"],
-      "run_at": "document_idle",
-      "all_frames": true,
-      "match_about_blank": true
+      "matches": ["https://search.shopping.naver.com/search/*"],
+      "js": ["parser-core.js", "keyword-insight-panel.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://search.shopping.naver.com/ns/search*"],
+      "js": ["parser-core.js", "nplus-collector.js"],
+      "run_at": "document_start"
     },
     {
       "matches": [
