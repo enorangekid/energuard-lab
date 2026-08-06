@@ -28,6 +28,7 @@ const FAST_FETCH_RULE_ID = 90001;
 
 async function withFastFetchHeaders(referer, fn) {
   const SET = chrome.declarativeNetRequest.HeaderOperation.SET;
+  const REMOVE = chrome.declarativeNetRequest.HeaderOperation.REMOVE;
   const rule = {
     id: FAST_FETCH_RULE_ID,
     priority: 1,
@@ -48,6 +49,12 @@ async function withFastFetchHeaders(referer, fn) {
         { header: "upgrade-insecure-requests", operation: SET, value: "1" },
         { header: "cache-control", operation: SET, value: "max-age=0" },
         { header: "referer", operation: SET, value: referer },
+        // sec-fetch-site를 same-origin으로 위장해도, fetch()가 크로스오리진(chrome-extension://
+        // → https://search.shopping.naver.com)으로 실제 보내는 Origin 헤더는 그대로 남아있어서
+        // "same-origin이라면서 Origin이 확장프로그램"이라는 모순이 그대로 서버에 노출된다.
+        // 진짜 페이지 이동(document navigation)은 애초에 Origin 헤더를 안 보내므로 맞춰서 제거한다
+        // (2026-08-06, 첫 요청부터 즉시 418이 뜨는 문제 조사 중 발견).
+        { header: "origin", operation: REMOVE },
       ],
     },
   };

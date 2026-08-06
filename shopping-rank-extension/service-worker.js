@@ -16,6 +16,7 @@ const FAST_FETCH_RULE_ID = 90002; // background.js(90001)와 겹치지 않게 �
 
 async function withFastFetchHeaders(referer, fn) {
   const SET = chrome.declarativeNetRequest.HeaderOperation.SET;
+  const REMOVE = chrome.declarativeNetRequest.HeaderOperation.REMOVE;
   const rule = {
     id: FAST_FETCH_RULE_ID,
     priority: 1,
@@ -36,6 +37,9 @@ async function withFastFetchHeaders(referer, fn) {
         { header: "upgrade-insecure-requests", operation: SET, value: "1" },
         { header: "cache-control", operation: SET, value: "max-age=0" },
         { header: "referer", operation: SET, value: referer },
+        // background.js와 동일한 이유로 제거 — sec-fetch-site:same-origin으로 위장해도 실제
+        // Origin 헤더(chrome-extension://...)가 그대로 나가면 모순이 드러난다(2026-08-06).
+        { header: "origin", operation: REMOVE },
       ],
     },
   };
