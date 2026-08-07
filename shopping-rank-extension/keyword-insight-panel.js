@@ -308,11 +308,11 @@
     .related-card{flex:1 1 200px;min-width:0;overflow:hidden;
       display:flex;flex-direction:column;border:1px solid #e8ecf2;border-radius:6px;padding:16px 18px}
     .related-card-title{flex:none;font-size:12px;font-weight:800;color:#5a6378;margin-bottom:12px}
-    /* height:260px 고정이었는데, 카드가 align-items:stretch로 옆 카드(또는 다른 탭)에 맞춰
-       더 길게 늘어나도 목록은 260px 그대로라 카드마다 아래쪽 여백이 들쭉날쭉해 보였다
-       (2026-08-07 실측 지적). flex:1로 바꿔서 카드가 실제로 늘어난 만큼 목록도 같이
-       늘어나게 하고, 20개 넘칠 때만 그 안에서 스크롤되게 한다. */
-    .related-rank-list{flex:1;min-height:0;overflow-y:auto}
+    /* flex:1(무제한)로 바꿨더니 20개를 전부 펼치면서 이 탭 자체가 너무 커졌고, 그 높이에
+       맞춰 키워드분석 탭까지 같이 늘어나며 부작용이 더 컸다(2026-08-07 실측 확인, "개판"
+       피드백) — 다시 높이를 못박되, 카드끼리는 맞아야 하니 flex:1로 늘어난 카드 안에서도
+       목록 자체는 이 높이를 넘지 않게 max-height를 같이 준다. */
+    .related-rank-list{flex:1;max-height:260px;min-height:0;overflow-y:auto}
     .related-rank-row{display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid #f4f5f7}
     .related-rank-row:last-of-type{border-bottom:none}
     .related-rank-num{flex:none;width:20px;height:20px;border-radius:50%;background:#eef0f3;
@@ -357,11 +357,12 @@
     /* 검색어 데이터 카드 | 노출순위 카드 | 그래프, 한 줄 3칸(2026-08-07) — 그래프도 같은
        .side-box로 감싸서 세 칸이 같은 카드 톤으로 보이게 한다. */
     .vol-side-col{width:240px;flex:none;display:flex;flex-direction:column;gap:10px}
-    /* 카드 높이가 옆 칸(연관키워드 탭 등)에 맞춰 늘어나면, 내용이 위쪽에 몰리고 아래쪽에
-       빈 띠가 남았다(2026-08-07 지적) — 안 내용을 위아래로 고르게 펼쳐서 빈 공간이 뭉치지
-       않고 자연스럽게 분산되게 한다. */
-    .vol-side-col .side-box{flex:1;display:flex;flex-direction:column;justify-content:space-between}
-    .vol-side-col .sellers{flex:1;justify-content:space-between}
+    /* space-between으로 내용을 위아래로 벌렸더니, 연관키워드 탭이 커질 때(20개 전부 펼침)
+       같이 딸려 늘어나면서 몇 줄 안 되는 내용이 카드 전체에 억지로 넓게 벌어져 보기 흉했다
+       (2026-08-07, "개판" 피드백으로 되돌림). 자연스럽게 위쪽부터 채우고 남는 공간은
+       그냥 아래쪽 여백으로 둔다 — 약간의 하단 여백이 내용이 어색하게 벌어지는 것보다 낫다. */
+    .vol-side-col .side-box{flex:1;display:flex;flex-direction:column}
+    .vol-side-col .sellers{flex:1}
     .card.floating .vol-side-col{width:100%}
     .side-box{border:1px solid #e8ecf2;border-radius:6px;padding:12px 14px}
     /* 연관키워드 카드(.related-card-title 등)와 같은 톤으로 맞춤 — 제목은 옅은 회색,
