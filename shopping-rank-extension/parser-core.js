@@ -17,12 +17,15 @@
     return record.group === "ad" || record.type === "SA_prod" || /(^|\.)ader\.naver\.com$/i.test(hostname);
   }
 
+  // 1페이지는 네이버가 주는 원본 organicExposeOrder 값을 그대로 썼는데, 이 값이 우리가
+  // 광고로 분류해 뺀 자리를 다시 안 채워줘서 "1위, 5위가 통째로 빠지고 2,3,4,6..." 식으로
+  // 결번이 생겼다(2026-08-07, "아이소핑크" 수집 리포트에서 실측 확인 — 옛날 DOM 방식 수집
+  // 데이터엔 이 문제가 없었는데 fast 방식에서만 재현됨, 네이버 원본 페이지가 fast 파싱에서
+  // 더 많은 후보를 보다 보니 우리 광고 판별에 걸리는 항목이 더 있었던 것으로 추정). 페이지
+  // 구분 없이 항상 우리가 직접 센 순번(localOrganicOrder)만 쓰도록 통일해서, 원본 필드의
+  // 결번 여부와 무관하게 항상 1부터 연속된 순위가 나오게 한다.
   function resolveOrganicRank(rawOrder, pageIndex, localOrganicOrder) {
-    const order = Number(rawOrder);
     const page = Math.max(1, Number(pageIndex) || 1);
-    if (Number.isFinite(order) && order > 0) {
-      return page > 1 && order <= 40 ? (page - 1) * 40 + order : order;
-    }
     return (page - 1) * 40 + Math.max(1, Number(localOrganicOrder) || 1);
   }
 
