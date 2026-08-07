@@ -279,7 +279,11 @@
        바꿔서 동일한 스타일로 맞췄다. */
     .related-card-grid{display:flex;gap:14px;flex-wrap:wrap;align-items:stretch;flex:1;min-height:0}
     .card.floating .related-card-grid{flex-direction:column}
-    .related-card{flex:1 1 200px;min-width:0;display:flex;flex-direction:column;
+    /* max-height를 목록(.related-rank-list)뿐 아니라 카드 자체에도 못박는다 — 목록에만 걸어두면
+       중첩된 flex/grid(카드 그리드 → 그리드 스택) 안에서 카드 자체의 높이 계산이 목록의 캡을
+       제대로 못 물려받아 더보기 클릭 시 카드가 그대로 길어지는 경우가 있었다(2026-08-07 실측
+       확인). 카드 자체를 못박아두면 목록 안쪽 스크롤만으로 확실히 흡수된다. */
+    .related-card{flex:1 1 200px;min-width:0;max-height:360px;display:flex;flex-direction:column;
       border:1px solid #e8ecf2;border-radius:6px;padding:16px 18px}
     .related-card-title{flex:none;font-size:12px;font-weight:800;color:#5a6378;margin-bottom:12px}
     /* 더보기로 목록이 20개까지 늘어나도 카드 자체는 안 길어지게 목록만 내부 스크롤로 감싼다
