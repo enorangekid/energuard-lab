@@ -358,12 +358,13 @@
     /* 검색어 데이터 카드 | 노출순위 카드 | 그래프, 한 줄 3칸(2026-08-07) — 그래프도 같은
        .side-box로 감싸서 세 칸이 같은 카드 톤으로 보이게 한다. */
     .vol-side-col{width:240px;flex:none;display:flex;flex-direction:column;gap:10px}
-    /* space-between으로 내용을 위아래로 벌렸더니, 연관키워드 탭이 커질 때(20개 전부 펼침)
-       같이 딸려 늘어나면서 몇 줄 안 되는 내용이 카드 전체에 억지로 넓게 벌어져 보기 흉했다
-       (2026-08-07, "개판" 피드백으로 되돌림). 자연스럽게 위쪽부터 채우고 남는 공간은
-       그냥 아래쪽 여백으로 둔다 — 약간의 하단 여백이 내용이 어색하게 벌어지는 것보다 낫다. */
-    .vol-side-col .side-box{flex:1;display:flex;flex-direction:column}
-    .vol-side-col .sellers{flex:1}
+    /* 연관키워드 쪽(최대 20개까지 늘어날 수 있는 목록)에는 space-between을 안 쓴다 —
+       내용이 많아지면 카드 전체가 딸려 늘어나며 벌어져 보기 흉했다(2026-08-07, "개판"
+       피드백). 반면 이쪽(검색어 데이터/노출 점유율)은 행 개수가 항상 고정폭(최대 10개
+       등)이라 같은 문제가 없어서, 남는 세로 공간을 행 사이사이로 고르게 분산해 여백 없이
+       카드를 채운다. */
+    .vol-side-col .side-box{flex:1;display:flex;flex-direction:column;justify-content:space-between}
+    .vol-side-col .sellers{flex:1;display:flex;flex-direction:column;justify-content:space-between}
     .card.floating .vol-side-col{width:100%}
     .side-box{border:1px solid #e8ecf2;border-radius:6px;padding:12px 14px}
     /* 연관키워드 카드(.related-card-title 등)와 같은 톤으로 맞춤 — 제목은 옅은 회색,
@@ -379,10 +380,10 @@
     .side-box-row:first-of-type{border-top:none}
     .side-box-row b{color:#1d2433;font-weight:800;font-family:Consolas,"JetBrains Mono",monospace}
     .side-box-row b.up{color:#16a34a}.side-box-row b.down{color:#dc2626}.side-box-row b.flat{color:#667085}
-    /* related-rank-list와 짝 맞춤 — 여기만 캡이 없어서 10개가 다 늘어나면 이 칸이
-       카드 안에서 제일 큰 칸이 됐다(2026-08-07). 나머지 칸들과 같은 260px+스크롤로
-       막아서, 탭이 바뀌어도 카드 자체 높이가 콘텐츠양에 흔들리지 않게 한다. */
-    .sellers{display:flex;flex-direction:column;gap:6px;max-height:260px;overflow-y:auto}
+    /* 최대 10개로 이미 slice(0,10) 돼 있어 목록 자체가 자연히 짧다(2026-08-07) —
+       스크롤 캡 없이, 위 .vol-side-col .sellers의 space-between이 이 항목들 사이사이로
+       남는 공간을 나눠 채우게 둔다. */
+    .sellers{display:flex;flex-direction:column;gap:6px}
     .seller-row{display:grid;grid-template-columns:18px 1fr 60px;align-items:center;gap:8px;font-size:12px}
     .seller-rank{color:#98a2b3;font-weight:700;font-family:Consolas,"JetBrains Mono",monospace}
     .seller-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700;color:#1d2433}
