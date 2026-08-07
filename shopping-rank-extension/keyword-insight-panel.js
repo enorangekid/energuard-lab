@@ -269,7 +269,7 @@
     .tab-divider{border:none;border-top:1px solid #e4e7ec;margin:0 -22px 22px;height:0}
     /* 에너가드랩 대시보드의 "지표별 랭킹 확인하기" 카드와 같은 스타일 — 연관키워드 탭을
        카드 3개(에너가드랩/네이버/해시태그)로 나눠 나란히 보여준다(2026-08-07). */
-    .related-card-grid{display:flex;gap:16px;align-items:flex-start}
+    .related-card-grid{display:flex;gap:16px;align-items:stretch}
     .card.floating .related-card-grid{flex-direction:column}
     .related-card{flex:1;min-width:0;border:1px solid #e4e7ec;border-radius:10px;padding:16px}
     .related-card-title{font-size:14px;font-weight:800;color:#1d2433;margin-bottom:12px}
@@ -647,9 +647,12 @@
   // 최종적으로 이 카드 그리드로 정착).
   const RANK_CARD_INITIAL = 3;
 
-  // items: [{label, valueText, share}] — share는 이미 0~100으로 계산된 값. showValue가 false면
-  // 숫자·막대 없이 순위+이름만 나열한다(네이버 연관검색어처럼 우리가 수치를 못 얻는 경우용).
-  function rankCardHtml(title, items, { emptyText = "데이터가 없습니다.", showValue = true } = {}) {
+  // items: [{label, valueText, share}] — 값을 못 구한 항목(네이버 연관검색어 중 교차매칭
+  // 안 된 것)은 valueText가 "-"이고 share가 0이라 막대가 안 보일 뿐, 마크업 구조(값 줄+막대
+  // 자리)는 항상 동일하게 나가서 카드 세 개의 줄 높이가 똑같이 맞는다(2026-08-07, "네이버 카드만
+  // 줄이 좁아서 카드 세 개 높이가 안 맞는다"는 지적으로 수정 — 이전엔 showValue:false로 아예
+  // 값 영역을 안 그려서 그쪽 줄만 짧았다).
+  function rankCardHtml(title, items, { emptyText = "데이터가 없습니다." } = {}) {
     if (!items.length) {
       return `<div class="related-card"><div class="related-card-title">${title}</div><div class="empty">${emptyText}</div></div>`;
     }
@@ -658,11 +661,9 @@
         <div class="related-rank-row">
           <span class="related-rank-num">${i + 1}</span>
           <span class="related-rank-name">${item.label}</span>
-          ${showValue ? `
-            <span class="related-rank-value">${item.valueText}<b>비중 ${item.share.toFixed(1)}%</b></span>
-          ` : ""}
+          <span class="related-rank-value">${item.valueText}${item.share != null ? `<b>비중 ${item.share.toFixed(1)}%</b>` : ""}</span>
         </div>
-        ${showValue ? `<div class="related-rank-bar-track"><span class="related-rank-bar" style="width:${item.share}%"></span></div>` : ""}
+        <div class="related-rank-bar-track"><span class="related-rank-bar" style="width:${item.share || 0}%"></span></div>
       </div>`).join("");
     const moreBtn = items.length > RANK_CARD_INITIAL
       ? `<button type="button" class="related-more-btn">순위 더보기 +</button>`
@@ -676,20 +677,32 @@
 
   // 카드마다 "전체 대비 비중"을 낼 기준 모수가 없어서(예: 연관키워드 검색량은 절대적 규모라
   // 항목마다 자릿수가 천차만별), 실제로 화면에 보여줄 상위 N개(20개)의 합을 기준 삼아
-  // 상대 비중으로 근사한다 — item-discovery.html류 지표 랭킹 카드와 같은 방식.
+  // 상대 비중으로 근사한다 — item-discovery.html류 지표 랭킹 카드와 같은 방식. value가 null인
+  // 항목은 합계에서 0으로 취급되고 화면엔 "-"로 표시된다.
   function shareItems(entries, limit = 20) {
     const top = entries.slice(0, limit);
     const sum = top.reduce((s, [, v]) => s + (Number(v) || 0), 0) || 1;
-    return top.map(([label, value]) => ({ label, valueText: `${fmt(value)}회`, share: (Number(value) || 0) / sum * 100 }));
+    return top.map(([label, value]) => ({
+      label,
+      valueText: value != null ? `${fmt(value)}회` : "-",
+      share: value != null ? (Number(value) / sum * 100) : null,
+    }));
   }
+
+  const normalizeKw = (s) => String(s || "").replace(/\s+/g, "").toLowerCase();
 
   function relatedCardsHtml(related, nativeChips, topTags) {
     const oursItems = shareItems(related.map((r) => [r.keyword, r.total]));
     const hashtagItems = shareItems(topTags);
-    const nativeItems = nativeChips.slice(0, 20).map((c) => ({ label: c }));
+    // 네이버 연관검색어 자체엔 검색량이 없다 — 이미 받아온 검색광고 API 연관키워드 목록(related,
+    // 최대 300개)과 이름을 대조해서, 겹치는 게 있으면 그 검색량을 그대로 가져다 쓴다(추가 API
+    // 호출 없음). 전부 안 겹치면 그냥 "-"로 남는다(2026-08-07, "네이버쪽도 검색량을 뽑을 수
+    // 없을까"라는 요청으로 추가 — 100% 커버는 안 되지만 공짜라 시도할 가치가 있음).
+    const volByKw = new Map(related.map((r) => [normalizeKw(r.keyword), r.total]));
+    const nativeItems = shareItems(nativeChips.map((c) => [c, volByKw.get(normalizeKw(c)) ?? null]));
     return `<div class="related-card-grid">
       ${rankCardHtml("에너가드랩", oursItems, { emptyText: "연관 키워드 데이터가 없습니다." })}
-      ${rankCardHtml("네이버", nativeItems, { emptyText: "네이버 연관검색어를 찾지 못했습니다.", showValue: false })}
+      ${rankCardHtml("네이버", nativeItems, { emptyText: "네이버 연관검색어를 찾지 못했습니다." })}
       ${rankCardHtml("해시태그", hashtagItems, { emptyText: "수집된 태그가 없습니다." })}
     </div>`;
   }
