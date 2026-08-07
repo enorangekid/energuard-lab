@@ -716,8 +716,8 @@
     )?.[0];
     if (!topKw && !topTag) return "";
     const suggestions = [];
-    if (topKw) suggestions.push(`<b class="hl-kw">"${topKw}"</b> 키워드를 넣어보세요`);
-    if (topTag) suggestions.push(`<b class="hl-tag">"#${topTag}"</b> 해시태그는 어떨까요`);
+    if (topKw) suggestions.push(`<b class="hl-kw">${topKw}</b> 키워드를 넣어보세요`);
+    if (topTag) suggestions.push(`<b class="hl-tag">#${topTag}</b> 해시태그는 어떨까요`);
     return `<p class="headline">${suggestions.join(", ")}?</p>
       <p class="category-line">에너가드랩·네이버가 제공하는 연관 데이터 기준입니다</p>`;
   }
