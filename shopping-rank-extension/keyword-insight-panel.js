@@ -625,27 +625,25 @@
         ${purchaseRow}
         ${reviewRow}
         ${myRankRow}
-        ${page?.isPageCountOnly ? `<div class="empty" style="padding-top:2px">*로딩된 페이지 기준</div>` : ""}
       </div>`;
   }
 
   // 별도 탭이었던 "노출순위"를 검색량 탭 안 세 번째 컬럼으로 옮겼다 — 다른 두 사이드박스와
-  // 같은 카드 스타일로 통일.
+  // 같은 카드 스타일로 통일. 제목을 "노출 점유율"로, 10위까지로 조정(2026-08-07).
   function sellersHtml(sellers) {
     const body = !sellers || !sellers.length
       ? `<div class="empty">판매자 데이터가 없습니다.</div>`
       : `
         <div class="sellers">
-          ${sellers.slice(0, 8).map((s, i) => `
+          ${sellers.slice(0, 10).map((s, i) => `
             <div class="seller-row${isOwnStore(s.mall) ? " mine" : ""}">
               <span class="seller-rank">${i + 1}</span>
               <span class="seller-name">${s.mall}${isOwnStore(s.mall) ? " ★" : ""}</span>
               <span class="seller-share">${s.share.toFixed(1)}%</span>
               <span class="seller-bar-wrap"><span class="seller-bar" style="width:${s.share}%"></span></span>
             </div>`).join("")}
-        </div>
-        <div class="empty" style="padding-top:6px">*로딩된 페이지 기준</div>`;
-    return `<div class="side-box"><div class="side-box-title">노출 순위</div>${body}</div>`;
+        </div>`;
+    return `<div class="side-box"><div class="side-box-title">노출 점유율</div>${body}</div>`;
   }
 
   // rank-tracker.html의 "키워드 랭킹 | 아이템 추적" 탭(app-title-tab)과 같은 스타일 —
