@@ -279,19 +279,16 @@
        바꿔서 동일한 스타일로 맞췄다. */
     .related-card-grid{display:flex;gap:14px;flex-wrap:wrap;align-items:stretch;flex:1;min-height:0}
     .card.floating .related-card-grid{flex-direction:column}
-    /* max-height를 목록(.related-rank-list)뿐 아니라 카드 자체에도 못박는다 — 목록에만 걸어두면
-       중첩된 flex/grid(카드 그리드 → 그리드 스택) 안에서 카드 자체의 높이 계산이 목록의 캡을
-       제대로 못 물려받아 더보기 클릭 시 카드가 그대로 길어지는 경우가 있었다(2026-08-07 실측
-       확인). 카드 자체를 못박아두면 목록 안쪽 스크롤만으로 확실히 흡수된다. */
-    .related-card{flex:1 1 200px;min-width:0;max-height:360px;display:flex;flex-direction:column;
-      border:1px solid #e8ecf2;border-radius:6px;padding:16px 18px}
+    /* max-height만으로는 안 됐다 — 콘텐츠가 그 값을 넘으면 박스는 max-height에서 안 늘어나도
+       넘친 내용이 밖으로 그냥 삐져나와 보여서(overflow 기본값이 visible) 눈에는 "카드가
+       길어진 것"과 똑같이 보였다(2026-08-07, max-height만 넣은 뒤에도 재현됨). overflow:hidden을
+       같이 줘서 진짜로 잘리게(=목록 쪽 스크롤에만 담기게) 만든다. 목록 자체엔 더 이상 별도
+       max-height를 안 주고 flex:1로 남는 공간을 그대로 채우게 해서, 기준이 카드 하나(360px)로
+       통일되게 했다 — 두 군데(카드+목록)에 서로 다른 숫자를 따로 유지하지 않아도 된다. */
+    .related-card{flex:1 1 200px;min-width:0;max-height:360px;overflow:hidden;
+      display:flex;flex-direction:column;border:1px solid #e8ecf2;border-radius:6px;padding:16px 18px}
     .related-card-title{flex:none;font-size:12px;font-weight:800;color:#5a6378;margin-bottom:12px}
-    /* 더보기로 목록이 20개까지 늘어나도 카드 자체는 안 길어지게 목록만 내부 스크롤로 감싼다
-       (2026-08-07, "연관키워드 바뀔 때 카드 길이가 늘어난다"는 지적으로 추가). flex:1만으로는
-       부모(.card-body)가 min-height일 뿐 고정 height가 아니라 늘어날 공간 자체가 없어서 스크롤이
-       안 걸린다 — 기본 5줄(RANK_CARD_INITIAL)이 딱 들어가는 높이로 max-height를 못박아야 실제로
-       스크롤이 발동한다. */
-    .related-rank-list{flex:1;overflow-y:auto;min-height:0;max-height:260px}
+    .related-rank-list{flex:1;overflow-y:auto;min-height:0}
     .related-rank-row{display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid #f4f5f7}
     .related-rank-row:last-of-type{border-bottom:none}
     .related-rank-row.hidden{display:none}
@@ -303,7 +300,7 @@
     .related-rank-value{flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:2px;
       font-family:Consolas,"JetBrains Mono",monospace;font-size:12px;font-weight:800;color:#1d2433;white-space:nowrap}
     .related-rank-share{font-size:10.5px;font-weight:700;color:#5a6378;font-family:inherit}
-    .related-more-btn{display:flex;align-items:center;justify-content:center;gap:4px;width:100%;
+    .related-more-btn{flex:none;display:flex;align-items:center;justify-content:center;gap:4px;width:100%;
       margin-top:10px;padding:10px 0 0;border:0;border-top:1px solid #f4f5f7;background:transparent;
       color:#5a6378;font-family:inherit;font-size:12px;font-weight:800;cursor:pointer}
     .related-more-btn:hover{color:#e85d2f}
