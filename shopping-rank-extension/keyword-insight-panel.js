@@ -74,7 +74,11 @@
         [...document.querySelectorAll("[data-shp-contents-grp]")]
           .map((el) => el.getAttribute("data-shp-contents-grp"))
       )];
-      console.warn("[ENERGUARD] 연관검색어 칩을 못 찾음 — 발견된 data-shp-contents-grp 값:", groups);
+      // "연관" 위젯이 아예 없는 페이지(검색 조건에 따라 안 뜨는 경우가 있음)에서도 매번
+      // 찍혀서 크롬 확장프로그램 오류 목록에 잡혔다(2026-08-07) — 실제 오류가 아니라
+      // 화면에서 이미 "네이버 연관검색어를 찾지 못했습니다"로 정상 처리되는 정상 상태라
+      // console.debug로 낮춘다(그래도 필요하면 직접 콘솔에서 확인 가능).
+      console.debug("[ENERGUARD] 연관검색어 칩을 못 찾음 — 발견된 data-shp-contents-grp 값:", groups);
       return [];
     } catch (error) {
       console.warn("[ENERGUARD] 연관검색어 칩 읽기 실패:", error);
