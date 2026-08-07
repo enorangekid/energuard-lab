@@ -239,17 +239,19 @@
     .collapse-btn svg{width:16px;height:16px;transition:transform .15s ease}
     .card.collapsed .collapse-btn svg{transform:rotate(-90deg)}
     .card-body.hidden{display:none}
-    /* 탭을 바꿔도 카드 크기가 안 변해야 한다 — JS로 매번 재서 고정하는 방식은 재렌더링
-       타이밍에 따라 자꾸 깨졌다(판다랭크는 그런 문제가 없었음 → 순수 CSS로 전환).
-       "키워드분석" 탭 내용이 보통 차지하는 높이만큼 card-body에 최소 높이를 박아두면,
-       "연관키워드"의 목록이 짧아도 그만큼 빈 공간이 남을 뿐 카드 자체는 안 줄어든다.
-       플로팅(좁은 고정폭) 카드는 콘텐츠 자체가 훨씬 작아서 이 최소 높이를 적용하지 않는다. */
+    /* 탭을 바꿔도 카드 크기가 안 변해야 한다 — 처음엔 JS로 매번 재서 고정했는데 재렌더링
+       타이밍에 따라 자꾸 깨졌고, 그다음엔 고정 min-height 숫자를 박아뒀는데 두 탭의 실제
+       내용 높이가 서로 달라서(하나는 그 숫자보다 크고 하나는 작고) 탭 전환할 때마다 카드
+       높이가 오락가락했다(2026-08-07 실측, "연관키워드 탭 클릭시 높이가 더 줄어든다" 지적).
+       진짜 해법은 숫자를 맞히는 게 아니라, 두 탭을 같은 그리드 셀에 겹쳐놓고 안 보이는
+       쪽도 visibility:hidden(=레이아웃 계산엔 포함, 화면엔 안 그림)으로만 감춰서, 카드 높이가
+       "둘 중 더 큰 탭의 실제 높이"로 항상 자동으로 고정되게 만드는 것 — 어느 쪽 콘텐츠가
+       나중에 늘어나거나 줄어들어도 숫자를 다시 맞출 필요가 없다.
+       플로팅(좁은 고정폭) 카드는 콘텐츠 자체가 훨씬 작아서 이 락을 적용하지 않는다. */
     .card:not(.floating) .card-body{min-height:475px;display:flex;flex-direction:column}
-    /* "연관키워드"처럼(카드가 3줄만 접혀있을 때) 내용이 530px보다 짧으면, 예전엔 그 차이가
-       그리드 아래에 큰 빈 띠로 뭉텅이로 남았다 — 탭 자체를 세로 flex로 늘려서 안의 카드 그리드가
-       남는 높이를 흡수하게 한다(각 카드 테두리가 아래로 늘어나면서 여백이 카드 안쪽 하단
-       패딩처럼 자연스럽게 분산된다, 2026-08-07). */
-    .card:not(.floating) .tab-panel{display:flex;flex-direction:column;flex:1;min-height:0}
+    .card:not(.floating) .tab-panels-stack{display:grid;flex:1;min-height:0}
+    .card:not(.floating) .tab-panels-stack .tab-panel{grid-area:1/1/2/2;display:flex;flex-direction:column;min-height:0}
+    .card:not(.floating) .tab-panels-stack .tab-panel.hidden{visibility:hidden!important;display:flex!important;pointer-events:none}
     .tab-row{display:flex;align-items:center;justify-content:space-between;gap:16px;
       width:100%;margin:10px 0 12px}
     .tab-group{display:inline-flex;align-items:center;gap:24px;flex:none}
@@ -827,24 +829,26 @@
         <div class="card-body${collapsed ? " hidden" : ""}">
           ${tabRowHtml(keyword)}
           <hr class="tab-divider">
-          <div class="tab-panel${activeTab === "analysis" ? "" : " hidden"}" data-tab="analysis">
-            ${headlineHtml(trendYear)}
-            ${categoryLineHtml(page?.topCategory)}
-            ${ad ? `
-              <div class="vol-layout">
-                <div class="vol-chart-col">${trendChartHtml(trendRows)}</div>
-                <div class="vol-side-col">
-                  ${keywordSideBoxHtml(ad, page)}
-                  ${deviceSplitHtml(ad)}
-                  ${extraStatsBoxHtml(trendMonth, page)}
+          <div class="tab-panels-stack">
+            <div class="tab-panel${activeTab === "analysis" ? "" : " hidden"}" data-tab="analysis">
+              ${headlineHtml(trendYear)}
+              ${categoryLineHtml(page?.topCategory)}
+              ${ad ? `
+                <div class="vol-layout">
+                  <div class="vol-chart-col">${trendChartHtml(trendRows)}</div>
+                  <div class="vol-side-col">
+                    ${keywordSideBoxHtml(ad, page)}
+                    ${deviceSplitHtml(ad)}
+                    ${extraStatsBoxHtml(trendMonth, page)}
+                  </div>
+                  <div class="vol-side-col">${sellersHtml(page?.sellers)}</div>
                 </div>
-                <div class="vol-side-col">${sellersHtml(page?.sellers)}</div>
-              </div>
-            ` : `<div class="empty">검색량 데이터를 불러오지 못했습니다.</div>`}
-          </div>
-          <div class="tab-panel${activeTab === "related" ? "" : " hidden"}" data-tab="related">
-            ${relatedHeadlineHtml(nativeChips, related, topTags)}
-            ${relatedCardsHtml(related, nativeChips, topTags)}
+              ` : `<div class="empty">검색량 데이터를 불러오지 못했습니다.</div>`}
+            </div>
+            <div class="tab-panel${activeTab === "related" ? "" : " hidden"}" data-tab="related">
+              ${relatedHeadlineHtml(nativeChips, related, topTags)}
+              ${relatedCardsHtml(related, nativeChips, topTags)}
+            </div>
           </div>
         </div>
       </div>`;
