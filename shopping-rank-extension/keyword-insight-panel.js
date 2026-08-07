@@ -308,7 +308,11 @@
     .related-card{flex:1 1 200px;min-width:0;overflow:hidden;
       display:flex;flex-direction:column;border:1px solid #e8ecf2;border-radius:6px;padding:16px 18px}
     .related-card-title{flex:none;font-size:12px;font-weight:800;color:#5a6378;margin-bottom:12px}
-    .related-rank-list{height:260px;overflow-y:auto}
+    /* height:260px 고정이었는데, 카드가 align-items:stretch로 옆 카드(또는 다른 탭)에 맞춰
+       더 길게 늘어나도 목록은 260px 그대로라 카드마다 아래쪽 여백이 들쭉날쭉해 보였다
+       (2026-08-07 실측 지적). flex:1로 바꿔서 카드가 실제로 늘어난 만큼 목록도 같이
+       늘어나게 하고, 20개 넘칠 때만 그 안에서 스크롤되게 한다. */
+    .related-rank-list{flex:1;min-height:0;overflow-y:auto}
     .related-rank-row{display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid #f4f5f7}
     .related-rank-row:last-of-type{border-bottom:none}
     .related-rank-num{flex:none;width:20px;height:20px;border-radius:50%;background:#eef0f3;
