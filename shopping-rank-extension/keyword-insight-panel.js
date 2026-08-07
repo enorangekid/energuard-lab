@@ -247,7 +247,10 @@
     .collapse-btn:hover{background:#f5f6f8}
     .collapse-btn svg{width:16px;height:16px;transition:transform .15s ease}
     .card.collapsed .collapse-btn svg{transform:rotate(-90deg)}
-    .card-body.hidden{display:none}
+    /* .card:not(.floating) .card-body{display:flex}가 이 규칙보다 명시도가 높아져서(오늘 카드
+       높이 고정 작업 중 추가됨) 접기 버튼을 눌러도 본문이 안 숨겨지는 버그가 있었다(2026-08-07
+       실측 확인) — !important로 확실히 이기게 함. */
+    .card-body.hidden{display:none!important}
     /* 탭을 바꿔도 카드 크기가 안 변해야 한다 — 처음엔 JS로 매번 재서 고정했는데 재렌더링
        타이밍에 따라 자꾸 깨졌고, 그다음엔 고정 min-height 숫자를 박아뒀는데 두 탭의 실제
        내용 높이가 서로 달라서(하나는 그 숫자보다 크고 하나는 작고) 탭 전환할 때마다 카드

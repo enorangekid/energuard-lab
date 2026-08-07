@@ -621,7 +621,10 @@ async function runTrackedItemsBatchLookup(config) {
         }
         // 키워드 사이에 전혀 쉬지 않고 fast 요청을 연달아 쏘고 있었다 — 판다랭크의 요청 간격
         // (1~2초)에 맞춰 다음 키워드로 넘어가기 전에 쉰다(2026-08-06, 배치 수집 캡차 빈발 조사).
-        if (usedFastPath) await sleep(1000 + Math.random() * 1000);
+        // 페이지 사이 대기(캡차 방지 핵심)는 그대로 두고, 키워드 전환 대기만 좀 더 짧게 잡아서
+        // 속도를 살린다 — 82개 키워드 실측으로 캡차 없이 잘 끝난 뒤 "느려서 불편하다"는
+        // 피드백으로 조정(2026-08-07).
+        if (usedFastPath) await sleep(600 + Math.random() * 400);
       }
 
       if (!products) {
@@ -1396,8 +1399,10 @@ async function runCollection(config) {
         if (usedFast && pageIndex < config.pageCount) await sleep(1000 + Math.random() * 1000);
       }
       // 이 키워드에서 fast 경로를 한 번이라도 썼으면, 페이지 루프가 어떻게 끝났든(break 포함)
-      // 다음 키워드로 넘어가기 전에 한 번 더 쉰다 — 판다랭크의 요청 간격(1~2초)에 맞춘다.
-      if (usedFastInKeyword) await sleep(1000 + Math.random() * 1000);
+      // 다음 키워드로 넘어가기 전에 한 번 더 쉰다. 페이지 사이 대기(캡차 방지 핵심)는 그대로
+      // 두고, 키워드 전환 대기만 짧게 잡아서 속도를 살린다(2026-08-07, 82개 키워드 실측으로
+      // 캡차 없이 잘 끝난 뒤 "느려서 불편하다"는 피드백으로 조정).
+      if (usedFastInKeyword) await sleep(600 + Math.random() * 400);
       const result = await saveSearchSnapshot(config, keywordMeta, allProducts, runId, context);
       saved += result.targetCount;
       snapshotSaved += result.snapshotCount;
