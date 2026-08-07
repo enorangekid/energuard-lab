@@ -263,16 +263,12 @@
        높이 고정 작업 중 추가됨) 접기 버튼을 눌러도 본문이 안 숨겨지는 버그가 있었다(2026-08-07
        실측 확인) — !important로 확실히 이기게 함. */
     .card-body.hidden{display:none!important}
-    /* 탭을 바꿔도 카드 크기가 안 변해야 한다 — 처음엔 JS로 매번 재서 고정했는데 재렌더링
-       타이밍에 따라 자꾸 깨졌고, 그다음엔 고정 min-height 숫자를 박아뒀는데 두 탭의 실제
-       내용 높이가 서로 달라서(하나는 그 숫자보다 크고 하나는 작고) 탭 전환할 때마다 카드
-       높이가 오락가락했다(2026-08-07 실측, "연관키워드 탭 클릭시 높이가 더 줄어든다" 지적).
-       진짜 해법은 숫자를 맞히는 게 아니라, 두 탭을 같은 그리드 셀에 겹쳐놓고 안 보이는
-       쪽도 visibility:hidden(=레이아웃 계산엔 포함, 화면엔 안 그림)으로만 감춰서, 카드 높이가
-       "둘 중 더 큰 탭의 실제 높이"로 항상 자동으로 고정되게 만드는 것 — 어느 쪽 콘텐츠가
-       나중에 늘어나거나 줄어들어도 숫자를 다시 맞출 필요가 없다.
+    /* 탭을 바꿔도 카드 크기가 안 변해야 한다. 안쪽 목록(연관키워드 3칸, 노출 점유율)이
+       전부 max-height+스크롤로 막혀 있고 이름 텍스트도 전부 nowrap+ellipsis라 줄바꿈으로
+       넘칠 일이 없어서(2026-08-07 확인), 그리드-스택으로 "더 큰 탭에 자동으로 맞추는"
+       방식 대신 실측값(940x550.19, 두 탭 동일)을 그대로 고정값으로 박는다.
        플로팅(좁은 고정폭) 카드는 콘텐츠 자체가 훨씬 작아서 이 락을 적용하지 않는다. */
-    .card:not(.floating) .card-body{min-height:395px;display:flex;flex-direction:column}
+    .card:not(.floating) .card-body{height:551px;display:flex;flex-direction:column}
     .card:not(.floating) .tab-panels-stack{display:grid;flex:1;min-height:0}
     .card:not(.floating) .tab-panels-stack .tab-panel{grid-area:1/1/2/2;display:flex;flex-direction:column;min-height:0}
     .card:not(.floating) .tab-panels-stack .tab-panel.hidden{visibility:hidden!important;display:flex!important;pointer-events:none}
