@@ -378,7 +378,10 @@
     .side-box-row:first-of-type{border-top:none}
     .side-box-row b{color:#1d2433;font-weight:800;font-family:Consolas,"JetBrains Mono",monospace}
     .side-box-row b.up{color:#16a34a}.side-box-row b.down{color:#dc2626}.side-box-row b.flat{color:#667085}
-    .sellers{display:flex;flex-direction:column;gap:6px}
+    /* related-rank-list와 짝 맞춤 — 여기만 캡이 없어서 10개가 다 늘어나면 이 칸이
+       카드 안에서 제일 큰 칸이 됐다(2026-08-07). 나머지 칸들과 같은 260px+스크롤로
+       막아서, 탭이 바뀌어도 카드 자체 높이가 콘텐츠양에 흔들리지 않게 한다. */
+    .sellers{display:flex;flex-direction:column;gap:6px;max-height:260px;overflow-y:auto}
     .seller-row{display:grid;grid-template-columns:18px 1fr 60px;align-items:center;gap:8px;font-size:12px}
     .seller-rank{color:#98a2b3;font-weight:700;font-family:Consolas,"JetBrains Mono",monospace}
     .seller-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700;color:#1d2433}
