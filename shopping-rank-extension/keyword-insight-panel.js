@@ -153,6 +153,15 @@
     const prices = organic.map((p) => p.price).filter((p) => p > 0);
     const priceRange = prices.length ? { min: Math.min(...prices), max: Math.max(...prices) } : null;
 
+    // 평균 구매수(네이버가 주는 "최근 6개월 구매건수")/평균 리뷰수 — 이 키워드 경쟁 상품들이
+    // 평균적으로 얼마나 팔리고 후기가 쌓였는지, 가격대처럼 감을 잡게 해준다(2026-08-07,
+    // report.html 상품 표의 "구매/리뷰" 컬럼을 패널에도 요약해달라는 요청으로 추가).
+    const purchaseCounts = organic.map((p) => Number(p.purchaseCount) || 0);
+    const reviewCounts = organic.map((p) => Number(p.reviewCount) || 0);
+    const avg = (arr) => arr.length ? Math.round(arr.reduce((sum, v) => sum + v, 0) / arr.length) : null;
+    const avgPurchase = avg(purchaseCounts);
+    const avgReview = avg(reviewCounts);
+
     const productCount = totalCount != null ? totalCount : organic.length;
     const ratio = monthlyTotal > 0 ? productCount / monthlyTotal : null;
     const score = ratio != null ? compScore(ratio) : null;
@@ -202,7 +211,10 @@
     });
     const topTags = [...tagCount.entries()].sort((a, b) => b[1] - a[1]).slice(0, 20);
 
-    return { priceRange, score, ratio, isPageCountOnly, myBestRank, sellers, productCount, organicCount: organic.length, topCategory, topTags };
+    return {
+      priceRange, score, ratio, isPageCountOnly, myBestRank, sellers, productCount,
+      organicCount: organic.length, topCategory, topTags, avgPurchase, avgReview,
+    };
   }
 
   // 판다랭크 배지("좋음"/"보통"/"나쁨")와 같은 3단계 — compScore 앵커(40/70)에 맞춘 경계.
@@ -327,11 +339,12 @@
     .vol-tip{position:absolute;top:2px;transform:translateX(-50%);padding:5px 10px;border-radius:6px;
       background:#161a22;color:#fff;font-size:12px;font-weight:700;font-family:Consolas,monospace;
       white-space:nowrap;pointer-events:none;z-index:10}
-    .split-track{display:flex;height:8px;border-radius:4px;overflow:hidden;background:#f5f6f8}
-    .split-seg.mobile{background:#e85d2f}
-    .split-seg.pc{background:#fbceb1}
-    .split-legend{display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:#5a6378}
-    .split-legend b{color:#1d2433;font-weight:800;font-family:Consolas,"JetBrains Mono",monospace}
+    /* 아이템스카우트 참고 — "네이버쇼핑지표/네이버광고지표" 같은 작은 배지 타일 2칸 그리드
+       (2026-08-07). */
+    .badge-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .badge-tile{border:1px solid #e8ecf2;border-radius:6px;padding:10px;text-align:center}
+    .badge-tile-label{font-size:11px;color:#8a94a6;font-weight:700;margin-bottom:6px}
+    .badge-tile-value{font-size:13px;font-weight:800;color:#1d2433}
     .vol-side-col{width:280px;flex:none;display:flex;flex-direction:column;gap:10px}
     .vol-side-col .side-box:last-child{flex:1;display:flex;flex-direction:column}
     .vol-side-col .side-box:last-child .sellers{flex:1}
@@ -562,54 +575,62 @@
     });
   }
 
-  // PC/모바일 검색 비중 — 판다랭크의 모바일/PC 비율 바와 같은 형태, 우리가 실제로 가진 값만 쓴다
-  // (성별·연령대는 네이버 API로 정확한 비율을 낼 방법이 없어 제외 — 이전에 설명한 대로).
-  function deviceSplitHtml(ad) {
-    if (!ad || !(ad.monthlyTotal > 0)) return "";
-    const pcPct = Math.round((ad.monthlyPc / ad.monthlyTotal) * 100);
-    const moPct = 100 - pcPct;
+  // 아이템스카우트 확장프로그램 패널 디자인을 참고해서 레이아웃을 통째로 바꿨다(2026-08-07,
+  // "좀더 깔끔하고 직관적이게" 요청). 원래는 그래프를 왼쪽 넓게, 통계를 오른쪽 두 칸으로
+  // 나눠 뒀는데, 참고 이미지처럼 통계를 왼쪽에 작은 카드 여러 개로 압축하고 그래프를
+  // 오른쪽 넓게 배치하는 구조로 뒤집었다. 매출액·클릭량·쿠팡지표처럼 우리가 못 얻는
+  // 데이터는 흉내내지 않고, 우리가 실제로 가진 값만 같은 톤으로 정리했다.
+  function infoCardHtml(ad, page) {
+    const pcPct = ad?.monthlyTotal > 0 ? Math.round((ad.monthlyPc / ad.monthlyTotal) * 100) : null;
+    const moPct = pcPct != null ? 100 - pcPct : null;
     return `
       <div class="side-box">
-        <div class="side-box-title">노출 비중</div>
-        <div class="split-track">
-          <span class="split-seg mobile" style="width:${moPct}%"></span>
-          <span class="split-seg pc" style="width:${pcPct}%"></span>
-        </div>
-        <div class="split-legend">
-          <span>모바일 <b>${moPct}%</b></span>
-          <span>PC <b>${pcPct}%</b></span>
-        </div>
-      </div>`;
-  }
-
-  // 판다랭크 우측 "키워드" 요약 박스와 같은 자리 — 상품량/경쟁강도는 지금 로딩된 페이지 기준.
-  function keywordSideBoxHtml(ad, page) {
-    if (!ad) return "";
-    const grade = page ? scoreGrade(page.score) : null;
-    const ratioHint = page ? ratioHintText(page.ratio) : "";
-    return `
-      <div class="side-box">
-        <div class="side-box-title">키워드${grade ? `<span class="grade ${grade.cls}">${grade.text}</span>` : ""}</div>
-        <div class="side-box-row"><span>월 검색량</span><b>${fmt(ad.monthlyTotal)}회</b></div>
-        <div class="side-box-row"><span>경쟁강도</span><b title="${ratioHint}">${page ? fmtRatio(page.ratio) : "-"}</b></div>
-        ${ratioHint ? `<div class="empty" style="padding-top:2px">*${ratioHint}</div>` : ""}
+        <div class="side-box-row"><span>등록 상품수</span><b>${page ? fmt(page.productCount) + "개" : "-"}</b></div>
+        <div class="side-box-row"><span>월간 검색수</span><b>${ad ? fmt(ad.monthlyTotal) + "회" : "-"}</b></div>
+        ${pcPct != null ? `<div class="side-box-row"><span>검색 비율</span><b>PC ${pcPct}% · 모바일 ${moPct}%</b></div>` : ""}
         ${page?.isPageCountOnly ? `<div class="empty" style="padding-top:2px">*로딩된 페이지 기준</div>` : ""}
       </div>`;
   }
 
-  // 검색량 추세(전월)/시장 가격대/내 스토어 순위 — 예전엔 차트 아래 가로 통계줄이었는데,
-  // 옆 박스들과 같은 자리(vol-side-col)로 옮겨서 그래프 너비를 줄인 공간을 채운다.
-  function extraStatsBoxHtml(trendMonth, page) {
-    const priceRow = page?.priceRange
+  // 참고 이미지의 "네이버쇼핑지표/네이버광고지표" 같은 작은 배지 타일 2개 — 경쟁강도와
+  // 검색량추세를 한눈에 보이는 등급 배지로 압축했다. 원래 숫자(1:262.2)는 호버 툴팁으로만 남김.
+  function statusBadgeGridHtml(page, trendMonth) {
+    const grade = page ? scoreGrade(page.score) : null;
+    const ratioHint = page ? ratioHintText(page.ratio) : "";
+    const trendGrade = trendMonth.cls === "up" ? { text: "상승", cls: "good" }
+      : trendMonth.cls === "down" ? { text: "하락", cls: "bad" }
+      : { text: "유지", cls: "mid" };
+    return `
+      <div class="badge-grid">
+        <div class="badge-tile" title="${ratioHint}">
+          <div class="badge-tile-label">경쟁강도</div>
+          ${grade ? `<span class="grade ${grade.cls}">${grade.text}</span>` : `<span class="badge-tile-value">-</span>`}
+        </div>
+        <div class="badge-tile" title="${trendMonth.text}">
+          <div class="badge-tile-label">검색량 추세</div>
+          <span class="grade ${trendGrade.cls}">${trendGrade.text}</span>
+        </div>
+      </div>`;
+  }
+
+  // 시장 가격대/평균 구매수/평균 리뷰수/내 스토어 순위 — 지금 로딩된 페이지 기준 시장 현황.
+  function marketStatsBoxHtml(page) {
+    if (!page) return "";
+    const priceRow = page.priceRange
       ? `<div class="side-box-row"><span>시장 가격대</span><b>${fmt(page.priceRange.min)}~${fmt(page.priceRange.max)}원</b></div>`
       : "";
-    const myRankRow = page
-      ? `<div class="side-box-row"><span>내 스토어 순위</span><b style="${page.myBestRank != null ? "color:#e85d2f" : ""}">${page.myBestRank != null ? page.myBestRank + "위" : "미노출"}</b></div>`
+    const purchaseRow = page.avgPurchase != null
+      ? `<div class="side-box-row"><span>평균 구매수</span><b>${fmt(page.avgPurchase)}개</b></div>`
       : "";
+    const reviewRow = page.avgReview != null
+      ? `<div class="side-box-row"><span>평균 리뷰수</span><b>${fmt(page.avgReview)}개</b></div>`
+      : "";
+    const myRankRow = `<div class="side-box-row"><span>내 스토어 순위</span><b style="${page.myBestRank != null ? "color:#e85d2f" : ""}">${page.myBestRank != null ? page.myBestRank + "위" : "미노출"}</b></div>`;
     return `
       <div class="side-box">
-        <div class="side-box-row"><span>검색량 추세(전월)</span><b class="${trendMonth.cls}">${trendMonth.text}</b></div>
         ${priceRow}
+        ${purchaseRow}
+        ${reviewRow}
         ${myRankRow}
       </div>`;
   }
@@ -835,13 +856,13 @@
               ${categoryLineHtml(page?.topCategory)}
               ${ad ? `
                 <div class="vol-layout">
-                  <div class="vol-chart-col">${trendChartHtml(trendRows)}</div>
                   <div class="vol-side-col">
-                    ${keywordSideBoxHtml(ad, page)}
-                    ${deviceSplitHtml(ad)}
-                    ${extraStatsBoxHtml(trendMonth, page)}
+                    ${infoCardHtml(ad, page)}
+                    ${statusBadgeGridHtml(page, trendMonth)}
+                    ${marketStatsBoxHtml(page)}
+                    ${sellersHtml(page?.sellers)}
                   </div>
-                  <div class="vol-side-col">${sellersHtml(page?.sellers)}</div>
+                  <div class="vol-chart-col">${trendChartHtml(trendRows)}</div>
                 </div>
               ` : `<div class="empty">검색량 데이터를 불러오지 못했습니다.</div>`}
             </div>
