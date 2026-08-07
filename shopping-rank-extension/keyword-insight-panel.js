@@ -691,6 +691,22 @@
 
   const normalizeKw = (s) => String(s || "").replace(/\s+/g, "").toLowerCase();
 
+  // "키워드분석" 탭의 headline+category-line("지난해에 비해 검색량이 X% 증가했어요" / "주요
+  // 카테고리 ...")처럼, 연관키워드 탭도 데이터를 그냥 나열만 하지 않고 맨 위에서 바로 쓸 수 있는
+  // 결론 한 줄을 먼저 준다 — 가장 검색량 높은 연관키워드와 가장 많이 쓰인 해시태그를 골라
+  // "이거 넣어보세요" 식으로 제안한다(2026-08-07, "핵심 부분을 헤드에서 설명해주니 확 와닿는데
+  // 연관키워드 쪽도 그런 게 없을까"라는 요청으로 추가).
+  function relatedHeadlineHtml(related, topTags) {
+    const topKw = related[0]?.keyword;
+    const topTag = topTags[0]?.[0];
+    if (!topKw && !topTag) return "";
+    const suggestions = [];
+    if (topKw) suggestions.push(`<b>"${topKw}"</b> 키워드를 넣어보세요`);
+    if (topTag) suggestions.push(`<b>"#${topTag}"</b> 해시태그는 어떨까요`);
+    return `<p class="headline">${suggestions.join(", ")}?</p>
+      <p class="category-line">에너가드랩·네이버가 제공하는 연관 데이터 기준입니다</p>`;
+  }
+
   function relatedCardsHtml(related, nativeChips, topTags) {
     const oursItems = shareItems(related.map((r) => [r.keyword, r.total]));
     const hashtagItems = shareItems(topTags);
@@ -803,6 +819,7 @@
             ` : `<div class="empty">검색량 데이터를 불러오지 못했습니다.</div>`}
           </div>
           <div class="tab-panel${activeTab === "related" ? "" : " hidden"}" data-tab="related">
+            ${relatedHeadlineHtml(related, topTags)}
             ${relatedCardsHtml(related, nativeChips, topTags)}
           </div>
         </div>
