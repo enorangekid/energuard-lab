@@ -277,8 +277,15 @@
        바꿔서 동일한 스타일로 맞췄다. */
     .related-card-grid{display:flex;gap:14px;flex-wrap:wrap;align-items:stretch;flex:1;min-height:0}
     .card.floating .related-card-grid{flex-direction:column}
-    .related-card{flex:1 1 200px;min-width:0;border:1px solid #e8ecf2;border-radius:6px;padding:16px 18px}
-    .related-card-title{font-size:12px;font-weight:800;color:#5a6378;margin-bottom:12px}
+    .related-card{flex:1 1 200px;min-width:0;display:flex;flex-direction:column;
+      border:1px solid #e8ecf2;border-radius:6px;padding:16px 18px}
+    .related-card-title{flex:none;font-size:12px;font-weight:800;color:#5a6378;margin-bottom:12px}
+    /* 더보기로 목록이 20개까지 늘어나도 카드 자체는 안 길어지게 목록만 내부 스크롤로 감싼다
+       (2026-08-07, "연관키워드 바뀔 때 카드 길이가 늘어난다"는 지적으로 추가). flex:1만으로는
+       부모(.card-body)가 min-height일 뿐 고정 height가 아니라 늘어날 공간 자체가 없어서 스크롤이
+       안 걸린다 — 기본 5줄(RANK_CARD_INITIAL)이 딱 들어가는 높이로 max-height를 못박아야 실제로
+       스크롤이 발동한다. */
+    .related-rank-list{flex:1;overflow-y:auto;min-height:0;max-height:200px}
     .related-rank-row{display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid #f4f5f7}
     .related-rank-row:last-of-type{border-bottom:none}
     .related-rank-row.hidden{display:none}
@@ -657,8 +664,8 @@
   // 넣었던 것이라 제거).
   // 카드 높이를 채우려고 3개짜리 카드를 억지로 늘려 빈 여백만 커지는 것보다, 처음부터 실제
   // 항목을 더 많이 보여주는 게 맞다(2026-08-07, "카드만 커진거잖아, 기본 보이는 개수 자체를
-  // 늘려야지"라는 지적으로 3→7 조정 — 카드 높이(530px 기준) 안에 여유 있게 들어가는 수).
-  const RANK_CARD_INITIAL = 7;
+  // 늘려야지"라는 지적으로 3→5 조정).
+  const RANK_CARD_INITIAL = 5;
 
   // items: [{label, valueText, share}] — share가 null이면 "비중" 줄을 빈 상태(&nbsp;)로 채워서
   // 자리는 유지하되 텍스트만 안 보이게 한다. 값 자체를 못 구한 항목(네이버 연관검색어 중
@@ -679,9 +686,12 @@
     const moreBtn = items.length > RANK_CARD_INITIAL
       ? `<button type="button" class="related-more-btn">키워드 더보기 <span>+</span></button>`
       : "";
+    // "더보기"로 20개까지 펼쳐지면 카드 자체가 아래로 길어져서 "카드 크기는 안 바뀌어야 한다"는
+    // 원칙(2026-08-06 이 카드 자체를 만들 때부터 지켜온 규칙)이 깨졌다(2026-08-07 실측 확인) —
+    // 목록만 내부 스크롤로 감싸서, 펼쳐도 카드 높이는 그대로고 목록 안에서만 스크롤되게 한다.
     return `<div class="related-card">
       <div class="related-card-title">${title}</div>
-      ${rows}
+      <div class="related-rank-list">${rows}</div>
       ${moreBtn}
     </div>`;
   }
