@@ -344,7 +344,6 @@
     .card.floating .vol-layout{flex-direction:column}
     .vol-chart-col{flex:1;min-width:0;display:flex}
     .vol-chart-box{flex:1;display:flex;flex-direction:column;justify-content:center;min-height:0}
-    .side-box.vol-chart-box{padding:26px 14px}
     /* svg를 width:100%;height:auto(너비 기준 계산)로 두면, 컬럼 폭은 고정이어도 데이터가
        많은 키워드일수록 세로가 커져서 박스를 넘치는 경우가 있었다(2026-08-07 실측,
        "열반사단열재" 키워드에서 svg 359px > 박스 344px로 확인). width/height를 둘 다
