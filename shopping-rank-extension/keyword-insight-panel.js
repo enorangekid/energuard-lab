@@ -333,7 +333,8 @@
     .empty{font-size:12px;color:#98a2b3;padding:6px 0}
     .vol-layout{display:flex;gap:24px;align-items:stretch;margin-bottom:16px}
     .card.floating .vol-layout{flex-direction:column}
-    .vol-chart-col{flex:1;min-width:0;display:flex;flex-direction:column;gap:14px}
+    .vol-chart-col{flex:1;min-width:0;display:flex}
+    .vol-chart-box{flex:1;display:flex;flex-direction:column;justify-content:center}
     .vol-chart-wrap{position:relative}
     .vol-chart-wrap svg{display:block;width:100%;height:auto}
     .vol-tip{position:absolute;top:2px;transform:translateX(-50%);padding:5px 10px;border-radius:6px;
@@ -345,12 +346,12 @@
     .badge-tile{border:1px solid #e8ecf2;border-radius:6px;padding:10px;text-align:center}
     .badge-tile-label{font-size:11px;color:#8a94a6;font-weight:700;margin-bottom:6px}
     .badge-tile-value{font-size:13px;font-weight:800;color:#1d2433}
-    .vol-side-col{width:280px;flex:none;display:flex;flex-direction:column;gap:10px}
+    /* 검색어 데이터 카드 | 노출순위 카드 | 그래프, 한 줄 3칸(2026-08-07) — 그래프도 같은
+       .side-box로 감싸서 세 칸이 같은 카드 톤으로 보이게 한다. */
+    .vol-side-col{width:240px;flex:none;display:flex;flex-direction:column;gap:10px}
+    .vol-side-col .side-box{flex:1;display:flex;flex-direction:column}
+    .vol-side-col .sellers{flex:1}
     .card.floating .vol-side-col{width:100%}
-    /* 노출순위 카드를 오른쪽(그래프 아래)으로 옮겼다(2026-08-07) — 상품 이름이 많이 늘어날 수
-       있어 왼쪽보다 넓은 이쪽이 더 잘 맞는다. */
-    .vol-chart-col .side-box{display:flex;flex-direction:column}
-    .vol-chart-col .sellers{flex:1}
     .side-box{border:1px solid #e8ecf2;border-radius:6px;padding:12px 14px}
     /* 연관키워드 카드(.related-card-title 등)와 같은 톤으로 맞춤 — 제목은 옅은 회색,
        숫자값은 모노스페이스(2026-08-07, "키워드분석쪽 폰트도 연관검색어에 맞춰줘" 요청). */
@@ -582,58 +583,49 @@
   // 나눠 뒀는데, 참고 이미지처럼 통계를 왼쪽에 작은 카드 여러 개로 압축하고 그래프를
   // 오른쪽 넓게 배치하는 구조로 뒤집었다. 매출액·클릭량·쿠팡지표처럼 우리가 못 얻는
   // 데이터는 흉내내지 않고, 우리가 실제로 가진 값만 같은 톤으로 정리했다.
-  function infoCardHtml(ad, page) {
+  // 검색어 데이터 카드 하나로 통합(2026-08-07, "검색어 데이터 카드 | 노출순위 카드 | 그래프
+  // 일렬로 배치해달라"는 요청) — 기본정보/경쟁강도·추세 배지/시장통계를 따로따로 상자 3개로
+  // 쌓지 않고 박스 하나 안에 구분선으로만 나눈다.
+  function searchDataCardHtml(ad, page, trendMonth) {
     const pcPct = ad?.monthlyTotal > 0 ? Math.round((ad.monthlyPc / ad.monthlyTotal) * 100) : null;
     const moPct = pcPct != null ? 100 - pcPct : null;
-    return `
-      <div class="side-box">
-        <div class="side-box-row"><span>등록 상품수</span><b>${page ? fmt(page.productCount) + "개" : "-"}</b></div>
-        <div class="side-box-row"><span>월간 검색수</span><b>${ad ? fmt(ad.monthlyTotal) + "회" : "-"}</b></div>
-        ${pcPct != null ? `<div class="side-box-row"><span>검색 비율</span><b>PC ${pcPct}% · 모바일 ${moPct}%</b></div>` : ""}
-        ${page?.isPageCountOnly ? `<div class="empty" style="padding-top:2px">*로딩된 페이지 기준</div>` : ""}
-      </div>`;
-  }
-
-  // 참고 이미지의 "네이버쇼핑지표/네이버광고지표" 같은 작은 배지 타일 2개 — 경쟁강도와
-  // 검색량추세를 한눈에 보이는 등급 배지로 압축했다. 원래 숫자(1:262.2)는 호버 툴팁으로만 남김.
-  function statusBadgeGridHtml(page, trendMonth) {
     const grade = page ? scoreGrade(page.score) : null;
     const ratioHint = page ? ratioHintText(page.ratio) : "";
     const trendGrade = trendMonth.cls === "up" ? { text: "상승", cls: "good" }
       : trendMonth.cls === "down" ? { text: "하락", cls: "bad" }
       : { text: "유지", cls: "mid" };
-    return `
-      <div class="badge-grid">
-        <div class="badge-tile" title="${ratioHint}">
-          <div class="badge-tile-label">경쟁강도</div>
-          ${grade ? `<span class="grade ${grade.cls}">${grade.text}</span>` : `<span class="badge-tile-value">-</span>`}
-        </div>
-        <div class="badge-tile" title="${trendMonth.text}">
-          <div class="badge-tile-label">검색량 추세</div>
-          <span class="grade ${trendGrade.cls}">${trendGrade.text}</span>
-        </div>
-      </div>`;
-  }
-
-  // 시장 가격대/평균 구매수/평균 리뷰수/내 스토어 순위 — 지금 로딩된 페이지 기준 시장 현황.
-  function marketStatsBoxHtml(page) {
-    if (!page) return "";
-    const priceRow = page.priceRange
+    const priceRow = page?.priceRange
       ? `<div class="side-box-row"><span>시장 가격대</span><b>${fmt(page.priceRange.min)}~${fmt(page.priceRange.max)}원</b></div>`
       : "";
-    const purchaseRow = page.avgPurchase != null
+    const purchaseRow = page?.avgPurchase != null
       ? `<div class="side-box-row"><span>평균 구매수</span><b>${fmt(page.avgPurchase)}개</b></div>`
       : "";
-    const reviewRow = page.avgReview != null
+    const reviewRow = page?.avgReview != null
       ? `<div class="side-box-row"><span>평균 리뷰수</span><b>${fmt(page.avgReview)}개</b></div>`
       : "";
-    const myRankRow = `<div class="side-box-row"><span>내 스토어 순위</span><b style="${page.myBestRank != null ? "color:#e85d2f" : ""}">${page.myBestRank != null ? page.myBestRank + "위" : "미노출"}</b></div>`;
+    const myRankRow = page
+      ? `<div class="side-box-row"><span>내 스토어 순위</span><b style="${page.myBestRank != null ? "color:#e85d2f" : ""}">${page.myBestRank != null ? page.myBestRank + "위" : "미노출"}</b></div>`
+      : "";
     return `
       <div class="side-box">
+        <div class="side-box-row"><span>등록 상품수</span><b>${page ? fmt(page.productCount) + "개" : "-"}</b></div>
+        <div class="side-box-row"><span>월간 검색수</span><b>${ad ? fmt(ad.monthlyTotal) + "회" : "-"}</b></div>
+        ${pcPct != null ? `<div class="side-box-row"><span>검색 비율</span><b>PC ${pcPct}% · 모바일 ${moPct}%</b></div>` : ""}
+        <div class="badge-grid">
+          <div class="badge-tile" title="${ratioHint}">
+            <div class="badge-tile-label">경쟁강도</div>
+            ${grade ? `<span class="grade ${grade.cls}">${grade.text}</span>` : `<span class="badge-tile-value">-</span>`}
+          </div>
+          <div class="badge-tile" title="${trendMonth.text}">
+            <div class="badge-tile-label">검색량 추세</div>
+            <span class="grade ${trendGrade.cls}">${trendGrade.text}</span>
+          </div>
+        </div>
         ${priceRow}
         ${purchaseRow}
         ${reviewRow}
         ${myRankRow}
+        ${page?.isPageCountOnly ? `<div class="empty" style="padding-top:2px">*로딩된 페이지 기준</div>` : ""}
       </div>`;
   }
 
@@ -858,15 +850,9 @@
               ${categoryLineHtml(page?.topCategory)}
               ${ad ? `
                 <div class="vol-layout">
-                  <div class="vol-side-col">
-                    ${infoCardHtml(ad, page)}
-                    ${statusBadgeGridHtml(page, trendMonth)}
-                    ${marketStatsBoxHtml(page)}
-                  </div>
-                  <div class="vol-chart-col">
-                    ${trendChartHtml(trendRows)}
-                    ${sellersHtml(page?.sellers)}
-                  </div>
+                  <div class="vol-side-col">${searchDataCardHtml(ad, page, trendMonth)}</div>
+                  <div class="vol-side-col">${sellersHtml(page?.sellers)}</div>
+                  <div class="vol-chart-col"><div class="side-box vol-chart-box">${trendChartHtml(trendRows)}</div></div>
                 </div>
               ` : `<div class="empty">검색량 데이터를 불러오지 못했습니다.</div>`}
             </div>
