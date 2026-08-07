@@ -333,7 +333,7 @@
     .empty{font-size:12px;color:#98a2b3;padding:6px 0}
     .vol-layout{display:flex;gap:24px;align-items:stretch;margin-bottom:16px}
     .card.floating .vol-layout{flex-direction:column}
-    .vol-chart-col{flex:1;min-width:0}
+    .vol-chart-col{flex:1;min-width:0;display:flex;flex-direction:column;gap:14px}
     .vol-chart-wrap{position:relative}
     .vol-chart-wrap svg{display:block;width:100%;height:auto}
     .vol-tip{position:absolute;top:2px;transform:translateX(-50%);padding:5px 10px;border-radius:6px;
@@ -346,9 +346,11 @@
     .badge-tile-label{font-size:11px;color:#8a94a6;font-weight:700;margin-bottom:6px}
     .badge-tile-value{font-size:13px;font-weight:800;color:#1d2433}
     .vol-side-col{width:280px;flex:none;display:flex;flex-direction:column;gap:10px}
-    .vol-side-col .side-box:last-child{flex:1;display:flex;flex-direction:column}
-    .vol-side-col .side-box:last-child .sellers{flex:1}
     .card.floating .vol-side-col{width:100%}
+    /* 노출순위 카드를 오른쪽(그래프 아래)으로 옮겼다(2026-08-07) — 상품 이름이 많이 늘어날 수
+       있어 왼쪽보다 넓은 이쪽이 더 잘 맞는다. */
+    .vol-chart-col .side-box{display:flex;flex-direction:column}
+    .vol-chart-col .sellers{flex:1}
     .side-box{border:1px solid #e8ecf2;border-radius:6px;padding:12px 14px}
     /* 연관키워드 카드(.related-card-title 등)와 같은 톤으로 맞춤 — 제목은 옅은 회색,
        숫자값은 모노스페이스(2026-08-07, "키워드분석쪽 폰트도 연관검색어에 맞춰줘" 요청). */
@@ -860,9 +862,11 @@
                     ${infoCardHtml(ad, page)}
                     ${statusBadgeGridHtml(page, trendMonth)}
                     ${marketStatsBoxHtml(page)}
+                  </div>
+                  <div class="vol-chart-col">
+                    ${trendChartHtml(trendRows)}
                     ${sellersHtml(page?.sellers)}
                   </div>
-                  <div class="vol-chart-col">${trendChartHtml(trendRows)}</div>
                 </div>
               ` : `<div class="empty">검색량 데이터를 불러오지 못했습니다.</div>`}
             </div>
