@@ -118,6 +118,360 @@ function renderRows(rows) {
   }).join("");
 }
 
+/* ── 키워드 검색량·노출 분석 밴드 ──
+   keyword-insight-panel.js(가격비교 페이지 패널)의 차트/키워드박스/노출순위 로직을 그대로
+   이식했다. 다만 페이지 insight는 라이브 __NEXT_DATA__ 대신 이 실행에서 이미 수집해둔
+   shopping_search_snapshots 행(rows)으로 계산한다 — is_target_store가 이미 계산돼 있어서
+   패널의 이름 매칭(OWN_STORE_NAMES) 없이 바로 쓸 수 있고, 로딩된 페이지가 아니라 수집한
+   전체 페이지 기준이라 오히려 더 정확하다(2026-08-07). */
+const insightCache = new Map();
+let insightRenderToken = 0;
+
+function fmtInsight(n) {
+  return n == null ? "-" : Number(n).toLocaleString();
+}
+
+function compScore(r) {
+  if (r == null) return null;
+  if (r <= 0) return 0;
+  const anchors = [[0.05, 0], [0.8, 40], [3, 70], [50, 100]];
+  if (r <= anchors[0][0]) return 0;
+  if (r >= anchors[anchors.length - 1][0]) return 100;
+  for (let i = 0; i < anchors.length - 1; i++) {
+    const [r1, s1] = anchors[i];
+    const [r2, s2] = anchors[i + 1];
+    if (r <= r2) {
+      const t = (Math.log10(r) - Math.log10(r1)) / (Math.log10(r2) - Math.log10(r1));
+      return Math.round(s1 + t * (s2 - s1));
+    }
+  }
+  return 100;
+}
+
+function scoreGrade(score) {
+  if (score == null) return null;
+  if (score < 40) return { text: "좋음", cls: "good" };
+  if (score < 70) return { text: "보통", cls: "mid" };
+  return { text: "나쁨", cls: "bad" };
+}
+
+function fmtRatio(r) {
+  if (r == null) return "-";
+  if (r === 0) return "0 : 1";
+  if (r >= 1) return (Math.round(r * 10) / 10) + " : 1";
+  return "1 : " + (Math.round((1 / r) * 10) / 10);
+}
+
+function buildInsightPageStats(rows, monthlyTotal) {
+  if (!rows.length) return null;
+  const prices = rows.map((r) => Number(r.product_price)).filter((p) => p > 0);
+  const priceRange = prices.length ? { min: Math.min(...prices), max: Math.max(...prices) } : null;
+  const productCount = rows.length;
+  const ratio = monthlyTotal > 0 ? productCount / monthlyTotal : null;
+  const score = ratio != null ? compScore(ratio) : null;
+
+  let myBestRank = null;
+  const mallAgg = new Map();
+  rows.forEach((r) => {
+    const key = r.mall_name || `카탈로그:${r.product_code || r.naver_product_id || ""}`;
+    const agg = mallAgg.get(key) || { mall: r.mall_name || "가격비교 상품", count: 0, mine: false };
+    agg.count += 1;
+    if (r.is_target_store) agg.mine = true;
+    mallAgg.set(key, agg);
+    const rank = Number(r.organic_rank);
+    if (r.is_target_store && Number.isFinite(rank) && (myBestRank == null || rank < myBestRank)) myBestRank = rank;
+  });
+  const sellers = [...mallAgg.values()]
+    .map((s) => ({ ...s, share: rows.length ? (s.count / rows.length * 100) : 0 }))
+    .sort((a, b) => b.count - a.count);
+
+  return { priceRange, score, ratio, myBestRank, sellers, productCount };
+}
+
+function trendPair(rows, monthsBack) {
+  if (!rows || rows.length <= monthsBack) return null;
+  const cur = rows[0], prev = rows[monthsBack];
+  if (!(prev.total > 0)) return null;
+  return (cur.total - prev.total) / prev.total * 100;
+}
+
+function trendText(pct) {
+  if (pct == null) return { text: "-", cls: "" };
+  if (pct > 5) return { text: `상승세 ▲${pct.toFixed(1)}%`, cls: "up" };
+  if (pct < -5) return { text: `하락세 ▼${Math.abs(pct).toFixed(1)}%`, cls: "down" };
+  return { text: "유지", cls: "flat" };
+}
+
+function insightHeadlineHtml(trendYear) {
+  if (trendYear == null) return "";
+  if (Math.abs(trendYear) < 0.1) return `지난해와 검색량이 비슷해요.`;
+  const cls = trendYear > 0 ? "up" : "down";
+  const verb = trendYear > 0 ? "증가" : "감소";
+  return `지난해에 비해 검색량이 <b class="${cls}">${Math.abs(trendYear).toFixed(1)}%</b> ${verb}했어요.`;
+}
+
+function insightCategoryLineHtml(topCategory) {
+  if (!topCategory) return "";
+  return `주요 카테고리 <b>${escapeHtml(topCategory)}</b>`;
+}
+
+function niceCeil(v) {
+  if (v <= 0) return 1;
+  const pow = Math.pow(10, Math.floor(Math.log10(v)));
+  for (const m of [1, 2, 2.5, 5, 10]) { if (v <= m * pow) return m * pow; }
+  return 10 * pow;
+}
+
+function fillMonthGaps(ascRows) {
+  if (ascRows.length < 2) return ascRows;
+  const byMonth = new Map(ascRows.map((r) => [r.month, r]));
+  let [y, m] = ascRows[0].month.split("-").map(Number);
+  const [endY, endM] = ascRows[ascRows.length - 1].month.split("-").map(Number);
+  const filled = [];
+  while (y < endY || (y === endY && m <= endM)) {
+    const key = `${y}-${String(m).padStart(2, "0")}`;
+    filled.push(byMonth.get(key) || { month: key, total: 0, missing: true });
+    m += 1;
+    if (m > 12) { m = 1; y += 1; }
+  }
+  return filled;
+}
+
+function trendChartGeometry(rows) {
+  const raw = fillMonthGaps((rows ? [...rows].reverse() : [])
+    .filter((r) => r.snapshot_month)
+    .map((r) => ({ month: r.snapshot_month, total: Number(r.total) || 0 })));
+  if (raw.length < 2) return null;
+  const W = 600, H = 310, padL = 42, padR = 34, padT = 20, padB = 30;
+  const iw = W - padL - padR, ih = H - padT - padB;
+  const vals = raw.map((d) => d.total);
+  const yMax = niceCeil(Math.max(...vals, 1));
+  const y = (v) => padT + ih - (v / yMax) * ih;
+  const barW = Math.min(44, Math.max(2, iw / raw.length * 0.55));
+  const usableL = padL + barW / 2, usableR = W - padR - barW / 2;
+  const x = (i) => raw.length > 1 ? usableL + (i * (usableR - usableL)) / (raw.length - 1) : (usableL + usableR) / 2;
+  const barX = (i) => x(i) - barW / 2;
+  const barCenterX = (i) => x(i);
+  return { raw, vals, W, H, padL, padR, padT, padB, iw, ih, yMax, x, y, barW, barX, barCenterX };
+}
+
+const BAR_BASE = "#f6d3c2";
+const BAR_CUR = "#e85d2f";
+const BAR_HOVER = "#f0a67d";
+
+function trendChartHtml(rows) {
+  const g = trendChartGeometry(rows);
+  if (!g) return `<div class="empty">검색량 스냅샷이 부족합니다.</div>`;
+  const { raw, vals, W, H, padL, padR, padT, ih, yMax, y, barW, barX, barCenterX } = g;
+
+  let grid = "", axisLabels = "";
+  for (let s = 0; s <= 4; s++) {
+    const v = (yMax * s) / 4, yy = y(v);
+    grid += `<line x1="${padL}" y1="${yy.toFixed(1)}" x2="${W - padR}" y2="${yy.toFixed(1)}" stroke="#eef0f3" stroke-width="1"></line>`;
+    axisLabels += `<text x="${padL - 8}" y="${(yy + 4).toFixed(1)}" text-anchor="end" font-size="10" fill="#98a2b3">${Math.round(v).toLocaleString()}</text>`;
+  }
+  const step = Math.max(1, Math.ceil(raw.length / 6));
+  const lastIdx = raw.length - 1;
+  raw.forEach((d, i) => {
+    const isRegular = i % step === 0;
+    const isLast = i === lastIdx;
+    if (!isRegular && !isLast) return;
+    if (isRegular && !isLast && lastIdx - i < step * 0.6) return;
+    axisLabels += `<text x="${barCenterX(i).toFixed(1)}" y="${H - 8}" text-anchor="middle" font-size="9" fill="#98a2b3">${d.month.slice(2)}</text>`;
+  });
+
+  const baseY = padT + ih;
+  const bars = raw.map((d, i) => {
+    const bx = barX(i);
+    const by = y(vals[i]);
+    const bh = Math.max(0, baseY - by);
+    const isCur = i === lastIdx;
+    return `<rect id="volBar${i}" data-cur="${isCur ? "1" : "0"}" x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="${barW.toFixed(1)}" height="${bh.toFixed(1)}" rx="2" fill="${isCur ? BAR_CUR : BAR_BASE}"></rect>`;
+  }).join("");
+
+  let maxI = -1, minI = -1;
+  vals.forEach((v, i) => {
+    if (raw[i].missing) return;
+    if (maxI === -1 || v > vals[maxI]) maxI = i;
+    if (minI === -1 || v < vals[minI]) minI = i;
+  });
+  const clampX = (v) => Math.min(Math.max(v, padL + 40), W - padR - 40);
+  let marks = "";
+  if (maxI !== -1) {
+    marks += `<text x="${clampX(barCenterX(maxI)).toFixed(1)}" y="${Math.max(y(vals[maxI]) - 8, 12).toFixed(1)}" text-anchor="middle" font-size="10" font-weight="700" fill="#1d2433">최고 ${raw[maxI].month.slice(2)} · ${fmtInsight(vals[maxI])}</text>`;
+  }
+  if (minI !== -1 && minI !== maxI) {
+    marks += `<text x="${clampX(barCenterX(minI)).toFixed(1)}" y="${Math.max(y(vals[minI]) - 8, 12).toFixed(1)}" text-anchor="middle" font-size="10" font-weight="700" fill="#667085">최저 ${raw[minI].month.slice(2)} · ${fmtInsight(vals[minI])}</text>`;
+  }
+
+  return `<div class="vol-chart-wrap">
+    <svg id="volSvg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
+      ${grid}${axisLabels}
+      ${bars}
+      ${marks}
+    </svg>
+    <div class="vol-tip" id="volTip" style="display:none;"></div>
+  </div>`;
+}
+
+function bindTrendChart(rows) {
+  const g = trendChartGeometry(rows);
+  const svg = document.getElementById("volSvg");
+  if (!g || !svg) return;
+  const { raw, vals, W, x, barCenterX } = g;
+  const tip = document.getElementById("volTip");
+  let hoveredI = -1;
+  function resetBar(i) {
+    if (i < 0) return;
+    const bar = document.getElementById(`volBar${i}`);
+    if (bar) bar.setAttribute("fill", bar.dataset.cur === "1" ? BAR_CUR : BAR_BASE);
+  }
+  svg.addEventListener("mousemove", (e) => {
+    const rect = svg.getBoundingClientRect();
+    if (!rect.width) return;
+    const svgX = ((e.clientX - rect.left) / rect.width) * W;
+    let best = 0, bestDist = Infinity;
+    raw.forEach((_, i) => {
+      const d = Math.abs(x(i) - svgX);
+      if (d < bestDist) { bestDist = d; best = i; }
+    });
+    if (best !== hoveredI) {
+      resetBar(hoveredI);
+      const bar = document.getElementById(`volBar${best}`);
+      if (bar && bar.dataset.cur !== "1") bar.setAttribute("fill", BAR_HOVER);
+      hoveredI = best;
+    }
+    tip.textContent = raw[best].missing
+      ? `${raw[best].month} · 데이터 없음`
+      : `${raw[best].month} · ${fmtInsight(vals[best])}회`;
+    tip.style.display = "block";
+    const leftPx = (barCenterX(best) / W) * rect.width;
+    tip.style.left = `${Math.min(Math.max(leftPx, 50), rect.width - 50)}px`;
+  });
+  svg.addEventListener("mouseleave", () => {
+    resetBar(hoveredI);
+    hoveredI = -1;
+    tip.style.display = "none";
+  });
+}
+
+function deviceSplitHtml(ad) {
+  if (!ad || !(ad.monthlyTotal > 0)) return "";
+  const pcPct = Math.round((ad.monthlyPc / ad.monthlyTotal) * 100);
+  const moPct = 100 - pcPct;
+  return `
+    <div class="side-box">
+      <div class="side-box-title">노출 비중</div>
+      <div class="split-track">
+        <span class="split-seg mobile" style="width:${moPct}%"></span>
+        <span class="split-seg pc" style="width:${pcPct}%"></span>
+      </div>
+      <div class="split-legend">
+        <span>모바일 <b>${moPct}%</b></span>
+        <span>PC <b>${pcPct}%</b></span>
+      </div>
+    </div>`;
+}
+
+function keywordSideBoxHtml(ad, page) {
+  if (!ad) return "";
+  const grade = page ? scoreGrade(page.score) : null;
+  return `
+    <div class="side-box">
+      <div class="side-box-title">키워드${grade ? `<span class="grade ${grade.cls}">${grade.text}</span>` : ""}</div>
+      <div class="side-box-row"><span>월 검색량</span><b>${fmtInsight(ad.monthlyTotal)}회</b></div>
+      <div class="side-box-row"><span>경쟁강도</span><b>${page ? fmtRatio(page.ratio) : "-"}</b></div>
+    </div>`;
+}
+
+function extraStatsBoxHtml(trendMonth, page) {
+  const priceRow = page?.priceRange
+    ? `<div class="side-box-row"><span>시장 가격대</span><b>${fmtInsight(page.priceRange.min)}~${fmtInsight(page.priceRange.max)}원</b></div>`
+    : "";
+  const myRankRow = page
+    ? `<div class="side-box-row"><span>내 스토어 순위</span><b style="${page.myBestRank != null ? "color:var(--orange)" : ""}">${page.myBestRank != null ? page.myBestRank + "위" : "미노출"}</b></div>`
+    : "";
+  return `
+    <div class="side-box">
+      <div class="side-box-row"><span>검색량 추세(전월)</span><b class="${trendMonth.cls}">${trendMonth.text}</b></div>
+      ${priceRow}
+      ${myRankRow}
+    </div>`;
+}
+
+function sellersHtml(sellers) {
+  const body = !sellers || !sellers.length
+    ? `<div class="empty">판매자 데이터가 없습니다.</div>`
+    : `
+      <div class="sellers">
+        ${sellers.slice(0, 8).map((s, i) => `
+          <div class="seller-row${s.mine ? " mine" : ""}">
+            <span class="seller-rank">${i + 1}</span>
+            <span class="seller-name">${escapeHtml(s.mall)}${s.mine ? " ★" : ""}</span>
+            <span class="seller-share">${s.share.toFixed(1)}%</span>
+            <span class="seller-bar-wrap"><span class="seller-bar" style="width:${s.share}%"></span></span>
+          </div>`).join("")}
+      </div>`;
+  return `<div class="side-box"><div class="side-box-title">노출 순위</div>${body}</div>`;
+}
+
+async function fetchKeywordInsightData(keyword) {
+  const headers = {
+    "Content-Type": "application/json",
+    apikey: SUPABASE_ANON_KEY,
+    Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+  };
+  const normalized = keyword.replace(/\s+/g, "").toLowerCase();
+  // 저장(이번 달 검색량)이 끝난 뒤에 추이를 읽어야 방금 만든 값을 놓치지 않는다 — 순차 실행
+  // (service-worker.js의 fetchKeywordInsight와 동일한 레이스 컨디션 수정, 2026-08-06).
+  const insightRes = await fetch(`${SUPABASE_URL}/functions/v1/naver-rank`, {
+    method: "POST", headers, body: JSON.stringify({ action: "keywordInsight", keyword }),
+  });
+  const trendRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/keyword_search_volume_monthly?keyword=eq.${encodeURIComponent(normalized)}` +
+    `&select=snapshot_month,total&order=snapshot_month.desc&limit=36`,
+    { headers },
+  );
+  const insight = insightRes.ok ? await insightRes.json() : null;
+  const trendRows = trendRes.ok ? await trendRes.json() : [];
+  return { insight, trendRows };
+}
+
+async function loadAndRenderInsightBand(keyword, rows) {
+  const band = document.getElementById("insightBand");
+  const token = ++insightRenderToken;
+  if (!keyword) { band.hidden = true; return; }
+
+  let data = insightCache.get(keyword);
+  if (!data) {
+    try {
+      data = await fetchKeywordInsightData(keyword);
+      insightCache.set(keyword, data);
+    } catch (error) {
+      data = null;
+    }
+    if (token !== insightRenderToken) return; // 그 사이 다른 키워드로 바뀌었으면 버림
+  }
+
+  const ad = data?.insight?.ad;
+  if (!ad) { band.hidden = true; return; }
+
+  const trendRows = data?.trendRows || [];
+  const trendMonth = trendText(trendPair(trendRows, 1));
+  const trendYear = trendPair(trendRows, 12);
+  const category = frequency(rows.map((row) => row.category_path))[0]?.[0] || "";
+  const page = buildInsightPageStats(rows, ad.monthlyTotal ?? null);
+
+  document.getElementById("insightHeadline").innerHTML = insightHeadlineHtml(trendYear);
+  document.getElementById("insightCategoryLine").innerHTML = insightCategoryLineHtml(category);
+  document.getElementById("volChartCol").innerHTML = trendChartHtml(trendRows);
+  document.getElementById("volSideCol1").innerHTML =
+    keywordSideBoxHtml(ad, page) + deviceSplitHtml(ad) + extraStatsBoxHtml(trendMonth, page);
+  document.getElementById("volSideCol2").innerHTML = sellersHtml(page?.sellers);
+  band.hidden = false;
+  bindTrendChart(trendRows);
+}
+
 function render() {
   const rows = currentRows();
   const allKeywordRows = state.rows.filter((row) => row.keyword === state.keyword);
@@ -130,6 +484,7 @@ function render() {
   renderMetrics(rows);
   renderInsights(rows);
   renderRows(rows);
+  loadAndRenderInsightBand(state.keyword, rows);
 }
 
 function csvCell(value) {

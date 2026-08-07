@@ -125,6 +125,69 @@ tbody tr.target-row { box-shadow: inset 3px 0 var(--orange); }
 .toast.show { transform: translateY(0); opacity: 1; }
 ::selection { background: #ffe1d7; color: #111827; }
 
+/* keyword-insight-panel.js(가격비교 페이지 패널)의 검색량 차트·키워드·노출순위 영역을 그대로
+   이식 — 값/클래스명 전부 동일하게 맞춰서 패널과 리포트가 같은 모양으로 보이게 한다(2026-08-07).
+   페이지 라이브 __NEXT_DATA__ 대신 이 실행에서 이미 수집해둔 shopping_search_snapshots 행으로
+   같은 계산(경쟁강도/노출순위/시장가격대/내 스토어 순위)을 한다 — report.js 쪽 참고. */
+.insight-band {
+  margin-top: 18px; padding: 22px 26px; border: 1px solid var(--line); border-radius: 6px;
+  background: #fff;
+}
+.insight-headline { font-size: 21px; font-weight: 800; line-height: 1.4; margin: 0 0 6px; }
+.insight-headline b { font-weight: 800; }
+.insight-headline b.up { color: #16a34a; } .insight-headline b.down { color: #dc2626; }
+.insight-category-line { font-size: 12px; color: #8a94a6; font-weight: 600; margin: 0 0 20px; }
+.insight-category-line b { color: #667085; font-weight: 700; }
+.insight-band .up { color: #16a34a; } .insight-band .down { color: #dc2626; } .insight-band .flat { color: #667085; }
+.insight-band .section-title { font-size: 11px; color: #8a94a6; margin-bottom: 8px; font-weight: 700; }
+.insight-band .empty { font-size: 12px; color: #98a2b3; padding: 6px 0; }
+.vol-layout { display: flex; gap: 24px; align-items: stretch; }
+.vol-chart-col { flex: 1; min-width: 0; }
+.vol-chart-wrap { position: relative; }
+.vol-chart-wrap svg { display: block; width: 100%; height: auto; }
+.vol-tip {
+  position: absolute; top: 2px; transform: translateX(-50%); padding: 5px 10px; border-radius: 6px;
+  background: #161a22; color: #fff; font-size: 12px; font-weight: 700; font-family: Consolas, monospace;
+  white-space: nowrap; pointer-events: none; z-index: 10;
+}
+.split-track { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: #f5f6f8; }
+.split-seg.mobile { background: var(--orange); }
+.split-seg.pc { background: #fbceb1; }
+.split-legend { display: flex; justify-content: space-between; margin-top: 6px; font-size: 11px; color: #667085; }
+.split-legend b { color: #1d2433; font-weight: 800; }
+.vol-side-col { width: 280px; flex: none; display: flex; flex-direction: column; gap: 10px; }
+.vol-side-col .side-box:last-child { flex: 1; display: flex; flex-direction: column; }
+.vol-side-col .side-box:last-child .sellers { flex: 1; }
+.side-box { border: 1px solid #e4e7ec; border-radius: 8px; padding: 12px 14px; }
+.side-box-title {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 12px; font-weight: 800; color: #1d2433; margin-bottom: 8px;
+}
+.grade { font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 5px; }
+.grade.good { color: #16a34a; background: #eafaf0; }
+.grade.mid { color: #d97706; background: #fef6e8; }
+.grade.bad { color: #e11d48; background: #fdecef; }
+.side-box-row {
+  display: flex; justify-content: space-between; font-size: 12px; padding: 5px 0;
+  border-top: 1px solid #f0f2f5; color: #667085;
+}
+.side-box-row:first-of-type { border-top: none; }
+.side-box-row b { color: #1d2433; font-weight: 800; }
+.side-box-row b.up { color: #16a34a; } .side-box-row b.down { color: #dc2626; } .side-box-row b.flat { color: #667085; }
+.sellers { display: flex; flex-direction: column; gap: 6px; }
+.seller-row { display: grid; grid-template-columns: 18px 1fr 60px; align-items: center; gap: 8px; font-size: 12px; }
+.seller-rank { color: #98a2b3; font-weight: 700; }
+.seller-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.seller-row.mine .seller-name { color: var(--orange); font-weight: 800; }
+.seller-share { text-align: right; color: #667085; }
+.seller-bar-wrap { grid-column: 1 / -1; background: #f5f6f8; border-radius: 3px; height: 5px; overflow: hidden; margin-top: -3px; }
+.seller-bar { display: block; height: 100%; background: #c7cbd3; }
+.seller-row.mine .seller-bar { background: var(--orange); }
+@media (max-width: 900px) {
+  .vol-layout { flex-direction: column; }
+  .vol-side-col { width: 100%; }
+}
+
 @media (max-width: 900px) {
   .report-shell { width: calc(100% - 24px); margin-top: 12px; }
   .report-header-row { align-items: stretch; flex-direction: column; }
