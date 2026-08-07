@@ -274,24 +274,19 @@
     .tab-link.primary:hover{border-color:#e85d2f;background:#ffe9dc;color:#e85d2f}
     .tab-panel.hidden{display:none!important}
     .tab-divider{border:none;border-top:1px solid #e4e7ec;margin:0 -22px 22px;height:0}
-    /* sales-analysis.html의 top3ListHtml/.summary-top3-* 를 그대로 이식(2026-08-07) — 원형
-       순위 배지, 한 줄 행+아래 구분선, 값/비중 두 줄 스택, "○○ 더보기 +" 토글까지 클래스명만
-       바꿔서 동일한 스타일로 맞췄다. */
+    /* sales-analysis.html의 top3ListHtml/.summary-top3-* 를 참고했다 — 원형 순위 배지, 한 줄
+       행+아래 구분선, 값/비중 두 줄 스택까지는 그대로. "더보기" 토글은 뺐다 — 펼칠 때마다
+       카드가 늘어나거나(초기 버전) 늘어난 것처럼 보이는(overflow 삐져나옴) 문제가 계속
+       반복돼서(2026-08-07), 상태 전환 자체를 없애고 목록을 처음부터 고정 높이 스크롤
+       영역으로 바꿨다 — 항목이 몇 개든 카드 높이가 항상 똑같다. */
     .related-card-grid{display:flex;gap:14px;flex-wrap:wrap;align-items:stretch;flex:1;min-height:0}
     .card.floating .related-card-grid{flex-direction:column}
-    /* max-height만으로는 안 됐다 — 콘텐츠가 그 값을 넘으면 박스는 max-height에서 안 늘어나도
-       넘친 내용이 밖으로 그냥 삐져나와 보여서(overflow 기본값이 visible) 눈에는 "카드가
-       길어진 것"과 똑같이 보였다(2026-08-07, max-height만 넣은 뒤에도 재현됨). overflow:hidden을
-       같이 줘서 진짜로 잘리게(=목록 쪽 스크롤에만 담기게) 만든다. 목록 자체엔 더 이상 별도
-       max-height를 안 주고 flex:1로 남는 공간을 그대로 채우게 해서, 기준이 카드 하나(360px)로
-       통일되게 했다 — 두 군데(카드+목록)에 서로 다른 숫자를 따로 유지하지 않아도 된다. */
-    .related-card{flex:1 1 200px;min-width:0;max-height:360px;overflow:hidden;
+    .related-card{flex:1 1 200px;min-width:0;overflow:hidden;
       display:flex;flex-direction:column;border:1px solid #e8ecf2;border-radius:6px;padding:16px 18px}
     .related-card-title{flex:none;font-size:12px;font-weight:800;color:#5a6378;margin-bottom:12px}
-    .related-rank-list{flex:1;overflow-y:auto;min-height:0}
+    .related-rank-list{height:260px;overflow-y:auto}
     .related-rank-row{display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid #f4f5f7}
     .related-rank-row:last-of-type{border-bottom:none}
-    .related-rank-row.hidden{display:none}
     .related-rank-num{flex:none;width:20px;height:20px;border-radius:50%;background:#eef0f3;
       display:inline-flex;align-items:center;justify-content:center;
       font-family:Consolas,"JetBrains Mono",monospace;font-size:11px;font-weight:800;color:#5a6378}
@@ -300,10 +295,6 @@
     .related-rank-value{flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:2px;
       font-family:Consolas,"JetBrains Mono",monospace;font-size:12px;font-weight:800;color:#1d2433;white-space:nowrap}
     .related-rank-share{font-size:10.5px;font-weight:700;color:#5a6378;font-family:inherit}
-    .related-more-btn{flex:none;display:flex;align-items:center;justify-content:center;gap:4px;width:100%;
-      margin-top:10px;padding:10px 0 0;border:0;border-top:1px solid #f4f5f7;background:transparent;
-      color:#5a6378;font-family:inherit;font-size:12px;font-weight:800;cursor:pointer}
-    .related-more-btn:hover{color:#e85d2f}
     .headline{font-size:23px;font-weight:800;line-height:1.4;margin:0 0 6px}
     .category-line{font-size:12px;color:#5a6378;font-weight:600;margin:0 0 22px}
     .category-line b{color:#1d2433;font-weight:700}
@@ -665,20 +656,16 @@
   // 바꿔서 동일하게 맞췄다(2026-08-07, "기존 에너가드랩 페이지랑 스타일이 조금 다르다"는 지적으로
   // sales-analysis.html 원본 코드를 직접 확인해서 재작업 — 막대그래프는 원본에 없던 걸 착각해서
   // 넣었던 것이라 제거).
-  // 카드 높이를 채우려고 3개짜리 카드를 억지로 늘려 빈 여백만 커지는 것보다, 처음부터 실제
-  // 항목을 더 많이 보여주는 게 맞다(2026-08-07, "카드만 커진거잖아, 기본 보이는 개수 자체를
-  // 늘려야지"라는 지적으로 3→5 조정).
-  const RANK_CARD_INITIAL = 5;
-
-  // items: [{label, valueText, share}] — share가 null이면 "비중" 줄을 빈 상태(&nbsp;)로 채워서
-  // 자리는 유지하되 텍스트만 안 보이게 한다. 값 자체를 못 구한 항목(네이버 연관검색어 중
-  // 교차매칭 안 된 것)은 valueText가 "-"로 나온다.
+  // "더보기" 버튼으로 목록을 펼치는 방식은 펼칠 때마다 카드가 늘어나거나(초기 버전) 늘어난
+  // 것처럼 보이는(overflow 삐져나옴) 문제가 계속 반복됐다(2026-08-07) — 애초에 상태가 바뀌는
+  // 게 문제의 근원이라, 더보기/접기 자체를 없앴다. 목록을 처음부터 고정 높이 스크롤 영역으로
+  // 만들어서 항목 개수와 무관하게 카드 높이가 항상 똑같다(상태 전환이 없으니 깨질 여지도 없다).
   function rankCardHtml(title, items, { emptyText = "데이터가 없습니다.", showShare = true } = {}) {
     if (!items.length) {
       return `<div class="related-card"><div class="related-card-title">${title}</div><div class="empty">${emptyText}</div></div>`;
     }
     const rows = items.map((item, i) => `
-      <div class="related-rank-row${i >= RANK_CARD_INITIAL ? " is-extra hidden" : ""}">
+      <div class="related-rank-row">
         <span class="related-rank-num">${i + 1}</span>
         <span class="related-rank-name">${item.label}</span>
         <span class="related-rank-value">
@@ -686,16 +673,9 @@
           <span class="related-rank-share">${showShare && item.share != null ? `비중 ${item.share.toFixed(1)}%` : "&nbsp;"}</span>
         </span>
       </div>`).join("");
-    const moreBtn = items.length > RANK_CARD_INITIAL
-      ? `<button type="button" class="related-more-btn">키워드 더보기 <span>+</span></button>`
-      : "";
-    // "더보기"로 20개까지 펼쳐지면 카드 자체가 아래로 길어져서 "카드 크기는 안 바뀌어야 한다"는
-    // 원칙(2026-08-06 이 카드 자체를 만들 때부터 지켜온 규칙)이 깨졌다(2026-08-07 실측 확인) —
-    // 목록만 내부 스크롤로 감싸서, 펼쳐도 카드 높이는 그대로고 목록 안에서만 스크롤되게 한다.
     return `<div class="related-card">
       <div class="related-card-title">${title}</div>
       <div class="related-rank-list">${rows}</div>
-      ${moreBtn}
     </div>`;
   }
 
@@ -751,18 +731,6 @@
       ${rankCardHtml("네이버", nativeItems, { emptyText: "네이버 연관검색어를 찾지 못했습니다.", showShare: false })}
       ${rankCardHtml("해시태그", hashtagItems, { emptyText: "수집된 태그가 없습니다." })}
     </div>`;
-  }
-
-  function bindRelatedCards(shadow) {
-    shadow.querySelectorAll(".related-more-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const card = btn.closest(".related-card");
-        const expanded = btn.dataset.expanded === "1";
-        card.querySelectorAll(".related-rank-row.is-extra").forEach((row) => row.classList.toggle("hidden", expanded));
-        btn.dataset.expanded = expanded ? "0" : "1";
-        btn.innerHTML = expanded ? `키워드 더보기 <span>+</span>` : `간략히 보기 <span>−</span>`;
-      });
-    });
   }
 
   // 삽입 위치를 찾으면 인라인 카드로, 못 찾으면 고정 카드로.
@@ -855,7 +823,6 @@
       </div>`;
     bindHead(shadow);
     bindTabs(shadow);
-    bindRelatedCards(shadow);
     bindTrendChart(shadow, trendRows);
   }
 
