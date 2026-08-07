@@ -294,6 +294,9 @@
     .category-line b{color:#1d2433;font-weight:700}
     .headline b{font-weight:800}
     .headline b.up{color:#16a34a}.headline b.down{color:#dc2626}
+    /* 연관키워드 탭 제안 문구 — 키워드는 브랜드 오렌지, 해시태그는 파란색으로 구분(2026-08-07) */
+    .headline b.hl-kw{color:#e85d2f}
+    .headline b.hl-tag{color:#0ea5e9}
     .kw{font-size:12px;color:#5a6378;font-weight:600;margin:0 0 12px}
     .up{color:#16a34a}.down{color:#dc2626}.flat{color:#667085}
     .section-title{font-size:11px;color:#5a6378;margin-bottom:8px;font-weight:700}
@@ -696,13 +699,16 @@
   // 결론 한 줄을 먼저 준다 — 가장 검색량 높은 연관키워드와 가장 많이 쓰인 해시태그를 골라
   // "이거 넣어보세요" 식으로 제안한다(2026-08-07, "핵심 부분을 헤드에서 설명해주니 확 와닿는데
   // 연관키워드 쪽도 그런 게 없을까"라는 요청으로 추가).
-  function relatedHeadlineHtml(related, topTags) {
-    const topKw = related[0]?.keyword;
+  // 키워드 제안은 원래 에너가드랩(검색광고 API) 연관키워드 1위를 썼는데, 정확도가 떨어진다는
+  // 지적으로 네이버 자체 연관검색어(nativeChips) 1위로 바꿨다 — 그마저 없을 때만 에너가드랩
+  // 데이터로 폴백한다(2026-08-07).
+  function relatedHeadlineHtml(nativeChips, related, topTags) {
+    const topKw = nativeChips[0] || related[0]?.keyword;
     const topTag = topTags[0]?.[0];
     if (!topKw && !topTag) return "";
     const suggestions = [];
-    if (topKw) suggestions.push(`<b>"${topKw}"</b> 키워드를 넣어보세요`);
-    if (topTag) suggestions.push(`<b>"#${topTag}"</b> 해시태그는 어떨까요`);
+    if (topKw) suggestions.push(`<b class="hl-kw">"${topKw}"</b> 키워드를 넣어보세요`);
+    if (topTag) suggestions.push(`<b class="hl-tag">"#${topTag}"</b> 해시태그는 어떨까요`);
     return `<p class="headline">${suggestions.join(", ")}?</p>
       <p class="category-line">에너가드랩·네이버가 제공하는 연관 데이터 기준입니다</p>`;
   }
@@ -819,7 +825,7 @@
             ` : `<div class="empty">검색량 데이터를 불러오지 못했습니다.</div>`}
           </div>
           <div class="tab-panel${activeTab === "related" ? "" : " hidden"}" data-tab="related">
-            ${relatedHeadlineHtml(related, topTags)}
+            ${relatedHeadlineHtml(nativeChips, related, topTags)}
             ${relatedCardsHtml(related, nativeChips, topTags)}
           </div>
         </div>
