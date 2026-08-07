@@ -47,10 +47,34 @@
   // 바로 읽으므로 추가 요청이 전혀 없다(2026-08-07).
   function readNativeRelatedChips() {
     try {
-      const anchors = [...document.querySelectorAll('a[data-shp-contents-grp="rec1"]')];
-      const names = anchors.map((a) => a.textContent.trim()).filter(Boolean);
-      return [...new Set(names)];
-    } catch (_) {
+      const byGroup = [...document.querySelectorAll('a[data-shp-contents-grp="rec1"]')]
+        .map((a) => a.textContent.trim())
+        .filter(Boolean);
+      if (byGroup.length) return [...new Set(byGroup)];
+
+      // rec1 선택자가 이 페이지(가격비교 search/all)에서는 안 맞을 수 있다 — nplus-collector.js가
+      // 확인한 건 ns/search(N+스토어) 페이지였다. "연관" 라벨을 직접 찾아 그 주변 앵커를 뽑는
+      // 방식으로 폴백하고, 그마저 실패하면 콘솔에 실제 data-shp-contents-grp 값들을 남겨서
+      // 다음에 정확한 선택자를 알아낼 수 있게 한다(2026-08-07).
+      const labelEl = [...document.querySelectorAll("*")].find(
+        (el) => el.children.length === 0 && el.textContent.trim() === "연관"
+      );
+      if (labelEl) {
+        const container = labelEl.closest("div")?.parentElement || labelEl.parentElement;
+        const fallback = [...(container?.querySelectorAll("a") || [])]
+          .map((a) => a.textContent.trim())
+          .filter((t) => t && t !== "연관");
+        if (fallback.length) return [...new Set(fallback)];
+      }
+
+      const groups = [...new Set(
+        [...document.querySelectorAll("[data-shp-contents-grp]")]
+          .map((el) => el.getAttribute("data-shp-contents-grp"))
+      )];
+      console.warn("[ENERGUARD] 연관검색어 칩을 못 찾음 — 발견된 data-shp-contents-grp 값:", groups);
+      return [];
+    } catch (error) {
+      console.warn("[ENERGUARD] 연관검색어 칩 읽기 실패:", error);
       return [];
     }
   }
