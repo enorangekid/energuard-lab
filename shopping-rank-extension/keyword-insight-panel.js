@@ -343,12 +343,15 @@
     .vol-layout{display:flex;gap:14px;align-items:stretch;flex:1;min-height:0}
     .card.floating .vol-layout{flex-direction:column}
     .vol-chart-col{flex:1;min-width:0;display:flex}
-    .vol-chart-box{flex:1;display:flex;flex-direction:column;justify-content:center}
-    /* 그래프가 박스 안에서 위아래로 꽉 차 보여서(2026-08-07, "밑에랑 닿을랑 말랑") 상하
-       여백을 강제로 더 준다 — .side-box보다 더 구체적인 선택자라 소스 순서와 무관하게 이긴다. */
+    .vol-chart-box{flex:1;display:flex;flex-direction:column;justify-content:center;min-height:0}
     .side-box.vol-chart-box{padding:26px 14px}
-    .vol-chart-wrap{position:relative}
-    .vol-chart-wrap svg{display:block;width:100%;height:auto}
+    /* svg를 width:100%;height:auto(너비 기준 계산)로 두면, 컬럼 폭은 고정이어도 데이터가
+       많은 키워드일수록 세로가 커져서 박스를 넘치는 경우가 있었다(2026-08-07 실측,
+       "열반사단열재" 키워드에서 svg 359px > 박스 344px로 확인). width/height를 둘 다
+       100%로 주면 SVG 표준 동작(viewBox+preserveAspectRatio)이 박스 크기에 맞춰 알아서
+       레터박싱해 주므로, 어떤 키워드든 절대 박스를 넘치지 않는다. */
+    .vol-chart-wrap{position:relative;width:100%;height:100%}
+    .vol-chart-wrap svg{display:block;width:100%;height:100%}
     .vol-tip{position:absolute;top:2px;transform:translateX(-50%);padding:5px 10px;border-radius:6px;
       background:#161a22;color:#fff;font-size:12px;font-weight:700;font-family:Consolas,monospace;
       white-space:nowrap;pointer-events:none;z-index:10}
@@ -571,8 +574,16 @@
     }
     svg.addEventListener("mousemove", (e) => {
       const rect = svg.getBoundingClientRect();
-      if (!rect.width) return;
-      const svgX = ((e.clientX - rect.left) / rect.width) * W;
+      if (!rect.width || !rect.height) return;
+      // svg가 width/height 100%로 박스에 맞춰지면서 letterboxing(양옆 또는 위아래 여백)이
+      // 생길 수 있어서(2026-08-07, 넓은 인라인 카드에서 확인), rect.width 비율로 단순
+      // 환산하면 좌표가 어긋난다. getScreenCTM으로 화면 좌표 <-> viewBox 좌표를 정확히
+      // 변환한다(letterbox 유무와 무관하게 항상 맞음).
+      const ctm = svg.getScreenCTM();
+      if (!ctm) return;
+      const pt = svg.createSVGPoint();
+      pt.x = e.clientX; pt.y = e.clientY;
+      const svgX = pt.matrixTransform(ctm.inverse()).x;
       let best = 0, bestDist = Infinity;
       raw.forEach((_, i) => {
         const d = Math.abs(x(i) - svgX);
@@ -588,7 +599,10 @@
         ? `${raw[best].month} · 데이터 없음`
         : `${raw[best].month} · ${fmt(vals[best])}회`;
       tip.style.display = "block";
-      const leftPx = (barCenterX(best) / W) * rect.width;
+      const barPt = svg.createSVGPoint();
+      barPt.x = barCenterX(best); barPt.y = 0;
+      const screenPt = barPt.matrixTransform(ctm);
+      const leftPx = screenPt.x - rect.left;
       tip.style.left = `${Math.min(Math.max(leftPx, 50), rect.width - 50)}px`;
     });
     svg.addEventListener("mouseleave", () => {
