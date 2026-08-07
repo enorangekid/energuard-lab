@@ -267,16 +267,29 @@
     .tab-link.primary:hover{border-color:#e85d2f;background:#ffe9dc;color:#e85d2f}
     .tab-panel.hidden{display:none}
     .tab-divider{border:none;border-top:1px solid #e4e7ec;margin:0 -22px 22px;height:0}
-    .native-related{margin-bottom:16px}
-    .native-related-chips{display:flex;flex-wrap:wrap;gap:6px}
-    .native-chip{display:inline-flex;align-items:center;height:26px;padding:0 10px;font-size:12px;
-      font-weight:700;color:#5a6378;background:#f5f6f8;border-radius:999px;white-space:nowrap}
-    .related-rows{display:flex;flex-direction:column;max-height:420px;overflow-y:auto}
-    .related-row{display:flex;justify-content:space-between;align-items:center;gap:12px;
-      padding:9px 0;font-size:13px;border-top:1px solid #f0f2f5}
-    .related-row:first-child{border-top:none}
-    .related-name{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .related-vol{color:#8a94a6;font-weight:600;flex:none}
+    /* 에너가드랩 대시보드의 "지표별 랭킹 확인하기" 카드와 같은 스타일 — 연관키워드 탭을
+       카드 3개(에너가드랩/네이버/해시태그)로 나눠 나란히 보여준다(2026-08-07). */
+    .related-card-grid{display:flex;gap:16px;align-items:flex-start}
+    .card.floating .related-card-grid{flex-direction:column}
+    .related-card{flex:1;min-width:0;border:1px solid #e4e7ec;border-radius:10px;padding:16px}
+    .related-card-title{font-size:14px;font-weight:800;color:#1d2433;margin-bottom:12px}
+    .related-rank-list{display:flex;flex-direction:column}
+    .related-rank-item{padding:9px 0;border-top:1px solid #f0f2f5}
+    .related-rank-item:first-child{border-top:none;padding-top:0}
+    .related-rank-item.hidden{display:none}
+    .related-rank-row{display:flex;align-items:center;gap:8px}
+    .related-rank-num{width:16px;flex:none;color:#98a2b3;font-weight:700;font-size:12px}
+    .related-rank-name{flex:1;min-width:0;font-weight:700;font-size:13px;overflow:hidden;
+      text-overflow:ellipsis;white-space:nowrap}
+    .related-rank-value{flex:none;text-align:right;font-size:12px;font-weight:800;color:#1d2433}
+    .related-rank-value b{display:block;margin-top:2px;font-size:11px;font-weight:700;color:#8a94a6}
+    .related-rank-bar-track{margin-top:7px;margin-left:24px;height:4px;border-radius:2px;
+      background:#f5f6f8;overflow:hidden}
+    .related-rank-bar{display:block;height:100%;background:#e85d2f}
+    .related-more-btn{display:block;width:100%;margin-top:10px;padding:8px 0;border:none;
+      background:none;color:#8a94a6;font-size:12px;font-weight:700;font-family:inherit;
+      cursor:pointer;text-align:center}
+    .related-more-btn:hover{color:#5a6378}
     .headline{font-size:23px;font-weight:800;line-height:1.4;margin:0 0 6px}
     .category-line{font-size:12px;color:#8a94a6;font-weight:600;margin:0 0 22px}
     .category-line b{color:#667085;font-weight:700}
@@ -628,43 +641,69 @@
     });
   }
 
-  function relatedFullHtml(related) {
-    const body = !related.length
-      ? `<div class="empty">연관 키워드 데이터가 없습니다.</div>`
-      : `<div class="related-rows">
-          ${related.slice(0, 30).map((r) => `
-            <div class="related-row">
-              <span class="related-name">${r.keyword}</span>
-              <span class="related-vol">${r.total != null ? fmt(r.total) : "-"}</span>
-            </div>`).join("")}
-        </div>`;
-    return `<div class="native-related"><div class="section-title">연관 키워드</div>${body}</div>`;
-  }
+  // 에너가드랩 대시보드의 "지표별 랭킹 확인하기" 카드(순위+값+비중%+막대, 3개만 먼저 보이고
+  // "순위 더보기"로 나머지 공개)와 같은 형태로 통일 — 연관키워드 탭을 카드 3개(에너가드랩/
+  // 네이버/해시태그)로 나눠서 나란히 보여준다(2026-08-07, 한 화면에 쭉 쌓아두던 것 → 서브탭 →
+  // 최종적으로 이 카드 그리드로 정착).
+  const RANK_CARD_INITIAL = 3;
 
-  // report.html "자주 등장한 태그"와 같은 데이터 — 지금 로딩된 페이지 상품들의 검색태그 빈도.
-  // 연관키워드 탭의 세 번째 데이터(2026-08-07): 우리쪽 연관키워드(검색광고 API) / 네이버
-  // 연관검색어(페이지 자체 위젯) / 해시태그(상품 태그 빈도).
-  function hashtagsHtml(topTags) {
-    if (!topTags.length) return "";
-    return `<div class="native-related">
-      <div class="section-title">해시태그</div>
-      <div class="native-related-chips">
-        ${topTags.map(([tag, count]) => `<span class="native-chip">#${tag} ${count}</span>`).join("")}
-      </div>
+  // items: [{label, valueText, share}] — share는 이미 0~100으로 계산된 값. showValue가 false면
+  // 숫자·막대 없이 순위+이름만 나열한다(네이버 연관검색어처럼 우리가 수치를 못 얻는 경우용).
+  function rankCardHtml(title, items, { emptyText = "데이터가 없습니다.", showValue = true } = {}) {
+    if (!items.length) {
+      return `<div class="related-card"><div class="related-card-title">${title}</div><div class="empty">${emptyText}</div></div>`;
+    }
+    const rows = items.map((item, i) => `
+      <div class="related-rank-item${i >= RANK_CARD_INITIAL ? " is-extra hidden" : ""}">
+        <div class="related-rank-row">
+          <span class="related-rank-num">${i + 1}</span>
+          <span class="related-rank-name">${item.label}</span>
+          ${showValue ? `
+            <span class="related-rank-value">${item.valueText}<b>비중 ${item.share.toFixed(1)}%</b></span>
+          ` : ""}
+        </div>
+        ${showValue ? `<div class="related-rank-bar-track"><span class="related-rank-bar" style="width:${item.share}%"></span></div>` : ""}
+      </div>`).join("");
+    const moreBtn = items.length > RANK_CARD_INITIAL
+      ? `<button type="button" class="related-more-btn">순위 더보기 +</button>`
+      : "";
+    return `<div class="related-card">
+      <div class="related-card-title">${title}</div>
+      <div class="related-rank-list">${rows}</div>
+      ${moreBtn}
     </div>`;
   }
 
-  // 검색량 숫자가 없는 네이버 자체 추천칩이라 위 리스트(검색광고 API, 검색량순)와는 표시를
-  // 분리한다 — 섞어서 보여주면 어디서 온 값인지 구분이 안 되고, 검색량 없는 항목이 리스트 정렬
-  // 기준을 깨뜨린다.
-  function nativeRelatedHtml(chips) {
-    if (!chips.length) return "";
-    return `<div class="native-related">
-      <div class="section-title">네이버 연관검색어</div>
-      <div class="native-related-chips">
-        ${chips.map((c) => `<span class="native-chip">${c}</span>`).join("")}
-      </div>
+  // 카드마다 "전체 대비 비중"을 낼 기준 모수가 없어서(예: 연관키워드 검색량은 절대적 규모라
+  // 항목마다 자릿수가 천차만별), 실제로 화면에 보여줄 상위 N개(20개)의 합을 기준 삼아
+  // 상대 비중으로 근사한다 — item-discovery.html류 지표 랭킹 카드와 같은 방식.
+  function shareItems(entries, limit = 20) {
+    const top = entries.slice(0, limit);
+    const sum = top.reduce((s, [, v]) => s + (Number(v) || 0), 0) || 1;
+    return top.map(([label, value]) => ({ label, valueText: `${fmt(value)}회`, share: (Number(value) || 0) / sum * 100 }));
+  }
+
+  function relatedCardsHtml(related, nativeChips, topTags) {
+    const oursItems = shareItems(related.map((r) => [r.keyword, r.total]));
+    const hashtagItems = shareItems(topTags);
+    const nativeItems = nativeChips.slice(0, 20).map((c) => ({ label: c }));
+    return `<div class="related-card-grid">
+      ${rankCardHtml("에너가드랩", oursItems, { emptyText: "연관 키워드 데이터가 없습니다." })}
+      ${rankCardHtml("네이버", nativeItems, { emptyText: "네이버 연관검색어를 찾지 못했습니다.", showValue: false })}
+      ${rankCardHtml("해시태그", hashtagItems, { emptyText: "수집된 태그가 없습니다." })}
     </div>`;
+  }
+
+  function bindRelatedCards(shadow) {
+    shadow.querySelectorAll(".related-more-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const card = btn.closest(".related-card");
+        const expanded = btn.dataset.expanded === "1";
+        card.querySelectorAll(".related-rank-item.is-extra").forEach((row) => row.classList.toggle("hidden", expanded));
+        btn.dataset.expanded = expanded ? "0" : "1";
+        btn.textContent = expanded ? "순위 더보기 +" : "접기 −";
+      });
+    });
   }
 
   // 삽입 위치를 찾으면 인라인 카드로, 못 찾으면 고정 카드로.
@@ -724,6 +763,7 @@
     const related = (ad?.related || []).filter((r) => r.keyword);
     const nativeChips = readNativeRelatedChips();
     const page = buildPageInsight(ad?.monthlyTotal ?? null);
+    const topTags = page?.topTags || [];
 
     shadow.innerHTML = `<style>${CARD_STYLE}</style>
       <div class="card${floating ? " floating" : ""}${collapsed ? " collapsed" : ""}">
@@ -747,14 +787,13 @@
             ` : `<div class="empty">검색량 데이터를 불러오지 못했습니다.</div>`}
           </div>
           <div class="tab-panel${activeTab === "related" ? "" : " hidden"}" data-tab="related">
-            ${relatedFullHtml(related)}
-            ${nativeRelatedHtml(nativeChips)}
-            ${hashtagsHtml(page?.topTags || [])}
+            ${relatedCardsHtml(related, nativeChips, topTags)}
           </div>
         </div>
       </div>`;
     bindHead(shadow);
     bindTabs(shadow);
+    bindRelatedCards(shadow);
     bindTrendChart(shadow, trendRows);
   }
 
