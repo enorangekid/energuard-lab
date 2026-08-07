@@ -290,13 +290,13 @@
       color:#5a6378;font-family:inherit;font-size:12px;font-weight:800;cursor:pointer}
     .related-more-btn:hover{color:#e85d2f}
     .headline{font-size:23px;font-weight:800;line-height:1.4;margin:0 0 6px}
-    .category-line{font-size:12px;color:#8a94a6;font-weight:600;margin:0 0 22px}
-    .category-line b{color:#667085;font-weight:700}
+    .category-line{font-size:12px;color:#5a6378;font-weight:600;margin:0 0 22px}
+    .category-line b{color:#1d2433;font-weight:700}
     .headline b{font-weight:800}
     .headline b.up{color:#16a34a}.headline b.down{color:#dc2626}
-    .kw{font-size:12px;color:#8a94a6;font-weight:600;margin:0 0 12px}
+    .kw{font-size:12px;color:#5a6378;font-weight:600;margin:0 0 12px}
     .up{color:#16a34a}.down{color:#dc2626}.flat{color:#667085}
-    .section-title{font-size:11px;color:#8a94a6;margin-bottom:8px;font-weight:700}
+    .section-title{font-size:11px;color:#5a6378;margin-bottom:8px;font-weight:700}
     .empty{font-size:12px;color:#98a2b3;padding:6px 0}
     .vol-layout{display:flex;gap:24px;align-items:stretch;margin-bottom:16px}
     .card.floating .vol-layout{flex-direction:column}
@@ -309,30 +309,32 @@
     .split-track{display:flex;height:8px;border-radius:4px;overflow:hidden;background:#f5f6f8}
     .split-seg.mobile{background:#e85d2f}
     .split-seg.pc{background:#fbceb1}
-    .split-legend{display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:#667085}
-    .split-legend b{color:#1d2433;font-weight:800}
+    .split-legend{display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:#5a6378}
+    .split-legend b{color:#1d2433;font-weight:800;font-family:Consolas,"JetBrains Mono",monospace}
     .vol-side-col{width:280px;flex:none;display:flex;flex-direction:column;gap:10px}
     .vol-side-col .side-box:last-child{flex:1;display:flex;flex-direction:column}
     .vol-side-col .side-box:last-child .sellers{flex:1}
     .card.floating .vol-side-col{width:100%}
-    .side-box{border:1px solid #e4e7ec;border-radius:8px;padding:12px 14px}
+    .side-box{border:1px solid #e8ecf2;border-radius:6px;padding:12px 14px}
+    /* 연관키워드 카드(.related-card-title 등)와 같은 톤으로 맞춤 — 제목은 옅은 회색,
+       숫자값은 모노스페이스(2026-08-07, "키워드분석쪽 폰트도 연관검색어에 맞춰줘" 요청). */
     .side-box-title{display:flex;align-items:center;justify-content:space-between;
-      font-size:12px;font-weight:800;color:#1d2433;margin-bottom:8px}
+      font-size:12px;font-weight:800;color:#5a6378;margin-bottom:8px}
     .grade{font-size:11px;font-weight:800;padding:2px 7px;border-radius:5px}
     .grade.good{color:#16a34a;background:#eafaf0}
     .grade.mid{color:#d97706;background:#fef6e8}
     .grade.bad{color:#e11d48;background:#fdecef}
     .side-box-row{display:flex;justify-content:space-between;font-size:12px;padding:5px 0;
-      border-top:1px solid #f0f2f5;color:#667085}
+      border-top:1px solid #f4f5f7;color:#5a6378}
     .side-box-row:first-of-type{border-top:none}
-    .side-box-row b{color:#1d2433;font-weight:800}
+    .side-box-row b{color:#1d2433;font-weight:800;font-family:Consolas,"JetBrains Mono",monospace}
     .side-box-row b.up{color:#16a34a}.side-box-row b.down{color:#dc2626}.side-box-row b.flat{color:#667085}
     .sellers{display:flex;flex-direction:column;gap:6px}
     .seller-row{display:grid;grid-template-columns:18px 1fr 60px;align-items:center;gap:8px;font-size:12px}
-    .seller-rank{color:#98a2b3;font-weight:700}
-    .seller-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .seller-rank{color:#98a2b3;font-weight:700;font-family:Consolas,"JetBrains Mono",monospace}
+    .seller-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700;color:#1d2433}
     .seller-row.mine .seller-name{color:#e85d2f;font-weight:800}
-    .seller-share{text-align:right;color:#667085}
+    .seller-share{text-align:right;color:#5a6378;font-family:Consolas,"JetBrains Mono",monospace}
     .seller-bar-wrap{grid-column:1 / -1;background:#f5f6f8;border-radius:3px;height:5px;overflow:hidden;margin-top:-3px}
     .seller-bar{display:block;height:100%;background:#c7cbd3}
     .seller-row.mine .seller-bar{background:#e85d2f}
