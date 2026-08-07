@@ -344,6 +344,9 @@
     .card.floating .vol-layout{flex-direction:column}
     .vol-chart-col{flex:1;min-width:0;display:flex}
     .vol-chart-box{flex:1;display:flex;flex-direction:column;justify-content:center}
+    /* 그래프가 박스 안에서 위아래로 꽉 차 보여서(2026-08-07, "밑에랑 닿을랑 말랑") 상하
+       여백을 강제로 더 준다 — .side-box보다 더 구체적인 선택자라 소스 순서와 무관하게 이긴다. */
+    .side-box.vol-chart-box{padding:26px 14px}
     .vol-chart-wrap{position:relative}
     .vol-chart-wrap svg{display:block;width:100%;height:auto}
     .vol-tip{position:absolute;top:2px;transform:translateX(-50%);padding:5px 10px;border-radius:6px;
