@@ -325,7 +325,7 @@
       font-family:Consolas,"JetBrains Mono",monospace;font-size:12px;font-weight:800;color:#1d2433;white-space:nowrap}
     .related-rank-share{font-size:10.5px;font-weight:700;color:#5a6378;font-family:inherit}
     .headline{font-size:23px;font-weight:800;line-height:1.4;margin:0 0 6px}
-    .headline.muted{font-size:16px;font-weight:700;color:#8a94a6}
+    .headline.muted{color:#8a94a6}
     .category-line{font-size:12px;color:#5a6378;font-weight:600;margin:0 0 22px}
     .category-line b{color:#1d2433;font-weight:700}
     .headline b{font-weight:800}
