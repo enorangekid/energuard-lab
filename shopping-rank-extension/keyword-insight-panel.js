@@ -61,9 +61,11 @@
       );
       if (labelEl) {
         const container = labelEl.closest("div")?.parentElement || labelEl.parentElement;
+        // 캐러셀 좌우 이동 버튼("다음"/"이전")도 앵커라서 같이 잡힌다 — 실제 키워드가 아니므로 제외.
+        const CONTROL_WORDS = new Set(["연관", "다음", "이전", "더보기"]);
         const fallback = [...(container?.querySelectorAll("a") || [])]
           .map((a) => a.textContent.trim())
-          .filter((t) => t && t !== "연관");
+          .filter((t) => t && !CONTROL_WORDS.has(t));
         if (fallback.length) return [...new Set(fallback)];
       }
 
