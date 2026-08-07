@@ -703,9 +703,17 @@
   // 키워드 제안은 원래 에너가드랩(검색광고 API) 연관키워드 1위를 썼는데, 정확도가 떨어진다는
   // 지적으로 네이버 자체 연관검색어(nativeChips) 1위로 바꿨다 — 그마저 없을 때만 에너가드랩
   // 데이터로 폴백한다(2026-08-07).
-  function relatedHeadlineHtml(nativeChips, related, topTags) {
+  // 해시태그 제안에서 뺄 것들 — 검색한 키워드 자체("아이소핑크" 검색했는데 "#아이소핑크"를
+  // 넣어보라는 건 이미 하고 있는 걸 다시 하라는 순환 제안이라 의미가 없고, "단열재"는 이
+  // 카테고리 상품 대부분에 이미 붙어있는 너무 흔한 태그라 제안으로서 가치가 낮다(2026-08-07).
+  const HEADLINE_TAG_EXCLUDE = new Set(["단열재"]);
+
+  function relatedHeadlineHtml(keyword, nativeChips, related, topTags) {
     const topKw = nativeChips[0] || related[0]?.keyword;
-    const topTag = topTags[0]?.[0];
+    const seedNorm = normalizeKw(keyword);
+    const topTag = topTags.find(([tag]) =>
+      normalizeKw(tag) !== seedNorm && !HEADLINE_TAG_EXCLUDE.has(tag)
+    )?.[0];
     if (!topKw && !topTag) return "";
     const suggestions = [];
     if (topKw) suggestions.push(`<b class="hl-kw">"${topKw}"</b> 키워드를 넣어보세요`);
@@ -815,7 +823,7 @@
               ` : `<div class="empty">검색량 데이터를 불러오지 못했습니다.</div>`}
             </div>
             <div class="tab-panel${activeTab === "related" ? "" : " hidden"}" data-tab="related">
-              ${relatedHeadlineHtml(nativeChips, related, topTags)}
+              ${relatedHeadlineHtml(keyword, nativeChips, related, topTags)}
               ${relatedCardsHtml(related, nativeChips, topTags)}
             </div>
           </div>
