@@ -325,6 +325,7 @@
       font-family:Consolas,"JetBrains Mono",monospace;font-size:12px;font-weight:800;color:#1d2433;white-space:nowrap}
     .related-rank-share{font-size:10.5px;font-weight:700;color:#5a6378;font-family:inherit}
     .headline{font-size:23px;font-weight:800;line-height:1.4;margin:0 0 6px}
+    .headline.muted{font-size:16px;font-weight:700;color:#8a94a6}
     .category-line{font-size:12px;color:#5a6378;font-weight:600;margin:0 0 22px}
     .category-line b{color:#1d2433;font-weight:700}
     .headline b{font-weight:800}
@@ -336,6 +337,9 @@
     .up{color:#16a34a}.down{color:#dc2626}.flat{color:#667085}
     .section-title{font-size:11px;color:#5a6378;margin-bottom:8px;font-weight:700}
     .empty{font-size:12px;color:#98a2b3;padding:6px 0}
+    .chart-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;
+      gap:10px;height:100%;color:#98a2b3;text-align:center}
+    .chart-empty p{font-size:12.5px;font-weight:600;line-height:1.5;margin:0}
     /* vol-layout 자체가 남는 세로 공간을 흡수하게 한다 — 안 그러면 옆 탭(연관키워드 등)에 맞춰
        tab-panel이 늘어난 만큼이 카드 3칸 아랫줄과 바깥 카드 테두리 사이에 빈 띠로 그대로
        남았다(2026-08-07 지적). flex:1로 늘어난 공간을 카드 3칸 쪽으로 넘기면, 그 안의
@@ -415,7 +419,7 @@
 
   // 판다랭크의 "지난해에 비해 검색량이 -15.2% 감소했어요" 같은 큰 글씨 요약 문구.
   function headlineHtml(trendYear) {
-    if (trendYear == null) return "";
+    if (trendYear == null) return `<p class="headline muted">검색 데이터를 모으고 있어요, 기다려주세요.</p>`;
     if (Math.abs(trendYear) < 0.1) return `<p class="headline">지난해와 검색량이 비슷해요.</p>`;
     const cls = trendYear > 0 ? "up" : "down";
     const verb = trendYear > 0 ? "증가" : "감소";
@@ -500,7 +504,10 @@
 
   function trendChartHtml(rows, fitH) {
     const g = trendChartGeometry(rows, fitH);
-    if (!g) return `<div class="empty">검색량 스냅샷이 부족합니다.</div>`;
+    if (!g) return `<div class="chart-empty">
+      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#c6cbd3" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19h16"/><path d="M8 19v-6"/><path d="M13 19v-10"/><path d="M18 19v-3"/></svg>
+      <p>검색 데이터를 모으고 있어요.<br>조금만 기다려주세요.</p>
+    </div>`;
     const { raw, vals, W, H, padL, padR, padT, ih, yMax, x, y, barW, barX, barCenterX } = g;
 
     let grid = "", axisLabels = "";
