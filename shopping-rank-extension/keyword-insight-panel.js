@@ -271,7 +271,7 @@
        버그가 있었다(2026-08-07 실측 확인) — 고정 높이는 .card 자체에 걸고, .card-body는
        flex:1로 헤더를 뺀 나머지를 자동으로 채우게 한다(헤더 높이를 손으로 계산할 필요 없음).
        플로팅(좁은 고정폭) 카드는 콘텐츠 자체가 훨씬 작아서 이 락을 적용하지 않는다. */
-    .card:not(.floating):not(.collapsed){height:550px;display:flex;flex-direction:column}
+    .card:not(.floating):not(.collapsed){height:580px;display:flex;flex-direction:column}
     .card:not(.floating) .head{flex:none}
     .card:not(.floating) .card-body{flex:1;min-height:0;display:flex;flex-direction:column}
     .card:not(.floating) .tab-panels-stack{display:grid;flex:1;min-height:0}
