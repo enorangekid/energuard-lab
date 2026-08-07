@@ -174,16 +174,22 @@ function buildInsightPageStats(rows, monthlyTotal) {
   const mallAgg = new Map();
   rows.forEach((r) => {
     const key = r.mall_name || `카탈로그:${r.product_code || r.naver_product_id || ""}`;
-    const agg = mallAgg.get(key) || { mall: r.mall_name || "가격비교 상품", count: 0, mine: false };
+    const agg = mallAgg.get(key) || { mall: r.mall_name || "가격비교 상품", count: 0, mine: false, points: 0 };
     agg.count += 1;
     if (r.is_target_store) agg.mine = true;
-    mallAgg.set(key, agg);
     const rank = Number(r.organic_rank);
+    // naver-rank.html의 "판매자 분석"과 같은 순위 가중 점수(influence)로 통일 — 단순 개수 비율은
+    // 순위를 안 봐서 1위 상품 하나뿐인 판매자가 50위권 여러 개인 판매자보다 낮게 나오는 역전이
+    // 있었다(2026-08-07, 같은 키워드인데 report.html과 naver-rank.html 노출순위가 서로 다르다는
+    // 지적으로 발견 — 두 화면 기준을 naver-rank.html 쪽으로 통일).
+    if (Number.isFinite(rank) && rank > 0) agg.points += rank <= 10 ? 100 / rank : 100 / (rank + 9);
+    mallAgg.set(key, agg);
     if (r.is_target_store && Number.isFinite(rank) && (myBestRank == null || rank < myBestRank)) myBestRank = rank;
   });
+  const totalPoints = [...mallAgg.values()].reduce((sum, s) => sum + s.points, 0) || 1;
   const sellers = [...mallAgg.values()]
-    .map((s) => ({ ...s, share: rows.length ? (s.count / rows.length * 100) : 0 }))
-    .sort((a, b) => b.count - a.count);
+    .map((s) => ({ ...s, share: totalPoints ? (s.points / totalPoints * 100) : 0 }))
+    .sort((a, b) => b.share - a.share);
 
   return { priceRange, score, ratio, myBestRank, sellers, productCount };
 }

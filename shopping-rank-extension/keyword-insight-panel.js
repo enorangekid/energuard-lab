@@ -166,14 +166,21 @@
       // 상품코드 기준으로 각각 따로 집계한다(합쳐지지 않게).
       const hasMall = !!p.mallName;
       const key = hasMall ? p.mallName : `catalog:${p.productCode || p.naverProductId || catalogIdx++}`;
-      const agg = mallAgg.get(key) || { mall: hasMall ? p.mallName : "가격비교 상품", count: 0 };
+      const agg = mallAgg.get(key) || { mall: hasMall ? p.mallName : "가격비교 상품", count: 0, points: 0 };
       agg.count += 1;
+      // naver-rank.html의 "판매자 분석"과 같은 순위 가중 점수(influence) — 단순 개수 비율로 두면
+      // 1위 상품 하나뿐인 판매자보다 50위권 상품을 여러 개 가진 판매자가 더 높게 나오는 역전이
+      // 생겼다(2026-08-07, 두 화면 수치가 서로 달라 보인다는 지적으로 발견). 두 화면 기준을
+      // naver-rank.html 쪽(순위 가중)으로 통일한다.
+      const rank = Number(p.rank);
+      if (Number.isFinite(rank) && rank > 0) agg.points += rank <= 10 ? 100 / rank : 100 / (rank + 9);
       mallAgg.set(key, agg);
       if (isOwnStore(p.mallName) && (myBestRank == null || p.rank < myBestRank)) myBestRank = p.rank;
     });
+    const totalPoints = [...mallAgg.values()].reduce((sum, s) => sum + s.points, 0) || 1;
     const sellers = [...mallAgg.values()]
-      .map((s) => ({ ...s, share: organic.length ? (s.count / organic.length * 100) : 0 }))
-      .sort((a, b) => b.count - a.count);
+      .map((s) => ({ ...s, share: totalPoints ? (s.points / totalPoints * 100) : 0 }))
+      .sort((a, b) => b.share - a.share);
 
     // 주요 카테고리 — naver-rank.html의 topCategory 계산과 동일(가장 많이 나온 카테고리 경로).
     const categoryCount = new Map();
