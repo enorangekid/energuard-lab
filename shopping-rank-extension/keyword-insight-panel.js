@@ -221,6 +221,15 @@
     return "1 : " + (Math.round((1 / r) * 10) / 10);
   }
 
+  // "1 : 262.2" 같은 숫자만 봐서는 뭐가 좋은 건지 감이 안 온다는 지적(2026-08-07) — 같은 숫자를
+  // 말로 풀어서 호버 툴팁 + 카드 안 작은 캡션으로 같이 보여준다.
+  function ratioHintText(r) {
+    if (r == null) return "";
+    if (r === 0) return "경쟁 상품이 없어요";
+    if (r >= 1) return `검색 1회당 경쟁상품 ${Math.round(r * 10) / 10}개 — 적을수록 여유 있어요`;
+    return `상품 1개당 검색 ${Math.round((1 / r) * 10) / 10}회 — 많을수록 여유 있어요`;
+  }
+
   const CARD_STYLE = `
     *{box-sizing:border-box}
     .card{width:100%;padding:18px 22px;border:1px solid #dedede;border-radius:10px;background:#fff;
@@ -574,12 +583,14 @@
   function keywordSideBoxHtml(ad, page) {
     if (!ad) return "";
     const grade = page ? scoreGrade(page.score) : null;
+    const ratioHint = page ? ratioHintText(page.ratio) : "";
     return `
       <div class="side-box">
         <div class="side-box-title">키워드${grade ? `<span class="grade ${grade.cls}">${grade.text}</span>` : ""}</div>
         <div class="side-box-row"><span>월 검색량</span><b>${fmt(ad.monthlyTotal)}회</b></div>
-        <div class="side-box-row"><span>경쟁강도</span><b>${page ? fmtRatio(page.ratio) : "-"}</b></div>
-        ${page?.isPageCountOnly ? `<div class="empty" style="padding-top:6px">*로딩된 페이지 기준</div>` : ""}
+        <div class="side-box-row"><span>경쟁강도</span><b title="${ratioHint}">${page ? fmtRatio(page.ratio) : "-"}</b></div>
+        ${ratioHint ? `<div class="empty" style="padding-top:2px">*${ratioHint}</div>` : ""}
+        ${page?.isPageCountOnly ? `<div class="empty" style="padding-top:2px">*로딩된 페이지 기준</div>` : ""}
       </div>`;
   }
 
