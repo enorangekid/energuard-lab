@@ -285,7 +285,7 @@
        부모(.card-body)가 min-height일 뿐 고정 height가 아니라 늘어날 공간 자체가 없어서 스크롤이
        안 걸린다 — 기본 5줄(RANK_CARD_INITIAL)이 딱 들어가는 높이로 max-height를 못박아야 실제로
        스크롤이 발동한다. */
-    .related-rank-list{flex:1;overflow-y:auto;min-height:0;max-height:200px}
+    .related-rank-list{flex:1;overflow-y:auto;min-height:0;max-height:260px}
     .related-rank-row{display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid #f4f5f7}
     .related-rank-row:last-of-type{border-bottom:none}
     .related-rank-row.hidden{display:none}
