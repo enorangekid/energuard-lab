@@ -244,7 +244,7 @@
 
   const CARD_STYLE = `
     *{box-sizing:border-box}
-    .card{width:100%;padding:18px 22px;border:1px solid #dedede;border-radius:10px;background:#fff;
+    .card{width:100%;padding:18px 22px 22px;border:1px solid #dedede;border-radius:10px;background:#fff;
       color:#1d2433;font-family:Pretendard,"Noto Sans KR",Arial,sans-serif;margin:14px 0}
     .card.floating{position:fixed;right:22px;top:90px;z-index:2147483646;width:300px;
       box-shadow:0 12px 32px rgba(15,23,42,.14);margin:0;max-height:80vh;overflow-y:auto}
