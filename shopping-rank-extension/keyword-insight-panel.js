@@ -265,10 +265,15 @@
     .card-body.hidden{display:none!important}
     /* 탭을 바꿔도 카드 크기가 안 변해야 한다. 안쪽 목록(연관키워드 3칸, 노출 점유율)이
        전부 max-height+스크롤로 막혀 있고 이름 텍스트도 전부 nowrap+ellipsis라 줄바꿈으로
-       넘칠 일이 없어서(2026-08-07 확인), 그리드-스택으로 "더 큰 탭에 자동으로 맞추는"
-       방식 대신 실측값(940x550.19, 두 탭 동일)을 그대로 고정값으로 박는다.
+       넘칠 일이 없어서(2026-08-07 확인), 실측값(.card 기준 940x550.19, 두 탭 동일)을
+       그대로 고정값으로 박는다. 처음엔 이 숫자를 .card-body에 직접 박았는데, 그러면 위쪽
+       헤더(로고줄, .head)만큼이 이중으로 더해져서 .card 전체가 550이 아니라 633으로 커지는
+       버그가 있었다(2026-08-07 실측 확인) — 고정 높이는 .card 자체에 걸고, .card-body는
+       flex:1로 헤더를 뺀 나머지를 자동으로 채우게 한다(헤더 높이를 손으로 계산할 필요 없음).
        플로팅(좁은 고정폭) 카드는 콘텐츠 자체가 훨씬 작아서 이 락을 적용하지 않는다. */
-    .card:not(.floating) .card-body{height:551px;display:flex;flex-direction:column}
+    .card:not(.floating):not(.collapsed){height:550px;display:flex;flex-direction:column}
+    .card:not(.floating) .head{flex:none}
+    .card:not(.floating) .card-body{flex:1;min-height:0;display:flex;flex-direction:column}
     .card:not(.floating) .tab-panels-stack{display:grid;flex:1;min-height:0}
     .card:not(.floating) .tab-panels-stack .tab-panel{grid-area:1/1/2/2;display:flex;flex-direction:column;min-height:0}
     .card:not(.floating) .tab-panels-stack .tab-panel.hidden{visibility:hidden!important;display:flex!important;pointer-events:none}
