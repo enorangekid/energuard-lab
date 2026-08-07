@@ -460,7 +460,7 @@
     return filled;
   }
 
-  function trendChartGeometry(rows) {
+  function trendChartGeometry(rows, fitH) {
     const raw = fillMonthGaps((rows ? [...rows].reverse() : [])
       .filter((r) => r.snapshot_month)
       .map((r) => ({ month: r.snapshot_month, total: Number(r.total) || 0 })));
@@ -471,11 +471,10 @@
     // 가운데 정렬로 못 그리고 옆으로 밀어야 해서 막대와 라벨이 안 맞아 보인다.
     // padL은 Y축 숫자(보통 5~6자리, "20,000")가 안 잘릴 최소한만 — 너무 넓으면 그래프 왼쪽이
     // 헤드라인·카테고리 텍스트보다 눈에 띄게 안으로 들어가 보인다(2026-08-06 피드백).
-    // H를 480으로(2026-08-07) — 인라인 카드에서 그래프 박스 실측 비율이 약 1.12:1(거의
-    // 정사각형)인데 600:310(≈1.94:1)은 훨씬 납작해서, 세로 방향에 큰 레터박스 여백이
-    // 남았다(실측: 박스 358x320 안에서 실제 그려진 높이 185뿐). W:H를 박스 비율에
-    // 가깝게 키워서 여백을 줄인다.
-    const W = 600, H = 480, padL = 42, padR = 34, padT = 20, padB = 30;
+    // H를 고정 숫자로 짐작해서 맞추는 걸 반복하다가(2026-08-07, 310→480 다 빗나감)
+    // 포기했다 — 카드 폭/키워드마다 실제 박스 비율이 다 달라서 숫자 하나로는 못 맞는다.
+    // 대신 bindTrendChart가 렌더링 직후 박스를 실측해서 이 H를 넘겨준다(fitH 인자).
+    const W = 600, H = fitH || 480, padL = 42, padR = 34, padT = 20, padB = 30;
     const iw = W - padL - padR, ih = H - padT - padB;
     const vals = raw.map((d) => d.total);
     const yMax = niceCeil(Math.max(...vals, 1));
@@ -499,8 +498,8 @@
   const BAR_CUR = "#e85d2f"; // 최근 달만 강조(진한 브랜드 색)
   const BAR_HOVER = "#f0a67d"; // 마우스 올렸을 때(강조 막대가 아닌 경우)
 
-  function trendChartHtml(rows) {
-    const g = trendChartGeometry(rows);
+  function trendChartHtml(rows, fitH) {
+    const g = trendChartGeometry(rows, fitH);
     if (!g) return `<div class="empty">검색량 스냅샷이 부족합니다.</div>`;
     const { raw, vals, W, H, padL, padR, padT, ih, yMax, x, y, barW, barX, barCenterX } = g;
 
@@ -564,7 +563,18 @@
   }
 
   function bindTrendChart(shadow, rows) {
-    const g = trendChartGeometry(rows);
+    // 렌더링 직후 박스 실측 비율에 맞춰 그래프를 다시 그린다 — 카드 폭/키워드마다
+    // 박스 비율이 달라서 고정 숫자로는 못 맞혔다(2026-08-07, 여러 번 시도 후 확정).
+    const box = shadow.querySelector(".vol-chart-box");
+    let fitH;
+    if (box) {
+      const rect = box.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        fitH = Math.round(Math.min(650, Math.max(260, 600 * (rect.height / rect.width))));
+        box.innerHTML = trendChartHtml(rows, fitH);
+      }
+    }
+    const g = trendChartGeometry(rows, fitH);
     const svg = shadow.querySelector("#volSvg");
     if (!g || !svg) return;
     const { raw, vals, W, x, barCenterX } = g;
