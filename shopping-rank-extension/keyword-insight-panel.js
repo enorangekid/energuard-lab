@@ -10,6 +10,7 @@
   const CACHE_TTL_MS = 30 * 60 * 1000; // 같은 키워드 30분 내 재방문 시 재조회 방지(Supabase 조회분만)
   const OBSERVE_MS = 15000; // 이 시간 동안만 "나중에 인라인 자리 생기면 옮기기"를 감시
   const OWN_STORE_NAMES = ["한국단열", "에너가드"]; // compact() 비교용 — naver-rank.html의 MY_STORES와 동일 기준
+  const NOISE_TAGS = new Set(["오늘출발", "오늘발송"]); // report.js의 NOISE_TAGS와 동일 — 거의 모든 상품에 붙는 배송 배지
 
   function currentQuery() {
     try {
@@ -190,7 +191,18 @@
     });
     const topCategory = [...categoryCount.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || "";
 
-    return { priceRange, score, ratio, isPageCountOnly, myBestRank, sellers, productCount, organicCount: organic.length, topCategory };
+    // 해시태그(검색태그) 빈도 — report.html "자주 등장한 태그"와 동일 로직·동일 노이즈 필터
+    // (2026-08-07, 연관키워드 탭 세 번째 데이터로 추가).
+    const tagCount = new Map();
+    organic.forEach((p) => {
+      (Array.isArray(p.tags) ? p.tags : []).forEach((tag) => {
+        if (NOISE_TAGS.has(tag)) return;
+        tagCount.set(tag, (tagCount.get(tag) || 0) + 1);
+      });
+    });
+    const topTags = [...tagCount.entries()].sort((a, b) => b[1] - a[1]).slice(0, 20);
+
+    return { priceRange, score, ratio, isPageCountOnly, myBestRank, sellers, productCount, organicCount: organic.length, topCategory, topTags };
   }
 
   // 판다랭크 배지("좋음"/"보통"/"나쁨")와 같은 3단계 — compScore 앵커(40/70)에 맞춘 경계.
@@ -617,13 +629,28 @@
   }
 
   function relatedFullHtml(related) {
-    if (!related.length) return `<div class="empty">연관 키워드 데이터가 없습니다.</div>`;
-    return `<div class="related-rows">
-      ${related.slice(0, 30).map((r) => `
-        <div class="related-row">
-          <span class="related-name">${r.keyword}</span>
-          <span class="related-vol">${r.total != null ? fmt(r.total) : "-"}</span>
-        </div>`).join("")}
+    const body = !related.length
+      ? `<div class="empty">연관 키워드 데이터가 없습니다.</div>`
+      : `<div class="related-rows">
+          ${related.slice(0, 30).map((r) => `
+            <div class="related-row">
+              <span class="related-name">${r.keyword}</span>
+              <span class="related-vol">${r.total != null ? fmt(r.total) : "-"}</span>
+            </div>`).join("")}
+        </div>`;
+    return `<div class="native-related"><div class="section-title">연관 키워드</div>${body}</div>`;
+  }
+
+  // report.html "자주 등장한 태그"와 같은 데이터 — 지금 로딩된 페이지 상품들의 검색태그 빈도.
+  // 연관키워드 탭의 세 번째 데이터(2026-08-07): 우리쪽 연관키워드(검색광고 API) / 네이버
+  // 연관검색어(페이지 자체 위젯) / 해시태그(상품 태그 빈도).
+  function hashtagsHtml(topTags) {
+    if (!topTags.length) return "";
+    return `<div class="native-related">
+      <div class="section-title">해시태그</div>
+      <div class="native-related-chips">
+        ${topTags.map(([tag, count]) => `<span class="native-chip">#${tag} ${count}</span>`).join("")}
+      </div>
     </div>`;
   }
 
@@ -720,8 +747,9 @@
             ` : `<div class="empty">검색량 데이터를 불러오지 못했습니다.</div>`}
           </div>
           <div class="tab-panel${activeTab === "related" ? "" : " hidden"}" data-tab="related">
-            ${nativeRelatedHtml(nativeChips)}
             ${relatedFullHtml(related)}
+            ${nativeRelatedHtml(nativeChips)}
+            ${hashtagsHtml(page?.topTags || [])}
           </div>
         </div>
       </div>`;
