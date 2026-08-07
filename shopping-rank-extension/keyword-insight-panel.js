@@ -340,7 +340,7 @@
        tab-panel이 늘어난 만큼이 카드 3칸 아랫줄과 바깥 카드 테두리 사이에 빈 띠로 그대로
        남았다(2026-08-07 지적). flex:1로 늘어난 공간을 카드 3칸 쪽으로 넘기면, 그 안의
        justify-content:space-between이 이어받아 내용 사이사이로 고르게 분산한다. */
-    .vol-layout{display:flex;gap:24px;align-items:stretch;flex:1;min-height:0}
+    .vol-layout{display:flex;gap:14px;align-items:stretch;flex:1;min-height:0}
     .card.floating .vol-layout{flex-direction:column}
     .vol-chart-col{flex:1;min-width:0;display:flex}
     .vol-chart-box{flex:1;display:flex;flex-direction:column;justify-content:center}
