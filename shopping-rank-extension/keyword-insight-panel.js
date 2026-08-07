@@ -338,6 +338,15 @@
     .headline b.hl-kw{color:#e85d2f}
     .headline b.hl-tag{color:#0ea5e9}
     .kw{font-size:12px;color:#5a6378;font-weight:600;margin:0 0 12px}
+    /* common.css의 #globalLoading(.gl-spinner/.gl-msg) 사이트 공용 로딩 스타일을 그대로
+       가져왔다(2026-08-07) — 셰도우 DOM이라 common.css를 못 읽어서 CSS를 복제해 넣었다.
+       카드가 fixed height라 loading-wrap을 flex:1로 줘서 카드 안에서 수직 중앙에 온다. */
+    .loading-wrap{flex:1;display:flex;flex-direction:column;align-items:center;
+      justify-content:center;gap:16px;min-height:120px}
+    .loading-spinner{width:36px;height:36px;border:3px solid #eef0f3;border-top-color:#e85d2f;
+      border-radius:50%;animation:energuardSpin .8s linear infinite}
+    @keyframes energuardSpin{to{transform:rotate(360deg)}}
+    .loading-msg{font-size:14px;font-weight:800;letter-spacing:-.01em;color:#e85d2f;text-align:center}
     .up{color:#16a34a}.down{color:#dc2626}.flat{color:#667085}
     .section-title{font-size:11px;color:#5a6378;margin-bottom:8px;font-weight:700}
     .empty{font-size:12px;color:#98a2b3;padding:6px 0}
@@ -877,7 +886,10 @@
       <div class="card${floating ? " floating" : ""}${collapsed ? " collapsed" : ""}">
         ${headHtml()}
         <div class="card-body${collapsed ? " hidden" : ""}">
-          <p class="kw">"${keyword}" 분석 중...</p>
+          <div class="loading-wrap">
+            <div class="loading-spinner"></div>
+            <div class="loading-msg">"${keyword}" 분석 중...</div>
+          </div>
         </div>
       </div>`;
     bindHead(shadow);
