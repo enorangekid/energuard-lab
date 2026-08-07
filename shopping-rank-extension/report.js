@@ -248,7 +248,12 @@ function trendChartGeometry(rows) {
     .filter((r) => r.snapshot_month)
     .map((r) => ({ month: r.snapshot_month, total: Number(r.total) || 0 })));
   if (raw.length < 2) return null;
-  const W = 600, H = 310, padL = 42, padR = 34, padT = 20, padB = 30;
+  // 패널(keyword-insight-panel.js)은 W:H가 600:310(~1.94:1)인데, 그건 폭 600~700px 안팎의 좁은
+  // 플로팅 카드 기준이다. report.html은 옆 사이드박스 폭(560px+간격)을 뺀 나머지가 차트 영역이라
+  // 실제 렌더 폭이 900px 이상으로 훨씬 넓어서, 같은 비율을 그대로 쓰면 세로만 따라 늘어나
+  // 옆 사이드박스보다 훨씬 커지고 카드 아래에 빈 여백이 크게 남았다(2026-08-07 실측 확인).
+  // 넓은 레이아웃에 맞게 가로세로 비율을 더 납작하게(약 3.2:1) 잡는다.
+  const W = 600, H = 190, padL = 42, padR = 34, padT = 18, padB = 26;
   const iw = W - padL - padR, ih = H - padT - padB;
   const vals = raw.map((d) => d.total);
   const yMax = niceCeil(Math.max(...vals, 1));
