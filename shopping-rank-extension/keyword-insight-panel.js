@@ -707,13 +707,22 @@
   // 넣어보라는 건 이미 하고 있는 걸 다시 하라는 순환 제안이라 의미가 없고, "단열재"는 이
   // 카테고리 상품 대부분에 이미 붙어있는 너무 흔한 태그라 제안으로서 가치가 낮다(2026-08-07).
   const HEADLINE_TAG_EXCLUDE = new Set(["단열재"]);
+  // 매번 1위만 보여주면 재미없다는 지적(2026-08-07) — 상위권(최대 5개) 안에서 랜덤으로 골라서
+  // 새로고침/재방문할 때마다 다른 제안이 나오게 한다. 1위 후보군으로 좁혀놓은 뒤 뽑는 거라
+  // 순위가 한참 밀린 이상한 후보가 나올 걱정은 없다.
+  const pickRandomTop = (arr, n = 5) => {
+    const top = arr.slice(0, n);
+    return top.length ? top[Math.floor(Math.random() * top.length)] : undefined;
+  };
 
   function relatedHeadlineHtml(keyword, nativeChips, related, topTags) {
-    const topKw = nativeChips[0] || related[0]?.keyword;
+    const kwPool = nativeChips.length ? nativeChips : related.map((r) => r.keyword);
+    const topKw = pickRandomTop(kwPool);
     const seedNorm = normalizeKw(keyword);
-    const topTag = topTags.find(([tag]) =>
-      normalizeKw(tag) !== seedNorm && !HEADLINE_TAG_EXCLUDE.has(tag)
-    )?.[0];
+    const tagPool = topTags
+      .filter(([tag]) => normalizeKw(tag) !== seedNorm && !HEADLINE_TAG_EXCLUDE.has(tag))
+      .map(([tag]) => tag);
+    const topTag = pickRandomTop(tagPool);
     if (!topKw && !topTag) return "";
     const suggestions = [];
     if (topKw) suggestions.push(`<b class="hl-kw">${topKw}</b> 키워드를 넣어보세요`);
