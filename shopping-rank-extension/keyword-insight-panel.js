@@ -272,7 +272,7 @@
        "둘 중 더 큰 탭의 실제 높이"로 항상 자동으로 고정되게 만드는 것 — 어느 쪽 콘텐츠가
        나중에 늘어나거나 줄어들어도 숫자를 다시 맞출 필요가 없다.
        플로팅(좁은 고정폭) 카드는 콘텐츠 자체가 훨씬 작아서 이 락을 적용하지 않는다. */
-    .card:not(.floating) .card-body{min-height:475px;display:flex;flex-direction:column}
+    .card:not(.floating) .card-body{min-height:400px;display:flex;flex-direction:column}
     .card:not(.floating) .tab-panels-stack{display:grid;flex:1;min-height:0}
     .card:not(.floating) .tab-panels-stack .tab-panel{grid-area:1/1/2/2;display:flex;flex-direction:column;min-height:0}
     .card:not(.floating) .tab-panels-stack .tab-panel.hidden{visibility:hidden!important;display:flex!important;pointer-events:none}
@@ -349,8 +349,11 @@
     /* 검색어 데이터 카드 | 노출순위 카드 | 그래프, 한 줄 3칸(2026-08-07) — 그래프도 같은
        .side-box로 감싸서 세 칸이 같은 카드 톤으로 보이게 한다. */
     .vol-side-col{width:240px;flex:none;display:flex;flex-direction:column;gap:10px}
-    .vol-side-col .side-box{flex:1;display:flex;flex-direction:column}
-    .vol-side-col .sellers{flex:1}
+    /* 카드 높이가 옆 칸(연관키워드 탭 등)에 맞춰 늘어나면, 내용이 위쪽에 몰리고 아래쪽에
+       빈 띠가 남았다(2026-08-07 지적) — 안 내용을 위아래로 고르게 펼쳐서 빈 공간이 뭉치지
+       않고 자연스럽게 분산되게 한다. */
+    .vol-side-col .side-box{flex:1;display:flex;flex-direction:column;justify-content:space-between}
+    .vol-side-col .sellers{flex:1;justify-content:space-between}
     .card.floating .vol-side-col{width:100%}
     .side-box{border:1px solid #e8ecf2;border-radius:6px;padding:12px 14px}
     /* 연관키워드 카드(.related-card-title 등)와 같은 톤으로 맞춤 — 제목은 옅은 회색,
