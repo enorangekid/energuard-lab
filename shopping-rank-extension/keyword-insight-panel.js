@@ -41,6 +41,20 @@
     return document.querySelector(NOTICE_SELECTOR);
   }
 
+  // 검색창 아래 네이버 자체 "연관" 추천칩 — 상품 카드와 같은 data-shp-contents-grp 계열
+  // 속성을 쓰지만 그룹값이 "rec1"이다(nplus-collector.js에서 GNB/rec1/sch를 상품이 아닌
+  // 위젯으로 걸러낼 때 이미 확인한 값, 2026-08-06). API 호출 없이 지금 로딩된 페이지에서
+  // 바로 읽으므로 추가 요청이 전혀 없다(2026-08-07).
+  function readNativeRelatedChips() {
+    try {
+      const anchors = [...document.querySelectorAll('a[data-shp-contents-grp="rec1"]')];
+      const names = anchors.map((a) => a.textContent.trim()).filter(Boolean);
+      return [...new Set(names)];
+    } catch (_) {
+      return [];
+    }
+  }
+
   // __NEXT_DATA__를 직접 읽어 지금 로딩된 상품 목록과 총 상품수를 뽑는다. page-collector.js와
   // 별개 콘텐츠스크립트지만 같은 격리 월드(world)를 쓰는 확장프로그램이라 RankParser 전역을
   // 그대로 공유해 쓸 수 있다(manifest에도 parser-core.js를 이 스크립트와 같이 등록해뒀다).
@@ -208,6 +222,10 @@
     .tab-link.primary:hover{border-color:#e85d2f;background:#ffe9dc;color:#e85d2f}
     .tab-panel.hidden{display:none}
     .tab-divider{border:none;border-top:1px solid #e4e7ec;margin:0 -22px 22px;height:0}
+    .native-related{margin-bottom:16px}
+    .native-related-chips{display:flex;flex-wrap:wrap;gap:6px}
+    .native-chip{display:inline-flex;align-items:center;height:26px;padding:0 10px;font-size:12px;
+      font-weight:700;color:#5a6378;background:#f5f6f8;border-radius:999px;white-space:nowrap}
     .related-rows{display:flex;flex-direction:column;max-height:420px;overflow-y:auto}
     .related-row{display:flex;justify-content:space-between;align-items:center;gap:12px;
       padding:9px 0;font-size:13px;border-top:1px solid #f0f2f5}
@@ -576,6 +594,19 @@
     </div>`;
   }
 
+  // 검색량 숫자가 없는 네이버 자체 추천칩이라 위 리스트(검색광고 API, 검색량순)와는 표시를
+  // 분리한다 — 섞어서 보여주면 어디서 온 값인지 구분이 안 되고, 검색량 없는 항목이 리스트 정렬
+  // 기준을 깨뜨린다.
+  function nativeRelatedHtml(chips) {
+    if (!chips.length) return "";
+    return `<div class="native-related">
+      <div class="section-title">네이버 연관검색어</div>
+      <div class="native-related-chips">
+        ${chips.map((c) => `<span class="native-chip">${c}</span>`).join("")}
+      </div>
+    </div>`;
+  }
+
   // 삽입 위치를 찾으면 인라인 카드로, 못 찾으면 고정 카드로.
   function ensureHost() {
     document.getElementById(HOST_ID)?.remove();
@@ -631,6 +662,7 @@
     const trendMonth = trendText(trendPair(trendRows, 1));
     const trendYear = trendPair(trendRows, 12);
     const related = (ad?.related || []).filter((r) => r.keyword);
+    const nativeChips = readNativeRelatedChips();
     const page = buildPageInsight(ad?.monthlyTotal ?? null);
 
     shadow.innerHTML = `<style>${CARD_STYLE}</style>
@@ -655,6 +687,7 @@
             ` : `<div class="empty">검색량 데이터를 불러오지 못했습니다.</div>`}
           </div>
           <div class="tab-panel${activeTab === "related" ? "" : " hidden"}" data-tab="related">
+            ${nativeRelatedHtml(nativeChips)}
             ${relatedFullHtml(related)}
           </div>
         </div>
