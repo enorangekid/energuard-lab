@@ -331,7 +331,11 @@
     .up{color:#16a34a}.down{color:#dc2626}.flat{color:#667085}
     .section-title{font-size:11px;color:#5a6378;margin-bottom:8px;font-weight:700}
     .empty{font-size:12px;color:#98a2b3;padding:6px 0}
-    .vol-layout{display:flex;gap:24px;align-items:stretch;margin-bottom:16px}
+    /* vol-layout 자체가 남는 세로 공간을 흡수하게 한다 — 안 그러면 옆 탭(연관키워드 등)에 맞춰
+       tab-panel이 늘어난 만큼이 카드 3칸 아랫줄과 바깥 카드 테두리 사이에 빈 띠로 그대로
+       남았다(2026-08-07 지적). flex:1로 늘어난 공간을 카드 3칸 쪽으로 넘기면, 그 안의
+       justify-content:space-between이 이어받아 내용 사이사이로 고르게 분산한다. */
+    .vol-layout{display:flex;gap:24px;align-items:stretch;margin-bottom:16px;flex:1;min-height:0}
     .card.floating .vol-layout{flex-direction:column}
     .vol-chart-col{flex:1;min-width:0;display:flex}
     .vol-chart-box{flex:1;display:flex;flex-direction:column;justify-content:center}
