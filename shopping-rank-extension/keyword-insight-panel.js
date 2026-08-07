@@ -244,7 +244,7 @@
        "키워드분석" 탭 내용이 보통 차지하는 높이만큼 card-body에 최소 높이를 박아두면,
        "연관키워드"의 목록이 짧아도 그만큼 빈 공간이 남을 뿐 카드 자체는 안 줄어든다.
        플로팅(좁은 고정폭) 카드는 콘텐츠 자체가 훨씬 작아서 이 최소 높이를 적용하지 않는다. */
-    .card:not(.floating) .card-body{min-height:530px;display:flex;flex-direction:column}
+    .card:not(.floating) .card-body{min-height:475px;display:flex;flex-direction:column}
     /* "연관키워드"처럼(카드가 3줄만 접혀있을 때) 내용이 530px보다 짧으면, 예전엔 그 차이가
        그리드 아래에 큰 빈 띠로 뭉텅이로 남았다 — 탭 자체를 세로 flex로 늘려서 안의 카드 그리드가
        남는 높이를 흡수하게 한다(각 카드 테두리가 아래로 늘어나면서 여백이 카드 안쪽 하단
