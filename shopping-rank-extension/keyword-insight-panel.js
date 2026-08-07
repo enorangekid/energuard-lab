@@ -272,7 +272,7 @@
        "둘 중 더 큰 탭의 실제 높이"로 항상 자동으로 고정되게 만드는 것 — 어느 쪽 콘텐츠가
        나중에 늘어나거나 줄어들어도 숫자를 다시 맞출 필요가 없다.
        플로팅(좁은 고정폭) 카드는 콘텐츠 자체가 훨씬 작아서 이 락을 적용하지 않는다. */
-    .card:not(.floating) .card-body{min-height:400px;display:flex;flex-direction:column}
+    .card:not(.floating) .card-body{min-height:395px;display:flex;flex-direction:column}
     .card:not(.floating) .tab-panels-stack{display:grid;flex:1;min-height:0}
     .card:not(.floating) .tab-panels-stack .tab-panel{grid-area:1/1/2/2;display:flex;flex-direction:column;min-height:0}
     .card:not(.floating) .tab-panels-stack .tab-panel.hidden{visibility:hidden!important;display:flex!important;pointer-events:none}
