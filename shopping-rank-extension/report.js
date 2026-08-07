@@ -72,10 +72,17 @@ function renderMetrics(rows) {
   `).join("");
 }
 
+// 거의 모든 상품에 붙는 배송 배지라 "자주 등장한 태그"에서 의미 있는 신호를 가려버린다 —
+// 검색 태그로서 가치가 없어 항상 제외한다(2026-08-07).
+const NOISE_TAGS = new Set(["오늘출발", "오늘발송"]);
+function usefulTags(tags) {
+  return (Array.isArray(tags) ? tags : []).filter((tag) => !NOISE_TAGS.has(tag));
+}
+
 function renderInsights(rows) {
   const category = frequency(rows.map((row) => row.category_path))[0]?.[0] || "-";
   const malls = frequency(rows.map((row) => row.mall_name)).slice(0, 3);
-  const tags = frequency(rows.flatMap((row) => Array.isArray(row.tags) ? row.tags : [])).slice(0, 10);
+  const tags = frequency(rows.flatMap((row) => usefulTags(row.tags))).slice(0, 10);
   document.getElementById("mainCategory").textContent = category;
   document.getElementById("topMalls").textContent = malls.length
     ? malls.map(([name, count]) => `${name} ${count}개`).join(" · ")
@@ -90,7 +97,7 @@ function renderRows(rows) {
   const empty = document.getElementById("emptyState");
   empty.hidden = rows.length > 0;
   body.innerHTML = rows.map((row) => {
-    const tags = Array.isArray(row.tags) ? row.tags.slice(0, 7) : [];
+    const tags = usefulTags(row.tags).slice(0, 7);
     const specs = displaySpecs(row);
     const image = row.product_image
       ? `<img class="thumb" src="${escapeHtml(row.product_image)}" alt="" loading="lazy">`
@@ -507,7 +514,7 @@ function createCsv() {
   const lines = currentRows().map((row) => [
     row.organic_rank, row.product_name, row.mall_name,
     displaySpecs(row),
-    Array.isArray(row.tags) ? row.tags.join(" ") : "",
+    usefulTags(row.tags).join(" "),
     row.product_price, row.shipping_fee, row.purchase_count, row.review_count,
     formatRegistrationDate(row.registration_date), row.is_target_store ? "Y" : "N", row.is_tracked ? "Y" : "N", row.product_link,
   ].map(csvCell).join(","));
