@@ -1499,17 +1499,30 @@ async function migrateLocalCustomKeywords() {
 
 function renderBatchBanners() {
   const tree = getBatchKeywordTree();
-  const mainHtml = tree.map(g =>
-    `<button type="button" class="batch-banner main${batchSelected.has(g.main) ? " active" : ""}" data-keyword="${esc(g.main)}" onclick="toggleBatchKeyword(this)">${esc(g.main)}</button>`
-  );
+  // 같은 키워드가 여러 그룹에 걸쳐 등재된 경우(예: "EPS블럭"이 압축스티로폼/스티로폼 양쪽
+  // subs에 다 있음, "실외기커버"가 자기 그룹 main이면서 동시에 에어컨커버 그룹 sub이기도
+  // 함)가 실제로 있다(2026-08-07 확인) — 그룹 데이터 자체(keywords.js)는 그대로 둬도 되지만
+  // (여러 카테고리에 속한다는 의미로는 유효), 수집 버튼은 키워드당 1개만 있으면 된다는
+  // 요청으로, 이미 등장한 키워드는 버튼을 또 만들지 않는다.
+  const seen = new Set();
+  const mainHtml = [];
+  tree.forEach(g => {
+    if (seen.has(g.main)) return;
+    seen.add(g.main);
+    mainHtml.push(`<button type="button" class="batch-banner main${batchSelected.has(g.main) ? " active" : ""}" data-keyword="${esc(g.main)}" onclick="toggleBatchKeyword(this)">${esc(g.main)}</button>`);
+  });
   const subHtml = [];
   tree.forEach(g => {
     g.subs.forEach(sub => {
+      if (seen.has(sub)) return;
+      seen.add(sub);
       subHtml.push(`<button type="button" class="batch-banner sub${batchSelected.has(sub) ? " active" : ""}" data-keyword="${esc(sub)}" onclick="toggleBatchKeyword(this)">${esc(sub)}</button>`);
     });
   });
 
   loadCustomKeywords().forEach(({ keyword: kw, isSub }) => {
+    if (seen.has(kw)) return;
+    seen.add(kw);
     const cls = isSub ? "sub" : "main";
     const html = `<button type="button" class="batch-banner ${cls}${batchSelected.has(kw) ? " active" : ""}" data-keyword="${esc(kw)}" onclick="toggleBatchKeyword(this)">${esc(kw)}<span class="batch-banner-remove" onclick="removeCustomKeyword(event, this)">&times;</span></button>`;
     (isSub ? subHtml : mainHtml).push(html);
