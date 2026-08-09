@@ -194,6 +194,22 @@
         });
       });
     });
+    // 네이버가 같은 상품을 광고 슬롯(adId 있는 레코드)으로 한 번 더 앞쪽에 끼워 넣고 바로
+    // 뒤에 진짜 정품(비광고) 레코드를 또 넣는 경우가 있다(2026-08-07, "아이소핑크" 실측 —
+    // 같은 channelProductNo가 adId 있는 레코드로 먼저 나오고 그다음이 진짜 정품). 아래
+    // "먼저 나온 걸 기준으로 dedup"하는 로직이 이 광고용 중복을 먼저 만나 그 키를 선점해
+    // 버리면, 뒤따라오는 진짜 정품 레코드가 통째로 dedup에서 밀려서 화면엔 광고 표시가
+    // 전혀 없는데도 광고로 잡혀 순위에서 빠지는 결과가 나왔다(단열코리아/극동씨앤씨/나라단열
+    // 3개가 통째로 순위에서 사라진 사례로 확인). 같은 키에 정품 레코드가 하나라도 있으면
+    // 항상 그걸 쓰도록, 광고용 중복 레코드는 미리 걸러낸다.
+    const organicKeys = new Set();
+    candidate.records.forEach((rawRecord) => {
+      const raw = unwrapProductRecord(rawRecord);
+      const rawKey = String(firstValue(raw, ["channelProductNo", "chnlProdNo", "chnl_prod_no", "productId", "id"])).trim()
+        || String(firstValue(raw, ["nvMid", "nv_mid", "catalogNvMid", "catalog_nv_mid", "productId", "id"])).trim();
+      if (rawKey && !isNextDataAd(raw)) organicKeys.add(rawKey);
+    });
+
     const seen = new Set();
     let localOrganicOrder = 0;
     const products = [];
@@ -201,6 +217,8 @@
       const baseRecord = unwrapProductRecord(rawBaseRecord);
       const baseCode = String(firstValue(baseRecord, ["channelProductNo", "chnlProdNo", "chnl_prod_no", "productId", "id"])).trim();
       const baseNaverId = String(firstValue(baseRecord, ["nvMid", "nv_mid", "catalogNvMid", "catalog_nv_mid", "productId", "id"])).trim();
+      const baseKey = baseCode || baseNaverId;
+      if (baseKey && isNextDataAd(baseRecord) && organicKeys.has(baseKey)) return; // 정품이 따로 있는 광고용 중복은 건너뛴다
       const record = unwrapProductRecord(enrichment.get(baseCode) || enrichment.get(baseNaverId) || baseRecord);
       if (productShapeScore(record) < 8) return;
       const productCode = String(firstValue(record, ["channelProductNo", "chnlProdNo", "chnl_prod_no"])).trim();
@@ -208,7 +226,10 @@
       const key = productCode || naverProductId;
       if (!key || seen.has(key)) return;
       seen.add(key);
-      const isAd = isNextDataAd(record);
+      // isAd는 여러 배열에 걸쳐 병합된 enrichment record가 아니라 이 포지션의 원본
+      // baseRecord로 판정한다 — enrichment가 다른 곳(광고 중복 등)의 adId를 끌어와
+      // 진짜 정품 레코드까지 오염시키는 걸 막는다(위와 같은 원인, 2026-08-07).
+      const isAd = isNextDataAd(baseRecord);
       if (!isAd) localOrganicOrder += 1;
       const rawOrder = firstValue(record, ["organicExposeOrder", "organic_expose_order", "exposeOrder", "rank"]);
       const metadata = productMetadata(record);
