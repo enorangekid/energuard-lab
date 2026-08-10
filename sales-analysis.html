@@ -1290,26 +1290,34 @@ async function fetchCoupangItemPeriodRows(period) {
   }
 }
 
-// 상품별 실적은 날짜범위가 아니라 업로드 스냅샷(기간) 단위라 달력과 못 맞춘다 — 그래서 이 보조지표는
-// coupangItemPeriod(드롭다운 선택) 대신 "가장 최신 업로드 스냅샷"을 고정 기준으로 삼는다.
-// 전기간 = 그 직전에 업로드된 스냅샷. 전년 = 최신 스냅샷 종료일의 1년 전과 가장 가까운(45일 이내)
-// 스냅샷 — 그보다 멀면 "아직 그만큼 데이터가 안 쌓인 것"으로 보고 비워둔다(데이터가 쌓이면 자동으로 채워짐).
+// 예전엔 달력에서 어떤 달을 선택하든 전월/전년 비교는 항상 "가장 최신 업로드 스냅샷"만
+// 기준으로 삼았다("상품별 실적은 스냅샷 단위라 달력과 못 맞춘다"는 이유) — 그런데 7월을
+// 선택해놓고 봐도 계속 최신 스냅샷 기준으로 비교돼서 혼란스러웠다(2026-08-10, "7월을
+// 선택했으면 7월 vs 6월로 비교해야 하는 거 아니냐"는 지적으로 수정). 이제 달력에서 선택한
+// 기간(coupangItemPeriod)을 기준으로 삼고, 그 바로 이전 스냅샷을 전월로 잡는다.
+// 전년 = 기준 기간 종료일의 1년 전과 가장 가까운(45일 이내) 스냅샷 — 그보다 멀면 "아직
+// 그만큼 데이터가 안 쌓인 것"으로 보고 비워둔다(데이터가 쌓이면 자동으로 채워짐).
 async function loadCoupangItemCompare() {
   if (!coupangItemPeriods.length) {
     coupangItemCompare = { key: "", latestPeriod: null, latestItems: [], prev: null, year: null };
     return;
   }
-  const latestPeriod = coupangItemPeriods[0];
+  const selectedIdx = coupangItemPeriod
+    ? coupangItemPeriods.findIndex(p => `${p.from}|${p.to}` === coupangItemPeriod)
+    : -1;
+  const baseIdx = selectedIdx >= 0 ? selectedIdx : 0;
+  const latestPeriod = coupangItemPeriods[baseIdx];
   const key = `${latestPeriod.from}|${latestPeriod.to}`;
   coupangItemCompare = { key, latestPeriod, latestItems: [], prev: null, year: null };
 
-  const prevPeriod = coupangItemPeriods[1] || null;
+  const prevPeriod = coupangItemPeriods[baseIdx + 1] || null;
 
   const yearTarget = new Date(latestPeriod.to);
   yearTarget.setFullYear(yearTarget.getFullYear() - 1);
   let yearPeriod = null;
   let yearDiffDays = Infinity;
-  coupangItemPeriods.slice(1).forEach(p => {
+  coupangItemPeriods.forEach((p, i) => {
+    if (i === baseIdx) return;
     const diff = Math.abs(new Date(p.to) - yearTarget) / 86400000;
     if (diff < yearDiffDays) { yearDiffDays = diff; yearPeriod = p; }
   });
@@ -1328,6 +1336,16 @@ async function loadCoupangItemCompare() {
   };
   renderMetrics();
   if (activePlatform === "coupang" && activeSubtab.coupang === "sales") renderSalesPanel(); // 요약분석 무버·TOP3, 상품별 실적 대시보드
+}
+
+// loadCoupangItemCompare()가 이제 "가장 최신 스냅샷"이 아니라 달력에서 선택한 기간을
+// 기준으로 삼으므로(2026-08-10), 렌더링 쪽 "지금 보여줘도 되는 값인지" 검사도 항상
+// periods[0]이 아니라 이 기준으로 판단해야 한다.
+function coupangItemBaseKey() {
+  if (!coupangItemPeriods.length) return "";
+  const idx = coupangItemPeriod ? coupangItemPeriods.findIndex(p => `${p.from}|${p.to}` === coupangItemPeriod) : -1;
+  const p = coupangItemPeriods[idx >= 0 ? idx : 0];
+  return `${p.from}|${p.to}`;
 }
 
 // ─── 네이버 판매분석 (비즈어드바이저 엑셀) ───
@@ -2066,12 +2084,11 @@ const coupangMoverName = item => item.optionName || item.productName || "-";
 const fmtPeriodRange = p => p ? `${p.from} ~ ${p.to}` : "";
 
 // 쿠팡 옵션별 매출·조회수 상승/하락 TOP. 상품별 실적이 날짜범위가 아니라 업로드 스냅샷 단위라
-// 달력/드롭다운과 무관하게 항상 "최신 스냅샷"을 기준(coupangItemCompare.latestItems)으로 고정하고,
-// 네이버와 동일한 전기간/전년 토글(salesMoverPeriod)로 비교 대상만 바꾼다. 전년은 아직 1년치
-// 스냅샷이 안 쌓였으면 데이터가 없을 수 있는데, 나중에 쌓이면 자동으로 채워진다.
+// 달력/드롭다운에서 고른 기간(coupangItemPeriod, 없으면 최신 스냅샷)을 기준(coupangItemCompare.latestItems)
+// 으로 삼고, 네이버와 동일한 전기간/전년 토글(salesMoverPeriod)로 비교 대상만 바꾼다. 전년은
+// 아직 1년치 스냅샷이 안 쌓였으면 데이터가 없을 수 있는데, 나중에 쌓이면 자동으로 채워진다.
 function coupangSalesMoversHtml() {
-  const latestKey = coupangItemPeriods[0] ? `${coupangItemPeriods[0].from}|${coupangItemPeriods[0].to}` : "";
-  if (!coupangItemCompare.latestPeriod || coupangItemCompare.key !== latestKey) return "";
+  if (!coupangItemCompare.latestPeriod || coupangItemCompare.key !== coupangItemBaseKey()) return "";
   const toggle = salesMoverPeriodToggleHtml();
   const period = coupangItemCompare[salesMoverPeriod]; // "prev" | "year"
   const periodLabel = salesMoverPeriod === "prev" ? "전월" : "전년";
@@ -2652,8 +2669,7 @@ function coupangItemDataTableHtml() {
 // 쿠팡 "요약분석" 탭 — 매출분석의 naverSummaryCardHtml과 동일한 구성(전기간·전년 비교 +
 // 핵심 지표 TOP3)으로 맞춘다. 쿠팡은 유입경로 데이터가 없어 그 카드만 제외했다.
 function coupangSummaryMoversCardsHtml() {
-  const latestKey = coupangItemPeriods[0] ? `${coupangItemPeriods[0].from}|${coupangItemPeriods[0].to}` : "";
-  if (!coupangItemCompare.latestPeriod || coupangItemCompare.key !== latestKey) {
+  if (!coupangItemCompare.latestPeriod || coupangItemCompare.key !== coupangItemBaseKey()) {
     return `<div class="empty">비교 데이터를 불러오는 중...</div>`;
   }
   const period = coupangItemCompare[salesMoverPeriod];
@@ -2796,7 +2812,7 @@ function coupangSalesDetailCardHtml() {
 // coupangSalesMoversHtml/coupangItemCompare와 동일하게 항상 "최신 스냅샷"을 기준으로 삼는다.
 function coupangItemDashCompareHtml(curVal, prevKeyFn, type = "abs") {
   const compare = coupangItemCompare;
-  const latestKey = coupangItemPeriods[0] ? `${coupangItemPeriods[0].from}|${coupangItemPeriods[0].to}` : "";
+  const latestKey = coupangItemBaseKey();
   if (!compare || !latestKey || compare.key !== latestKey) {
     return `<div class="metric-cmp"><span class="cmp">비교 데이터 불러오는 중...</span></div>`;
   }
@@ -2937,7 +2953,8 @@ function renderCoupangSalesPanel() {
       }
       coupangItemLoading = false; hideLoading();
       renderCoupangSalesPanel();
-      // 상승·하락 TOP은 이 드롭다운 선택과 무관하게 항상 최신 스냅샷 기준 고정이라 여기선 다시 안 불러옴
+      // 상승·하락 TOP도 이제 이 드롭다운 선택을 기준으로 삼으므로(2026-08-10) 선택이 바뀌면 같이 다시 불러온다.
+      loadCoupangItemCompare();
     });
   }
   document.getElementById("coupangSalesFile").addEventListener("change", e => {
