@@ -731,7 +731,10 @@ const SUPABASE_ANON_KEY = "sb_publishable_MiBvlf3d6ulcVBsi7Odcgw_PTXSmXKj";
 const FN_URL = SUPABASE_URL + "/functions/v1/naver-rank";
 const KEYWORD_IDEA_FN_URL = SUPABASE_URL + "/functions/v1/shopping-trend";
 
-const MY_STORES = ["한국단열", "에너가드"];
+// 공백 제거 후 부분일치(includes)로 판정하던 예전 방식은, "한국단열"이라는 이름의 전혀 다른
+// 업체가 실제로 있어서 그쪽 상품까지 "내 스토어"로 잘못 표시되는 문제가 있었다(2026-08-10
+// 지적). 정확한 전체 이름으로만 판정하도록 storeSlugs()와 같은 정식 상호명을 쓴다.
+const MY_STORES = ["한국 단열", "에너가드컴퍼니"];
 // 준불연단열재/불연단열재는 더 이상 메인이 아니다(사용자 지정) — PF보드/경질우레탄보드/
 // 준불연비드법/준불연열반사/불연열반사가 각각 독립된 메인이고, "준불연단열재"·"불연단열재"
 // 같은 범용 등급 표기는 특정 재질 하나로 딱 떨어지지 않아 그나마 제일 가까운 메인의 보조로
@@ -1054,9 +1057,9 @@ function render(d) {
   const myPrices = (d.results || []).map(r => r.price).filter(p => p > 0).sort((a, b) => a - b);
   const myBestRank = d.results.length ? Math.min(...d.results.map(r => r.rank)) : null;
   const top = d.top || [];
-  const topMine = top.filter(t => MY_STORES.some(s => t.mall.replace(/\s/g, "").includes(s)));
+  const topMine = top.filter(t => MY_STORES.some(s => isExactStoreName(t.mall, s)));
   const sellers = d.sellers || [];
-  const mySeller = sellers.find(s => MY_STORES.some(m => s.mall.replace(/\s/g, "").includes(m)));
+  const mySeller = sellers.find(s => MY_STORES.some(m => isExactStoreName(s.mall, m)));
   const rel = (d.ad && d.ad.related) || [];
   // 니치 판정: 검색량 100+ 이면서 경쟁강도가 가장 낮은 3개
   const nicheSet = new Set(
@@ -1165,7 +1168,7 @@ function render(d) {
 
   /* 스토어 순위 — TOP 10 (항상 10개 이하라 더보기 불필요) */
   document.getElementById("topBody").innerHTML = top.map((t, i) => {
-    const mine = MY_STORES.some(s => t.mall.replace(/\s/g, "").includes(s));
+    const mine = MY_STORES.some(s => isExactStoreName(t.mall, s));
     const thumb = t.image ? `<img class="chip-thumb" src="${esc(t.image)}" loading="lazy" alt="">` : "";
     return `<div class="summary-mover-row">
       <div class="summary-mover-row-main">
@@ -1186,7 +1189,7 @@ function render(d) {
   if (d.sellers && d.sellers.length) {
     const maxInf = d.sellers[0].influence || 1;
     document.getElementById("sellersBody").innerHTML = d.sellers.map((s, i) => {
-      const mine = MY_STORES.some(m => s.mall.replace(/\s/g, "").includes(m));
+      const mine = MY_STORES.some(m => isExactStoreName(s.mall, m));
       const url = storeLink(s.mall, s.link);
       const mallHtml = url
         ? `<a href="${esc(url)}" target="_blank" rel="noopener" title="${STORE_HOME[s.mall] || Object.keys(STORE_HOME).some(n => s.mall.replace(/\s/g,'').includes(n.replace(/\s/g,''))) ? '스토어 홈으로 이동' : '최고 순위 상품으로 이동'}">${esc(s.mall)}</a>`

@@ -9,7 +9,11 @@
   const CACHE_PREFIX = "energuardKeywordInsightCache:";
   const CACHE_TTL_MS = 30 * 60 * 1000; // 같은 키워드 30분 내 재방문 시 재조회 방지(Supabase 조회분만)
   const OBSERVE_MS = 15000; // 이 시간 동안만 "나중에 인라인 자리 생기면 옮기기"를 감시
-  const OWN_STORE_NAMES = ["한국단열", "에너가드"]; // compact() 비교용 — naver-rank.html의 MY_STORES와 동일 기준
+  // compact() 비교용 — naver-rank.html의 MY_STORES와 동일 기준. 예전엔 compact(mallName)에
+  // 이 이름들이 "포함"만 되면 내 스토어로 쳤는데, "한국단열"이라는 이름의 전혀 다른 업체가
+  // 실제로 있어서 그쪽 상품이 내 스토어로 잘못 표시됐다(2026-08-10 지적) — isOwnStore를
+  // 정확히 일치하는 경우로만 판정하게 바꿨다.
+  const OWN_STORE_NAMES = ["한국 단열", "에너가드", "에너가드컴퍼니"];
   const NOISE_TAGS = new Set(["오늘출발", "오늘발송"]); // report.js의 NOISE_TAGS와 동일 — 거의 모든 상품에 붙는 배송 배지
 
   function currentQuery() {
@@ -30,7 +34,7 @@
 
   function isOwnStore(mallName) {
     const c = compact(mallName);
-    return OWN_STORE_NAMES.some((name) => c.includes(name));
+    return OWN_STORE_NAMES.some((name) => c === compact(name));
   }
 
   // 개발자도구로 확인한 실제 마크업: 안내문구는 resultSummary_result_summary__(해시) 안에
