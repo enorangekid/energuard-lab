@@ -34,10 +34,13 @@ function parseDetailAttribute(element, name) {
 
 // N+스토어 카드의 data-shp-contents-dtl에는 chnl_prod_nm(몰 이름) 자체가 없다(2026-08-06 실측
 // 확인) — 카드 루트를 찾아 화면에 보이는 텍스트에서 스토어명을 직접 찾는다.
+// page-collector.js와 동일한 이유로 공백 유무는 보존한다(2026-08-10) — "한국단열"(전혀
+// 다른 업체)과 "한국 단열"(우리 스토어)을 같은 문자열로 취급하지 않도록.
 function normalizeStoreName(value) {
   return String(value || "")
     .normalize("NFKC")
-    .replace(/[^\p{L}\p{N}]/gu, "")
+    .trim()
+    .replace(/\s+/g, " ")
     .toLocaleLowerCase("ko-KR");
 }
 

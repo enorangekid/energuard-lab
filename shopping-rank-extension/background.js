@@ -227,6 +227,13 @@ const compact = (value) => String(value || "")
   .normalize("NFKC")
   .replace(/[^\p{L}\p{N}]/gu, "")
   .toLocaleLowerCase("ko-KR");
+// 스토어 이름을 동일 상호명인지 비교할 땐 compact()를 쓰면 안 된다 — 공백을 통째로
+// 지워서 "한국단열"(전혀 다른 업체)과 "한국 단열"(우리 스토어)이 같은 문자열이 돼버려,
+// 그 업체 상품이 우리 상품으로 잘못 저장됐다(2026-08-10, product_code 310834449
+// "은박 매트 3T"가 "단열뽁뽁이"/"은박단열재" 키워드에 우리 상품으로 잘못 들어간 사례로
+// 확인). 상품명 매칭 등 compact()의 다른 용도는 그대로 두고, 스토어 이름 동일 여부만
+// 공백 유무를 보존하는 이 함수로 비교한다.
+const normalizeStoreLabel = (value) => String(value || "").normalize("NFKC").trim().replace(/\s+/g, " ").toLocaleLowerCase("ko-KR");
 const sbHeaders = (extra = {}) => ({
   apikey: SUPABASE_ANON_KEY,
   Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
@@ -326,7 +333,7 @@ function productKey(product) {
 function matchesStore(product, storeName, knownChannelNos, knownProviderIds, knownProductCodes = new Set()) {
   if (product.isAd) return false;
   if (product.storeMatched) return true;
-  if (product.mallName && compact(product.mallName) === compact(storeName)) return true;
+  if (product.mallName && normalizeStoreLabel(product.mallName) === normalizeStoreLabel(storeName)) return true;
   if (product.channelNo && knownChannelNos.has(product.channelNo)) return true;
   if (product.providerId && knownProviderIds.has(product.providerId)) return true;
   const hasCurrentStoreIdentity = !!(product.mallName || product.channelNo || product.providerId);
@@ -779,7 +786,7 @@ async function saveNplusSnapshot(config, keywordMeta, products) {
   const collectedDate = todayKst();
   const now = new Date().toISOString();
   const matched = products.filter(
-    (p) => !p.isAd && p.mallName && compact(p.mallName) === compact(config.storeName)
+    (p) => !p.isAd && p.mallName && normalizeStoreLabel(p.mallName) === normalizeStoreLabel(config.storeName)
   );
 
   const byCode = new Map();
@@ -1014,7 +1021,7 @@ async function saveSearchSnapshot(config, keywordMeta, products, runId, context)
   const trackedCodes = new Set(context.trackedItems.map((item) => item.product_code));
 
   products.forEach((product) => {
-    if (product.mallName && compact(product.mallName) === compact(config.storeName)) {
+    if (product.mallName && normalizeStoreLabel(product.mallName) === normalizeStoreLabel(config.storeName)) {
       if (product.channelNo) knownChannelNos.add(product.channelNo);
       if (product.providerId) knownProviderIds.add(product.providerId);
     }

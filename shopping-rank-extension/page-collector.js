@@ -86,10 +86,15 @@ function absoluteUrl(value) {
   try { return new URL(source, location.href).href; } catch (_) { return source; }
 }
 
+// 공백까지 통째로 지우면 "한국단열"(전혀 다른 업체)과 "한국 단열"(우리 스토어)이 같은
+// 문자열로 취급돼 상대 업체 상품이 우리 것으로 잘못 저장됐다(2026-08-10, product_code
+// 310834449 "은박 매트 3T"가 우리 상품 아닌데 우리 스토어로 잡힌 사례로 확인). 공백은
+// 하나로만 정리하고(여분의 공백 차이는 흡수) 있고 없고의 차이는 그대로 남긴다.
 function normalizeStoreName(value) {
   return String(value || "")
     .normalize("NFKC")
-    .replace(/[^\p{L}\p{N}]/gu, "")
+    .trim()
+    .replace(/\s+/g, " ")
     .toLocaleLowerCase("ko-KR");
 }
 
