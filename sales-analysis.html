@@ -924,7 +924,12 @@ document.getElementById("monthQuick").addEventListener("click", e => {
   setDateRange(card.dataset.from, card.dataset.to);
   render();
 });
-renderMonthQuickYearSelect();
+// renderMonthQuickYearSelect()를 예전엔 여기서 파일 로드 직후 바로 실행했는데, 그러면 이
+// 달력 연도 선택 UI만 스피너 뜨기도 전에 먼저 그려지고 네이버/쿠팡 드롭박스(renderTabs 안,
+// 스피너가 걸린 render() 안에서만 채워짐)는 한참 뒤에 나타나서, 반투명 스피너 너머로 화면
+// 일부가 먼저 자리잡고 나머지가 뒤늦게 팝업되며 꿀렁거려 보였다(2026-08-10 지적, 랭킹추적/
+// 블로그분석엔 이런 시차가 없어서 비교로 발견). 이제 아래 진입 시퀀스 안에서 render()와
+// 같은 타이밍에 실행해서 화면 전체가 한 번에 같이 나타나게 한다.
 
 function pick(row, names) {
   const keys = Object.keys(row);
@@ -4604,6 +4609,7 @@ showLoading("데이터를 불러오는 중...");
 setDefaultDates(); // dateFrom/dateTo 입력에 값부터 채워둔다(아래 비동기 판정 실패해도 안전하게)
 (async () => {
   await applyLatestAvailableDefaultDates(); // 최근 데이터 있는 달을 찾으면 위 기본값을 덮어씀
+  renderMonthQuickYearSelect(); // 달력 연도 선택도 render()와 같은 타이밍에 같이 채운다
   render(); // 이 안에서 필요하면 loadNaverStat()이 자기 몫의 showLoading/hideLoading을 이어받는다
   hideLoading(); // 내가 켠 몫만 반납 — loadNaverStat()이 아직 안 끝났으면 카운트가 남아 스피너 유지됨
 })();
