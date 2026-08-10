@@ -66,7 +66,12 @@ function salesCard(p) {
 
 function renderSalesCards(el, products) {
   if (!products.length) {
-    el.innerHTML = `<div class="tr-status">TOP 노출 상품을 준비 중입니다.</div>`;
+    // 월간(MONTHLY)은 저희 코드 문제가 아니라 snxbest.naver.com API 자체가 월간 옵션에서
+    // 항상 0개를 응답한다(2026-08-10 확인, 일간/주간은 각 100개 정상). "준비 중입니다"라고
+    // 하면 곧 채워질 것처럼 보여서, 월간일 땐 원래 제공되지 않는다고 명확히 안내한다.
+    el.innerHTML = trUnit === "month"
+      ? `<div class="tr-status">네이버가 TOP 노출 상품을 월간 단위로는 제공하지 않습니다.</div>`
+      : `<div class="tr-status">TOP 노출 상품을 준비 중입니다.</div>`;
     el.dataset.count = "0";
     return;
   }
