@@ -334,7 +334,24 @@
 
   <section class="trend-view">
     <div class="trend-filterbar app-filterbar">
-      <div class="trend-section-select" id="trendSectionSelect"></div>
+      <!-- 예전엔 빈 상태로 시작해서 JS(renderTrendSectionSelect)가 나중에 채워 넣었는데,
+           그 순간 폭/높이가 바뀌며 화면이 흔들렸다(2026-08-10, sales-analysis.html의
+           네이버/쿠팡 드롭박스와 같은 문제로 발견) — 기본 상태(실시간 트렌드)를 정적
+           HTML에 그대로 박아둬서 팝업 없이 첫 페인트부터 있는 것처럼 보이게 한다. -->
+      <div class="trend-section-select" id="trendSectionSelect">
+        <button type="button" class="trend-section-btn" data-action="toggle-trend-section" aria-label="실시간 트렌드 화면 선택">
+          <span>실시간 트렌드</span>
+          <span class="trend-section-caret" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </span>
+        </button>
+        <div class="trend-section-menu">
+          <button type="button" class="trend-section-option active" data-trend-section="realtime">실시간 트렌드</button>
+          <button type="button" class="trend-section-option" data-trend-section="category">카테고리별 키워드 순위</button>
+        </div>
+      </div>
     </div>
 
     <section class="card app-card realtime-trend-card">
@@ -354,7 +371,12 @@
         <button type="button" class="trend-tab" data-list="niche">단열 뉴스</button>
         <button type="button" class="trend-tab" data-list="spike">단열 급상승</button>
       </div>
-      <div class="slot-chips" id="slotChips"></div>
+      <!-- 시간대별 칩은 실제 스냅샷 시각에 따라 달라져서 전부 미리 그릴 순 없지만, 항상
+           존재하는 "실시간" 칩만이라도 먼저 둬서 완전히 빈 상태로 시작하진 않게 한다
+           (2026-08-10, 같은 흔들림 문제). -->
+      <div class="slot-chips" id="slotChips">
+        <button type="button" class="slot-chip active" data-slot="">실시간</button>
+      </div>
       <div class="trend-list" id="realtimeTrendList">
         <div class="state">불러오는 중...</div>
       </div>
@@ -383,7 +405,15 @@
     </section>
   </section>
 
-  <nav class="category-tabs" id="categoryTabs" aria-label="상품군 필터"></nav>
+  <!-- 카테고리 라벨은 고정값(CATEGORIES)이라 미리 그려둔다 — 개수(0)만 JS가 나중에
+       실제 값으로 갱신하고, 탭 자체가 없다가 생기며 흔들리진 않는다(2026-08-10). -->
+  <nav class="category-tabs" id="categoryTabs" aria-label="상품군 필터">
+    <button type="button" class="category-tab active" data-category="전체">전체<span class="category-tab-count">0</span></button>
+    <button type="button" class="category-tab" data-category="후보">후보<span class="category-tab-count">0</span></button>
+    <button type="button" class="category-tab" data-category="작업 중">작업 중<span class="category-tab-count">0</span></button>
+    <button type="button" class="category-tab" data-category="확정 완료">확정 완료<span class="category-tab-count">0</span></button>
+    <button type="button" class="category-tab" data-category="삭제됨">삭제됨<span class="category-tab-count">0</span></button>
+  </nav>
 
   <section class="content-grid">
     <article class="card app-card">
