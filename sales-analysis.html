@@ -644,6 +644,20 @@
     </div>
     <div class="month-quick-row">
       <select class="month-quick-year" id="monthQuickYear"></select>
+      <!-- monthQuickYear의 "2026년" 옵션도 renderMonthQuickYearSelect()가 나중에(메인 스크립트
+           로딩 후) 채워서, 빈 select → 값 생김 전환 때 폭이 바뀌며 흔들렸다(2026-08-10 지적,
+           네이버/쿠팡 드롭박스와 같은 종류의 문제). 이 select 바로 옆에서 즉시 실행되는 별도
+           인라인 스크립트로, 메인 스크립트를 기다리지 않고 페이지 파싱 중에 바로 채운다. -->
+      <script>(function(){
+        var sel = document.getElementById("monthQuickYear");
+        var y = new Date(Date.now() + 9 * 3600 * 1000).getUTCFullYear();
+        for (var i = 0; i < 4; i++) {
+          var opt = document.createElement("option");
+          opt.value = String(y - i);
+          opt.textContent = (y - i) + "년";
+          sel.appendChild(opt);
+        }
+      })();</script>
       <div class="month-quick-grid" id="monthQuick"></div>
     </div>
     <div class="status" id="adStatus"></div>
