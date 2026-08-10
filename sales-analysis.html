@@ -4520,6 +4520,13 @@ document.getElementById("categoryTabs").addEventListener("click", e => {
   activeSubtab.coupang = next;
   document.getElementById("adStatus").textContent = "";
   mainNavActiveIdx = "all"; // 카드 구성 자체가 바뀌므로 종합분석으로 리셋
+  // 매출분석으로 들어갈 때 예전엔 render()가 먼저 (예전/빈) 데이터로 카드를 그린 다음에야
+  // loadNaverStat()이 로딩 스피너를 띄워서, 달력·카드가 잠깐 보였다가 스피너로 바뀌는
+  // 뚝뚝 끊기는 느낌이 있었다(2026-08-10 지적). 새로 불러와야 하는 상황이면 render() 전에
+  // 먼저 로딩을 시작해서, 첫 화면부터 곧장 스피너가 뜨게 한다.
+  if (next === "sales" && activePlatform === "naver" && naverStatLoadKey !== currentAdLoadKey()) {
+    loadNaverStat();
+  }
   render();
 });
 
