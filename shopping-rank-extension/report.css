@@ -21,18 +21,21 @@ body {
 }
 button, select { font: inherit; }
 .report-shell { width: min(1720px, calc(100% - 64px)); margin: 34px auto 60px; }
+/* keyword-insight-panel.js(가격비교 페이지 삽입 패널)의 .card를 통째로 이식했다(2026-08-10,
+   "전부다 옮기라고" 요청 — 색상만 맞추는 걸로는 부족했다). 패딩/테두리/둥근모서리까지
+   패널의 .card와 완전히 동일한 값. 예전엔 summary-band와 위아래로 붙어 하나의 박스처럼
+   보이게(아래쪽만 각지게) 만들었는데, 패널처럼 독립된 카드가 되면서 그 트릭이 필요없어져
+   margin-bottom으로 분리하고 summary-band는 스스로 완전한 카드가 되도록 바꿨다. */
 .report-header {
   display: flex;
   flex-direction: column;
   gap: 18px;
-  padding: 22px 30px 28px;
-  border: 1px solid var(--line);
-  border-radius: 6px 6px 0 0;
+  padding: 18px 22px 22px;
+  border: 1px solid #dedede;
+  border-radius: 10px;
   background: #fff;
+  margin-bottom: 16px;
 }
-/* keyword-insight-panel.js(가격비교 페이지 삽입 패널)의 헤드 영역을 그대로 이식 — 로고 줄은
-   그 패널의 .head와 동일하게 별도 줄로 분리하고, 리포트 전용 정보(제목/메타/키워드 선택/
-   복사·CSV 버튼)는 그 아래 기존 그대로 유지한다(2026-08-07). */
 .head { display: flex; align-items: center; }
 .report-header-row {
   display: flex; align-items: flex-end; justify-content: space-between; gap: 24px;
@@ -63,8 +66,8 @@ button.primary:hover { background: #d94c20; }
 
 .summary-band {
   padding: 28px 30px 30px;
-  border: solid var(--line);
-  border-width: 0 1px 1px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
   background: #fff;
 }
 .section-label { margin: 0 0 8px; color: var(--orange); font-size: 11px; font-weight: 800; }
