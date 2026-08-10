@@ -73,7 +73,10 @@ button.primary:hover { background: #d94c20; }
 .section-label { margin: 0 0 8px; color: var(--orange); font-size: 11px; font-weight: 800; }
 .summary-intro h2 { margin: 0; font-size: 21px; }
 .summary-intro > p:last-child { margin: 9px 0 0; color: var(--muted); font-size: 13px; }
-.metrics { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); margin-top: 25px; border-block: 1px solid var(--line); }
+/* 데이터 로딩 전엔 비어있어서 위 border-block 두 줄만 겹쳐 보이다가, 값이 채워지는
+   순간 실제 높이(약 78px)로 갑자기 늘어나며 아래 내용을 밀어냈다(2026-08-10 감사에서
+   발견) — min-height로 그 공간을 미리 잡아둬서 점프를 없앤다. */
+.metrics { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); margin-top: 25px; border-block: 1px solid var(--line); min-height: 78px; }
 .metric { padding: 19px 20px; border-right: 1px solid var(--line); }
 .metric:first-child { padding-left: 0; }
 .metric:last-child { border-right: 0; }
@@ -99,6 +102,11 @@ button.primary:hover { background: #d94c20; }
 .tracked-dot { background: var(--green); }
 .table-scroll { overflow-x: auto; }
 table { width: 100%; min-width: 1420px; border-collapse: collapse; table-layout: fixed; }
+/* nplus-report.html은 컬럼이 4개(순위/이미지/상품명/판매가)뿐인데 이 min-width가
+   report.html(11개 컬럼)용으로 잡힌 값이라, table-layout:fixed와 맞물려 좁은 고정폭
+   컬럼(rank-col 58px 등)까지 억지로 넓게 늘어나 보였다(2026-08-10 감사에서 발견) —
+   이 테이블만 훨씬 좁은 값으로 되돌린다. */
+#nplusTable { min-width: 640px; }
 th { height: 46px; padding: 0 11px; background: var(--soft); color: #667085; font-size: 11px; text-align: left; }
 tbody tr { height: 78px; }
 td { height: 78px; padding: 9px 11px; border-top: 1px solid #edf0f4; color: #344054; font-size: 12px; vertical-align: middle; }
