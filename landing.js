@@ -111,6 +111,12 @@ function skeletonCards(n) {
 function onTrendKeywords() {
   loadTopProducts();
 }
+// 예전엔 loadTopProducts()가 이 훅(onTrendKeywords, trend-widget.js의 trRender 성공 시에만
+// 호출됨)에만 의존했다 — 그래서 왼쪽 "키워드 Best" 조회(trLoad)가 실패하면 이 훅 자체가
+// 안 불려서, 오른쪽 "TOP 노출 상품"은 서로 다른 API인데도 첫 스켈레톤 상태에 영원히
+// 멈춰있었다(2026-08-10 감사에서 발견). 페이지 로드 시 독립적으로 한 번 더 실행해서,
+// 왼쪽이 실패해도 오른쪽은 자기 몫대로 시도하게 한다.
+document.addEventListener("DOMContentLoaded", loadTopProducts);
 
 function lsEsc(s) {
   return String(s ?? "").replace(/[&<>"']/g, c =>

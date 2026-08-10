@@ -67,24 +67,6 @@
   /* 검색 폼 */
   .field { margin-bottom: 14px; }
   .field label { display: block; font-size: 15px; font-weight: 800; margin-bottom: 6px; }
-  /* 트렌드 카테고리 배너와 동일한 폭이 되도록, 실제 스토어 수와 무관하게 항상 9칸 그리드로 고정.
-     채워지지 않은 칸은 요소 자체가 없으니 그냥 빈 공간으로 남는다(=비활성 배너는 보이지 않음). */
-  .chips { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
-  .chip {
-    padding: 7px 10px; border: 1.5px solid var(--line); border-radius: 4px;
-    background: #fff; font-size: 13px; font-weight: 600; cursor: pointer;
-    color: var(--sub); text-align: center; white-space: nowrap; overflow: hidden;
-    text-overflow: ellipsis; transition: all .12s; font-family: inherit; position: relative;
-  }
-  .chip:hover { border-color: #c8cdd4; }
-  .chip.active { border-color: var(--dark); color: #fff; background: var(--dark); }
-  .chip-add { color: var(--accent); border-style: dashed; }
-  .chip-add:hover { border-color: var(--accent); background: var(--accent-tint); }
-  .chip-remove {
-    display: inline-block; margin-left: 6px; font-weight: 800; color: inherit;
-    opacity: .6;
-  }
-  .chip-remove:hover { opacity: 1; }
   .form-row {
     display: flex; align-items: center; gap: 10px;
     background: #fff; border: 1.5px solid var(--line); border-radius: 8px;
@@ -192,8 +174,6 @@
   .ins-device-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
   .ins-device-dot.pc { background: #c7cdd6; }
   .ins-device-dot.mobile { background: var(--accent); }
-  .ins-meta { margin-bottom: 8px; font-size: 12px; font-weight: 600; color: var(--sub); }
-  .ins-meta b { color: var(--ink); font-weight: 800; background: var(--dark-tint); padding: 2px 8px; border-radius: 10px; margin-left: 4px; }
   .ins-grid {
     display: grid; grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 8px;
@@ -392,7 +372,6 @@
   .rel-more-btn:hover { color: var(--accent-dark); }
   .rel-kw { font-size: 13px; font-weight: 700; color: var(--ink); cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
   .rel-kw:hover { color: var(--accent); text-decoration: underline; }
-  .rel-kw:hover { color: var(--accent); text-decoration: underline; }
   .comp-badge { font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 10px; }
   .comp-낮음 { background: var(--accent-tint); color: var(--accent-dark); }
   .comp-중간 { background: var(--dark-tint); color: var(--ink); }
@@ -538,7 +517,28 @@
 
   <div class="keyword-filterbar app-filterbar">
     <div class="keyword-store-row">
-      <div class="store-chips" id="storeChips"></div>
+      <!-- 예전엔 비워뒀다가 JS(renderStoreSelect)가 로딩 완료 후에야 채워서, 그 순간
+           드롭박스가 갑자기 팝업되는 흔들림이 있었다(2026-08-10 감사) — 기본 선택값
+           ("한국 단열")을 정적 HTML에 미리 박아둔다. 커스텀 스토어 목록은 JS가 이후
+           그대로 덮어써서 채운다. -->
+      <div class="store-chips" id="storeChips">
+        <button type="button" class="store-select" data-action="toggle-store-menu" aria-label="내 스토어 선택">
+          <span>한국 단열</span>
+          <span class="store-caret" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </span>
+        </button>
+        <div class="store-menu">
+          <button type="button" class="store-option active">
+            <span class="store-option-name">한국 단열</span>
+          </button>
+          <button type="button" class="store-option">
+            <span class="store-option-name">에너가드컴퍼니</span>
+          </button>
+        </div>
+      </div>
       <button type="button" class="store-add-icon" id="addStoreBtn" aria-label="스토어 추가" title="스토어 추가">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
           <path d="M12 5v14"></path><path d="M5 12h14"></path>
@@ -631,7 +631,6 @@
       </div>
       <div class="summary-divider"></div>
       <div class="summary-section-body app-card-body">
-        <div class="ins-meta" id="insMeta" style="display:none;"></div>
         <div class="ins-grid" id="insGrid"></div>
         <div class="ins-device-bar" id="insDeviceBar"></div>
         <div class="ins-warn" id="adWarn" style="display:none;"></div>
@@ -1126,8 +1125,6 @@ function render(d) {
     ${topCategory ? `<span class="keyword-result-meta">주요 카테고리 <span class="keyword-result-sep">&gt;</span> ${esc(topCategory)}</span>` : ""}
   </div>`;
   resultBanner.style.display = "block";
-  const insMeta = document.getElementById("insMeta");
-  insMeta.style.display = "none";
   if (d.ad && d.ad.monthlyTotal != null) loadVolumeTrend(d.keyword);
   const adWarn = document.getElementById("adWarn");
   if (d.adError) { adWarn.textContent = "검색량 조회 불가: " + d.adError; adWarn.style.display = "block"; }

@@ -129,62 +129,6 @@
       line-height: 1;
     }
 
-    .head-actions {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      position: absolute;
-      right: 0;
-      top: 0;
-    }
-    .icon-btn {
-      width: 38px;
-      height: 38px;
-      padding: 0;
-      border: 1px solid var(--line-strong);
-      border-radius: var(--radius);
-      background: #fff;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      transition: border-color .15s, background .15s, color .15s;
-      position: relative;
-    }
-    .icon-btn svg { width: 18px; height: 18px; }
-    .icon-btn:hover { border-color: #aeb6c4; background: #f5f7fa; }
-    .icon-btn.primary {
-      border-color: var(--dark);
-      background: var(--dark);
-      color: #fff;
-    }
-    .icon-btn.primary:hover { background: #252b36; border-color: #252b36; }
-    .icon-btn.collect {
-      border-color: var(--accent);
-      background: var(--accent);
-      color: #fff;
-    }
-    .icon-btn.collect:hover { background: #d94f24; border-color: #d94f24; }
-    .icon-btn[data-tip]::after {
-      content: attr(data-tip);
-      position: absolute;
-      z-index: 20;
-      right: 0;
-      top: calc(100% + 8px);
-      padding: 6px 8px;
-      border-radius: 4px;
-      background: #20242d;
-      color: #fff;
-      font-size: 11px;
-      font-weight: 600;
-      white-space: nowrap;
-      opacity: 0;
-      pointer-events: none;
-      transform: translateY(-3px);
-      transition: opacity .15s, transform .15s;
-    }
-    .icon-btn[data-tip]:hover::after { opacity: 1; transform: translateY(0); }
-
     .setup-note {
       display: none;
       align-items: center;
@@ -202,8 +146,7 @@
     .setup-note.show { display: flex; }
     .setup-note strong { color: var(--accent); }
 
-    .blog-view[hidden],
-    .head-actions[hidden] {
+    .blog-view[hidden] {
       display: none !important;
     }
 
@@ -2102,7 +2045,6 @@
     @media (max-width: 720px) {
       body > main.wrap { width: calc(100% - 24px); padding-top: 42px; }
       .page-head { align-items: flex-start; }
-      .head-actions { position: static; }
       .mode-title-tabs { gap: 22px; overflow-x: auto; }
       .mode-title-tab { font-size: 18px; white-space: nowrap; }
       .summary-grid { grid-template-columns: 1fr 1fr; }
@@ -4296,25 +4238,6 @@ function renderCompetitorBlogSection() {
 
 function diagnosisPlaceholderCardsHtml() {
   return renderCompetitorBlogSection();
-/*
-  const competitors = sortCompetitorBlogs(state.blogs.filter(blog => !blog.is_mine));
-  if (!competitors.length) {
-    return `
-      <div class="summary-mini-card app-card">
-        <div class="summary-section-title-row app-card-head">
-          <div class="summary-section-title-wrap app-card-title-wrap">
-            <span class="summary-section-title app-card-title">경쟁사 블로그</span>
-            <span class="summary-section-subtitle app-card-subtitle">등록한 경쟁사 블로그의 최근 포스팅을 확인합니다.</span>
-          </div>
-        </div>
-        <div class="summary-divider"></div>
-        <div class="summary-section-body app-card-body">
-          <div class="empty-state" style="padding:32px 4px;font-size:12px;">등록된 경쟁사 블로그가 없습니다. "블로그 추가"에서 "내 블로그입니다" 체크를 빼고 등록해 주세요.</div>
-        </div>
-      </div>`;
-  }
-  return competitors.map(blog => renderCompetitorBlogCard(blog)).join("");
-*/
 }
 
 function renderDiagnosis() {
@@ -4823,14 +4746,6 @@ function setRankSubView(view) {
   const exposureView = document.getElementById("rankExposureView");
   if (postsView) postsView.hidden = rankSubView !== "posts";
   if (exposureView) exposureView.hidden = rankSubView !== "exposure";
-  syncRankHeadActions();
-}
-
-function syncRankHeadActions(activeView) {
-  const actions = document.getElementById("rankHeadActions");
-  if (!actions) return;
-  const isRankView = activeView ? activeView === "rank" : !document.getElementById("blogRankView")?.hidden;
-  actions.hidden = !isRankView || rankSubView !== "posts";
 }
 
 function setDiagnosisSubView(view) {
@@ -4852,7 +4767,6 @@ function setBlogView(view) {
   });
   document.getElementById("blogDiagnosisView").hidden = nextView !== "diagnosis";
   document.getElementById("blogRankView").hidden = nextView !== "rank";
-  syncRankHeadActions(nextView);
   const competitorActions = document.getElementById("competitorDiagnosisActions");
   if (competitorActions) competitorActions.hidden = nextView !== "diagnosis" || diagnosisSubView !== "competitor";
 }
