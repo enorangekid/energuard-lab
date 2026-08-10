@@ -610,7 +610,22 @@
 
   <div class="analysis-filterbar app-filterbar">
     <div class="analysis-store-row">
-      <div class="store-chips" id="platformChips"></div>
+      <!-- 예전엔 비워뒀다가 JS(renderPlatformChips)가 나중에 채워서, 그 순간 아래 달력이
+           아래로 밀리는 레이아웃 흔들림이 있었다(2026-08-10 지적) — 기본 상태(네이버)를
+           처음부터 여기 그대로 박아둬서 팝업 없이 첫 페인트부터 있는 것처럼 보이게 한다.
+           JS는 이후 그대로 덮어써서 상태가 바뀔 때만 갱신한다. -->
+      <div class="store-chips" id="platformChips">
+        <button type="button" class="store-select" data-action="toggle-platform-menu" aria-label="스토어 선택">
+          <span>네이버</span>
+          <span class="store-caret" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </span>
+        </button>
+        <div class="store-menu">
+          <button type="button" class="store-chip active" data-platform="naver">네이버</button>
+          <button type="button" class="store-chip" data-platform="coupang">쿠팡</button>
+        </div>
+      </div>
       <button type="button" class="store-add-icon collect" id="adCollectIconBtn" style="display:none;" onclick="collectNaverAds()" title="광고 데이터 수집" aria-label="광고 데이터 수집">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 12a9 9 0 0 1-15.5 6.2"></path>
