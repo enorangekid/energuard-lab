@@ -325,9 +325,25 @@
 
 <main class="wrap app-shell" id="itemPage" data-view="trend" data-trend-section="realtime">
   <header class="page-head app-page-head">
+    <!-- 예전엔 여기 "아이템 발굴" 단일 제목만 있다가 JS(renderModeTabs)가 실제 2탭
+         구조(트렌드 분석 | 아이템 발굴)로 통째로 갈아끼우면서, "아이템 발굴"이 혼자
+         왼쪽에 있다가 두 번째 탭으로 오른쪽에 다시 자리잡는 것처럼 보였다(2026-08-10
+         지적). 기본 상태(트렌드 분석 활성)를 처음부터 그대로 박아둔다. -->
     <div class="page-title-row app-title-row">
-      <h1 class="page-title app-title-single">아이템 발굴</h1>
-      <span class="page-help app-title-single-help" title="저장한 키워드 후보와 AI 블로그 초안을 검토하는 화면입니다.">?</span>
+      <div class="mode-title-tabs app-title-tabs" id="modeTabs" aria-label="아이템 발굴 화면 선택">
+        <button type="button" class="mode-title-tab app-title-tab active" data-view="trend">
+          <span class="mode-title-text app-title-text">
+            <span class="mode-label app-title-label">트렌드 분석</span>
+            <span class="mode-help app-title-help" title="실시간 검색 순위, 트렌드 순위, 뉴스 이슈와 카테고리별 키워드 순위를 확인합니다.">?</span>
+          </span>
+        </button>
+        <button type="button" class="mode-title-tab app-title-tab" data-view="discover">
+          <span class="mode-title-text app-title-text">
+            <span class="mode-label app-title-label">아이템 발굴</span>
+            <span class="mode-help app-title-help" title="선택한 후보로 AI 블로그 초안을 생성하고 검토합니다.">?</span>
+          </span>
+        </button>
+      </div>
     </div>
     <div class="page-meta" id="pageMeta">초안 자동 생성 준비됨</div>
   </header>
