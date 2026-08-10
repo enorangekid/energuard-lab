@@ -193,6 +193,14 @@ body {
   from { background-position: 200% 0; }
   to   { background-position: -200% 0; }
 }
+
+/* 월간 TOP 노출 상품 — 네이버가 원래 제공 안 하는 경우(로딩 아님), 실제 카드와 같은
+   그리드 자리를 채우는 빈 카드 */
+.sales-card--empty { cursor: default; }
+.sales-card--empty:hover { border-color: var(--line); }
+.sales-card--empty .sales-thumb { background: #f6f8fb; }
+.sales-card--empty .sales-body { flex: 1; display: flex; align-items: center; justify-content: center; padding: 10px 12px; }
+.sales-empty-text { margin: 0; font-size: 11.5px; font-weight: 600; line-height: 1.5; color: var(--sub); text-align: center; }
 @media (prefers-reduced-motion: reduce) {
   .skel { animation: none; }
 }

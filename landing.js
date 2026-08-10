@@ -64,14 +64,29 @@ function salesCard(p) {
     </a>`;
 }
 
+// 월간(MONTHLY)은 저희 코드 문제가 아니라 snxbest.naver.com API 자체가 월간 옵션에서 항상
+// 0개를 응답한다(2026-08-10 확인, 일간/주간은 각 100개 정상). 빈 문구 한 줄만 덜렁 띄우면
+// 성의 없어 보인다는 지적으로, 실제 카드와 같은 grid 자리를 채우는 빈 카드로 대체한다 —
+// sales-card--skel(로딩 중 반짝임)과는 다르게, 로딩이 아니라 "원래 없음"을 나타낸다.
+function emptyCard() {
+  return `
+    <div class="sales-card sales-card--empty">
+      <div class="sales-thumb">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#c6cbd3" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19h16"/><path d="M8 19v-6"/><path d="M13 19v-10"/><path d="M18 19v-3"/></svg>
+      </div>
+      <div class="sales-body">
+        <div class="sales-empty-text">월간 데이터<br>미제공</div>
+      </div>
+    </div>`;
+}
+
 function renderSalesCards(el, products) {
   if (!products.length) {
-    // 월간(MONTHLY)은 저희 코드 문제가 아니라 snxbest.naver.com API 자체가 월간 옵션에서
-    // 항상 0개를 응답한다(2026-08-10 확인, 일간/주간은 각 100개 정상). "준비 중입니다"라고
-    // 하면 곧 채워질 것처럼 보여서, 월간일 땐 원래 제공되지 않는다고 명확히 안내한다.
-    el.innerHTML = trUnit === "month"
-      ? `<div class="tr-status">네이버가 TOP 노출 상품을 월간 단위로는 제공하지 않습니다.</div>`
-      : `<div class="tr-status">TOP 노출 상품을 준비 중입니다.</div>`;
+    if (trUnit === "month") {
+      el.innerHTML = Array.from({ length: TOP_CARD_COUNT }, emptyCard).join("");
+    } else {
+      el.innerHTML = `<div class="tr-status">TOP 노출 상품을 준비 중입니다.</div>`;
+    }
     el.dataset.count = "0";
     return;
   }
