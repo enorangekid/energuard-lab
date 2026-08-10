@@ -984,7 +984,6 @@ const STORE_TOP_SHOW = 10;
 
 /* ───────── 렌더링 ───────── */
 function render(d) {
-  trCollapse();
   d.results = (d.results || []).filter(r => isExactStoreName(r.mallName, d.storeName || selectedStore));
 
   // 아래 섹션들과 상단 요약 타일 계산에 공통으로 쓰는 값들.
