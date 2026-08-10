@@ -1676,9 +1676,15 @@ document.addEventListener("click", e => {
   if (select && !select.contains(e.target)) select.classList.remove("open");
 });
 
-loadIdeas();
-loadRealtimeTrend("");
-loadCategoryRoots();
+// 예전엔 loadIdeas()만 전역 로딩 스피너로 감쌌는데, 그게 끝나 스피너가 닫히고 나서도
+// loadRealtimeTrend()/loadCategoryRoots()가 아직 안 끝났으면 그 안의 개별 "불러오는 중..."
+// 문구가 뒤늦게 노출됐다(2026-08-10 지적, "스피너 끝나고 다시 내부에서 불러오는중..."
+// — 한 번에 끝내라는 요청). loadIdeas() 안에서 이미 자기 몫의 showLoading/hideLoading을
+// 쓰고 있어서(참조 카운트 방식, common.js), 여기서 하나 더 켜두고 셋 다 끝난 뒤에 반납하면
+// 셋 중 가장 늦게 끝나는 것까지 스피너가 안 끊기고 이어진다.
+if (window.showLoading) showLoading("아이템 발굴 데이터를 불러오는 중...");
+Promise.all([loadIdeas(), loadRealtimeTrend(""), loadCategoryRoots()])
+  .finally(() => { if (window.hideLoading) hideLoading(); });
 </script>
 </body>
 </html>
