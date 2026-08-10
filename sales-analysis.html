@@ -4454,6 +4454,32 @@ function setDefaultDates() {
   setDateRange(formatDate(start), formatDate(today));
 }
 
+// 이번 달 초에 들어오면 아직 그 달 데이터가 안 쌓여서 화면이 텅 비어 보였다(2026-08-10
+// 지적, "가장 최근 데이터 기준으로 입장부터 표시되게 해줘"). 일단 setDefaultDates()로
+// 이번 달을 먼저 그려서 빈 화면 없이 즉시 뭔가 보이게 하고, 백그라운드로 최근 1년 안에
+// 데이터가 있는 달을 확인해서 이번 달에 데이터가 없으면 조용히 가장 최근 데이터가 있는
+// 달로 바꿔서 다시 그린다. 초기 진입 탭(naver·매출분석)만 대상 — 다른 탭으로 옮기면
+// 그 탭 나름의 로딩 로직이 따로 있다.
+async function applyLatestAvailableDefaultDates() {
+  if (activePlatform !== "naver" || activeSubtab.naver !== "sales") return;
+  try {
+    const today = kstDate(0);
+    const dateFrom = formatDate(new Date(Date.UTC(today.getUTCFullYear() - 1, today.getUTCMonth(), 1)));
+    const dateTo = formatDate(today);
+    const data = await callAdFn({ action: "naverStatMonths", dateFrom, dateTo });
+    const months = (data.months || []).slice().sort();
+    if (!months.length) return; // 조회 실패거나 최근 1년간 데이터가 아예 없으면 이번 달 기본값 유지
+    const currentMonthKey = dateTo.slice(0, 7);
+    if (months.includes(currentMonthKey)) return; // 이번 달에 이미 데이터 있으면 그대로 둔다
+    const [y, m] = months[months.length - 1].split("-").map(Number);
+    const start = new Date(Date.UTC(y, m - 1, 1));
+    const end = monthEnd(start);
+    const to = end.getTime() > today.getTime() ? today : end;
+    setDateRange(formatDate(start), formatDate(to));
+    render();
+  } catch (_) { /* 실패해도 이번 달 기본값 그대로 둔다 */ }
+}
+
 // 카테고리(스토어 분석/광고 분석) — 플랫폼과 무관한 전역 축이므로 두 플랫폼 모두 같은 값으로 맞춘다
 document.getElementById("categoryTabs").addEventListener("click", e => {
   const tab = e.target.closest(".mode-title-tab");
@@ -4531,6 +4557,7 @@ document.getElementById("mainPanel").addEventListener("click", e => {
 
 setDefaultDates();
 render();
+applyLatestAvailableDefaultDates();
 </script>
 </body>
 </html>
