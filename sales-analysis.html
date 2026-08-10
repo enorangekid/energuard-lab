@@ -677,6 +677,16 @@ let coupangSalesLoadKey = "";
 let coupangSalesLoading = false;
 let coupangItemPeriods = []; // 상품별 스냅샷 기간 목록
 let coupangItemPeriod = ""; // "from|to"
+// 상품별 엑셀 업로드 시 "이 파일이 몇 월 데이터인지"를 상단 공용 달력(dateFrom/dateTo)에서
+// 몰래 읽어오다가, 업로드 시점에 달력이 다른 달로 맞춰져 있으면 엉뚱한 기간으로 저장되는
+// 사고가 있었다(2026-08-10, "2026-08-01~08-03"에 7월 데이터가 그대로 들어간 사례로 확인).
+// 업로드 전용 월 선택을 따로 둬서 그 사고를 원천 차단한다 — 쿠팡 데이터는 항상 한 달
+// 늦게(다음 달에) 입력하게 되는 구조라(사용자 설명) 기본값도 "지난달"로 맞춘다.
+let coupangItemUploadMonth = (() => {
+  const d = kstDate(0);
+  const prev = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - 1, 1));
+  return `${prev.getUTCFullYear()}-${String(prev.getUTCMonth() + 1).padStart(2, "0")}`;
+})();
 let coupangItemRows = [];
 let coupangItemLoading = false;
 let coupangProductMap = new Map(); // optionId -> { productId, vendorProductId } (Wing 상품목록 업로드로 채워짐)
@@ -1153,9 +1163,16 @@ async function importCoupangSalesFile(file) {
 
 async function importCoupangItemFile(file) {
   const status = document.getElementById("adStatus");
-  const periodFrom = document.getElementById("dateFrom").value;
-  const periodTo = document.getElementById("dateTo").value;
-  if (!confirm(`상품별 실적을 ${periodFrom} ~ ${periodTo} 기간의 스냅샷으로 저장할까요?\n\n쿠팡에서 다운로드할 때 선택한 기간과 같아야 정확합니다.\n다르면 취소하고 상단 달력에서 기간을 먼저 맞춰 주세요.`)) return;
+  // 예전엔 상단 공용 달력(dateFrom/dateTo) 값을 그대로 기간표로 썼는데, 업로드 시점에 그
+  // 달력이 다른 화면 보느라 딴 달로 맞춰져 있으면 엉뚱한 기간에 저장되는 사고가 있었다
+  // (2026-08-10, "2026-08-01~08-03"에 7월 데이터가 그대로 들어간 사례). 업로드 전용
+  // 월 선택(coupangItemUploadMonth)만 보고 그 달의 1일~말일로 기간을 정한다.
+  const monthKey = document.getElementById("coupangItemUploadMonth").value;
+  const [uy, um] = monthKey.split("-").map(Number);
+  const monthStart = new Date(Date.UTC(uy, um - 1, 1));
+  const periodFrom = formatDate(monthStart);
+  const periodTo = formatDate(monthEnd(monthStart));
+  if (!confirm(`상품별 실적을 ${monthKey}(${periodFrom} ~ ${periodTo}) 데이터로 저장할까요?\n\n방금 쿠팡에서 다운로드한 엑셀이 이 달 데이터가 맞는지 확인해 주세요.`)) return;
   try {
     const parsed = parseCoupangItemRows(await readWorkbookRows(file));
     if (!parsed.length) {
@@ -2889,7 +2906,7 @@ function coupangItemDetailCardHtml() {
     ? `<div class="empty">불러오는 중...</div>`
     : coupangItemRows.length
       ? coupangItemChartsHtml()
-      : `<div class="empty">저장된 상품별 스냅샷이 없습니다. 상단 달력을 파일 다운로드 기간과 맞춘 뒤 상품별 엑셀을 업로드해 주세요.</div>`;
+      : `<div class="empty">저장된 상품별 스냅샷이 없습니다. 업로드 버튼 옆에서 몇 월 데이터인지 고른 뒤 상품별 엑셀을 업로드해 주세요.</div>`;
   const dataTableContent = coupangItemLoading
     ? `<div class="empty">불러오는 중...</div>`
     : coupangItemRows.length
@@ -2899,6 +2916,16 @@ function coupangItemDetailCardHtml() {
   const periodOptions = coupangItemPeriods.map(p =>
     `<option value="${p.from}|${p.to}"${coupangItemPeriod === `${p.from}|${p.to}` ? " selected" : ""}>${p.from} ~ ${p.to}</option>`
   ).join("");
+  // "이 엑셀이 몇 월 데이터인지" 업로드 전용 월 선택 — 상단 공용 달력(dateFrom/dateTo)에
+  // 몰래 얹혀가던 걸 떼어내서 업로드 버튼 바로 옆에 뒀다(2026-08-10, "좀 더 쉽고 편하게
+  // 업로드할 수 있는 방법" 요청). 최근 24개월, 기본값은 지난달(쿠팡 데이터는 항상 한 달
+  // 늦게 입력하는 구조라서).
+  const uploadMonthOptions = Array.from({ length: 24 }, (_, i) => {
+    const today = kstDate(0);
+    const d = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - i, 1));
+    const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+    return `<option value="${key}"${key === coupangItemUploadMonth ? " selected" : ""}>${key}</option>`;
+  }).join("");
   const uploadBtn = `
     <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
       ${coupangItemPeriods.length ? `<select id="coupangItemPeriodSelect" class="period-select">${periodOptions}</select>` : ""}
@@ -2906,6 +2933,7 @@ function coupangItemDetailCardHtml() {
         상품목록 엑셀 업로드${coupangProductMap.size ? ` (${num(coupangProductMap.size)})` : ""}
         <input class="file-input" id="coupangProductMapFile" type="file" accept=".xlsx,.xls,.csv" style="display:none;">
       </label>
+      <select id="coupangItemUploadMonth" class="period-select" title="업로드할 엑셀이 몇 월 데이터인지 선택">${uploadMonthOptions}</select>
       <label class="expand-all-btn" title="쿠팡 WING 접속 후 비즈니스 인사이트 > 판매분석 > 상품별 엑셀 다운로드 후 업로드">
         상품별 엑셀 업로드
         <input class="file-input" id="coupangItemFile" type="file" accept=".xlsx,.xls,.csv" style="display:none;">
@@ -2934,6 +2962,10 @@ function renderCoupangSalesPanel() {
     const file = e.target.files?.[0];
     if (file) importCoupangItemFile(file);
   });
+  const uploadMonthSelect = document.getElementById("coupangItemUploadMonth");
+  if (uploadMonthSelect) {
+    uploadMonthSelect.addEventListener("change", () => { coupangItemUploadMonth = uploadMonthSelect.value; });
+  }
   document.getElementById("coupangProductMapFile").addEventListener("change", e => {
     const file = e.target.files?.[0];
     if (file) importCoupangProductMapFile(file);
