@@ -111,7 +111,6 @@
   .pill.gray { background: #eef0f3; color: var(--sub); }
   .draft-panel { display: flex; flex-direction: column; gap: 18px; padding: 20px 20px 24px; }
   .card.is-hidden { display: none; }
-  .draft-empty { padding: 64px 20px; text-align: center; color: var(--sub); font-size: 13px; font-weight: 700; }
   .draft-kicker { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .draft-title { margin: 10px 0 0; font-size: 20px; font-weight: 900; line-height: 1.35; letter-spacing: -0.025em; color: var(--ink); }
   .draft-section { border-top: 1px solid var(--soft-line); padding-top: 14px; }
@@ -253,9 +252,6 @@
   .trend-idea-btn svg { width: 15px; height: 15px; }
   .trend-idea-btn.added { border-color: #f0b79d; background: var(--accent-tint); color: var(--accent-dark); }
   .trend-idea-btn.added:hover { border-color: #d7dde7; background: #fafbfc; color: var(--ink); }
-  .trend-idea-tip {
-    display: none;
-  }
   .floating-action-tip {
     position: fixed; left: 0; top: 0; z-index: 9999; transform: translate(-50%, -100%);
     padding: 8px 10px; border-radius: 6px; background: #161a22; color: #fff;
@@ -511,12 +507,6 @@ function showToast(message) {
   el.classList.add("show");
   clearTimeout(showToast._timer);
   showToast._timer = setTimeout(() => el.classList.remove("show"), 1800);
-}
-function formatDateTime(value) {
-  if (!value) return "-";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "-";
-  return `${d.getMonth() + 1}.${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 function formatIdeaDate(value) {
   if (!value) return "저장일 없음";
@@ -795,6 +785,11 @@ function hasDraftContent(item) {
 function hasYoutubeScript(item) {
   return !!item && (item.youtubeTitle || item.youtubeBody || (Array.isArray(item.youtubeOutline) && item.youtubeOutline.length));
 }
+// renderDraft()가 화면에 유튜브/블로그 초안 중 어느 쪽을 보여줄지 정하는 판정 —
+// 확정 버튼 핸들러도 반드시 같은 판정을 써야 화면에 보이는 것과 다른 초안이 확정되는 사고가 없다.
+function isShowingYoutubeDraft(item) {
+  return hasYoutubeScript(item) && (activeDraftType === "youtube" || !hasDraftContent(item));
+}
 function blogDraftStatusLabel(item) {
   if (!hasDraftContent(item)) return "블로그 후보";
   return item?.status === "used" ? "블로그 초안 확정" : "블로그 초안 생성";
@@ -843,7 +838,7 @@ function renderDraft() {
   const item = selectedIdea();
   const card = document.getElementById("draftCard");
   const panel = document.getElementById("draftPanel");
-  const showYoutubeDraft = hasYoutubeScript(item) && (activeDraftType === "youtube" || !hasDraftContent(item));
+  const showYoutubeDraft = isShowingYoutubeDraft(item);
   card?.classList.toggle("draft-mode-youtube", showYoutubeDraft);
   card?.classList.toggle("draft-mode-blog", !showYoutubeDraft);
   document.getElementById("draftCardTitle").textContent = showYoutubeDraft ? "AI 유튜브 초안" : "AI 블로그 초안";
@@ -991,7 +986,6 @@ function renderTrendRows(items) {
       </span>
       <button type="button" class="trend-idea-btn${added ? " added" : ""}" data-add-idea="${esc(item.keyword)}" data-rank="${Number(item.rank || 0)}" data-volume="${searchVolume}" data-products="${products}" data-competition="${competitionScore}" aria-label="${added ? "발굴 키워드 추가됨" : "발굴 키워드로 추가"}" aria-disabled="${added ? "true" : "false"}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M8.5 14.5A6 6 0 1 1 15.5 14.5C14.5 15.3 14 16.2 14 18h-4c0-1.8-.5-2.7-1.5-3.5Z"/><path d="M12 2V0"/></svg>
-        <span class="trend-idea-tip">${added ? "추가됨" : "발굴 키워드 추가"}</span>
       </button>
     </div>`;
   }).join("");
@@ -1198,8 +1192,10 @@ async function restoreIdea(button) {
     const target = ideas.find(item => String(item.id) === id);
     if (target) target.deletedAt = null;
     localStorage.setItem(LOCAL_IDEAS_KEY, JSON.stringify(ideas));
+    if (selectedId === id) selectedId = "";
     renderCategories();
     renderIdeas();
+    renderDraft();
     showToast("발굴 키워드를 복구했습니다.");
   } catch (error) {
     button.disabled = false;
@@ -1395,8 +1391,10 @@ async function runWorkflow(targetId = "") {
       localStorage.setItem(LOCAL_IDEAS_KEY, JSON.stringify(ideas));
       renderAll();
       document.getElementById("pageMeta").textContent = `OpenAI 초안 ${data.items.length}개 생성`;
+      showToast("AI 초안을 생성했습니다.");
+    } else {
+      showToast("AI가 생성한 초안이 없습니다.");
     }
-    showToast("AI 초안을 생성했습니다.");
   } catch (error) {
     showToast("초안 생성 실패: " + String(error.message || error));
   } finally {
@@ -1453,8 +1451,10 @@ async function generateYoutubeScript(id) {
       selectedId = String(data.items[0].id || selectedId);
       localStorage.setItem(LOCAL_IDEAS_KEY, JSON.stringify(ideas));
       renderAll();
+      showToast("유튜브 대본 초안을 생성했습니다.");
+    } else {
+      showToast("AI가 생성한 대본이 없습니다.");
     }
-    showToast("유튜브 대본 초안을 생성했습니다.");
   } catch (error) {
     showToast("유튜브 대본 생성 실패: " + String(error.message || error));
   } finally {
@@ -1706,7 +1706,7 @@ document.getElementById("purgeTrashBtn").addEventListener("click", () => purgeTr
 document.getElementById("runWorkflowBtn").addEventListener("click", () => runWorkflow());
 document.getElementById("confirmDraftBtn").addEventListener("click", () => {
   const item = selectedIdea();
-  const isYoutubeDraft = activeDraftType === "youtube" && hasYoutubeScript(item);
+  const isYoutubeDraft = isShowingYoutubeDraft(item);
   if (isYoutubeDraft) {
     setYoutubeStatus("used");
     return;

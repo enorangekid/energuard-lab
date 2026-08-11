@@ -519,11 +519,6 @@
   td.num, th.num { text-align: right; font-family: var(--font-mono); white-space: nowrap; }
   .product-name { max-width: 100%; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .muted { color: var(--sub); font-size: 11px; }
-  .badge {
-    display: inline-flex; align-items: center; max-width: 100%; height: 22px; padding: 0 8px;
-    border-radius: 999px; background: var(--accent-tint); color: var(--accent-dark);
-    font-size: 11px; font-weight: 900; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  }
   /* 일별매출 표 헤드 — 랭킹추적의 상품목록 헤드(.product-table-head)와 동일하게
      둥근 테두리 박스로 감싸서 본문 행과 분리해 보이도록 한다. 랭킹추적 쪽처럼
      카드 좌우 끝에 바로 붙지 않도록 좌우 여백도 함께 준다. */
@@ -553,8 +548,6 @@
   .table-scroll.boxed-table th, .table-scroll.boxed-table td { text-align: center; }
   .table-scroll.boxed-table th.sortable .arrow { margin-left: 3px; font-size: 10px; color: var(--accent-dark); }
   .empty { padding: 42px 22px; color: var(--sub); text-align: center; font-size: 13px; }
-  .placeholder { padding: 44px 22px; color: var(--sub); text-align: center; font-size: 13px; }
-  .placeholder strong { display: block; margin-bottom: 6px; color: var(--ink); font-size: 15px; }
 
   @media (max-width: 900px) {
     .rank-dash-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -685,7 +678,6 @@
 <script>
 const SUPABASE_URL = "https://eukwfypbfqojbaihfqye.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_MiBvlf3d6ulcVBsi7Odcgw_PTXSmXKj";
-const SALES_KEY = "nrSalesRows:v2";
 const AD_KEY = "nrAdRows:v2";
 const AD_FN_URL = SUPABASE_URL + "/functions/v1/naver-ad-report";
 const DEFAULT_STORE = "한국 단열";
@@ -693,7 +685,6 @@ const DEFAULT_STORE = "한국 단열";
 const PLATFORM_LABEL = { naver: "네이버", coupang: "쿠팡" };
 let activePlatform = "naver";
 let activeSubtab = { naver: "sales", coupang: "sales" };
-let salesRows = loadJson(SALES_KEY, []);
 let adRows = loadJson(AD_KEY, []);
 let coupangAdRows = []; // Supabase에서 기간별로 불러옴
 let coupangAdLoadKey = "";
@@ -782,7 +773,6 @@ function loadJson(key, fallback) {
 }
 
 function saveState() {
-  localStorage.setItem(SALES_KEY, JSON.stringify(salesRows));
   localStorage.setItem(AD_KEY, JSON.stringify(adRows));
 }
 
@@ -965,69 +955,6 @@ function pick(row, names) {
     if (found) return row[found];
   }
   return "";
-}
-
-function parseSalesRows(rawRows, platform) {
-  return rawRows.map((row, index) => {
-    const productName = norm(pick(row, ["상품명", "제품명", "등록상품명", "노출상품명", "item name", "product name"]));
-    const optionName = norm(pick(row, ["옵션", "옵션정보", "선택사항", "option"]));
-    const productCode = norm(pick(row, ["상품번호", "상품ID", "판매자상품코드", "SKU", "바코드", "product id"]));
-    const qty = toNumber(pick(row, ["수량", "주문수량", "판매수량", "구매수", "quantity"]));
-    const amount = toNumber(pick(row, ["결제금액", "주문금액", "상품주문금액", "판매금액", "정산금액", "매출", "amount", "sales"]));
-    const orderDate = toDate(pick(row, ["주문일", "결제일", "구매일", "발주일", "date"]));
-    if (!productName && !productCode && !amount) return null;
-    return {
-      id: `${platform}-${Date.now()}-${index}`,
-      platform,
-      productName: productName || "(상품명 없음)",
-      optionName,
-      productCode,
-      qty: qty || 1,
-      amount,
-      orderDate,
-      uploadedAt: new Date().toISOString(),
-    };
-  }).filter(Boolean);
-}
-
-async function importFile(file, platform) {
-  const buffer = await file.arrayBuffer();
-  const wb = XLSX.read(buffer, { type: "array", cellDates: true });
-  const rows = [];
-  wb.SheetNames.forEach(name => {
-    rows.push(...XLSX.utils.sheet_to_json(wb.Sheets[name], { defval: "" }));
-  });
-  const parsed = parseSalesRows(rows, platform);
-  salesRows = salesRows.concat(parsed);
-  saveState();
-  render();
-}
-
-function filteredSalesRows(platform = activePlatform) {
-  const from = document.getElementById("dateFrom").value;
-  const to = document.getElementById("dateTo").value;
-  return salesRows.filter(row => {
-    if (row.platform !== platform) return false;
-    if (!row.orderDate) return true;
-    if (from && row.orderDate < from) return false;
-    if (to && row.orderDate > to) return false;
-    return true;
-  });
-}
-
-function productGroups(platform = activePlatform) {
-  const map = new Map();
-  filteredSalesRows(platform).forEach(row => {
-    const key = row.productCode || compact(row.productName);
-    if (!map.has(key)) {
-      map.set(key, { productName: row.productName, productCode: row.productCode, sales: 0, qty: 0, orders: 0 });
-    }
-    const item = map.get(key);
-    item.orders += 1;
-    item.qty += Number(row.qty) || 0;
-    item.sales += Number(row.amount) || 0;
-  });
-  return [...map.values()].sort((a, b) => b.sales - a.sales);
 }
 
 // 쿠팡 상품광고 보고서의 날짜는 "20260601" 형식
@@ -3885,24 +3812,6 @@ function renderSalesPanel() {
   renderNaverSalesPanel();
 }
 
-function salesTableHtml(products) {
-  return `
-    <table>
-      <thead><tr><th>상품</th><th class="num" style="width:120px">매출</th><th class="num" style="width:90px">수량</th><th class="num" style="width:90px">주문</th></tr></thead>
-      <tbody>
-        ${products.slice(0, 100).map(p => `
-          <tr>
-            <td><div class="product-name" title="${esc(p.productName)}">${esc(p.productName)}</div><div class="muted">${esc(p.productCode || "-")}</div></td>
-            <td class="num"><b>${money(p.sales)}</b></td>
-            <td class="num">${num(p.qty)}</td>
-            <td class="num">${num(p.orders)}</td>
-          </tr>
-        `).join("")}
-      </tbody>
-    </table>
-  `;
-}
-
 // 광고분석(네이버·쿠팡) — 판매분석과 동일한 독립 카드 스타일(제목 → 부제목 → 구분선 → 내용)로
 // 통일한다. 바깥 .content-card.summary-card는 tab 생성용 구조만 유지하는 투명 래퍼이고,
 // 실제 카드 테두리·그림자는 안쪽 .summary-mini-card 각각이 갖는다. "전체 데이터 도구 보기"는
@@ -4111,8 +4020,9 @@ function adsTableHtml(rows, compare) {
 }
 
 function formatPercentValue(value) {
-  const n = Number(value) || 0;
-  if (!n) return "-";
+  if (value === null || value === undefined || value === "") return "-";
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "-";
   return n.toLocaleString("ko-KR", { maximumFractionDigits: 2 }) + "%";
 }
 
