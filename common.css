@@ -836,6 +836,7 @@ header.topbar .topbar-icon-btn {
   width: 34px;
   height: 34px;
   border: none;
+  border-radius: 50%;
   background: transparent;
   color: rgba(255, 255, 255, 0.72);
   display: inline-flex;
@@ -843,6 +844,11 @@ header.topbar .topbar-icon-btn {
   justify-content: center;
   padding: 0;
   cursor: default;
+  transition: background .15s ease, color .15s ease;
+}
+header.topbar .topbar-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
 }
 
 header.topbar .topbar-icon-btn svg {
