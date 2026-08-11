@@ -3272,6 +3272,35 @@ function exposureDropouts(blogId) {
   return [...byPost.values()];
 }
 
+// "누락 포스팅" 대시보드 카드 — postTitleCheckFor()가 이미 개별 포스팅 카드의 강조 표시에
+// 쓰는 것과 같은 데이터(blog_rank_post_title_check, found:false)를 대시보드 요약 카드로도
+// 보여준다(2026-08-10 요청, "이탈 포스팅" 옆에 나란히). "이탈"과 달리 별도 keyword 이력
+// 비교가 필요없어 postTitleChecks를 바로 훑는다.
+function missingPostsFor(blogId) {
+  return state.postTitleChecks
+    .filter(row => row.blog_id === blogId && row.found === false)
+    .map(row => {
+      const post = state.posts.find(p => p.blog_id === blogId && p.log_no === row.log_no);
+      return { title: post?.title, url: post?.post_url, logNo: row.log_no, checkedAt: row.checked_at };
+    })
+    .sort((a, b) => String(b.checkedAt || "").localeCompare(String(a.checkedAt || "")));
+}
+
+function exposureMissingRowHtml(post, rank) {
+  const nameHtml = post.url
+    ? `<a class="summary-top3-name" href="${esc(post.url)}" target="_blank" rel="noopener" title="${esc(post.title || post.logNo || "")}">${esc(post.title || post.logNo || "포스팅 확인 필요")}</a>`
+    : `<span class="summary-top3-name">${esc(post.title || post.logNo || "포스팅 확인 필요")}</span>`;
+  const checkedText = post.checkedAt ? esc(String(post.checkedAt).slice(0, 10)) : "-";
+  return `<div class="summary-mover-row">
+    <div class="summary-mover-row-main">
+      <span class="summary-top3-rank">${rank}</span>
+      ${nameHtml}
+      <span class="summary-mover-delta down">누락</span>
+    </div>
+    <div class="summary-mover-row-detail">${checkedText} 제목 검색 자가진단 기준</div>
+  </div>`;
+}
+
 function exposurePageDistribution(blogId) {
   const keywords = state.targetKeywords.filter(k => k.blog_id === blogId);
   let page1 = 0, page23 = 0, page4plus = 0;
@@ -3364,6 +3393,17 @@ function renderExposureCard(blog, mode = "full") {
   const dropKey = `exp-drop-${blog.blog_id}`;
   const dropoutHtml = dropouts.length
     ? dashMoverSubCard("이탈 포스팅", sliceFor(dropKey, dropouts).map((p, i) => exposureDropoutRowHtml(p, i + 1)).join("") + exposureMoreBtnHtml(dropKey, dropouts.length))
+    : "";
+
+  // "이탈 포스팅" 옆에 나란히 — 제목 검색 자가진단(누락여부 체크)에서 found:false로 확인된
+  // 포스팅(2026-08-10 추가).
+  const missingPosts = missingPostsFor(blog.blog_id);
+  const missingKey = `exp-missing-${blog.blog_id}`;
+  const missingHtml = missingPosts.length
+    ? dashMoverSubCard("누락 포스팅", sliceFor(missingKey, missingPosts).map((p, i) => exposureMissingRowHtml(p, i + 1)).join("") + exposureMoreBtnHtml(missingKey, missingPosts.length))
+    : "";
+  const dropRowHtml = (dropoutHtml || missingHtml)
+    ? `<div class="summary-top3-row-wrap summary-mover-grid">${dropoutHtml}${missingHtml}</div>`
     : "";
 
   const sortedResults = [...results].sort((a, b) => {
@@ -3591,7 +3631,7 @@ function renderExposureCard(blog, mode = "full") {
         ${pageBarHtml}
         <div class="summary-divider" style="margin:18px 0;"></div>
         <div class="summary-top3-row-wrap summary-mover-grid">${moverCardsHtml}</div>
-        ${dropoutHtml ? `<div class="summary-divider" style="margin:18px 0;"></div>${dropoutHtml}` : ""}
+        ${dropRowHtml ? `<div class="summary-divider" style="margin:18px 0;"></div>${dropRowHtml}` : ""}
       </div>
     </div>`;
 }
