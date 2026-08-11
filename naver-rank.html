@@ -1463,7 +1463,10 @@ function renderBatchBanners() {
   document.getElementById("batchMainGrid").innerHTML = mainHtml.join("");
   document.getElementById("batchSubGrid").innerHTML = subHtml.join("");
 }
-(async () => { // 커스텀 키워드는 DB에서 비동기로 받아와야 해서 즉시실행 async로 초기 렌더를 감쌈
+// 기본 키워드 트리(KW_TREE)는 동기 데이터라 즉시 렌더 — 패널을 열자마자(커스텀 키워드
+// fetch가 끝나기 전에) 봐도 그리드가 비어있다가 버튼이 팝인하는 레이아웃 시프트가 없도록 한다.
+renderBatchBanners();
+(async () => { // 커스텀 키워드는 DB에서 비동기로 받아와야 해서 즉시실행 async로 다시 렌더
   await migrateLocalCustomKeywords();
   await refreshCustomKeywords();
   renderBatchBanners();
