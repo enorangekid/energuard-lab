@@ -850,6 +850,12 @@ header.topbar .topbar-icon-btn svg {
   height: 24px;
 }
 
+/* 사람(관리자) 아이콘만 살짝 더 크게 — 히스토리 아이콘은 그대로 24px 유지 */
+header.topbar .topbar-icon-btn[aria-label="관리자"] svg {
+  width: 25px;
+  height: 25px;
+}
+
 .site-footer {
   flex-shrink: 0;
   /* auto였을 때는 .wrap의 flex-grow와 맞물려 내용이 짧아도 푸터를 뷰포트 맨 아래로 밀어냈다.
