@@ -11,7 +11,6 @@ const TOPBAR_MENU = [
   { label: "매출분석",   href: "sales-analysis.html" },
   { label: "아이템발굴", href: "item-discovery.html" },
   { label: "유틸리티",   href: "utility.html" },
-  { label: "관리자",     href: "admin/work-notes.html", cls: "topbar-nav-admin" },
 ];
 
 function initTopbar() {
@@ -48,13 +47,6 @@ function initTopbar() {
       blogLink.textContent = "블로그분석";
       keywordLink?.after(blogLink);
     }
-    if (nav && !nav.querySelector('a[href*="admin/work-notes.html"]')) {
-      const adminLink = document.createElement("a");
-      adminLink.href = `${prefix}admin/work-notes.html`;
-      adminLink.textContent = "관리자";
-      adminLink.className = "topbar-nav-admin";
-      nav.appendChild(adminLink);
-    }
     bar.querySelectorAll(".topbar-nav a").forEach((a) => {
       const href = (a.getAttribute("href") || "").split("/").pop().toLowerCase();
       a.classList.toggle("active", href === activePage);
@@ -76,11 +68,11 @@ function initTopbar() {
       ${navHtml}
     </nav>
     <div class="topbar-actions" aria-hidden="true">
-      <button type="button" class="topbar-icon-btn" tabindex="-1" aria-label="검색">
+      <a href="${prefix}admin/work-notes.html" class="topbar-icon-btn" style="cursor:pointer" aria-label="관리자">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          <circle cx="12" cy="8" r="4"></circle><path d="M4 21c0-4 4-6 8-6s8 2 8 6"></path>
         </svg>
-      </button>
+      </a>
       <button type="button" class="topbar-icon-btn" tabindex="-1" aria-label="계산 내역">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="9"></circle><polyline points="12 7 12 12 15 15"></polyline>

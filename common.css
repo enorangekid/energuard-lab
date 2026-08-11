@@ -821,16 +821,6 @@ header.topbar .topbar-nav a:hover {
 
 header.topbar .topbar-nav a.active { color: #fff; font-weight: 700; }
 
-/* 관리자 링크 — 셀러용 제품 메뉴와 성격이 달라 옅은 구분선으로 시각적으로 떼어놓음 */
-header.topbar .topbar-nav a.topbar-nav-admin {
-  margin-left: 8px;
-  padding-left: 24px;
-  border-left: 1px solid rgba(255, 255, 255, 0.14);
-  color: rgba(255, 255, 255, 0.4);
-  font-size: 14px;
-}
-header.topbar .topbar-nav a.topbar-nav-admin:hover { color: rgba(255, 255, 255, 0.85); }
-
 header.topbar .topbar-actions {
   position: absolute;
   right: 0;
