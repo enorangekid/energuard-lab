@@ -835,6 +835,8 @@ header.topbar .topbar-actions {
 header.topbar .topbar-icon-btn {
   width: 34px;
   height: 34px;
+  border: none;
+  background: transparent;
   color: rgba(255, 255, 255, 0.72);
   display: inline-flex;
   align-items: center;
