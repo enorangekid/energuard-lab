@@ -1161,6 +1161,18 @@ async function collectPostTitleCheck(body: Record<string, unknown>) {
   for (const post of posts) {
     try {
       const result = await fetchNaverBlogScreenForPost(post.title, blogId, post.log_no, "desktop", 100);
+      // 이 테이블은 히스토리 없이 포스팅당 최신 상태만 유지해서(스키마 주석 참고), checked_at은
+      // "마지막으로 체크한 시각"일 뿐 "언제부터 누락됐는지"를 알려주지 못했다(2026-08-10 지적,
+      // 대시보드 "누락 포스팅" 카드에 체크일이 아니라 누락일을 보여달라는 요청). found:false로
+      // 처음 바뀌는 순간에만 missing_since를 새로 찍고, 그 뒤로 계속 누락 상태면 기존 값을
+      // 그대로 유지한다 — 그래야 "언제부터 안 잡히기 시작했는지"가 남는다. 다시 발견되면 비운다.
+      const existingRows = await db(
+        `blog_rank_post_title_check?select=found,missing_since&blog_id=eq.${encodeURIComponent(blogId)}&log_no=eq.${encodeURIComponent(post.log_no)}`
+      ) as Array<{ found: boolean; missing_since: string | null }>;
+      const existing = existingRows?.[0] || null;
+      const missingSince = result.found
+        ? null
+        : (existing && existing.found === false && existing.missing_since) ? existing.missing_since : new Date().toISOString();
       await db("blog_rank_post_title_check?on_conflict=blog_id,log_no", {
         method: "POST",
         headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
@@ -1169,6 +1181,7 @@ async function collectPostTitleCheck(body: Record<string, unknown>) {
           log_no: post.log_no,
           found: result.found,
           checked_at: new Date().toISOString(),
+          missing_since: missingSince,
         }]),
       });
       collected += 1;

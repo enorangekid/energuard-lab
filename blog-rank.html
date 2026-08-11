@@ -3281,23 +3281,27 @@ function missingPostsFor(blogId) {
     .filter(row => row.blog_id === blogId && row.found === false)
     .map(row => {
       const post = state.posts.find(p => p.blog_id === blogId && p.log_no === row.log_no);
-      return { title: post?.title, url: post?.post_url, logNo: row.log_no, checkedAt: row.checked_at };
+      return { title: post?.title, url: post?.post_url, logNo: row.log_no, missingSince: row.missing_since, checkedAt: row.checked_at };
     })
-    .sort((a, b) => String(b.checkedAt || "").localeCompare(String(a.checkedAt || "")));
+    .sort((a, b) => String(b.missingSince || b.checkedAt || "").localeCompare(String(a.missingSince || a.checkedAt || "")));
 }
 
 function exposureMissingRowHtml(post, rank) {
   const nameHtml = post.url
     ? `<a class="summary-top3-name" href="${esc(post.url)}" target="_blank" rel="noopener" title="${esc(post.title || post.logNo || "")}">${esc(post.title || post.logNo || "포스팅 확인 필요")}</a>`
     : `<span class="summary-top3-name">${esc(post.title || post.logNo || "포스팅 확인 필요")}</span>`;
-  const checkedText = post.checkedAt ? esc(String(post.checkedAt).slice(0, 10)) : "-";
+  // missing_since(누락이 처음 감지된 날짜)가 있으면 그걸 쓰고, 아직 마이그레이션 전이라
+  // 값이 비어있는 예전 행이면 마지막 체크일로 대신한다(2026-08-10).
+  const dateText = post.missingSince
+    ? `${esc(String(post.missingSince).slice(0, 10))}부터 누락`
+    : post.checkedAt ? `${esc(String(post.checkedAt).slice(0, 10))} 확인 기준` : "-";
   return `<div class="summary-mover-row">
     <div class="summary-mover-row-main">
       <span class="summary-top3-rank">${rank}</span>
       ${nameHtml}
       <span class="summary-mover-delta down">누락</span>
     </div>
-    <div class="summary-mover-row-detail">${checkedText} 제목 검색 자가진단 기준</div>
+    <div class="summary-mover-row-detail">${dateText}</div>
   </div>`;
 }
 
