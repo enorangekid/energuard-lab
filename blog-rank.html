@@ -3303,15 +3303,19 @@ function exposureMissingRowHtml(post, rank) {
   // missing_since(누락이 처음 감지된 날짜)가 있으면 그걸 쓰고, 아직 마이그레이션 전이라
   // 값이 비어있는 예전 행이면 마지막 체크일로 대신한다(2026-08-10).
   const dateText = post.missingSince
-    ? `${esc(kstDateOnly(post.missingSince))}부터 누락`
-    : post.checkedAt ? `${esc(kstDateOnly(post.checkedAt))} 확인 기준` : "-";
+    ? `${esc(kstDateOnly(post.missingSince))}부터`
+    : post.checkedAt ? `${esc(kstDateOnly(post.checkedAt))} 확인` : "-";
+  // "이탈 포스팅"의 키워드 칩(.dropout-keyword-chip)과 같은 스타일로 맞췄다 — 밋밋한 텍스트
+  // 한 줄 대신 강조 배지 형태로(2026-08-11 요청).
   return `<div class="summary-mover-row">
     <div class="summary-mover-row-main">
       <span class="summary-top3-rank">${rank}</span>
       ${nameHtml}
       <span class="summary-mover-delta down">누락</span>
     </div>
-    <div class="summary-mover-row-detail">${dateText}</div>
+    <div class="summary-mover-row-detail dropout-keywords">
+      <span class="dropout-keyword-chip">제목 검색 <span class="dropout-keyword-rank">${dateText}</span></span>
+    </div>
   </div>`;
 }
 
