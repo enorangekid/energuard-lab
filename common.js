@@ -13,6 +13,41 @@ const TOPBAR_MENU = [
   { label: "유틸리티",   href: "utility.html" },
 ];
 
+function renderTopbarActions(bar) {
+  const actions = bar.querySelector(".topbar-actions");
+  if (!actions) return;
+
+  actions.removeAttribute("aria-hidden");
+  actions.innerHTML = `
+    <button type="button" class="topbar-icon-btn" data-history-button aria-label="분석 내역" title="분석 내역">
+      <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+        <path fill-rule="evenodd" clip-rule="evenodd" d="M13.507 12.324a7 7 0 0 0 .065-8.56A7 7 0 0 0 2 4.393V2H1v3.5l.5.5H5V5H2.811a6.008 6.008 0 1 1-.135 5.77l-.887.462a7 7 0 0 0 11.718 1.092zm-3.361-.97l.708-.707L8 7.792V4H7v4l.146.354 3 3z"></path>
+      </svg>
+    </button>
+    <button type="button" class="topbar-icon-btn" data-logout-button aria-label="로그아웃" title="로그아웃">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M10 17l5-5-5-5"></path>
+        <path d="M15 12H3"></path>
+        <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+      </svg>
+    </button>`;
+
+  actions.querySelector("[data-logout-button]")?.addEventListener("click", async () => {
+    const button = actions.querySelector("[data-logout-button]");
+    if (button) button.disabled = true;
+    try {
+      if (window.energuardAuth?.signOut) {
+        await window.energuardAuth.signOut();
+        return;
+      }
+      location.href = "login.html";
+    } catch (error) {
+      console.error("로그아웃 실패:", error);
+      if (button) button.disabled = false;
+    }
+  });
+}
+
 function initTopbar() {
   let bar = document.querySelector("header.topbar[data-topbar]");
   if (!bar) {
@@ -51,6 +86,7 @@ function initTopbar() {
       const href = (a.getAttribute("href") || "").split("/").pop().toLowerCase();
       a.classList.toggle("active", href === activePage);
     });
+    renderTopbarActions(bar);
     return;
   }
 
@@ -67,20 +103,9 @@ function initTopbar() {
     <nav class="topbar-nav">
       ${navHtml}
     </nav>
-    <div class="topbar-actions" aria-hidden="true">
-      <a href="${prefix}admin/work-notes.html" class="topbar-icon-btn" style="cursor:pointer" aria-label="관리자">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M20 21v-1a5 5 0 0 0-5-5H9a5 5 0 0 0-5 5v1"></path>
-          <circle cx="12" cy="7" r="4"></circle>
-        </svg>
-      </a>
-      <button type="button" class="topbar-icon-btn" tabindex="-1" aria-label="계산 내역">
-        <svg viewBox="0 0 16 16" fill="currentColor">
-          <path fill-rule="evenodd" clip-rule="evenodd" d="M13.507 12.324a7 7 0 0 0 .065-8.56A7 7 0 0 0 2 4.393V2H1v3.5l.5.5H5V5H2.811a6.008 6.008 0 1 1-.135 5.77l-.887.462a7 7 0 0 0 11.718 1.092zm-3.361-.97l.708-.707L8 7.792V4H7v4l.146.354 3 3z"></path>
-        </svg>
-      </button>
-    </div>
+    <div class="topbar-actions"></div>
   </div>`;
+  renderTopbarActions(bar);
 }
 
 /* ─────────────────────────────────────────
@@ -375,10 +400,8 @@ function initHistoryPanel() {
     panel.querySelector(".history-clear-btn").addEventListener("click", nrHistoryClear);
     document.body.appendChild(panel);
   }
-  const btn = document.querySelector('.topbar-actions .topbar-icon-btn[aria-label="계산 내역"]');
+  const btn = document.querySelector('.topbar-actions [data-history-button]');
   if (btn) {
-    btn.setAttribute("aria-label", "분석 내역");
-    btn.removeAttribute("tabindex");
     const actions = btn.closest(".topbar-actions");
     if (actions) actions.removeAttribute("aria-hidden");
     btn.style.cursor = "pointer";
