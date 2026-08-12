@@ -63,8 +63,8 @@ const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 async function requireAdminSession() {
   const { data: { session } } = await supabaseClient.auth.getSession();
   if (!session) {
-    const back = encodeURIComponent(location.pathname.split("/").pop() || "work-notes.html");
-    location.replace(`login.html?redirect=${back}`);
+    const back = encodeURIComponent(location.pathname + location.search + location.hash);
+    location.replace(`../login.html?redirect=${back}`);
     return null;
   }
   initAdminTopbar();
@@ -74,7 +74,7 @@ async function requireAdminSession() {
 
 async function adminLogout() {
   await supabaseClient.auth.signOut();
-  location.replace("login.html");
+  location.replace("../login.html");
 }
 
 window.supabaseClient = supabaseClient;
