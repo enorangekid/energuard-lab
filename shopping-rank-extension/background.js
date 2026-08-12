@@ -357,7 +357,7 @@ async function fetchJson(path) {
 // "Failed to fetch"로 던지는 네트워크 예외가 났다 — 이 예외는 HTTP 상태코드가 아니라 재시도
 // 로직이 못 잡고 있었다. concurrency만큼만 묶어서 순차 배치로 병렬 처리하고, fetch() 자체의
 // 예외도 재시도 대상에 포함시킨다.
-async function fetchJsonPaged(path, { pageSize = 1000, maxRows = 100000, concurrency = 4 } = {}) {
+async function fetchJsonPaged(path, { pageSize = 1000, maxRows = 100000, concurrency = 8 } = {}) {
   const sep = path.includes("?") ? "&" : "?";
   async function fetchPage(offset, includeCount) {
     let lastError;
@@ -400,8 +400,11 @@ async function fetchCollectionContext(config) {
     fetchJson("/rest/v1/tracked_items?select=product_code,product_name,product_image,product_link,mall_name,keywords&limit=5000"),
     // 가격비교(카탈로그)형으로 렌더링된 카드는 chnl_prod_no(product_code)가 안 잡히고
     // naver_product_id만 잡힐 때가 있다 — 예전에 이 카드의 product_code가 잡혔던 적이 있으면
-    // naver_product_id로 역추적해서 같은 상품으로 이어붙이기 위한 매핑.
-    fetchJsonPaged(`/rest/v1/shopping_search_snapshots?store_name=eq.${encodedStore}&product_code=neq.&naver_product_id=neq.&select=id,product_code,naver_product_id,collected_date&order=collected_date.desc,id.desc`),
+    // naver_product_id로 역추적해서 같은 상품으로 이어붙이기 위한 매핑. 정렬 기준이 최신순이라
+    // "첫 등장 = 최신"으로 맵을 채우는 폴백용 데이터인데, 스토어에 따라 5~6만 행까지 나와서
+    // (2026-08-12 실측, 한국 단열 59,663행 = 60페이지) 전부 받으면 수집 준비 단계가 심하게
+    // 느려진다 — 최신 10,000행(약 10일 안팎)이면 폴백 매칭에 충분하다고 보고 상한을 둔다.
+    fetchJsonPaged(`/rest/v1/shopping_search_snapshots?store_name=eq.${encodedStore}&product_code=neq.&naver_product_id=neq.&select=id,product_code,naver_product_id,collected_date&order=collected_date.desc,id.desc`, { maxRows: 10000 }),
     // naver_product_id(가격비교 ID)는 상품마다 계속 바뀔 수 있어서 naverIdToCode 매핑조차
     // 못 찾는 경우가 있다 — 그럴 땐 상품명으로 마스터/이력과 매칭해서 진짜 코드를 역추적한다.
     fetchJson(`/rest/v1/product_rankings?select=code,name&code=neq.&name=neq.&limit=5000`).catch(() => []),

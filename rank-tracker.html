@@ -1050,7 +1050,7 @@ document.addEventListener("click", (e) => {
 // 너무 많아져 fetch() 자체가 "Failed to fetch" 네트워크 예외를 던지는 사고가 있었다
 // (2026-08-12, 확장프로그램 쪽 동일 패턴에서 실제로 발생) — concurrency만큼만 묶어서
 // 순차 배치로 병렬 처리하고, fetch() 예외도 재시도 대상에 포함시킨다.
-async function fetchAllPaged(url, headers, pageSize = 1000, maxPages = 30, concurrency = 4) {
+async function fetchAllPaged(url, headers, pageSize = 1000, maxPages = 30, concurrency = 8) {
   async function fetchPage(offset, includeCount = false) {
     let response = null;
     for (let attempt = 0; attempt < 3; attempt += 1) {
