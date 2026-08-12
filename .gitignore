@@ -1,3 +1,4 @@
 .claude/
 supabase/.temp/
 node_modules/
+supabase/backups/
