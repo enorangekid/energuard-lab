@@ -351,21 +351,37 @@ async function fetchJson(path) {
 // limit=10000을 요청해도 응답이 최신 1000행으로 조용히 잘린다(2026-08-12 실측). keyword_rank_history/
 // shopping_search_snapshots는 스토어 하나만 해도 수만 행이 넘어가 항상 이 캡에 걸렸고, 정렬 기준이
 // 최신순(collected_date desc)이라 오래된 상품부터 매칭 대상에서 빠지며 잘못된 이탈/누락으로
-// 이어졌다. offset을 밀어가며 전부 받아온다. maxRows는 무한루프 방지용 안전장치.
+// 이어졌다. offset을 밀어가며 전부 받아오되, 순차로 하면 스토어당 15~20번 왕복이라 수집 시작
+// 전 "준비 중" 단계가 10초 넘게 걸려 멈춘 것처럼 보였다(2026-08-12) — rank-tracker.html의
+// fetchAllPaged()와 같은 방식으로, 첫 페이지에서 전체 개수를 알아낸 뒤 나머지는 병렬로 받는다.
 async function fetchJsonPaged(path, { pageSize = 1000, maxRows = 100000 } = {}) {
   const sep = path.includes("?") ? "&" : "?";
-  const rows = [];
-  for (let offset = 0; rows.length < maxRows; offset += pageSize) {
+  async function fetchPage(offset, includeCount) {
     let response;
     for (let attempt = 0; attempt < 3; attempt += 1) {
-      response = await fetch(`${SUPABASE_URL}${path}${sep}offset=${offset}&limit=${pageSize}`, { headers: sbHeaders() });
-      if (response.ok) break;
+      response = await fetch(`${SUPABASE_URL}${path}${sep}offset=${offset}&limit=${pageSize}`, {
+        headers: sbHeaders(includeCount ? { Prefer: "count=exact" } : {}),
+      });
+      if (response.ok) return response;
       if (attempt < 2) await sleep(350 * (attempt + 1));
     }
-    if (!response.ok) throw new Error(`저장 데이터 조회 실패: ${await response.text()}`);
-    const page = await response.json();
-    rows.push(...page);
-    if (page.length < pageSize) break;
+    return response;
+  }
+
+  const first = await fetchPage(0, true);
+  if (!first.ok) throw new Error(`저장 데이터 조회 실패: ${await first.text()}`);
+  const firstPage = await first.json();
+  const total = Number((first.headers.get("content-range") || "").split("/")[1]) || firstPage.length;
+  const totalPages = Math.min(Math.ceil(maxRows / pageSize), Math.ceil(total / pageSize));
+  const rows = firstPage.slice();
+  if (totalPages > 1 && firstPage.length === pageSize) {
+    const responses = await Promise.all(
+      Array.from({ length: totalPages - 1 }, (_, i) => fetchPage((i + 1) * pageSize)),
+    );
+    const failed = responses.find((response) => !response.ok);
+    if (failed) throw new Error(`저장 데이터 조회 실패: ${await failed.text()}`);
+    const pages = await Promise.all(responses.map((response) => response.json()));
+    pages.forEach((page) => rows.push(...page));
   }
   return rows;
 }
