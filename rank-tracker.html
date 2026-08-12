@@ -2367,18 +2367,36 @@ function sbHeaders(extra) {
   };
 }
 
+// PostgREST는 limit 파라미터와 무관하게 서버 설정(db-max-rows, 이 프로젝트는 1000)보다 많이는
+// 절대 안 돌려준다 — tracked_item_history는 지금은 1000행 미만이라 안 걸리지만, 계속 쌓이는
+// 이력 테이블이라 언젠가 넘으면 최신 데이터만 조용히 잘려 그래프 뒷부분이 사라진다(2026-08-12,
+// keyword_rank_history/shopping_search_snapshots에서 실제로 이 문제가 있었음). offset을
+// 밀어가며 전부 받아온다.
+async function fetchJsonPaged(path, { pageSize = 1000, maxRows = 100000 } = {}) {
+  const sep = path.includes("?") ? "&" : "?";
+  const rows = [];
+  for (let offset = 0; rows.length < maxRows; offset += pageSize) {
+    const res = await fetch(`${SUPABASE_URL}${path}${sep}offset=${offset}&limit=${pageSize}`, { headers: sbHeaders() });
+    if (!res.ok) throw new Error("조회 실패 (" + res.status + ")");
+    const page = await res.json();
+    rows.push(...page);
+    if (page.length < pageSize) break;
+  }
+  return rows;
+}
+
 async function loadTrackedData() {
   const list = document.getElementById("trackedItemList");
   list.innerHTML = `<div class="empty">불러오는 중...</div>`;
   showLoading("아이템 추적 데이터를 불러오는 중...");
   try {
-    const [itemsRes, histRes] = await Promise.all([
+    const [itemsRes, historyRows] = await Promise.all([
       fetch(`${SUPABASE_URL}/rest/v1/tracked_items?select=*&order=created_at.asc`, { headers: sbHeaders() }),
-      fetch(`${SUPABASE_URL}/rest/v1/tracked_item_history?select=*&order=collected_date.desc,checked_at.desc&limit=3000`, { headers: sbHeaders() }),
+      fetchJsonPaged(`/rest/v1/tracked_item_history?select=*&order=collected_date.desc,checked_at.desc`),
     ]);
-    if (!itemsRes.ok || !histRes.ok) throw new Error("조회 실패 (" + (itemsRes.ok ? histRes.status : itemsRes.status) + ")");
+    if (!itemsRes.ok) throw new Error("조회 실패 (" + itemsRes.status + ")");
     trackedItems = await itemsRes.json();
-    trackedHistory = await histRes.json();
+    trackedHistory = historyRows;
     trackedLoaded = true;
     renderItemGroupFilter();
     renderTrackedItems();
