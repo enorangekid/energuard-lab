@@ -35,6 +35,10 @@
     auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
   });
 
+  authClient.auth.onAuthStateChange(function (event) {
+    if (event === "SIGNED_OUT") redirectToLogin();
+  });
+
   const ready = authClient.auth.getSession().then(function (result) {
     const session = result && result.data && result.data.session;
     if (!session || !session.access_token) {
