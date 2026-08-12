@@ -1046,33 +1046,42 @@ document.addEventListener("click", (e) => {
 
 // 전체 테이블을 1,000행씩 순차로 받으면 수집량 많은 스토어(1만행+)에서 왕복이 20번 가까이
 // 걸려 그것만으로 몇 초씩 든다 — 첫 요청에서 count=exact로 전체 개수를 알아낸 뒤 나머지
-// 페이지를 한꺼번에 병렬로 쏴서 왕복 횟수를 사실상 1번으로 줄인다.
-async function fetchAllPaged(url, headers, pageSize = 1000, maxPages = 30) {
+// 페이지를 병렬로 받는다. 남은 페이지를 전부 한꺼번에(무제한 Promise.all) 쐈더니 연결이
+// 너무 많아져 fetch() 자체가 "Failed to fetch" 네트워크 예외를 던지는 사고가 있었다
+// (2026-08-12, 확장프로그램 쪽 동일 패턴에서 실제로 발생) — concurrency만큼만 묶어서
+// 순차 배치로 병렬 처리하고, fetch() 예외도 재시도 대상에 포함시킨다.
+async function fetchAllPaged(url, headers, pageSize = 1000, maxPages = 30, concurrency = 4) {
   async function fetchPage(offset, includeCount = false) {
-    let response;
+    let response = null;
     for (let attempt = 0; attempt < 3; attempt += 1) {
-      response = await fetch(`${url}&offset=${offset}&limit=${pageSize}`, {
-        headers: includeCount ? { ...headers, Prefer: "count=exact" } : headers,
-      });
-      if (response.ok) return response;
+      try {
+        response = await fetch(`${url}&offset=${offset}&limit=${pageSize}`, {
+          headers: includeCount ? { ...headers, Prefer: "count=exact" } : headers,
+        });
+        if (response.ok) return response;
+      } catch (_) {
+        response = null;
+      }
       if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 350 * (attempt + 1)));
     }
     return response;
   }
 
   const first = await fetchPage(0, true);
-  if (!first.ok) return { ok: false, status: first.status };
+  if (!first || !first.ok) return { ok: false, status: first ? first.status : 0 };
   const rows = await first.json();
   const total = Number((first.headers.get("content-range") || "").split("/")[1]) || rows.length;
   const totalPages = Math.min(maxPages, Math.ceil(total / pageSize));
   if (totalPages > 1 && rows.length === pageSize) {
-    const responses = await Promise.all(
-      Array.from({ length: totalPages - 1 }, (_, i) => fetchPage((i + 1) * pageSize)),
-    );
-    const failed = responses.find(response => !response.ok);
-    if (failed) return { ok: false, status: failed.status };
-    const rest = await Promise.all(responses.map(response => response.json()));
-    rest.forEach(more => rows.push(...more));
+    const offsets = Array.from({ length: totalPages - 1 }, (_, i) => (i + 1) * pageSize);
+    for (let i = 0; i < offsets.length; i += concurrency) {
+      const batch = offsets.slice(i, i + concurrency);
+      const responses = await Promise.all(batch.map(offset => fetchPage(offset)));
+      const failed = responses.find(response => !response || !response.ok);
+      if (failed) return { ok: false, status: failed ? failed.status : 0 };
+      const pages = await Promise.all(responses.map(response => response.json()));
+      pages.forEach(page => rows.push(...page));
+    }
   }
   return { ok: true, rows };
 }

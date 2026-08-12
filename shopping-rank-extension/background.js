@@ -352,36 +352,43 @@ async function fetchJson(path) {
 // shopping_search_snapshots는 스토어 하나만 해도 수만 행이 넘어가 항상 이 캡에 걸렸고, 정렬 기준이
 // 최신순(collected_date desc)이라 오래된 상품부터 매칭 대상에서 빠지며 잘못된 이탈/누락으로
 // 이어졌다. offset을 밀어가며 전부 받아오되, 순차로 하면 스토어당 15~20번 왕복이라 수집 시작
-// 전 "준비 중" 단계가 10초 넘게 걸려 멈춘 것처럼 보였다(2026-08-12) — rank-tracker.html의
-// fetchAllPaged()와 같은 방식으로, 첫 페이지에서 전체 개수를 알아낸 뒤 나머지는 병렬로 받는다.
-async function fetchJsonPaged(path, { pageSize = 1000, maxRows = 100000 } = {}) {
+// 전 "준비 중" 단계가 10초 넘게 걸려 멈춘 것처럼 보였다(2026-08-12). 처음엔 남은 페이지를
+// 전부 한꺼번에 병렬로 쐈더니(제한 없는 Promise.all) 연결이 너무 많아져 fetch() 자체가
+// "Failed to fetch"로 던지는 네트워크 예외가 났다 — 이 예외는 HTTP 상태코드가 아니라 재시도
+// 로직이 못 잡고 있었다. concurrency만큼만 묶어서 순차 배치로 병렬 처리하고, fetch() 자체의
+// 예외도 재시도 대상에 포함시킨다.
+async function fetchJsonPaged(path, { pageSize = 1000, maxRows = 100000, concurrency = 4 } = {}) {
   const sep = path.includes("?") ? "&" : "?";
   async function fetchPage(offset, includeCount) {
-    let response;
+    let lastError;
     for (let attempt = 0; attempt < 3; attempt += 1) {
-      response = await fetch(`${SUPABASE_URL}${path}${sep}offset=${offset}&limit=${pageSize}`, {
-        headers: sbHeaders(includeCount ? { Prefer: "count=exact" } : {}),
-      });
-      if (response.ok) return response;
+      try {
+        const response = await fetch(`${SUPABASE_URL}${path}${sep}offset=${offset}&limit=${pageSize}`, {
+          headers: sbHeaders(includeCount ? { Prefer: "count=exact" } : {}),
+        });
+        if (response.ok) return response;
+        lastError = new Error(`저장 데이터 조회 실패: ${await response.text()}`);
+      } catch (error) {
+        lastError = error;
+      }
       if (attempt < 2) await sleep(350 * (attempt + 1));
     }
-    return response;
+    throw lastError;
   }
 
   const first = await fetchPage(0, true);
-  if (!first.ok) throw new Error(`저장 데이터 조회 실패: ${await first.text()}`);
   const firstPage = await first.json();
   const total = Number((first.headers.get("content-range") || "").split("/")[1]) || firstPage.length;
   const totalPages = Math.min(Math.ceil(maxRows / pageSize), Math.ceil(total / pageSize));
   const rows = firstPage.slice();
   if (totalPages > 1 && firstPage.length === pageSize) {
-    const responses = await Promise.all(
-      Array.from({ length: totalPages - 1 }, (_, i) => fetchPage((i + 1) * pageSize)),
-    );
-    const failed = responses.find((response) => !response.ok);
-    if (failed) throw new Error(`저장 데이터 조회 실패: ${await failed.text()}`);
-    const pages = await Promise.all(responses.map((response) => response.json()));
-    pages.forEach((page) => rows.push(...page));
+    const offsets = Array.from({ length: totalPages - 1 }, (_, i) => (i + 1) * pageSize);
+    for (let i = 0; i < offsets.length; i += concurrency) {
+      const batch = offsets.slice(i, i + concurrency);
+      const responses = await Promise.all(batch.map((offset) => fetchPage(offset)));
+      const pages = await Promise.all(responses.map((response) => response.json()));
+      pages.forEach((page) => rows.push(...page));
+    }
   }
   return rows;
 }
