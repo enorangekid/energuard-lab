@@ -38,12 +38,15 @@ function initAdminTopbar() {
 
   bar.innerHTML = `
   <div class="topbar-inner">
-    <a href="../index.html" class="topbar-logo"><span>ENERGUARD</span><span>LAB</span></a>
+    <a href="work-notes.html" class="topbar-logo"><span>ENERGUARD</span><span>ADMIN</span></a>
     <nav class="topbar-nav">
       ${navHtml}
     </nav>
     <div class="topbar-actions">
-      <a href="../index.html" class="admin-exit-link">메인으로</a>
+      <a href="../index.html" class="admin-lab-link" title="에너가드랩으로 이동">
+        <span>에너가드연구소</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.69.66-1.15 1.18-1.68A6 6 0 1 0 7.73 12.3c.53.54 1.02 1 1.2 1.7"/></svg>
+      </a>
       <button type="button" class="topbar-icon-btn" id="adminLogoutBtn" aria-label="로그아웃" title="로그아웃">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
       </button>

@@ -31,6 +31,18 @@
   }
   .login-title { margin: 0; font-size: 24px; line-height: 1.3; letter-spacing: 0; }
   .login-sub { margin: 8px 0 28px; color: var(--sub); font-size: 13px; line-height: 1.55; }
+  .login-destination {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px;
+    margin: 0 0 22px; padding: 4px; border-radius: 7px; background: #f1f3f6;
+  }
+  .login-destination button {
+    height: 38px; border: 0; border-radius: 5px; background: transparent;
+    color: var(--sub); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+  }
+  .login-destination button:hover { color: var(--ink); }
+  .login-destination button.active {
+    background: #fff; color: var(--ink); box-shadow: 0 1px 4px rgba(15, 23, 42, .1);
+  }
   .login-field { margin-bottom: 16px; }
   .login-field label { display: block; margin-bottom: 7px; font-size: 13px; font-weight: 700; }
   .login-field input {
@@ -58,10 +70,14 @@
 </head>
 <body>
   <main class="login-shell">
-    <div class="login-brand" aria-label="ENERGUARD LAB"><span>ENERGUARD</span><span>LAB</span></div>
+    <div class="login-brand" aria-label="ENERGUARD"><span>ENERGUARD</span><span>COMPANY</span></div>
     <form class="login-card" id="loginForm">
       <h1 class="login-title">로그인</h1>
-      <p class="login-sub">에너가드랩은 내부 업무용 서비스입니다.<br>통합 관리자 계정으로 로그인해 주세요.</p>
+      <p class="login-sub">하나의 계정으로 통합 관리자와 에너가드랩을 이용합니다.</p>
+      <div class="login-destination" id="loginDestination" aria-label="로그인 후 이동할 서비스">
+        <button type="button" class="active" data-destination="admin/work-notes.html">통합 관리자</button>
+        <button type="button" data-destination="index.html">에너가드랩</button>
+      </div>
       <div class="login-field">
         <label for="loginEmail">아이디</label>
         <input type="email" id="loginEmail" autocomplete="username" placeholder="이메일 주소" required autofocus>
@@ -90,14 +106,22 @@
   });
 
   function redirectTarget() {
-    const raw = new URLSearchParams(location.search).get("redirect") || "index.html";
+    const requested = new URLSearchParams(location.search).get("redirect");
+    const selected = document.querySelector("[data-destination].active")?.dataset.destination;
+    const raw = requested || selected || "admin/work-notes.html";
     try {
       const target = new URL(raw, location.href);
-      return target.origin === location.origin ? target.href : new URL("index.html", location.href).href;
+      return target.origin === location.origin ? target.href : new URL("admin/work-notes.html", location.href).href;
     } catch (_) {
-      return new URL("index.html", location.href).href;
+      return new URL("admin/work-notes.html", location.href).href;
     }
   }
+
+  document.getElementById("loginDestination").addEventListener("click", function (event) {
+    const button = event.target.closest("[data-destination]");
+    if (!button) return;
+    this.querySelectorAll("[data-destination]").forEach((item) => item.classList.toggle("active", item === button));
+  });
 
   authClient.auth.getSession().then(({ data }) => {
     if (data.session) location.replace(redirectTarget());
