@@ -1336,8 +1336,8 @@ async function runCollection(config) {
 
   try {
     let completed = 0;
-    const context = await fetchCollectionContext(config);
-    await cleanupOldSnapshots();
+    // 매칭 컨텍스트 조회와 오래된 스냅샷 정리는 서로 의존관계가 없어 병렬로 돌린다.
+    const [context] = await Promise.all([fetchCollectionContext(config), cleanupOldSnapshots()]);
 
     for (const keywordMeta of config.keywords) {
       const completedBeforeKeyword = completed; // 이 키워드가 통째로 실패했을 때 진행률을 채우는 데 씀
