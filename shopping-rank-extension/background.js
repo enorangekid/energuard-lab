@@ -356,7 +356,12 @@ async function fetchJsonPaged(path, { pageSize = 1000, maxRows = 100000 } = {}) 
   const sep = path.includes("?") ? "&" : "?";
   const rows = [];
   for (let offset = 0; rows.length < maxRows; offset += pageSize) {
-    const response = await fetch(`${SUPABASE_URL}${path}${sep}offset=${offset}&limit=${pageSize}`, { headers: sbHeaders() });
+    let response;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      response = await fetch(`${SUPABASE_URL}${path}${sep}offset=${offset}&limit=${pageSize}`, { headers: sbHeaders() });
+      if (response.ok) break;
+      if (attempt < 2) await sleep(350 * (attempt + 1));
+    }
     if (!response.ok) throw new Error(`저장 데이터 조회 실패: ${await response.text()}`);
     const page = await response.json();
     rows.push(...page);
@@ -368,12 +373,12 @@ async function fetchJsonPaged(path, { pageSize = 1000, maxRows = 100000 } = {}) 
 async function fetchCollectionContext(config) {
   const encodedStore = encodeURIComponent(config.storeName);
   const [historyRows, trackedItems, snapshotIdRows, productMasters] = await Promise.all([
-    fetchJsonPaged(`/rest/v1/keyword_rank_history?store_name=eq.${encodedStore}&product_code=neq.&select=keyword,product_code,product_name,product_image,product_link,product_price,collected_date,checked_at&order=collected_date.desc,checked_at.desc`),
+    fetchJsonPaged(`/rest/v1/keyword_rank_history?store_name=eq.${encodedStore}&product_code=neq.&select=id,keyword,product_code,product_name,product_image,product_link,product_price,collected_date,checked_at&order=collected_date.desc,checked_at.desc,id.desc`),
     fetchJson("/rest/v1/tracked_items?select=product_code,product_name,product_image,product_link,mall_name,keywords&limit=5000"),
     // 가격비교(카탈로그)형으로 렌더링된 카드는 chnl_prod_no(product_code)가 안 잡히고
     // naver_product_id만 잡힐 때가 있다 — 예전에 이 카드의 product_code가 잡혔던 적이 있으면
     // naver_product_id로 역추적해서 같은 상품으로 이어붙이기 위한 매핑.
-    fetchJsonPaged(`/rest/v1/shopping_search_snapshots?store_name=eq.${encodedStore}&product_code=neq.&naver_product_id=neq.&select=product_code,naver_product_id,collected_date&order=collected_date.desc`),
+    fetchJsonPaged(`/rest/v1/shopping_search_snapshots?store_name=eq.${encodedStore}&product_code=neq.&naver_product_id=neq.&select=id,product_code,naver_product_id,collected_date&order=collected_date.desc,id.desc`),
     // naver_product_id(가격비교 ID)는 상품마다 계속 바뀔 수 있어서 naverIdToCode 매핑조차
     // 못 찾는 경우가 있다 — 그럴 땐 상품명으로 마스터/이력과 매칭해서 진짜 코드를 역추적한다.
     fetchJson(`/rest/v1/product_rankings?select=code,name&code=neq.&name=neq.&limit=5000`).catch(() => []),

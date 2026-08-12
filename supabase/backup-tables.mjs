@@ -13,7 +13,6 @@ const SUPABASE_ANON_KEY = "sb_publishable_MiBvlf3d6ulcVBsi7Odcgw_PTXSmXKj";
 const TABLES = [
   "niche_trend_daily_snapshot",
   "realtime_trend_archive",
-  "blog_rank_targets",
   "blog_rank_history",
   "shopping_search_snapshots",
   "blog_rank_diagnosis",
@@ -98,8 +97,13 @@ async function main() {
 
   await fs.writeFile(path.join(outDir, "_summary.json"), JSON.stringify(summary, null, 2), "utf8");
   const ok = summary.filter((s) => s.status === "ok");
+  const failed = summary.filter((s) => s.status !== "ok");
   const totalRows = ok.reduce((sum, s) => sum + s.rows, 0);
   console.log(`\n완료: ${ok.length}/${TABLES.length}개 테이블, 총 ${totalRows.toLocaleString()}행 -> ${outDir}`);
+  if (failed.length) {
+    console.error(`백업 미완료: ${failed.map((item) => item.table).join(", ")}`);
+    process.exitCode = 1;
+  }
 }
 
 main().catch((e) => {

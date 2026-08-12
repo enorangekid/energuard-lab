@@ -1046,20 +1046,30 @@ document.addEventListener("click", (e) => {
 // 걸려 그것만으로 몇 초씩 든다 — 첫 요청에서 count=exact로 전체 개수를 알아낸 뒤 나머지
 // 페이지를 한꺼번에 병렬로 쏴서 왕복 횟수를 사실상 1번으로 줄인다.
 async function fetchAllPaged(url, headers, pageSize = 1000, maxPages = 30) {
-  const first = await fetch(`${url}&offset=0&limit=${pageSize}`, {
-    headers: { ...headers, Prefer: "count=exact" },
-  });
+  async function fetchPage(offset, includeCount = false) {
+    let response;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      response = await fetch(`${url}&offset=${offset}&limit=${pageSize}`, {
+        headers: includeCount ? { ...headers, Prefer: "count=exact" } : headers,
+      });
+      if (response.ok) return response;
+      if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 350 * (attempt + 1)));
+    }
+    return response;
+  }
+
+  const first = await fetchPage(0, true);
   if (!first.ok) return { ok: false, status: first.status };
   const rows = await first.json();
   const total = Number((first.headers.get("content-range") || "").split("/")[1]) || rows.length;
   const totalPages = Math.min(maxPages, Math.ceil(total / pageSize));
   if (totalPages > 1 && rows.length === pageSize) {
-    const rest = await Promise.all(
-      Array.from({ length: totalPages - 1 }, (_, i) =>
-        fetch(`${url}&offset=${(i + 1) * pageSize}&limit=${pageSize}`, { headers })
-          .then(r => r.ok ? r.json() : [])
-      ),
+    const responses = await Promise.all(
+      Array.from({ length: totalPages - 1 }, (_, i) => fetchPage((i + 1) * pageSize)),
     );
+    const failed = responses.find(response => !response.ok);
+    if (failed) return { ok: false, status: failed.status };
+    const rest = await Promise.all(responses.map(response => response.json()));
     rest.forEach(more => rows.push(...more));
   }
   return { ok: true, rows };
@@ -1072,13 +1082,13 @@ async function fetchHistory(store) {
   // source=nplus_store(N+스토어 실험용 수집)도 제외 — 실험 중단 후에도 남아있던 행이 checked_at
   // 기준 "최신"으로 잡혀 가격비교(curated) 순위 위에 덮어써 보이는 문제가 있었다(2026-08-06).
   const base = `${SUPABASE_URL}/rest/v1/keyword_rank_history?store_name=eq.${encodeURIComponent(store)}&source=neq.naver_diagnosis&source=neq.nplus_store`;
-  const order = `&order=collected_date.desc,checked_at.desc`;
+  const order = `&order=collected_date.desc,checked_at.desc,id.desc`;
   const headers = { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer " + SUPABASE_ANON_KEY };
   const selects = [
-    `&select=keyword,main_keyword,is_sub,source,rank,max_rank,product_code,product_name,product_image,product_link,product_price,search_volume_pc,search_volume_mobile,search_volume_total,collected_date,checked_at`,
-    `&select=keyword,main_keyword,is_sub,source,rank,max_rank,product_code,product_name,product_image,product_link,product_price,collected_date,checked_at`,
-    `&select=keyword,main_keyword,is_sub,source,rank,max_rank,product_code,product_name,product_image,collected_date,checked_at`,
-    `&select=keyword,main_keyword,is_sub,rank,max_rank,product_code,product_name,collected_date,checked_at`,
+    `&select=id,keyword,main_keyword,is_sub,source,rank,max_rank,product_code,product_name,product_image,product_link,product_price,search_volume_pc,search_volume_mobile,search_volume_total,collected_date,checked_at`,
+    `&select=id,keyword,main_keyword,is_sub,source,rank,max_rank,product_code,product_name,product_image,product_link,product_price,collected_date,checked_at`,
+    `&select=id,keyword,main_keyword,is_sub,source,rank,max_rank,product_code,product_name,product_image,collected_date,checked_at`,
+    `&select=id,keyword,main_keyword,is_sub,rank,max_rank,product_code,product_name,collected_date,checked_at`,
   ];
   for (const select of selects) {
     // Supabase는 요청당 최대 1,000행만 주므로 페이지를 나눠 받는다. 예전엔 6,000행에서
@@ -1105,7 +1115,7 @@ async function fetchProductMasters() {
     `?select=code,keyword,category_tab,image_url,name,memo,is_checked`,
   ];
   for (const select of selects) {
-    const result = await fetchAllPaged(base + select, headers, 1000, 10);
+    const result = await fetchAllPaged(base + select + `&order=code.asc`, headers, 1000, 10);
     if (!result.ok) {
       if (result.status === 400) continue;
       throw new Error("상품 마스터 조회 실패 (" + result.status + ")");
@@ -2392,7 +2402,7 @@ async function loadTrackedData() {
   try {
     const [itemsRes, historyRows] = await Promise.all([
       fetch(`${SUPABASE_URL}/rest/v1/tracked_items?select=*&order=created_at.asc`, { headers: sbHeaders() }),
-      fetchJsonPaged(`/rest/v1/tracked_item_history?select=*&order=collected_date.desc,checked_at.desc`),
+      fetchJsonPaged(`/rest/v1/tracked_item_history?select=*&order=collected_date.desc,checked_at.desc,product_code.asc,keyword.asc`),
     ]);
     if (!itemsRes.ok) throw new Error("조회 실패 (" + itemsRes.status + ")");
     trackedItems = await itemsRes.json();
