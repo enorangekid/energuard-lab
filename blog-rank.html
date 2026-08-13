@@ -4398,7 +4398,12 @@ async function autoRefreshDiagnosis() {
   const mine = state.blogs.filter(blog => blog.is_mine && blog.active);
   if (!mine.length) return;
   try {
-    state = await callApi("collectDiagnosis", {});
+    // collectDiagnosis는 blog_rank_diagnosis 테이블만 갱신하지만 응답엔 listData() 전체가 딸려온다.
+    // 여기서 state 전체를 통째로 덮어쓰면, 이 스크래핑(몇 초 소요)이 진행되는 동안 사용자가
+    // 다른 화면에서 키워드/메모 등을 추가한 최신 상태가 응답 도착 시점에 되돌아가 버린다.
+    // diagnosis만 반영해서 이 레이스 컨디션을 피한다.
+    const data = await callApi("collectDiagnosis", {});
+    state.diagnosis = data.diagnosis;
     renderAll();
   } catch {
     // 진입 시 자동 새로고침 실패는 조용히 무시 — 화면엔 이미 캐시된 값이 떠 있고, 수동 버튼으로 재시도 가능
@@ -4424,7 +4429,8 @@ function closeModal() {
 async function refreshDiagnosis(blogId) {
   showLoading("블로그 지수와 방문자 현황을 조회하는 중입니다.");
   try {
-    state = await callApi("collectDiagnosis", { blogId });
+    const data = await callApi("collectDiagnosis", { blogId });
+    state.diagnosis = data.diagnosis;
     renderAll();
     showToast("블로그 진단을 새로고침했습니다.");
   } catch (error) {
