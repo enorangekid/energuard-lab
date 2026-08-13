@@ -1616,10 +1616,9 @@ function getCategoryLeadKeyword(product, categoryName) {
       .filter(k => !k.is_sub && ETC_MAIN_KEYWORDS.includes(k.keyword))
       .sort((a, b) => ETC_MAIN_KEYWORDS.indexOf(a.keyword) - ETC_MAIN_KEYWORDS.indexOf(b.keyword) || rankSortValue(a.rank) - rankSortValue(b.rank))[0];
     if (etcMain) return etcMain;
-    const etcGrouped = product.keywords
-      .filter(k => ETC_MAIN_KEYWORDS.includes(k.main_keyword))
-      .sort((a, b) => ETC_MAIN_KEYWORDS.indexOf(a.main_keyword) - ETC_MAIN_KEYWORDS.indexOf(b.main_keyword) || Number(a.is_sub) - Number(b.is_sub) || rankSortValue(a.rank) - rankSortValue(b.rank))[0];
-    if (etcGrouped) return etcGrouped;
+    // 예전엔 진짜 메인(is_sub=false)이 없으면 같은 그룹의 보조 키워드(예: 우레탄뿜칠의
+    // 스프레이폼)를 대신 "메인키워드"로 보여줬는데, 그럼 메인으로는 한 번도 노출 안 된
+    // 상품이 노출된 것처럼 보인다(2026-08-13) — 진짜 메인이 없으면 그냥 없는 걸로 둔다.
   }
   const preferred = CATEGORY_MAIN_KEYWORD[categoryName];
   if (preferred) {
