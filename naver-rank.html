@@ -686,6 +686,13 @@ const STORE_BATCH_KEYWORDS = {
   ],
 };
 
+// 스토어에 배정된 키워드로 검색했을 때, 의도한 상품이 아닌데 우연히 같이 걸리는 상품이 있으면
+// 여기 등록한다 — saveRankRows()가 해당 (키워드, 상품코드) 조합만 저장을 건너뛴다(2026-08-13,
+// "한국 단열" 스토어의 "난방단열재" 키워드에 전기난방필름단열재(4705673971)가 잘못 같이 잡히던 문제).
+const KEYWORD_PRODUCT_EXCLUSIONS = {
+  "난방단열재": ["4705673971"],
+};
+
 /* 스토어명 → 스마트스토어 홈 (경쟁사 + 내 스토어) */
 const STORE_HOME = {
   "한국 단열": "hkdy",       "벽산단열재": "kis114",    "단열코리아": "sp14011",
@@ -1755,11 +1762,12 @@ async function saveWatchedRows(keyword, collectedDate, watched) {
    오늘 여러 번 수집해도 오늘자 행만 갱신되고, 날짜가 바뀌면 새 행이 생긴다.
    volume이 있으면 search_volume_pc/mobile/total도 같이 저장 — 랭킹추적에서 조인 없이 바로 읽을 수 있게. */
 async function saveRankRows(keyword, mainKeyword, isSub, collectedDate, rows, volume) {
+  const excludedCodes = new Set(KEYWORD_PRODUCT_EXCLUSIONS[keyword] || []);
   const uniqueRows = [];
   const seenProductCodes = new Set();
   rows.forEach(r => {
     const code = String(r.productId || "").trim();
-    if (!code || seenProductCodes.has(code)) return;
+    if (!code || seenProductCodes.has(code) || excludedCodes.has(code)) return;
     seenProductCodes.add(code);
     uniqueRows.push(r);
   });
