@@ -1626,7 +1626,10 @@ function getCategoryLeadKeyword(product, categoryName) {
     const exact = product.keywords.find(k => k.keyword === preferred);
     if (exact) return exact;
   }
-  return product.keywords.find(k => !k.is_sub) || product.keywords[0] || null;
+  // 진짜 메인(is_sub=false) 키워드로는 아직 한 번도 노출이 안 잡힌 상품을, 어쩌다 걸린 보조
+  // 키워드 하나로 "메인키워드"인 것처럼 보여주면 안 된다(2026-08-13) — 그럴 땐 그냥 메인이
+  // 없는 것으로 둔다(카드에는 "-"/미수집으로 표시됨).
+  return product.keywords.find(k => !k.is_sub) || null;
 }
 
 function categoryProductSort(categoryName) {
@@ -1740,7 +1743,7 @@ function renderProductCard(product, categoryName) {
         <div class="product-sub"><span class="product-code-inline">${esc(product.code)}</span>${priceHtml}</div>
       </div>
       <span class="main-keyword-cell"><span>${esc(mainKeyword?.keyword || "-")}</span></span>
-      ${rankBadgeHtml(mainKeyword ? mainKeyword.rank : null)}
+      ${rankBadgeHtml(mainKeyword ? mainKeyword.rank : undefined)}
       ${deltaHtml(mainKeyword?.delta ?? null)}
       <span class="product-count">보조 ${subCount}개</span>
       <span class="product-actions">
