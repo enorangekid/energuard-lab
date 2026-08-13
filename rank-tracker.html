@@ -1635,6 +1635,10 @@ function categoryProductSort(categoryName) {
   return (a, b) => {
     const aLead = getCategoryLeadKeyword(a, categoryName);
     const bLead = getCategoryLeadKeyword(b, categoryName);
+    // 메인 데이터가 진짜 없는 상품(aLead/bLead가 null)은 목록 맨 아래로 가라앉힌다 —
+    // 안 그러면 "-" 상품들이 순위 있는 상품들 사이사이에 끼어서 목록이 지저분해 보인다(2026-08-13).
+    const leadGap = Number(!aLead) - Number(!bLead);
+    if (leadGap) return leadGap;
     const displayKeywords = getDisplayKeywords(categoryName);
     if (displayKeywords) {
       return displayKeywords.indexOf(aLead?.keyword) - displayKeywords.indexOf(bLead?.keyword)
