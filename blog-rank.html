@@ -3265,7 +3265,8 @@ function exposureDropouts(blogId) {
     if (!current || !previous || !previous.found || current.found) return;
     const key = previous.result_log_no || previous.result_title || previous.result_url || kw.keyword;
     if (!byPost.has(key)) {
-      byPost.set(key, { title: previous.result_title, url: previous.result_url, logNo: previous.result_log_no, keywords: [] });
+      const thumbnailUrl = postContentCheckFor(blogId, previous.result_log_no)?.thumbnail_url;
+      byPost.set(key, { title: previous.result_title, url: previous.result_url, logNo: previous.result_log_no, thumbnailUrl, keywords: [] });
     }
     byPost.get(key).keywords.push({ keyword: kw.keyword, prevRank: previous.rank, prevDate: previous.checked_date });
   });
@@ -3281,7 +3282,8 @@ function missingPostsFor(blogId) {
     .filter(row => row.blog_id === blogId && row.found === false)
     .map(row => {
       const post = state.posts.find(p => p.blog_id === blogId && p.log_no === row.log_no);
-      return { title: post?.title, url: post?.post_url, logNo: row.log_no, missingSince: row.missing_since, checkedAt: row.checked_at };
+      const thumbnailUrl = postContentCheckFor(blogId, row.log_no)?.thumbnail_url;
+      return { title: post?.title, url: post?.post_url, logNo: row.log_no, thumbnailUrl, missingSince: row.missing_since, checkedAt: row.checked_at };
     })
     .sort((a, b) => String(b.missingSince || b.checkedAt || "").localeCompare(String(a.missingSince || a.checkedAt || "")));
 }
@@ -3297,6 +3299,7 @@ function kstDateOnly(isoString) {
 }
 
 function exposureMissingRowHtml(post, rank) {
+  const thumb = post.thumbnailUrl ? `<img class="chip-thumb" src="${esc(post.thumbnailUrl)}" loading="lazy" alt="">` : "";
   const nameHtml = post.url
     ? `<a class="summary-top3-name" href="${esc(post.url)}" target="_blank" rel="noopener" title="${esc(post.title || post.logNo || "")}">${esc(post.title || post.logNo || "포스팅 확인 필요")}</a>`
     : `<span class="summary-top3-name">${esc(post.title || post.logNo || "포스팅 확인 필요")}</span>`;
@@ -3310,6 +3313,7 @@ function exposureMissingRowHtml(post, rank) {
   return `<div class="summary-mover-row">
     <div class="summary-mover-row-main">
       <span class="summary-top3-rank">${rank}</span>
+      ${thumb}
       ${nameHtml}
       <span class="summary-mover-delta down">누락</span>
     </div>
@@ -3358,6 +3362,7 @@ function dashMoverSubCard(title, rowsHtml) {
 }
 
 function exposureDropoutRowHtml(post, rank) {
+  const thumb = post.thumbnailUrl ? `<img class="chip-thumb" src="${esc(post.thumbnailUrl)}" loading="lazy" alt="">` : "";
   const nameHtml = post.url
     ? `<a class="summary-top3-name" href="${esc(post.url)}" target="_blank" rel="noopener" title="${esc(post.title || post.logNo || "")}">${esc(post.title || post.logNo || "포스팅 확인 필요")}</a>`
     : `<span class="summary-top3-name">${esc(post.title || post.logNo || "포스팅 확인 필요")}</span>`;
@@ -3365,6 +3370,7 @@ function exposureDropoutRowHtml(post, rank) {
   return `<div class="summary-mover-row">
     <div class="summary-mover-row-main">
       <span class="summary-top3-rank">${rank}</span>
+      ${thumb}
       ${nameHtml}
       <span class="summary-mover-delta down">이탈 ${post.keywords.length}건</span>
     </div>
