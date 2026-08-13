@@ -144,6 +144,25 @@ async function db(path: string, init: RequestInit = {}) {
   return text ? JSON.parse(text) : null;
 }
 
+// PostgREST는 요청 limit과 상관없이 db-max-rows(현재 1000)를 넘는 응답을 조용히 잘라낸다.
+// listData()의 여러 테이블이 이미 1000행을 넘겨서, 특히 created_at 오름차순 정렬인
+// blog_rank_post_keywords는 방금 추가한 최신 행이 잘려나가 "등록된 키워드가 없다"는
+// 버그로 이어졌다. offset 페이지네이션으로 끝까지 모아온다.
+async function dbAll<T>(path: string, maxRows = 20000): Promise<T[]> {
+  const sep = path.includes("?") ? "&" : "?";
+  const pageSize = 1000;
+  const rows: T[] = [];
+  let offset = 0;
+  while (offset < maxRows) {
+    const page = await db(`${path}${sep}offset=${offset}&limit=${pageSize}`) as T[];
+    if (!page || !page.length) break;
+    rows.push(...page);
+    if (page.length < pageSize) break;
+    offset += pageSize;
+  }
+  return rows;
+}
+
 function cleanText(value: unknown) {
   return String(value ?? "").trim();
 }
@@ -1282,16 +1301,16 @@ async function collectPostAiCheck(body: Record<string, unknown>) {
 
 async function listData() {
   const [blogs, posts, postKeywords, history, diagnosis, targetKeywords, exposureHistory, postTitleChecks, postContentChecks, postAiChecks] = await Promise.all([
-    db("blog_rank_blogs?select=*&order=created_at.desc") as Promise<BlogRow[]>,
+    dbAll<BlogRow>("blog_rank_blogs?select=*&order=created_at.desc"),
     db("blog_rank_posts?select=*&order=published_at.desc.nullslast&limit=500") as Promise<PostRow[]>,
-    db("blog_rank_post_keywords?select=*&order=created_at.asc") as Promise<PostKeywordRow[]>,
-    db("blog_rank_history?select=*&order=collected_at.desc&limit=3000") as Promise<Array<Record<string, unknown>>>,
-    db("blog_rank_diagnosis?select=*&order=snapshot_date.desc&limit=400") as Promise<Array<Record<string, unknown>>>,
-    db("blog_rank_target_keywords?select=*&order=created_at.asc") as Promise<TargetKeywordRow[]>,
-    db("blog_rank_exposure_history?select=*&order=collected_at.desc&limit=2000") as Promise<Array<Record<string, unknown>>>,
-    db("blog_rank_post_title_check?select=*") as Promise<Array<Record<string, unknown>>>,
-    db("blog_rank_post_content_check?select=*") as Promise<Array<Record<string, unknown>>>,
-    db("blog_rank_post_ai_check?select=*") as Promise<Array<Record<string, unknown>>>,
+    dbAll<PostKeywordRow>("blog_rank_post_keywords?select=*&order=created_at.asc"),
+    dbAll<Record<string, unknown>>("blog_rank_history?select=*&order=collected_at.desc", 3000),
+    dbAll<Record<string, unknown>>("blog_rank_diagnosis?select=*&order=snapshot_date.desc", 400),
+    dbAll<TargetKeywordRow>("blog_rank_target_keywords?select=*&order=created_at.asc"),
+    dbAll<Record<string, unknown>>("blog_rank_exposure_history?select=*&order=collected_at.desc", 2000),
+    dbAll<Record<string, unknown>>("blog_rank_post_title_check?select=*"),
+    dbAll<Record<string, unknown>>("blog_rank_post_content_check?select=*"),
+    dbAll<Record<string, unknown>>("blog_rank_post_ai_check?select=*"),
   ]);
 
   return {
