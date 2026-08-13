@@ -1366,7 +1366,7 @@ function usableProductImage(value) {
   return url && !/search\.shopping\.naver\.com\/search\//i.test(url) ? url : "";
 }
 
-function buildProducts(rows, masterMaps, collectedKeywords) {
+function buildProducts(rows, masterMaps, collectedKeywords, todaysMaxRankByKeyword) {
   const latestDate = rows[0]?.collected_date || rows[0]?.checked_at?.slice(0, 10) || "";
   const latestRows = rows.filter(r => rankDate(r) === latestDate && r.rank != null && r.product_code);
   const previousByProductKeyword = new Map();
@@ -1488,12 +1488,17 @@ function buildProducts(rows, masterMaps, collectedKeywords) {
       .map(([date, rank]) => ({ date, rank }))
       .sort((a, b) => a.date.localeCompare(b.date));
     const wasCollectedToday = !collectedKeywords || collectedKeywords.has(prevRow.keyword);
+    const todaysMaxRank = todaysMaxRankByKeyword?.get(prevRow.keyword);
+    const outOfCheckedDepth = wasCollectedToday && todaysMaxRank != null
+      && prevRow.rank != null && Number(prevRow.rank) > todaysMaxRank;
+    const treatAsDropped = wasCollectedToday && !outOfCheckedDepth;
     product.keywords.push({
       ...prevRow,
-      rank: wasCollectedToday ? null : undefined,
+      rank: treatAsDropped ? null : undefined,
       delta: null,
-      isDropped: wasCollectedToday,
+      isDropped: treatAsDropped,
       notCollectedToday: !wasCollectedToday,
+      outOfCheckedDepth,
       lastRank: prevRow.rank,
       lastSeenDate: rankDate(prevRow),
       latestDate,
@@ -1521,7 +1526,7 @@ function buildProducts(rows, masterMaps, collectedKeywords) {
    행이 조용히 없어질 뿐이라 buildProducts()가 만드는 최신 스냅샷에는 흔적이 안 남는다).
    그래서 여기서는 rows 전체를 훑어 "최신 수집일 이전엔 순위가 있었는데 최신 수집일엔
    없는" 조합을 따로 찾아낸다. */
-function buildDroppedKeywords(rows, masterMaps, collectedKeywords) {
+function buildDroppedKeywords(rows, masterMaps, collectedKeywords, todaysMaxRankByKeyword) {
   const latestDate = rows[0]?.collected_date || rows[0]?.checked_at?.slice(0, 10) || "";
   const latestKeys = new Set();
   rows.forEach(row => {
@@ -1538,6 +1543,10 @@ function buildDroppedKeywords(rows, masterMaps, collectedKeywords) {
     // 오늘 이 키워드 자체가 수집 시도조차 안 됐으면(cron 시간 예산 초과) 진짜 이탈인지 알 수
     // 없으므로 "이탈 상품" 목록에서 제외한다 — 잘못된 이탈 오탐의 근본 원인.
     if (collectedKeywords && !collectedKeywords.has(row.keyword)) return;
+    // 예전 순위가 오늘 실제 확인 범위(max_rank)보다 깊으면 확인을 못 한 것뿐이라 진짜 이탈이
+    // 아니다(2026-08-13, 수집 깊이가 1000위→200위로 줄면서 생긴 오탐).
+    const todaysMaxRank = todaysMaxRankByKeyword?.get(row.keyword);
+    if (todaysMaxRank != null && Number(row.rank) > todaysMaxRank) return;
     const master = findProductMaster(row, masterMaps);
     const code = master?.code || row.product_code;
     const key = code + "|" + row.keyword;
@@ -2290,10 +2299,21 @@ async function loadAndRender() {
     // 뒤쪽 키워드는 아예 검색되지 않는데, 이 경우와 "검색했지만 순위 밖으로 밀린" 경우를
     // 구분하지 않으면 미수집 키워드까지 전부 "이탈"로 잘못 표시된다. 키워드가 오늘 한 번이라도
     // 행으로 남았으면(찾았든 못 찾았든) 시도한 것으로 본다.
-    const collectedKeywords = new Set(rows.filter(r => rankDate(r) === rankDate(rows[0])).map(r => r.keyword));
-    const products = buildProducts(rows, masterMaps, collectedKeywords);
+    const latestRowsToday = rows.filter(r => rankDate(r) === rankDate(rows[0]));
+    const collectedKeywords = new Set(latestRowsToday.map(r => r.keyword));
+    // 오늘 이 키워드를 실제로 몇 위까지 확인했는지 — 수집 방식이 바뀌면서(1000위 조회 →
+    // 확장프로그램 스크래핑, 최대 200위) 예전엔 잡히던 순위가 오늘 확인 범위 밖에 있을 뿐인데
+    // "이탈"로 잘못 뜨는 문제가 있었다(2026-08-13). 예전 순위가 오늘 max_rank보다 깊으면
+    // 진짜 이탈이 아니라 확인 범위 밖으로 처리한다.
+    const todaysMaxRankByKeyword = new Map();
+    latestRowsToday.forEach(r => {
+      if (r.max_rank != null && !todaysMaxRankByKeyword.has(r.keyword)) {
+        todaysMaxRankByKeyword.set(r.keyword, Number(r.max_rank));
+      }
+    });
+    const products = buildProducts(rows, masterMaps, collectedKeywords, todaysMaxRankByKeyword);
     cachedProducts = products;
-    cachedDropped = buildDroppedKeywords(rows, masterMaps, collectedKeywords);
+    cachedDropped = buildDroppedKeywords(rows, masterMaps, collectedKeywords, todaysMaxRankByKeyword);
     const categoryCount = buildCategorySections(products).length;
     summary.innerHTML = `상품 ${products.length}개 · 카테고리 ${categoryCount}개 · 키워드 ${collectedKeywords.size}개 수집됨 · 최근 수집: ${timeAgo(rows[0].checked_at)}`;
     renderProducts(products);
