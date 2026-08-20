@@ -5,10 +5,12 @@
 // 시크릿 (추가):  NAVER_AD_CUSTOMER_ID / NAVER_AD_ACCESS_LICENSE / NAVER_AD_SECRET_KEY
 //   → 검색광고 시크릿이 없으면 검색량 섹션만 null로 반환 (나머지 정상 동작)
 
+import { authorizeRequest, RequestAuthError } from "../_shared/authorize-request.ts";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+    "authorization, x-client-info, apikey, content-type, x-energuard-cron-secret",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -709,6 +711,7 @@ Deno.serve(async (req) => {
   }
 
   try {
+    await authorizeRequest(req);
     const body = await req.json();
     const { storeName, keyword, keywords, maxRank = 400, withInsight = true, withVolume = false, watchProductIds } = body;
 
@@ -1090,6 +1093,9 @@ Deno.serve(async (req) => {
       checkedAt: new Date().toISOString(),
     });
   } catch (e) {
+    if (e instanceof RequestAuthError) {
+      return json({ error: e.message }, e.status);
+    }
     return json({ error: "서버 오류", detail: String(e) }, 500);
   }
 });
