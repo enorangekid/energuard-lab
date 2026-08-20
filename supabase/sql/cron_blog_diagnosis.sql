@@ -26,8 +26,8 @@ select cron.schedule(
     url := 'https://eukwfypbfqojbaihfqye.supabase.co/functions/v1/blog-rank',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'Authorization', 'Bearer sb_publishable_MiBvlf3d6ulcVBsi7Odcgw_PTXSmXKj',
-      'apikey', 'sb_publishable_MiBvlf3d6ulcVBsi7Odcgw_PTXSmXKj'
+      'apikey', 'sb_publishable_MiBvlf3d6ulcVBsi7Odcgw_PTXSmXKj',
+      'x-energuard-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'energuard_cron_secret' limit 1)
     ),
     body := '{"action":"collectDiagnosis"}'::jsonb,
     -- net.http_post 기본 timeout_milliseconds는 1000(1초)이라 응답을 오래 기다리지 못하고

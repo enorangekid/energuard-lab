@@ -1,6 +1,8 @@
+import { authorizeRequest, RequestAuthError } from "../_shared/authorize-request.ts";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-energuard-cron-secret",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -1774,6 +1776,7 @@ Deno.serve(async (request) => {
   if (request.method !== "POST") return json({ error: "POST 요청만 지원합니다." }, 405);
 
   try {
+    await authorizeRequest(request);
     const body = await request.json().catch(() => ({})) as Record<string, unknown>;
     const action = cleanText(body.action) || "list";
 
@@ -1797,6 +1800,7 @@ Deno.serve(async (request) => {
     return json({ error: "지원하지 않는 작업입니다." }, 400);
   } catch (error) {
     console.error(error);
-    return json({ error: error instanceof Error ? error.message : String(error) }, 500);
+    const status = error instanceof RequestAuthError ? error.status : 500;
+    return json({ error: error instanceof Error ? error.message : String(error) }, status);
   }
 });

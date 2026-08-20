@@ -25,8 +25,8 @@ select cron.schedule(
     url := 'https://eukwfypbfqojbaihfqye.supabase.co/functions/v1/naver-ad-report',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'Authorization', 'Bearer sb_publishable_MiBvlf3d6ulcVBsi7Odcgw_PTXSmXKj',
-      'apikey', 'sb_publishable_MiBvlf3d6ulcVBsi7Odcgw_PTXSmXKj'
+      'apikey', 'sb_publishable_MiBvlf3d6ulcVBsi7Odcgw_PTXSmXKj',
+      'x-energuard-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'energuard_cron_secret' limit 1)
     ),
     body := jsonb_build_object(
       'action', 'collect',

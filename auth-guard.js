@@ -34,8 +34,11 @@
   const authClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
   });
+  let currentSession = null;
 
-  authClient.auth.onAuthStateChange(function (event) {
+  authClient.auth.onAuthStateChange(function (event, session) {
+    currentSession = session || null;
+    window.ENERGUARD_AUTH_SESSION = currentSession;
     if (event === "SIGNED_OUT") redirectToLogin();
   });
 
@@ -45,7 +48,8 @@
       redirectToLogin();
       return null;
     }
-    window.ENERGUARD_AUTH_SESSION = session;
+    currentSession = session;
+    window.ENERGUARD_AUTH_SESSION = currentSession;
     document.documentElement.classList.remove("auth-checking");
     document.documentElement.classList.add("auth-ready");
     return session;
@@ -61,13 +65,18 @@
     const url = typeof input === "string" ? input : (input && input.url) || "";
     if (!url.startsWith(SUPABASE_URL)) return originalFetch(input, init);
 
-    const session = await ready;
-    if (!session) throw new Error("로그인이 필요합니다.");
+    await ready;
+    const sessionResult = await authClient.auth.getSession();
+    currentSession = sessionResult && sessionResult.data && sessionResult.data.session
+      ? sessionResult.data.session
+      : currentSession;
+    window.ENERGUARD_AUTH_SESSION = currentSession;
+    if (!currentSession || !currentSession.access_token) throw new Error("로그인이 필요합니다.");
 
     const nextInit = Object.assign({}, init || {});
     const headers = new Headers((init && init.headers) || (input instanceof Request ? input.headers : undefined));
     headers.set("apikey", SUPABASE_ANON_KEY);
-    headers.set("Authorization", "Bearer " + session.access_token);
+    headers.set("Authorization", "Bearer " + currentSession.access_token);
     nextInit.headers = headers;
     return originalFetch(input, nextInit);
   };
@@ -75,7 +84,11 @@
   window.energuardAuth = {
     client: authClient,
     ready: ready,
-    getSession: function () { return ready; },
+    getSession: async function () {
+      await ready;
+      const result = await authClient.auth.getSession();
+      return result && result.data ? result.data.session : currentSession;
+    },
     signOut: async function () {
       await authClient.auth.signOut();
       location.replace(loginUrl.href);

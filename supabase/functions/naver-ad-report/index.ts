@@ -1,6 +1,8 @@
+import { authorizeRequest, RequestAuthError } from "../_shared/authorize-request.ts";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-energuard-cron-secret",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -1266,8 +1268,10 @@ async function dailySummary(body: JsonMap) {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (req.method !== "POST") return json({ error: "POST 요청만 지원합니다." }, 405);
 
   try {
+    await authorizeRequest(req);
     const body = await req.json().catch(() => ({}));
     const action = String(body.action || "summary");
     if (action === "health") {
@@ -1304,6 +1308,7 @@ Deno.serve(async (req) => {
     }
     return json({ error: "지원하지 않는 action입니다." }, 400);
   } catch (e) {
-    return json({ error: e instanceof Error ? e.message : String(e) }, 500);
+    const status = e instanceof RequestAuthError ? e.status : 500;
+    return json({ error: e instanceof Error ? e.message : String(e) }, status);
   }
 });
