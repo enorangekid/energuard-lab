@@ -3,10 +3,18 @@ import fs from "node:fs/promises";
 const SUPABASE_URL = "https://eukwfypbfqojbaihfqye.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_MiBvlf3d6ulcVBsi7Odcgw_PTXSmXKj";
 const INPUT_PATH = "C:/Users/Hankook_design/.codex/attachments/6afd5e2c-b128-43e1-9452-97dea6c92c5d/pasted-text.txt";
+const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+const ACCESS_TOKEN = process.env.SUPABASE_ACCESS_TOKEN || "";
+const AUTH_TOKEN = SERVICE_ROLE_KEY || ACCESS_TOKEN;
+const API_KEY = SERVICE_ROLE_KEY || SUPABASE_ANON_KEY;
+
+if (!AUTH_TOKEN) {
+  throw new Error("SUPABASE_SERVICE_ROLE_KEY 또는 SUPABASE_ACCESS_TOKEN 환경변수가 필요합니다.");
+}
 
 const headers = {
-  apikey: SUPABASE_ANON_KEY,
-  authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+  apikey: API_KEY,
+  authorization: `Bearer ${AUTH_TOKEN}`,
   "content-type": "application/json",
 };
 

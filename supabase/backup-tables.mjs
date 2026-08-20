@@ -1,12 +1,20 @@
-// Supabase Free 플랜은 자동 백업이 없다 — anon 키로 SELECT 가능한 모든 테이블을 로컬 JSON으로
-// 통째로 받아두는 수동 백업 스크립트. RLS가 anon에게 쓰기까지 열려있는 구조라(2026-08-12
-// 리뷰에서 확인) 실수/외부 유출로 데이터가 지워지는 최악의 경우를 대비한 마지막 안전망이다.
+// Supabase Free 플랜용 수동 JSON 백업 스크립트. 공개 익명 접근은 2026-08-20에 차단했으므로
+// 관리자 JWT 또는 로컬에서만 관리하는 service role key를 환경변수로 전달해야 한다.
 //
-// 실행: node supabase/backup-tables.mjs
+// 실행(PowerShell): $env:SUPABASE_SERVICE_ROLE_KEY="..."; node supabase/backup-tables.mjs
+// 또는: $env:SUPABASE_ACCESS_TOKEN="관리자 JWT"; node supabase/backup-tables.mjs
 // 결과: supabase/backups/<날짜시각>/<테이블명>.json 로 전체 테이블이 저장된다.
 
 const SUPABASE_URL = "https://eukwfypbfqojbaihfqye.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_MiBvlf3d6ulcVBsi7Odcgw_PTXSmXKj";
+const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+const ACCESS_TOKEN = process.env.SUPABASE_ACCESS_TOKEN || "";
+const AUTH_TOKEN = SERVICE_ROLE_KEY || ACCESS_TOKEN;
+const API_KEY = SERVICE_ROLE_KEY || SUPABASE_ANON_KEY;
+
+if (!AUTH_TOKEN) {
+  throw new Error("SUPABASE_SERVICE_ROLE_KEY 또는 SUPABASE_ACCESS_TOKEN 환경변수가 필요합니다.");
+}
 
 // supabase/sql, supabase/migrations의 create table 전체를 훑어서 뽑은 목록(2026-08-12 기준).
 // 새 테이블을 추가하면 여기도 같이 추가해야 한다.
@@ -55,7 +63,7 @@ async function fetchAllRows(table) {
   for (let offset = 0; ; offset += pageSize) {
     const res = await fetch(
       `${SUPABASE_URL}/rest/v1/${table}?select=*&offset=${offset}&limit=${pageSize}`,
-      { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
+      { headers: { apikey: API_KEY, Authorization: `Bearer ${AUTH_TOKEN}` } }
     );
     if (!res.ok) {
       if (res.status === 404 || res.status === 400) return { error: `테이블 없음/조회 불가 (${res.status})` };

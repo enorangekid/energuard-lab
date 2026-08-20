@@ -6,6 +6,26 @@ const TRACKED_ITEMS_RESPONSE = "ENERGUARD_TRACKED_ITEMS_RESPONSE";
 const ANALYSIS_REQUEST = "ENERGUARD_KEYWORD_ANALYSIS_START";
 const ANALYSIS_RESPONSE = "ENERGUARD_KEYWORD_ANALYSIS_RESPONSE";
 
+function getEnerguardAuthSession() {
+  for (let index = 0; index < localStorage.length; index += 1) {
+    const key = localStorage.key(index);
+    if (!key || !key.startsWith("sb-") || !key.endsWith("-auth-token")) continue;
+    try {
+      const value = JSON.parse(localStorage.getItem(key) || "null");
+      const session = value?.currentSession || value;
+      if (session?.access_token && session?.refresh_token) {
+        return {
+          accessToken: session.access_token,
+          refreshToken: session.refresh_token,
+          expiresAt: Number(session.expires_at) || 0,
+          userId: String(session.user?.id || ""),
+        };
+      }
+    } catch (_) {}
+  }
+  return null;
+}
+
 window.postMessage({ type: "ENERGUARD_SHOPPING_RANK_READY" }, window.location.origin);
 
 window.addEventListener("message", (event) => {
@@ -16,6 +36,7 @@ window.addEventListener("message", (event) => {
       chrome.runtime.sendMessage({
         type: "START_TRACKED_ITEMS_COLLECTION",
         pageDelay: event.data.pageDelay,
+        authSession: getEnerguardAuthSession(),
       }).then((result) => {
         window.postMessage({ type: TRACKED_ITEMS_RESPONSE, requestId, ...result }, window.location.origin);
       }).catch((error) => {
@@ -43,6 +64,7 @@ window.addEventListener("message", (event) => {
         type: "FETCH_KEYWORD_ANALYSIS",
         keyword: event.data.keyword,
         maxRank: event.data.maxRank,
+        authSession: getEnerguardAuthSession(),
       }).then((result) => {
         window.postMessage({ type: ANALYSIS_RESPONSE, requestId, ...result }, window.location.origin);
       }).catch((error) => {
@@ -69,6 +91,7 @@ window.addEventListener("message", (event) => {
     chrome.runtime.sendMessage({
       type: "START_COLLECTION_FROM_APP",
       config: event.data.config,
+      authSession: getEnerguardAuthSession(),
     }).then((result) => {
       window.postMessage({ type: APP_RESPONSE, requestId, ...result }, window.location.origin);
     }).catch((error) => {

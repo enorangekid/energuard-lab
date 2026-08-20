@@ -5,8 +5,62 @@ const PENDING_KEY = "shoppingRankPendingConfig";
 const PROGRESS_KEY = "shoppingRankProgress";
 const SUPABASE_URL = "https://eukwfypbfqojbaihfqye.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_MiBvlf3d6ulcVBsi7Odcgw_PTXSmXKj";
+const AUTH_KEY = "energuardSupabaseAuthSession";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function normalizeAuthSession(raw) {
+  if (!raw?.accessToken || !raw?.refreshToken) return null;
+  return {
+    accessToken: String(raw.accessToken),
+    refreshToken: String(raw.refreshToken),
+    expiresAt: Number(raw.expiresAt) || 0,
+    userId: String(raw.userId || ""),
+  };
+}
+
+async function saveAuthSession(raw) {
+  const session = normalizeAuthSession(raw);
+  if (!session) throw new Error("에너가드랩에 다시 로그인해 주세요.");
+  await chrome.storage.local.set({ [AUTH_KEY]: session });
+  return session;
+}
+
+async function getAuthSession() {
+  const stored = await chrome.storage.local.get(AUTH_KEY);
+  let session = normalizeAuthSession(stored[AUTH_KEY]);
+  if (!session) throw new Error("에너가드랩 로그인 정보가 필요합니다.");
+  const now = Math.floor(Date.now() / 1000);
+  if (session.expiresAt > now + 90) return session;
+
+  const response = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY },
+    body: JSON.stringify({ refresh_token: session.refreshToken }),
+  });
+  if (!response.ok) {
+    await chrome.storage.local.remove(AUTH_KEY);
+    throw new Error("로그인 세션이 만료되었습니다. 에너가드랩에 다시 로그인해 주세요.");
+  }
+  const refreshed = await response.json();
+  session = {
+    accessToken: refreshed.access_token,
+    refreshToken: refreshed.refresh_token || session.refreshToken,
+    expiresAt: Number(refreshed.expires_at) || now + Number(refreshed.expires_in || 3600),
+    userId: String(refreshed.user?.id || session.userId || ""),
+  };
+  await chrome.storage.local.set({ [AUTH_KEY]: session });
+  return session;
+}
+
+async function authenticatedHeaders(extra = {}) {
+  const session = await getAuthSession();
+  return {
+    apikey: SUPABASE_ANON_KEY,
+    Authorization: `Bearer ${session.accessToken}`,
+    ...extra,
+  };
+}
 
 // ═══ 단발성 키워드 분석용 빠른 스캔(백그라운드 fetch, 탭 없음) ═══
 // background.js(runner.html 안에서 돌던 배치 수집)의 fast-fetch 로직을 그대로 옮겨왔다.
@@ -259,11 +313,7 @@ async function openTrackedItemsRunner(pageDelay) {
 // 콘텐츠 스크립트가 직접 fetch하면 네이버 페이지의 CSP에 걸릴 수 있어, 이 서비스워커가 대신
 // Supabase를 호출해 결과만 돌려준다(기존 확장프로그램의 다른 Supabase 호출도 전부 이 방식).
 async function fetchKeywordInsight(keyword) {
-  const headers = {
-    "Content-Type": "application/json",
-    apikey: SUPABASE_ANON_KEY,
-    Authorization: "Bearer " + SUPABASE_ANON_KEY,
-  };
+  const headers = await authenticatedHeaders({ "Content-Type": "application/json" });
   const normalized = keyword.replace(/\s+/g, "").toLowerCase();
   // keywordInsight 호출이 내부에서 이번 달 검색량을 keyword_search_volume_monthly에 먼저 저장한
   // 뒤에야 그 값이 존재한다. 두 요청을 Promise.all로 동시에 쏘면, 이번 달 그 키워드를 처음 조회할
@@ -292,7 +342,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       sendResponse({ ok: false, error: "키워드 없음" });
       return false;
     }
-    fastFetchSearchPages(keyword, maxRank)
+    saveAuthSession(message.authSession)
+      .then(() => fastFetchSearchPages(keyword, maxRank))
       .then((result) => {
         if (result.blockedReason) sendResponse({ ok: false, error: result.blockedReason });
         else sendResponse({ ok: true, products: result.products });
@@ -314,6 +365,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "START_TRACKED_ITEMS_COLLECTION") {
     (async () => {
       try {
+        await saveAuthSession(message.authSession);
         const tabId = await openTrackedItemsRunner(message.pageDelay);
         sendResponse({ ok: true, tabId });
       } catch (error) {
@@ -325,6 +377,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type !== "START_COLLECTION_FROM_APP") return false;
   (async () => {
     try {
+      await saveAuthSession(message.authSession);
       const config = validateConfig(message.config);
       const tabId = await openRunner(config);
       sendResponse({ ok: true, tabId, keywordCount: config.keywords.length });

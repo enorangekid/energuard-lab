@@ -1,9 +1,41 @@
 const SUPABASE_URL = "https://eukwfypbfqojbaihfqye.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_MiBvlf3d6ulcVBsi7Odcgw_PTXSmXKj";
+const AUTH_KEY = "energuardSupabaseAuthSession";
 
 const state = { rows: [], keyword: "" };
 const number = new Intl.NumberFormat("ko-KR");
 const money = new Intl.NumberFormat("ko-KR", { style: "currency", currency: "KRW", maximumFractionDigits: 0 });
+
+async function getAuthenticatedHeaders(extra = {}) {
+  const stored = await chrome.storage.local.get(AUTH_KEY);
+  let session = stored[AUTH_KEY] || null;
+  if (!session?.accessToken) throw new Error("에너가드랩 로그인이 필요합니다.");
+
+  const expiresSoon = Number(session.expiresAt || 0) <= Math.floor(Date.now() / 1000) + 60;
+  if (expiresSoon) {
+    if (!session.refreshToken) throw new Error("로그인 세션이 만료되었습니다. 에너가드랩에서 다시 로그인해 주세요.");
+    const response = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+      method: "POST",
+      headers: { apikey: SUPABASE_ANON_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: session.refreshToken }),
+    });
+    if (!response.ok) throw new Error("로그인 세션을 갱신하지 못했습니다. 에너가드랩에서 다시 로그인해 주세요.");
+    const refreshed = await response.json();
+    session = {
+      accessToken: refreshed.access_token,
+      refreshToken: refreshed.refresh_token || session.refreshToken,
+      expiresAt: Math.floor(Date.now() / 1000) + Number(refreshed.expires_in || 3600),
+      userId: refreshed.user?.id || session.userId || "",
+    };
+    await chrome.storage.local.set({ [AUTH_KEY]: session });
+  }
+
+  return {
+    apikey: SUPABASE_ANON_KEY,
+    Authorization: `Bearer ${session.accessToken}`,
+    ...extra,
+  };
+}
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>'"]/g, (char) => ({
@@ -434,11 +466,7 @@ function sellersHtml(sellers) {
 }
 
 async function fetchKeywordInsightData(keyword) {
-  const headers = {
-    "Content-Type": "application/json",
-    apikey: SUPABASE_ANON_KEY,
-    Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-  };
+  const headers = await getAuthenticatedHeaders({ "Content-Type": "application/json" });
   const normalized = keyword.replace(/\s+/g, "").toLowerCase();
   // 저장(이번 달 검색량)이 끝난 뒤에 추이를 읽어야 방금 만든 값을 놓치지 않는다 — 순차 실행
   // (service-worker.js의 fetchKeywordInsight와 동일한 레이스 컨디션 수정, 2026-08-06).
@@ -524,6 +552,7 @@ function createCsv() {
 async function fetchAllReportRows(runId) {
   const rows = [];
   const pageSize = 1000;
+  const headers = await getAuthenticatedHeaders();
   for (let offset = 0; ; offset += pageSize) {
     const query = new URLSearchParams({
       select: "*",
@@ -533,7 +562,7 @@ async function fetchAllReportRows(runId) {
       offset: String(offset),
     });
     const response = await fetch(`${SUPABASE_URL}/rest/v1/shopping_search_snapshots?${query}`, {
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+      headers,
     });
     if (!response.ok) throw new Error(`리포트 조회 실패: ${await response.text()}`);
     const page = await response.json();

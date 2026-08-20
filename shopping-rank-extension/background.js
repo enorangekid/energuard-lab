@@ -1,5 +1,7 @@
 const SUPABASE_URL = "https://eukwfypbfqojbaihfqye.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_MiBvlf3d6ulcVBsi7Odcgw_PTXSmXKj";
+const AUTH_KEY = "energuardSupabaseAuthSession";
+let supabaseAccessToken = "";
 const PROGRESS_KEY = "shoppingRankProgress";
 const PENDING_KEY = "shoppingRankPendingConfig";
 const STORE_IDENTITIES = {
@@ -698,9 +700,39 @@ const compact = (value) => String(value || "")
 const normalizeStoreLabel = (value) => String(value || "").normalize("NFKC").trim().replace(/\s+/g, " ").toLocaleLowerCase("ko-KR");
 const sbHeaders = (extra = {}) => ({
   apikey: SUPABASE_ANON_KEY,
-  Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+  Authorization: `Bearer ${supabaseAccessToken}`,
   ...extra,
 });
+
+async function ensureAuthenticatedSession() {
+  const stored = await chrome.storage.local.get(AUTH_KEY);
+  let session = stored[AUTH_KEY];
+  if (!session?.accessToken || !session?.refreshToken) {
+    throw new Error("에너가드랩 로그인 정보가 필요합니다.");
+  }
+  const now = Math.floor(Date.now() / 1000);
+  if (Number(session.expiresAt) <= now + 90) {
+    const response = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY },
+      body: JSON.stringify({ refresh_token: session.refreshToken }),
+    });
+    if (!response.ok) {
+      await chrome.storage.local.remove(AUTH_KEY);
+      throw new Error("로그인 세션이 만료되었습니다. 에너가드랩에 다시 로그인해 주세요.");
+    }
+    const refreshed = await response.json();
+    session = {
+      accessToken: refreshed.access_token,
+      refreshToken: refreshed.refresh_token || session.refreshToken,
+      expiresAt: Number(refreshed.expires_at) || now + Number(refreshed.expires_in || 3600),
+      userId: String(refreshed.user?.id || session.userId || ""),
+    };
+    await chrome.storage.local.set({ [AUTH_KEY]: session });
+  }
+  supabaseAccessToken = String(session.accessToken);
+  return session;
+}
 
 function todayKst() {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -2005,6 +2037,14 @@ document.getElementById("runnerStop")?.addEventListener("click", () => {
   if (!config) {
     await updateProgress({
       status: "error", title: "수집 설정 없음", error: "확장프로그램 팝업에서 수집을 다시 시작하세요.",
+    });
+    return;
+  }
+  try {
+    await ensureAuthenticatedSession();
+  } catch (error) {
+    await updateProgress({
+      status: "error", title: "로그인 필요", error: error?.message || "에너가드랩에 다시 로그인해 주세요.",
     });
     return;
   }
