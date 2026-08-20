@@ -4,10 +4,12 @@
 //   네이버가 페이지 구조를 바꾸면 동작이 멈출 수 있으며, 그 경우 에러만 반환됩니다.
 // 시크릿 불필요 (공개 데이터)
 
+import { authorizeRequest, RequestAuthError } from "../_shared/authorize-request.ts";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+    "authorization, x-client-info, apikey, content-type, x-energuard-cron-secret",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -1428,6 +1430,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
+    await authorizeRequest(req);
     const body = await req.json().catch(() => ({}));
     if (body.action === "realtime") return json(await handleRealtime());
     if (body.action === "collectRealtime") return json(await collectRealtime());
@@ -1498,6 +1501,9 @@ Deno.serve(async (req) => {
       checkedAt: new Date().toISOString(),
     });
   } catch (e) {
+    if (e instanceof RequestAuthError) {
+      return json({ error: e.message }, e.status);
+    }
     return json({ error: "서버 오류", detail: String(e) }, 500);
   }
 });

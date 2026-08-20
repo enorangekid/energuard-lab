@@ -1,6 +1,8 @@
+import { authorizeRequest, RequestAuthError } from "../_shared/authorize-request.ts";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-energuard-cron-secret",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -468,6 +470,7 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
 
   try {
+    await authorizeRequest(req);
     const body = await req.json().catch(() => ({}));
     const action = cleanText(body.action || "generateDrafts");
     const limit = Math.min(Math.max(Number(body.limit || 3), 1), 8);
@@ -494,6 +497,8 @@ Deno.serve(async (req) => {
       items,
     });
   } catch (error) {
-    return json({ ok: false, error: String(error?.message || error) }, 500);
+    const status = error instanceof RequestAuthError ? error.status : 500;
+    const message = error instanceof Error ? error.message : String(error);
+    return json({ ok: false, error: message }, status);
   }
 });

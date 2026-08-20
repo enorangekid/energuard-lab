@@ -26,3 +26,11 @@ verify_jwt = false
 [functions.blog-rank]
 # Browser requests use an admin JWT; pg_cron uses x-energuard-cron-secret.
 verify_jwt = false
+
+[functions.item-draft-openai]
+# Browser requests use an admin JWT. Authorization is enforced in the function.
+verify_jwt = false
+
+[functions.shopping-trend]
+# Browser requests use an admin JWT; pg_cron uses x-energuard-cron-secret.
+verify_jwt = false
