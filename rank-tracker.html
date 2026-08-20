@@ -3114,6 +3114,12 @@ function filterTrendRows(rows, range, valueKey) {
   const clean = rows.filter(row => row[valueKey] != null).sort((a, b) => a.date.localeCompare(b.date));
   if (!clean.length) return [];
   if (range === "week") return clean.slice(-7);
+  if (range === "month") {
+    const last = new Date(clean[clean.length - 1].date);
+    const from = new Date(last);
+    from.setMonth(from.getMonth() - 1);
+    return clean.filter(row => new Date(row.date) >= from);
+  }
   if (range === "month6") {
     const last = new Date(clean[clean.length - 1].date);
     const from = new Date(last);
@@ -3135,6 +3141,7 @@ function hasEnoughTrendRange(rows, range) {
   const first = new Date(rows[0].date);
   const last = new Date(rows[rows.length - 1].date);
   const days = Math.round((last - first) / 86400000);
+  if (range === "month") return days >= 25;
   if (range === "month6") return days >= 150;
   if (range === "year") return days >= 330;
   return true;
@@ -3219,6 +3226,7 @@ function renderMiniTrendSvg(rows, valueKey, formatter, invert = false, dropMarke
 function renderTrendWrap(title, rows, valueKey, formatter, invert = false, dropMarker = null) {
   const ranges = [
     { key: "week", label: "1주일" },
+    { key: "month", label: "1개월" },
     { key: "month6", label: "6개월" },
     { key: "year", label: "1년" },
   ];
