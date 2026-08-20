@@ -1,5 +1,24 @@
 project_id = "eukwfypbfqojbaihfqye"
 
+[auth]
+site_url = "http://localhost:3000"
+additional_redirect_urls = []
+enable_signup = false
+
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = false
+enable_confirmations = true
+max_frequency = "1m0s"
+otp_length = 8
+
+[storage.vector]
+enabled = false
+
 [functions.naver-ad-report]
 verify_jwt = false
 
