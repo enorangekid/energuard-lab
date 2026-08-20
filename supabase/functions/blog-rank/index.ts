@@ -1,4 +1,5 @@
 import { authorizeRequest, RequestAuthError } from "../_shared/authorize-request.ts";
+import { consumeDailyQuota, DailyQuotaError } from "../_shared/daily-quota.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1291,11 +1292,12 @@ async function collectPostContentCheck(body: Record<string, unknown>) {
 
 /* AI 인용 진단 — OpenAI 호출 비용이 들어서 collectPostContentCheck와 달리 "최근 10개 일괄"을
    기본으로 두지 않는다. logNo 없이 부르면 에러를 내서, 프론트가 항상 포스팅 하나를 골라 보내게 한다. */
-async function collectPostAiCheck(body: Record<string, unknown>) {
+async function collectPostAiCheck(body: Record<string, unknown>, principal: string) {
   const blogId = cleanText(body.blogId);
   const logNo = cleanText(body.logNo);
   if (!blogId || !logNo) throw new Error("진단할 포스팅을 확인할 수 없습니다.");
 
+  await consumeDailyQuota(principal, "blog-rank", "post-ai-check", 1, 100);
   await savePostContentAnalysis(blogId, logNo);
   await savePostAiCheck(blogId, logNo);
   return listData();
@@ -1776,7 +1778,7 @@ Deno.serve(async (request) => {
   if (request.method !== "POST") return json({ error: "POST 요청만 지원합니다." }, 405);
 
   try {
-    await authorizeRequest(request);
+    const auth = await authorizeRequest(request);
     const body = await request.json().catch(() => ({})) as Record<string, unknown>;
     const action = cleanText(body.action) || "list";
 
@@ -1796,11 +1798,14 @@ Deno.serve(async (request) => {
     if (action === "collectExposure") return json(await collectExposure(body));
     if (action === "collectPostTitleCheck") return json(await collectPostTitleCheck(body));
     if (action === "collectPostContentCheck") return json(await collectPostContentCheck(body));
-    if (action === "collectPostAiCheck") return json(await collectPostAiCheck(body));
+    if (action === "collectPostAiCheck") {
+      const principal = auth.kind === "user" ? auth.userId : "cron";
+      return json(await collectPostAiCheck(body, principal));
+    }
     return json({ error: "지원하지 않는 작업입니다." }, 400);
   } catch (error) {
     console.error(error);
-    const status = error instanceof RequestAuthError ? error.status : 500;
+    const status = error instanceof RequestAuthError || error instanceof DailyQuotaError ? error.status : 500;
     return json({ error: error instanceof Error ? error.message : String(error) }, status);
   }
 });

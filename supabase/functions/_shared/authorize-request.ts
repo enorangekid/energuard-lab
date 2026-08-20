@@ -8,7 +8,7 @@ export class RequestAuthError extends Error {
   }
 }
 
-type AuthorizedRequest =
+export type AuthorizedRequest =
   | { kind: "cron" }
   | { kind: "user"; userId: string; email: string };
 

@@ -1,4 +1,5 @@
 import { authorizeRequest, RequestAuthError } from "../_shared/authorize-request.ts";
+import { consumeDailyQuota, DailyQuotaError } from "../_shared/daily-quota.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -470,12 +471,17 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
 
   try {
-    await authorizeRequest(req);
+    const auth = await authorizeRequest(req);
     const body = await req.json().catch(() => ({}));
     const action = cleanText(body.action || "generateDrafts");
     const limit = Math.min(Math.max(Number(body.limit || 3), 1), 8);
     const requestedIdeas = Array.isArray(body.ideas) ? body.ideas : [];
     const ideas = await fetchIdeas(limit, requestedIdeas);
+    const quotaAction = action === "generateYoutube" ? "youtube-draft" : "blog-draft";
+    const principal = auth.kind === "user" ? auth.userId : "cron";
+    if (ideas.length) {
+      await consumeDailyQuota(principal, "item-draft-openai", quotaAction, ideas.length, 40);
+    }
 
     const items = [];
     for (const idea of ideas) {
@@ -497,7 +503,7 @@ Deno.serve(async (req) => {
       items,
     });
   } catch (error) {
-    const status = error instanceof RequestAuthError ? error.status : 500;
+    const status = error instanceof RequestAuthError || error instanceof DailyQuotaError ? error.status : 500;
     const message = error instanceof Error ? error.message : String(error);
     return json({ ok: false, error: message }, status);
   }

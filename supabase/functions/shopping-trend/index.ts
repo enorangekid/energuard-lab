@@ -5,6 +5,7 @@
 // 시크릿 불필요 (공개 데이터)
 
 import { authorizeRequest, RequestAuthError } from "../_shared/authorize-request.ts";
+import { consumeDailyQuota, DailyQuotaError } from "../_shared/daily-quota.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1430,10 +1431,15 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
-    await authorizeRequest(req);
+    const auth = await authorizeRequest(req);
     const body = await req.json().catch(() => ({}));
     if (body.action === "realtime") return json(await handleRealtime());
-    if (body.action === "collectRealtime") return json(await collectRealtime());
+    if (body.action === "collectRealtime") {
+      if (auth.kind === "user") {
+        await consumeDailyQuota(auth.userId, "shopping-trend", "semantic-selection", 1, 20);
+      }
+      return json(await collectRealtime());
+    }
     if (body.action === "realtimeAt") return json(await handleRealtimeAt(body.slot));
     if (body.action === "deleteRealtimeTrend") return json(await deleteTrendArchive(body.id));
     if (body.action === "addContentIdea") return json(await addContentIdea(body));
@@ -1502,6 +1508,9 @@ Deno.serve(async (req) => {
     });
   } catch (e) {
     if (e instanceof RequestAuthError) {
+      return json({ error: e.message }, e.status);
+    }
+    if (e instanceof DailyQuotaError) {
       return json({ error: e.message }, e.status);
     }
     return json({ error: "서버 오류", detail: String(e) }, 500);
