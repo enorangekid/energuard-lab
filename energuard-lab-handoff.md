@@ -22,7 +22,7 @@
 | 아이템발굴 | `item-discovery.html` | 실시간/구글/단열뉴스/단열급상승 4탭, `content_ideas` 테이블 |
 | 유틸리티 | `utility.html` + `utility/calc/*.html` | 단열재 등 실무 계산기 모음 |
 
-주요 Edge Functions: `naver-rank`, `blog-rank`, `shopping-trend`, `naver-ad-report`, `item-draft-openai`, `inquiry-assistant-`, `gemini-chat`.
+주요 Edge Functions: `naver-rank`, `blog-rank`, `shopping-trend`, `naver-ad-report`, `item-draft-openai`, `gemini-chat`.
 
 ## 4. 관리자(admin) 영역 — 오늘 대부분 신규 구축
 ### 설계 배경

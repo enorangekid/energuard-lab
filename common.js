@@ -125,8 +125,6 @@ const AI_SUPABASE_ANON_KEY = typeof SUPABASE_ANON_KEY !== "undefined"
   ? SUPABASE_ANON_KEY
   : "sb_publishable_MiBvlf3d6ulcVBsi7Odcgw_PTXSmXKj";
 const AI_CHAT_URL = AI_SUPABASE_URL + "/functions/v1/gemini-chat";
-// 실제 배포된 함수 이름이 "inquiry-assistant-"(끝에 하이픈)라 그대로 맞춰준다.
-const AI_INQUIRY_URL = AI_SUPABASE_URL + "/functions/v1/inquiry-assistant-";
 const AI_CHAT_HISTORY_LIMIT = 12;
 let aiWorkChatHistory = [];
 // AI 답변 아바타 — 글자 "AI" 대신 로봇 얼굴 아이콘으로 AI다운 느낌을 준다.
@@ -518,7 +516,6 @@ function initAiWorkPanel() {
       <button type="button" class="active" data-ai-tab="chat">업무 질문</button>
       <button type="button" data-ai-tab="spellcheck">맞춤법 검사</button>
       <button type="button" data-ai-tab="translate">번역</button>
-      <button type="button" data-ai-tab="inquiry">문의 답변</button>
     </div>
     <section class="ai-work-pane active" data-ai-pane="chat">
       <div class="ai-chat-messages" id="__aiChatMessages">
@@ -562,17 +559,7 @@ function initAiWorkPanel() {
       </div>
       <button type="button" class="ai-copy-btn" data-ai-copy-translate hidden>결과 복사</button>
     </section>
-    <section class="ai-work-pane" data-ai-pane="inquiry">
-      <textarea id="__aiInquiryInput" class="ai-inquiry-text" placeholder="고객 문의를 붙여넣으세요."></textarea>
-      <div class="ai-inquiry-actions">
-        <button type="button" class="ai-secondary-btn" data-ai-clear-inquiry>지우기</button>
-        <button type="button" class="ai-primary-btn" data-ai-generate-inquiry>생성하기</button>
-      </div>
-      <div class="ai-inquiry-result" id="__aiInquiryResult">
-        <span>생성된 고객 답변 초안이 여기에 표시됩니다.</span>
-      </div>
-      <button type="button" class="ai-copy-btn" data-ai-copy-inquiry hidden>답변 복사</button>
-    </section>`;
+    `;
   document.body.appendChild(panel);
   bindAiWorkPanel();
 }
@@ -593,9 +580,6 @@ function bindAiWorkPanel() {
     if (e.target.closest("[data-ai-generate-translate]")) generateTranslate();
     if (e.target.closest("[data-ai-clear-translate]")) clearTranslate();
     if (e.target.closest("[data-ai-copy-translate]")) copyTranslateAnswer();
-    if (e.target.closest("[data-ai-generate-inquiry]")) generateAiInquiryAnswer();
-    if (e.target.closest("[data-ai-clear-inquiry]")) clearAiInquiry();
-    if (e.target.closest("[data-ai-copy-inquiry]")) copyAiInquiryAnswer();
   });
 
   document.addEventListener("keydown", (e) => {
@@ -964,65 +948,6 @@ function showAiTyping() {
 function hideAiTyping() {
   const typing = document.getElementById("__aiTyping");
   if (typing) typing.remove();
-}
-
-let aiInquiryReqId = 0;
-async function generateAiInquiryAnswer() {
-  const input = document.getElementById("__aiInquiryInput");
-  const result = document.getElementById("__aiInquiryResult");
-  const copyBtn = document.querySelector("[data-ai-copy-inquiry]");
-  const inquiry = input ? input.value.trim() : "";
-  if (!inquiry) {
-    showToast("고객 문의 내용을 입력해 주세요.");
-    return;
-  }
-  // 스토어/상품/답변방식을 직접 고르게 하지 않고, 문의 내용만으로 AI가 전부 자동 인식하게 한다.
-  // 답변은 항상 심화(detail) 모드로 고정.
-  const reqId = ++aiInquiryReqId;
-  result.innerHTML = `<div class="ai-result-loading">답변 생성 중...</div>`;
-  copyBtn.hidden = true;
-
-  try {
-    const res = await fetch(AI_INQUIRY_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer " + AI_SUPABASE_ANON_KEY,
-        "apikey": AI_SUPABASE_ANON_KEY,
-      },
-      body: JSON.stringify({ inquiry, mode: "detail" }),
-    });
-    const data = await res.json();
-    if (reqId !== aiInquiryReqId) return; // 응답 도착 전에 문의 내용이 더 바뀌어 새 요청이 이미 시작됨
-    if (!res.ok || data.error) throw new Error(data.error || "서버 오류");
-    result.dataset.answer = data.answer || "";
-    result.innerHTML = formatAiText(data.answer || "");
-    copyBtn.hidden = false;
-  } catch (err) {
-    if (reqId !== aiInquiryReqId) return;
-    result.dataset.answer = "";
-    result.innerHTML = `<span>답변 생성 중 오류가 발생했습니다: ${escapeAiText(err.message || "오류")}</span>`;
-  }
-}
-
-function clearAiInquiry() {
-  aiInquiryReqId++; // 진행 중이던 요청의 응답이 와도 무시되게
-  const input = document.getElementById("__aiInquiryInput");
-  const result = document.getElementById("__aiInquiryResult");
-  const copyBtn = document.querySelector("[data-ai-copy-inquiry]");
-  if (input) input.value = "";
-  if (result) {
-    result.dataset.answer = "";
-    result.innerHTML = "<span>생성된 고객 답변 초안이 여기에 표시됩니다.</span>";
-  }
-  if (copyBtn) copyBtn.hidden = true;
-}
-
-function copyAiInquiryAnswer() {
-  const result = document.getElementById("__aiInquiryResult");
-  const text = result?.dataset.answer || result?.textContent || "";
-  if (!text.trim()) return;
-  navigator.clipboard.writeText(text).then(() => showToast("답변을 복사했습니다."));
 }
 
 function resizeAiTextarea(el, maxHeight) {
