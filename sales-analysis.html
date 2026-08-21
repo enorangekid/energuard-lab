@@ -2579,9 +2579,9 @@ function productChartsRowHtml(barHtml, donutHtml) {
 }
 
 // 요약분석 "상품군별 매출 동향" — naverStat.productDaily(상품×일자 매출)를 상품명 키워드로
-// 카테고리 분류(classifyProductCategory, 도넛차트와 동일 기준)한 뒤 날짜별로 합산해서,
-// 100% 누적 영역 그래프로 그린다. 절대 매출이 아니라 "비중"을 보여주는 게 목적이라
-// 항상 0~100%로 고정해서, 카테고리 매출이 다 같이 늘어도 비중이 그대로면 평평하게 보인다.
+// 카테고리 분류(classifyProductCategory, 도넛차트와 동일 기준)한 뒤, 대략 주 단위 구간으로
+// 묶어 100% 누적 막대로 그린다. 하루 단위로 그리면 그날그날 매출 변동 때문에 비중이
+// 들쭉날쭉해서 읽기 어려워, 며칠씩 묶어 구간별 "덩어리"로 늘고 주는 흐름만 보이게 한다.
 function categoryTrendChartData() {
   const src = naverStat.productDaily || [];
   const byDate = new Map(); // date -> Map(category -> salesTotal 합계)
@@ -2604,20 +2604,40 @@ function categoryTrendChartData() {
     cur = new Date(cur.getTime() + 86400000);
   }
 
+  // 대략 7개 구간(한 달 조회 시 ~4~5일씩, 주 단위에 가깝게)으로 묶는다.
+  const TARGET_BUCKETS = 7;
+  const bucketSize = Math.max(1, Math.ceil(dates.length / TARGET_BUCKETS));
+  const buckets = [];
+  for (let i = 0; i < dates.length; i += bucketSize) {
+    buckets.push({ from: dates[i], to: dates[Math.min(i + bucketSize, dates.length) - 1] });
+  }
+
   const order = CUSTOM_PRODUCT_CATEGORIES.map(c => c.name).concat(["기타"]);
   const colors = CATEGORY_DONUT_COLORS.concat([CATEGORY_DONUT_ETC_COLOR]);
   const series = order.map((name, i) => ({
     name, color: colors[i],
-    values: dates.map(d => (byDate.get(d) || new Map()).get(name) || 0),
+    values: buckets.map(b => {
+      let sum = 0;
+      for (const d of dates) {
+        if (d < b.from || d > b.to) continue;
+        sum += (byDate.get(d) || new Map()).get(name) || 0;
+      }
+      return sum;
+    }),
   })).filter(s => s.values.some(v => v > 0));
   if (!series.length) return null;
 
-  const dayTotals = dates.map((_, i) => series.reduce((sum, s) => sum + s.values[i], 0));
+  const bucketTotals = buckets.map((_, bi) => series.reduce((sum, s) => sum + s.values[bi], 0));
   const shares = series.map(s => ({
     name: s.name, color: s.color,
-    pct: s.values.map((v, i) => dayTotals[i] ? v / dayTotals[i] * 100 : 0),
+    pct: s.values.map((v, bi) => bucketTotals[bi] ? v / bucketTotals[bi] * 100 : 0),
   }));
-  return { dates, shares };
+  return { buckets, shares };
+}
+
+function categoryTrendBucketLabel(b) {
+  const fmt = d => { const [, mm, dd] = d.split("-"); return `${Number(mm)}.${Number(dd)}`; };
+  return b.from === b.to ? fmt(b.from) : `${fmt(b.from)}~${fmt(b.to)}`;
 }
 
 function renderCategoryTrendChart(bodyId) {
@@ -2625,38 +2645,41 @@ function renderCategoryTrendChart(bodyId) {
   if (!body) return;
   const chart = categoryTrendChartData();
   if (!chart) { body.innerHTML = `<div class="empty">이 기간에 상품별 매출 데이터가 없습니다.</div>`; return; }
-  const { dates, shares } = chart;
+  const { buckets, shares } = chart;
 
   const W = 900, H = 260, padL = 40, padR = 20, padT = 16, padB = 32;
   const iw = W - padL - padR, ih = H - padT - padB;
-  const x = i => padL + i * iw / (dates.length - 1);
+  const n = buckets.length;
+  const slot = iw / n;
+  const barW = Math.max(slot * 0.6, 10);
+  const xCenter = i => padL + slot * (i + 0.5);
   const y = v => padT + ih - v / 100 * ih;
-
-  // 누적 영역 — shares 배열 순서대로 아래에서 위로 쌓는다.
-  let cumBefore = dates.map(() => 0);
-  let bands = "";
-  shares.forEach(s => {
-    const cumAfter = cumBefore.map((v, i) => v + s.pct[i]);
-    const top = cumAfter.map((v, i) => `${x(i)},${y(v)}`).join(" ");
-    const bottom = cumBefore.map((v, i) => `${x(i)},${y(v)}`).reverse().join(" ");
-    bands += `<polygon points="${top} ${bottom}" fill="${s.color}" opacity="0.82"><title>${esc(s.name)}</title></polygon>`;
-    cumBefore = cumAfter;
-  });
 
   let grid = "", labels = "";
   [0, 25, 50, 75, 100].forEach(v => {
     const yy = y(v);
-    grid += `<line x1="${padL}" y1="${yy}" x2="${W - padR}" y2="${yy}" stroke="#ffffff" stroke-width="1" opacity="0.6"/>`;
+    grid += `<line x1="${padL}" y1="${yy}" x2="${W - padR}" y2="${yy}" stroke="#e8ecf2" stroke-width="1"/>`;
     labels += `<text x="${padL - 8}" y="${yy + 4}" text-anchor="end" font-size="11" fill="#8a93a5">${v}%</text>`;
   });
-  const step = Math.max(1, Math.ceil(dates.length / 8));
-  dates.forEach((d, i) => {
-    if (i % step !== 0 && i !== dates.length - 1) return;
-    const [, mm, dd] = d.split("-");
-    labels += `<text x="${x(i)}" y="${H - 8}" text-anchor="middle" font-size="11" fill="#8a93a5">${Number(mm)}.${Number(dd)}</text>`;
+  buckets.forEach((b, bi) => {
+    labels += `<text x="${xCenter(bi)}" y="${H - 8}" text-anchor="middle" font-size="11" fill="#8a93a5">${esc(categoryTrendBucketLabel(b))}</text>`;
   });
 
-  // 카테고리별 시작일→종료일 비중 변화 — 늘고 있는지 줄고 있는지를 숫자로도 바로 확인.
+  // 구간별 누적 막대 — shares 배열 순서대로 아래에서 위로 쌓는다.
+  let bars = "";
+  buckets.forEach((b, bi) => {
+    let cum = 0;
+    const bucketLabel = categoryTrendBucketLabel(b);
+    shares.forEach(s => {
+      const v = s.pct[bi];
+      if (v <= 0) return;
+      const y0 = y(cum), y1 = y(cum + v);
+      bars += `<rect x="${xCenter(bi) - barW / 2}" y="${y1}" width="${barW}" height="${Math.max(y0 - y1, 0)}" fill="${s.color}"><title>${esc(s.name)} ${bucketLabel} · ${Math.round(v)}%</title></rect>`;
+      cum += v;
+    });
+  });
+
+  // 카테고리별 첫 구간→마지막 구간 비중 변화 — 늘고 있는지 줄고 있는지를 숫자로도 바로 확인.
   const legend = shares.map(s => {
     const startPct = s.pct[0], endPct = s.pct[s.pct.length - 1];
     const diff = endPct - startPct;
@@ -2676,7 +2699,7 @@ function renderCategoryTrendChart(bodyId) {
   body.innerHTML = `
     <div class="vol-chart-wrap">
       <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
-        ${bands}${grid}${labels}
+        ${grid}${bars}${labels}
       </svg>
     </div>
     <div class="dash-legend">${legend}</div>`;
