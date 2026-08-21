@@ -2691,8 +2691,13 @@ function renderCategoryTrendChart(bodyId) {
     grid += `<line x1="${padL}" y1="${yy}" x2="${W - padR}" y2="${yy}" stroke="#e8ecf2" stroke-width="1"/>`;
     labels += `<text x="${padL - 8}" y="${yy + 4}" text-anchor="end" font-size="11" fill="#8a93a5">${v}%</text>`;
   });
+  // 상단 조회 기간(dateTo)이 속한 달을 "지금 보는 기준"으로 삼아, 그 달의 막대 라벨만 굵게 강조한다.
+  const currentYm = (document.getElementById("dateTo")?.value || "").slice(0, 7);
+  let curIdx = buckets.findIndex(b => b.ym === currentYm);
+  if (curIdx === -1) curIdx = buckets.length - 1; // 조회 기간에 해당하는 달 데이터가 없으면 최신 달로 대체
   buckets.forEach((b, bi) => {
-    labels += `<text x="${xCenter(bi)}" y="${H - 8}" text-anchor="middle" font-size="11" fill="#8a93a5">${esc(categoryTrendBucketLabel(b))}</text>`;
+    const bold = bi === curIdx;
+    labels += `<text x="${xCenter(bi)}" y="${H - 8}" text-anchor="middle" font-size="11" font-weight="${bold ? 800 : 400}" fill="${bold ? "#1a1f2e" : "#8a93a5"}">${esc(categoryTrendBucketLabel(b))}</text>`;
   });
 
   // 구간별 누적 막대 — shares 배열 순서대로 아래에서 위로 쌓는다.
@@ -2709,9 +2714,24 @@ function renderCategoryTrendChart(bodyId) {
     });
   });
 
-  // 카테고리별 첫 구간→마지막 구간 비중 변화 — 늘고 있는지 줄고 있는지를 숫자로도 바로 확인.
+  // 카테고리별 비중 변화 — "지금 보는 기준 달(curIdx)" vs "바로 전 달(curIdx-1)"만 비교한다.
+  // 전체 기간 첫 달과 비교하면 몇 달 전인지에 따라 숫자가 흔들려서, 조회 기간을 옮기면
+  // 항상 "그 직전 달 대비"로 고정해서 보여주는 게 더 직관적이다.
+  const prevIdx = curIdx - 1;
+  const curLabel = categoryTrendBucketLabel(buckets[curIdx]);
   const legend = shares.map(s => {
-    const startPct = s.pct[0], endPct = s.pct[s.pct.length - 1];
+    const endPct = s.pct[curIdx];
+    if (prevIdx < 0) {
+      return `<span class="dash-legend-item">
+        <span class="dash-legend-dot" style="background:${s.color};"></span>
+        <span class="dash-legend-text">
+          <span class="dash-legend-name" title="${esc(s.name)}">${esc(s.name)}</span>
+          <span class="dash-legend-value">${curLabel} <b>${Math.round(endPct)}%</b> · 전달 데이터 없음</span>
+        </span>
+      </span>`;
+    }
+    const startPct = s.pct[prevIdx];
+    const prevLabel = categoryTrendBucketLabel(buckets[prevIdx]);
     const diff = endPct - startPct;
     const cls = diff > 0.5 ? "up" : diff < -0.5 ? "down" : "";
     const arrow = diff > 0.5 ? "▲" : diff < -0.5 ? "▼" : "-";
@@ -2719,7 +2739,7 @@ function renderCategoryTrendChart(bodyId) {
       <span class="dash-legend-dot" style="background:${s.color};"></span>
       <span class="dash-legend-text">
         <span class="dash-legend-name" title="${esc(s.name)}">${esc(s.name)}</span>
-        <span class="dash-legend-value">${Math.round(startPct)}% → <b>${Math.round(endPct)}%</b>
+        <span class="dash-legend-value">${prevLabel} ${Math.round(startPct)}% → ${curLabel} <b>${Math.round(endPct)}%</b>
           <span class="metric-cmp" style="display:inline-flex;margin:0 0 0 4px;"><span class="cmp ${cls}">${arrow}${Math.abs(diff).toFixed(1)}%p</span></span>
         </span>
       </span>
