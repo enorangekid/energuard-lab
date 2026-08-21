@@ -1082,6 +1082,9 @@ async function naverStatSummary(body: JsonMap) {
   const prodRows = await supabaseSelectAll(`/rest/v1/${NAVER_PRODUCT_TABLE}?${q1.toString()}`);
   const daily: JsonMap[] = [];
   const byProduct = new Map<string, JsonMap>();
+  // 상품군별 매출 동향(요약분석 카드)용 — 상품×일자 단위 매출만 가볍게 따로 모아둔다.
+  // 카테고리 분류(CUSTOM_PRODUCT_CATEGORIES)는 클라이언트에서 상품명 기준으로 한다.
+  const productDaily: JsonMap[] = [];
   prodRows.forEach(row => {
     const item = {
       date: normalizeDate(row.report_date) || String(row.report_date || ""),
@@ -1101,6 +1104,7 @@ async function naverStatSummary(body: JsonMap) {
       daily.push(item);
       return;
     }
+    productDaily.push({ date: item.date, productId: item.productId, productName: item.productName, salesTotal: item.salesTotal });
     if (!byProduct.has(item.productId)) {
       byProduct.set(item.productId, {
         productId: item.productId, productName: item.productName,
@@ -1227,7 +1231,7 @@ async function naverStatSummary(body: JsonMap) {
     }
   }
 
-  return { dateFrom, dateTo, daily, products, visitPaths, searchTerms, customerPeriods, customerPeriod, customer, customerGenderAge, customerInterest };
+  return { dateFrom, dateTo, daily, products, productDaily, visitPaths, searchTerms, customerPeriods, customerPeriod, customer, customerGenderAge, customerInterest };
 }
 
 // 조회 액션: 네이버 API를 전혀 호출하지 않고 캐시 테이블만 읽는다. 수집은 collect 액션으로 분리.
