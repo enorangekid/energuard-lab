@@ -1750,18 +1750,18 @@ function renderMetrics() {
 
   if (tab === "sales") {
     const t = naverDailyTotals();
-    // 방문수 카드는 상품 상세페이지 방문만 세는 판매분석(t.visits)이 아니라, 스토어홈·쇼핑스토리를
-    // 포함한 유입경로 전체 합계(visitPaths)를 보여준다 — "방문수"라는 이름값에 맞는 실제 총 유입.
-    // 구매전환율은 반대로 상세페이지를 본 사람만 결제 가능하므로 t.visits(상세페이지 방문)를 분모로 유지한다.
+    // 방문수·구매전환율 둘 다 상품 상세페이지만 세는 판매분석(t.visits)이 아니라, 스토어홈·쇼핑스토리를
+    // 포함한 유입경로 전체 합계(visitPaths)를 분모로 쓴다 — 전체 방문객 대비 실제 구매 전환을 보기 위함.
     const totalVisits = (naverStat.visitPaths || []).reduce((s, r) => s + (Number(r.visits) || 0), 0);
-    const conv = t.visits ? (t.payCount / t.visits) * 100 : 0;
+    const conv = totalVisits ? (t.payCount / totalVisits) * 100 : 0;
     const avgOrder = t.payCount ? t.salesTotal / t.payCount : 0;
     renderMetricDash([
       { label: "네이버 매출(순)", value: money(t.salesNet), note: `총 ${money(t.salesTotal)} · 환불 ${money(t.refundAmount)}`, cmp: metricCompareHtml(naverSalesCompare, "salesNet", t.salesNet) },
       { label: "결제 건수", value: num(t.payCount) + "건", note: `수량 ${num(t.qty)}개`, cmp: metricCompareHtml(naverSalesCompare, "payCount", t.payCount) },
       { label: "방문수", value: num(totalVisits) + "회", note: "스토어 전체 방문(스토어홈·쇼핑스토리 포함) · 유입경로 합계 기준",
         cmp: naverSalesDashCompareHtml(totalVisits, p => (p.visitPaths || []).reduce((s, r) => s + (Number(r.visits) || 0), 0)) },
-      { label: "구매전환율", value: formatPercentValue(conv), note: "결제 ÷ 상품 상세페이지 방문수(스토어홈만 방문한 경우 제외)", cmp: metricCompareHtml(naverSalesCompare, "convRate", conv, "rate") },
+      { label: "구매전환율", value: formatPercentValue(conv), note: "결제 ÷ 전체 방문수(스토어홈·쇼핑스토리 포함)",
+        cmp: naverSalesDashCompareHtml(conv, p => { const pv = (p.visitPaths || []).reduce((s, r) => s + (Number(r.visits) || 0), 0); return pv ? p.payCount / pv * 100 : 0; }, "rate") },
       { label: "객단가", value: money(avgOrder), note: "매출 ÷ 결제건수", cmp: metricCompareHtml(naverSalesCompare, "avgOrder", avgOrder) },
     ], "", "요약 리포트", "주요 지표를 통해 내 계정 현황을 간편하게 진단하고, 개선이 필요한 부분을 찾아보세요.");
     // 유입 그래프·전기간/전년 비교는 이제 요약 대시보드 타일 밑이 아니라 "요약분석" 탭의
