@@ -1074,6 +1074,29 @@ async function naverDailyOnly(body: JsonMap) {
   return { dateFrom, dateTo, daily };
 }
 
+// 요약분석 "상품군별 매출 동향" 카드 전용 — 상단에서 고른 조회 기간과 무관하게 항상
+// 전체 데이터 기간의 상품×일자 매출만 가볍게 가져온다(카테고리 분류는 상품명 기준으로
+// 클라이언트에서 한다). "전체" 합계 행은 상품별이 아니라서 제외.
+async function naverCategoryDailyOnly(body: JsonMap) {
+  const { dateFrom, dateTo } = dateRange(body);
+  const query = new URLSearchParams({
+    select: "report_date,product_id,product_name,sales_total",
+    report_date: `gte.${dateFrom}`,
+    order: "report_date.asc",
+  });
+  query.append("report_date", `lte.${dateTo}`);
+  const rows = await supabaseSelectAll(`/rest/v1/${NAVER_PRODUCT_TABLE}?${query.toString()}`);
+  const productDaily = rows
+    .filter(row => String(row.product_id || "") !== "전체" && String(row.product_name || "") !== "전체")
+    .map(row => ({
+      date: normalizeDate(row.report_date) || String(row.report_date || ""),
+      productId: String(row.product_id || ""),
+      productName: String(row.product_name || ""),
+      salesTotal: toNumber(row.sales_total),
+    }));
+  return { dateFrom, dateTo, productDaily };
+}
+
 async function naverStatSummary(body: JsonMap) {
   const { dateFrom, dateTo } = dateRange(body);
 
@@ -1082,9 +1105,6 @@ async function naverStatSummary(body: JsonMap) {
   const prodRows = await supabaseSelectAll(`/rest/v1/${NAVER_PRODUCT_TABLE}?${q1.toString()}`);
   const daily: JsonMap[] = [];
   const byProduct = new Map<string, JsonMap>();
-  // 상품군별 매출 동향(요약분석 카드)용 — 상품×일자 단위 매출만 가볍게 따로 모아둔다.
-  // 카테고리 분류(CUSTOM_PRODUCT_CATEGORIES)는 클라이언트에서 상품명 기준으로 한다.
-  const productDaily: JsonMap[] = [];
   prodRows.forEach(row => {
     const item = {
       date: normalizeDate(row.report_date) || String(row.report_date || ""),
@@ -1104,7 +1124,6 @@ async function naverStatSummary(body: JsonMap) {
       daily.push(item);
       return;
     }
-    productDaily.push({ date: item.date, productId: item.productId, productName: item.productName, salesTotal: item.salesTotal });
     if (!byProduct.has(item.productId)) {
       byProduct.set(item.productId, {
         productId: item.productId, productName: item.productName,
@@ -1231,7 +1250,7 @@ async function naverStatSummary(body: JsonMap) {
     }
   }
 
-  return { dateFrom, dateTo, daily, products, productDaily, visitPaths, searchTerms, customerPeriods, customerPeriod, customer, customerGenderAge, customerInterest };
+  return { dateFrom, dateTo, daily, products, visitPaths, searchTerms, customerPeriods, customerPeriod, customer, customerGenderAge, customerInterest };
 }
 
 // 조회 액션: 네이버 API를 전혀 호출하지 않고 캐시 테이블만 읽는다. 수집은 collect 액션으로 분리.
@@ -1303,6 +1322,7 @@ Deno.serve(async (req) => {
     if (action === "naverStatSummary") return json(await naverStatSummary(body));
     if (action === "naverStatMonths") return json(await naverStatMonths(body));
     if (action === "naverDailyOnly") return json(await naverDailyOnly(body));
+    if (action === "naverCategoryDailyOnly") return json(await naverCategoryDailyOnly(body));
     if (action === "daily") return json(await dailySummary(body));
     if (action === "purchaseDebug") {
       const statDt = String(body.statDt || ymd(new Date(Date.now() + 9 * 3600 * 1000 - 86400000).toISOString().slice(0, 10))).replace(/\D/g, "").slice(0, 8);

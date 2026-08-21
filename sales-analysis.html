@@ -712,7 +712,31 @@ let coupangItemLoading = false;
 let coupangProductMap = new Map(); // optionId -> { productId, vendorProductId } (Wing 상품목록 업로드로 채워짐)
 let coupangProductMapLoaded = false;
 let coupangCardOpen = loadJson("nrCoupangCardOpen:v1", null) || { sales: true, item: true };
-let naverStat = { daily: [], products: [], productDaily: [], visitPaths: [], searchTerms: [], customerPeriods: [], customerPeriod: "", customer: [], customerGenderAge: [], customerInterest: null };
+let naverStat = { daily: [], products: [], visitPaths: [], searchTerms: [], customerPeriods: [], customerPeriod: "", customer: [], customerGenderAge: [], customerInterest: null };
+
+// 요약분석 "상품군별 매출 동향" 차트 전용 — 상단에서 고른 조회 기간(월별 등)과 무관하게
+// 항상 전체 데이터 기간을 한 번만 불러와서 쓴다. naverStat과 별도로 관리한다.
+let categoryTrendAllData = [];
+let categoryTrendAllLoaded = false;
+let categoryTrendAllLoading = false;
+
+async function ensureCategoryTrendAllLoaded() {
+  if (categoryTrendAllLoaded || categoryTrendAllLoading) return;
+  categoryTrendAllLoading = true;
+  try {
+    const dateTo = formatDate(kstDate(0));
+    const data = await callAdFn({ action: "naverCategoryDailyOnly", dateFrom: "2020-01-01", dateTo });
+    categoryTrendAllData = data.productDaily || [];
+    categoryTrendAllLoaded = true;
+  } catch (_) {
+    categoryTrendAllData = [];
+  } finally {
+    categoryTrendAllLoading = false;
+    if (activePlatform === "naver" && activeSubtab.naver === "sales" && document.getElementById("categoryTrendChartBody")) {
+      renderCategoryTrendChart("categoryTrendChartBody");
+    }
+  }
+}
 let selectedCustomerPeriod = ""; // 사용자가 드롭다운으로 고른 고객 스냅샷 기간("from|to") — 비우면 서버가 알아서 고른다
 
 // 매출분석 탭의 일별 추이 차트 — 처음엔 그래프 하나만 두고(매출 추이 = 판매금액(순)),
@@ -1558,7 +1582,6 @@ async function loadNaverStat() {
     naverStat = {
       daily: data.daily || [],
       products: data.products || [],
-      productDaily: data.productDaily || [],
       visitPaths: data.visitPaths || [],
       searchTerms: data.searchTerms || [],
       customerPeriods: data.customerPeriods || [],
@@ -2578,12 +2601,13 @@ function productChartsRowHtml(barHtml, donutHtml) {
   return `<div class="product-charts-row">${barHtml}${donutHtml}</div>`;
 }
 
-// 요약분석 "상품군별 매출 동향" — naverStat.productDaily(상품×일자 매출)를 상품명 키워드로
-// 카테고리 분류(classifyProductCategory, 도넛차트와 동일 기준)한 뒤, 대략 주 단위 구간으로
-// 묶어 100% 누적 막대로 그린다. 하루 단위로 그리면 그날그날 매출 변동 때문에 비중이
-// 들쭉날쭉해서 읽기 어려워, 며칠씩 묶어 구간별 "덩어리"로 늘고 주는 흐름만 보이게 한다.
+// 요약분석 "상품군별 매출 동향" — categoryTrendAllData(전체 기간 상품×일자 매출, 조회 기간
+// 선택과 무관)를 상품명 키워드로 카테고리 분류(classifyProductCategory, 도넛차트와 동일
+// 기준)한 뒤, 대략 주 단위 구간으로 묶어 100% 누적 막대로 그린다. 하루 단위로 그리면 그날그날
+// 매출 변동 때문에 비중이 들쭉날쭉해서 읽기 어려워, 며칠씩 묶어 구간별 "덩어리"로 늘고 주는
+// 흐름만 보이게 한다.
 function categoryTrendChartData() {
-  const src = naverStat.productDaily || [];
+  const src = categoryTrendAllData || [];
   const byDate = new Map(); // date -> Map(category -> salesTotal 합계)
   src.forEach(row => {
     if (!row.date) return;
@@ -2643,6 +2667,7 @@ function categoryTrendBucketLabel(b) {
 function renderCategoryTrendChart(bodyId) {
   const body = document.getElementById(bodyId);
   if (!body) return;
+  if (!categoryTrendAllLoaded) { body.innerHTML = `<div class="empty">전체 기간 데이터를 불러오는 중...</div>`; return; }
   const chart = categoryTrendChartData();
   if (!chart) { body.innerHTML = `<div class="empty">이 기간에 상품별 매출 데이터가 없습니다.</div>`; return; }
   const { buckets, shares } = chart;
@@ -3603,7 +3628,7 @@ function naverSummaryCardHtml() {
     `<div class="summary-mini-card app-card">${titleRow(title, subtitle, rightHtml)}${divider}${body(content)}</div>`;
 
   const cards = [
-    miniCard("상품군별 매출 동향", "기간 동안 카테고리별 매출 비중이 어떻게 늘고 줄었는지 확인하세요.", `<div id="categoryTrendChartBody"></div>`),
+    miniCard("상품군별 매출 동향", "조회 기간과 무관하게, 전체 데이터 기간 동안 카테고리별 매출 비중이 어떻게 늘고 줄었는지 확인하세요.", `<div id="categoryTrendChartBody"></div>`),
     miniCard("유입경로 비율", "어떤 경로로 고객이 유입되고 있는지 비율로 한눈에 확인하세요.", visitBar),
     miniCard("전월·전년 비교", "매출·유입이 크게 늘거나 줄어든 상품과 경로를 전월·전년 대비로 확인하세요.", movers, salesMoverPeriodToggleHtml()),
     miniCard("핵심 지표 TOP3", "매출·유입·검색 기준으로 가장 성과가 좋은 상품·경로·검색어를 모아봤어요.", naverSummaryTop3RowsHtml()),
@@ -3937,6 +3962,7 @@ function renderNaverSalesPanel() {
   if (salesTrendRangeLength !== "1m") ensureSalesTrendExtLoaded();
   const trendChart = salesTrendChartRows();
   renderSalesTrendChart("naverSalesTrendBody", trendChart.rows, trendChart.unit);
+  ensureCategoryTrendAllLoaded();
   renderCategoryTrendChart("categoryTrendChartBody");
   renderMainNav(false); // "요약분석"이 이미 요약 역할을 하므로 별도 "종합분석"(전체 펼치기) 탭은 만들지 않음
 }
