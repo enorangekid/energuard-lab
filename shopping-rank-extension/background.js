@@ -609,30 +609,47 @@ function isBlockedHtml(html) {
 // nplus-collector.js의 최초 화면 DOM 추출(extractInitialDom)과 완전히 같은 필드를 raw HTML에서
 // 정규식으로 뽑아 RankParser.toDetailMap/isAdRecord로 판정한다 — 스크롤로 이어지는 뒷부분은
 // 별도 네트워크 API라 fetch만으로는 못 가져오니 최초 화면(대략 20~40개)만 확인 가능하다.
-// 몰 이름(chnl_prod_nm)이 dtl에 없는 카드가 있는 건 알려진 문제(README 참고)라, DOM 트리 대신
-// 앵커 주변 원문 텍스트에서 스토어명을 찾는 근사 폴백을 둔다(완벽하진 않음 — 실측 필요).
-function stripHtmlTags(html) {
-  return html.replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
-}
-
+// 몰 이름(chnl_prod_nm)이 dtl에 없는 카드가 있는 건 알려진 문제(README 참고) — 2026-08-26
+// 사용자가 실제 카드 HTML을 떠준 걸로 확인해보니, 몰 이름은 상품 링크가 다 끝나고 썸네일·찜
+// 버튼까지 지난 뒤에야 <span class="mallLink_mall_name__[해시]">몰이름</span>으로 나온다.
+// 카드 하나당 이런 span이 정확히 하나씩만 나오므로, "이 상품 앵커 위치 ~ 다음 상품 앵커
+// 위치 사이"에 있는 첫 mallLink_mall_name span을 그 카드의 몰 이름으로 매칭한다(위치 기반,
+// 고정 글자수 검색이 아님 — 카드마다 태그가 워낙 길어서 고정폭 방식은 계속 놓쳤었다).
 function parseNplusProductsFromHtml(html, storeName) {
-  const targetNorm = normalizeStoreLabel(storeName);
+  const mallRe = /<span class="mallLink_mall_name__[^"]*">([^<]*)<\/span>/g;
+  const mallMatches = [];
+  let mm;
+  while ((mm = mallRe.exec(html))) {
+    mallMatches.push({
+      index: mm.index,
+      name: mm[1].replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'").trim(),
+    });
+  }
+  function mallNameBetween(startIndex, endIndex) {
+    const hit = mallMatches.find((x) => x.index > startIndex && x.index < endIndex);
+    return hit ? hit.name : "";
+  }
+
   const tagRe = /<a\b[^>]*>/g;
-  const results = [];
-  let organic = 0;
+  const anchors = [];
   let m;
   while ((m = tagRe.exec(html))) {
-    const tag = m[0];
+    if (/\bdata-shp-inventory="prod"/.test(m[0])) anchors.push({ index: m.index, tag: m[0] });
+  }
+
+  const results = [];
+  let organic = 0;
+  anchors.forEach((entry, i) => {
+    const tag = entry.tag;
     const getAttr = (name) => {
-      const mm = tag.match(new RegExp(`\\b${name}="([^"]*)"`));
-      return mm ? mm[1] : "";
+      const mmAttr = tag.match(new RegExp(`\\b${name}="([^"]*)"`));
+      return mmAttr ? mmAttr[1] : "";
     };
-    if (getAttr("data-shp-inventory") !== "prod") continue;
     const group = getAttr("data-shp-contents-grp");
     const type = getAttr("data-shp-contents-type");
     const dtlRaw = getAttr("data-shp-contents-dtl");
     const href = getAttr("href");
-    if (!dtlRaw) continue;
+    if (!dtlRaw) return;
     const dtlDecoded = dtlRaw.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&");
     let detail;
     try { detail = RankParser.toDetailMap(dtlDecoded); } catch (_) { detail = {}; }
@@ -640,14 +657,12 @@ function parseNplusProductsFromHtml(html, storeName) {
     const productCode = String(detail.chnl_prod_no || "").trim();
     const naverProductId = String(detail.catalog_nv_mid || getAttr("data-shp-contents-id") || "").trim();
     const key = productCode || naverProductId || href;
-    if (!key) continue;
+    if (!key) return;
 
+    const nextIndex = i + 1 < anchors.length ? anchors[i + 1].index : html.length;
     let mallName = String(detail.chnl_prod_nm || "").trim();
-    if (!mallName && targetNorm) {
-      const windowEnd = Math.min(html.length, m.index + tag.length + 900);
-      const nearbyText = stripHtmlTags(html.slice(m.index, windowEnd));
-      if (normalizeStoreLabel(nearbyText).includes(targetNorm)) mallName = storeName;
-    }
+    if (!mallName) mallName = mallNameBetween(entry.index, nextIndex);
+
     if (!isAd) organic += 1;
     results.push({
       productCode, naverProductId,
@@ -655,7 +670,7 @@ function parseNplusProductsFromHtml(html, storeName) {
       price: Number(detail.price) || 0,
       mallName, isAd, rank: isAd ? null : organic,
     });
-  }
+  });
   return results;
 }
 
