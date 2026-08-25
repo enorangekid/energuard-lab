@@ -991,7 +991,13 @@ async function fetchNicheNews(seed: string, sort: "date" | "sim") {
 // 아니라 openapi로는 절대 안 잡힘, 2026-08-26 확인)를 보완하려고 구글 뉴스의 비공식 공개 RSS 검색을
 // 쓴다(news.google.com/rss/search — API 키 불필요). site:도메인으로 그 매체 안에서만 검색해서,
 // 네이버가 이미 잘 주는 일반 언론사 기사와 안 겹치게 한다. 전문지가 더 생기면 이 배열만 늘리면 된다.
-const NICHE_GOOGLE_NEWS_SITES = ["kharn.kr"];
+const NICHE_GOOGLE_NEWS_SITES = [
+  "kharn.kr",         // 칸 — 냉난방공조·신재생·녹색건축 전문지
+  "fpn119.co.kr",     // 소방방재신문 — 화재·불연/준불연 관련
+  "energydaily.co.kr", // 에너지데일리
+  "energy-news.co.kr", // 에너지신문
+  "ekn.kr",           // 에너지경제신문
+];
 
 async function fetchNicheNewsGoogle(seed: string, site: string) {
   const q = `${seed} site:${site}`;
