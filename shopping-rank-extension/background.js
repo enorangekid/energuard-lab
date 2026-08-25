@@ -547,7 +547,10 @@ async function withFastFetchHeaders(referer, fn) {
     id: FAST_FETCH_RULE_ID,
     priority: 1,
     condition: {
-      urlFilter: "https://search.shopping.naver.com/search/*",
+      // 원래 /search/*(가격비교)만 잡았는데, ns/search(N+스토어) fast-fetch도 같은 위장이
+      // 필요해서 호스트 전체로 넓혔다 — 이 규칙은 헤더만 바꾸고 요청을 막지 않으니 범위를
+      // 넓혀도 다른 요청에 부작용이 없다(2026-08-26).
+      urlFilter: "https://search.shopping.naver.com/",
       resourceTypes: [
         chrome.declarativeNetRequest.ResourceType.XMLHTTPREQUEST,
         chrome.declarativeNetRequest.ResourceType.OTHER,
@@ -600,6 +603,93 @@ function extractNextDataFromHtml(html) {
 
 function isBlockedHtml(html) {
   return /보안\s*확인을\s*완료|WtmCaptcha|접속이 일시적으로 제한|서비스 이용이 제한/.test(html || "");
+}
+
+// ═══ N+스토어(ns/search) 빠른 조회(탭 없이 fetch) ═══
+// nplus-collector.js의 최초 화면 DOM 추출(extractInitialDom)과 완전히 같은 필드를 raw HTML에서
+// 정규식으로 뽑아 RankParser.toDetailMap/isAdRecord로 판정한다 — 스크롤로 이어지는 뒷부분은
+// 별도 네트워크 API라 fetch만으로는 못 가져오니 최초 화면(대략 20~40개)만 확인 가능하다.
+// 몰 이름(chnl_prod_nm)이 dtl에 없는 카드가 있는 건 알려진 문제(README 참고)라, DOM 트리 대신
+// 앵커 주변 원문 텍스트에서 스토어명을 찾는 근사 폴백을 둔다(완벽하진 않음 — 실측 필요).
+function stripHtmlTags(html) {
+  return html.replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
+}
+
+function parseNplusProductsFromHtml(html, storeName) {
+  const targetNorm = normalizeStoreLabel(storeName);
+  const tagRe = /<a\b[^>]*>/g;
+  const results = [];
+  let organic = 0;
+  let m;
+  while ((m = tagRe.exec(html))) {
+    const tag = m[0];
+    const getAttr = (name) => {
+      const mm = tag.match(new RegExp(`\\b${name}="([^"]*)"`));
+      return mm ? mm[1] : "";
+    };
+    if (getAttr("data-shp-inventory") !== "prod") continue;
+    const group = getAttr("data-shp-contents-grp");
+    const type = getAttr("data-shp-contents-type");
+    const dtlRaw = getAttr("data-shp-contents-dtl");
+    const href = getAttr("href");
+    if (!dtlRaw) continue;
+    const dtlDecoded = dtlRaw.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&");
+    let detail;
+    try { detail = RankParser.toDetailMap(dtlDecoded); } catch (_) { detail = {}; }
+    const isAd = RankParser.isAdRecord({ group, type, href });
+    const productCode = String(detail.chnl_prod_no || "").trim();
+    const naverProductId = String(detail.catalog_nv_mid || getAttr("data-shp-contents-id") || "").trim();
+    const key = productCode || naverProductId || href;
+    if (!key) continue;
+
+    let mallName = String(detail.chnl_prod_nm || "").trim();
+    if (!mallName && targetNorm) {
+      const windowEnd = Math.min(html.length, m.index + tag.length + 900);
+      const nearbyText = stripHtmlTags(html.slice(m.index, windowEnd));
+      if (normalizeStoreLabel(nearbyText).includes(targetNorm)) mallName = storeName;
+    }
+    if (!isAd) organic += 1;
+    results.push({
+      productCode, naverProductId,
+      title: String(detail.prod_nm || "").trim(),
+      price: Number(detail.price) || 0,
+      mallName, isAd, rank: isAd ? null : organic,
+    });
+  }
+  return results;
+}
+
+async function fastFetchNplusPage(keyword, storeName) {
+  const url = "https://search.shopping.naver.com/ns/search?" + new URLSearchParams({
+    query: keyword, prevQuery: keyword, sort: "RECOMMEND",
+  });
+  const referer = `https://search.shopping.naver.com/ns/search?query=${encodeURIComponent(keyword)}`;
+  return withFastFetchHeaders(referer, async () => {
+    let res;
+    try {
+      res = await fetch(url, { credentials: "include", signal: AbortSignal.timeout(15000) });
+    } catch (error) {
+      console.warn(`[NplusFastFetch] ${keyword} 네트워크 오류:`, error);
+      return { blockedReason: `네트워크 오류: ${error?.message || "알 수 없는 오류"}`, products: [] };
+    }
+    if (res.status === 418 || res.status === 403) {
+      console.warn(`[NplusFastFetch] ${keyword} 상태코드 ${res.status} → 캡차 판정`);
+      return { blockedReason: "네이버 쇼핑 접속이 제한되었습니다(캡차).", products: [] };
+    }
+    if (!res.ok) return { blockedReason: `네이버 응답 오류 (${res.status})`, products: [] };
+    const html = await res.text();
+    if (isBlockedHtml(html)) {
+      console.warn(`[NplusFastFetch] ${keyword} 본문에서 캡차/차단 문구 감지`);
+      return { blockedReason: "네이버 쇼핑 접속이 제한되었습니다(캡차).", products: [] };
+    }
+    const products = parseNplusProductsFromHtml(html, storeName);
+    if (!products.length) {
+      console.warn(`[NplusFastFetch] ${keyword} 상품 카드 0개, html 길이=${html.length}`);
+      return { blockedReason: "상품 카드를 찾지 못했습니다(빠른 조회, 최초 화면만).", products: [] };
+    }
+    console.info(`[NplusFastFetch] ${keyword} 성공 · 카드 ${products.length}개(일반 ${products.filter(p => !p.isAd).length}개)`);
+    return { products, blockedReason: "" };
+  });
 }
 
 async function fastFetchSearchPage(keyword, pageIndex) {
@@ -1525,9 +1615,16 @@ async function runNplusStoreCollection(config) {
   const failedKeywords = [];
   const targetRank = config.targetRank || 200;
   try {
-    // 쿠팡 재검색과 동일하게 포커스를 뺏지 않는다 — 화면 앞에 탭이 튀어나오지 않게.
-    const tab = await chrome.tabs.create({ active: false, url: "about:blank" });
-    activeRun.tabId = tab.id;
+    // 빠른 조회(fetch)가 계속 통하면 탭을 아예 안 연다 — 막혔을 때만 그때 생성한다.
+    // 만들 땐 쿠팡 재검색과 동일하게 포커스를 뺏지 않는다(화면 앞에 튀어나오지 않게).
+    let tab = null;
+    async function ensureNplusTab() {
+      if (!tab) {
+        tab = await chrome.tabs.create({ active: false, url: "about:blank" });
+        activeRun.tabId = tab.id;
+      }
+      return tab;
+    }
 
     // 교차검증 재시도 — README "N+스토어 순위 — 실험 후 보류" 결론대로, 같은 페이지를 다시
     // 로드할 때마다 광고/위젯 렌더링 타이밍이 비결정적이라 순위가 들쭉날쭉했다. 매번 새로
@@ -1546,19 +1643,45 @@ async function runNplusStoreCollection(config) {
       let lastSignature = null;
       let stabilized = false;
       let attemptError = "";
+      let nplusFastFetchDisabled = false; // 캡차 한 번 걸리면 이후 시도도 계속 막힐 가능성 높아 탭 방식으로 전환
       for (let attempt = 1; attempt <= NPLUS_MAX_ATTEMPTS; attempt += 1) {
         if (!activeRun || activeRun.id !== runId || activeRun.cancelled) throw new Error("사용자가 수집을 중단했습니다.");
-        await chrome.tabs.update(tab.id, { url });
-        await waitForTabComplete(tab.id);
-        await showCollectionStatus(tab.id, {
-          status: "running", keyword: keywordMeta.keyword,
-          message: `스크롤하며 N+스토어 검색결과를 수집하고 있습니다. (교차검증 ${attempt}/${NPLUS_MAX_ATTEMPTS})`,
-          pageIndex: 1, pageCount: 1, completed: completed + 1, total,
-        });
 
-        let extracted;
+        let extracted = null;
+        let usedFastPath = false;
+        if (!nplusFastFetchDisabled) {
+          try {
+            const fast = await fastFetchNplusPage(keywordMeta.keyword, config.storeName);
+            if (fast.products?.length) {
+              extracted = fast;
+              usedFastPath = true;
+            } else if (fast.blockedReason && /캡차/.test(fast.blockedReason)) {
+              nplusFastFetchDisabled = true;
+            }
+          } catch (_) {
+            // 빠른 경로 예외 — 아래에서 탭 방식으로 폴백
+          }
+        }
+
+        if (!extracted) {
+          await ensureNplusTab();
+          await chrome.tabs.update(tab.id, { url });
+          await waitForTabComplete(tab.id);
+          await showCollectionStatus(tab.id, {
+            status: "running", keyword: keywordMeta.keyword,
+            message: `스크롤하며 N+스토어 검색결과를 수집하고 있습니다. (교차검증 ${attempt}/${NPLUS_MAX_ATTEMPTS})`,
+            pageIndex: 1, pageCount: 1, completed: completed + 1, total,
+          });
+          try {
+            extracted = await extractNplusPage(tab.id, targetRank, config.storeName);
+          } catch (error) {
+            attemptError = error?.message || "알 수 없는 오류";
+            if (attempt < NPLUS_MAX_ATTEMPTS) await sleep(1000 + Math.random() * 500);
+            continue;
+          }
+        }
+
         try {
-          extracted = await extractNplusPage(tab.id, targetRank, config.storeName);
           if (extracted.blockedReason) throw new Error(extracted.blockedReason);
           const organic = (extracted.products || []).filter((p) => !p.isAd);
           if (organic.length < Math.min(15, targetRank)) {
@@ -1572,19 +1695,19 @@ async function runNplusStoreCollection(config) {
 
         const signature = nplusMatchSignature(extracted.products, config.storeName);
         products = extracted.products || [];
-        console.info(`[NplusCrossCheck] ${keywordMeta.keyword} 시도 ${attempt}/${NPLUS_MAX_ATTEMPTS}: ${signature || "(자사 상품 없음)"}`);
+        console.info(`[NplusCrossCheck] ${keywordMeta.keyword} 시도 ${attempt}/${NPLUS_MAX_ATTEMPTS} (${usedFastPath ? "FAST" : "TAB"}): ${signature || "(자사 상품 없음)"}`);
         if (signature === lastSignature) {
           stabilized = true;
           break;
         }
         lastSignature = signature;
-        if (attempt < NPLUS_MAX_ATTEMPTS) await sleep(1000 + Math.random() * 500);
+        if (attempt < NPLUS_MAX_ATTEMPTS) await sleep(usedFastPath ? (500 + Math.random() * 400) : (1000 + Math.random() * 500));
       }
 
       if (!products.length) {
         const reason = attemptError || "일반상품을 확인하지 못했습니다.";
         failedKeywords.push({ keyword: keywordMeta.keyword, reason });
-        await showCollectionStatus(tab.id, {
+        await showCollectionStatus(tab?.id, {
           status: "running", keyword: keywordMeta.keyword,
           message: `실패: ${reason} — 다음 키워드로 넘어갑니다.`,
           pageIndex: 1, pageCount: 1, completed: completed + 1, total,
@@ -1600,7 +1723,7 @@ async function runNplusStoreCollection(config) {
       const result = await saveNplusSnapshot(config, keywordMeta, products);
       saved += result.targetCount;
       completed += 1;
-      await showCollectionStatus(tab.id, {
+      await showCollectionStatus(tab?.id, {
         status: "running", keyword: keywordMeta.keyword,
         message: `${keywordMeta.keyword} · 일반상품 ${products.filter((p) => !p.isAd).length}개 확인 · 자사 매칭 ${result.targetCount}개 · ${stabilized ? "안정화됨" : "불안정(마지막 값 사용)"}`,
         pageIndex: 1, pageCount: 1, completed, total,
