@@ -1525,7 +1525,8 @@ async function runNplusStoreCollection(config) {
   const failedKeywords = [];
   const targetRank = config.targetRank || 200;
   try {
-    const tab = await chrome.tabs.create({ active: true, url: "about:blank" });
+    // 쿠팡 재검색과 동일하게 포커스를 뺏지 않는다 — 화면 앞에 탭이 튀어나오지 않게.
+    const tab = await chrome.tabs.create({ active: false, url: "about:blank" });
     activeRun.tabId = tab.id;
 
     // 교차검증 재시도 — README "N+스토어 순위 — 실험 후 보류" 결론대로, 같은 페이지를 다시
