@@ -967,7 +967,7 @@ async function fetchNicheNews(seed: string, sort: "date" | "sim") {
   const clientSecret = Deno.env.get("NAVER_CLIENT_SECRET") || "";
   if (!clientId || !clientSecret) throw new Error("NAVER_CLIENT_ID / NAVER_CLIENT_SECRET 시크릿이 필요합니다.");
   const res = await fetch(
-    `https://openapi.naver.com/v1/search/news.json?query=${encodeURIComponent(seed)}&display=20&sort=${sort}`,
+    `https://openapi.naver.com/v1/search/news.json?query=${encodeURIComponent(seed)}&display=100&sort=${sort}`,
     {
       headers: { "X-Naver-Client-Id": clientId, "X-Naver-Client-Secret": clientSecret },
       signal: AbortSignal.timeout(10_000),
