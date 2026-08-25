@@ -231,8 +231,10 @@
   .tr-delta.down { color: var(--bad); }
   .tr-delta.same { color: #c3cad6; }
   .tr-delta.new { color: var(--accent); }
-  .tr-kw { min-width: 0; font-size: 13.5px; font-weight: 800; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .tr-kw:hover { color: var(--accent-dark); text-decoration: underline; }
+  .tr-kw { min-width: 0; display: flex; flex-direction: column; gap: 2px; justify-content: center; }
+  .tr-kw-title { font-size: 13.5px; font-weight: 800; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tr-kw-title:hover { color: var(--accent-dark); text-decoration: underline; }
+  .tr-kw-press { font-size: 11px; font-weight: 600; color: var(--sub); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tr-src { justify-self: stretch; display: flex; align-items: center; justify-content: center; gap: 4px; flex-wrap: wrap; min-width: 0; }
   .tr-src span {
     max-width: 100%; padding: 2px 7px; border-radius: 10px; background: #eef0f3;
@@ -980,7 +982,10 @@ function renderTrendRows(items) {
     return `<div class="trend-row">
       <span class="tr-rank">${item.rank}</span>
       ${deltaHtml(item)}
-      <span class="tr-kw" onclick="window.open('${esc(mainUrl)}', '_blank')">${esc(item.keyword)}</span>
+      <span class="tr-kw">
+        <span class="tr-kw-title" onclick="window.open('${esc(mainUrl)}', '_blank')">${esc(item.keyword)}</span>
+        ${item.press ? `<span class="tr-kw-press">${esc(item.press)}</span>` : ""}
+      </span>
       <span class="tr-src" title="${esc(sources.join(" · "))}">${sources.slice(0, 5).map(source => `<span>${esc(source)}</span>`).join("")}</span>
       <span class="tr-links">
         <a href="https://search.naver.com/search.naver?ssc=tab.blog.all&query=${q}" target="_blank" rel="noopener">블로그</a>

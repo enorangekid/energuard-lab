@@ -1061,7 +1061,7 @@ async function collectNicheTrendData() {
   // 제목 토큰이 3개 이상 겹치면 같은 이슈로 묶기 (탐욕적 클러스터링)
   type Cluster = {
     title: string; link: string; pubDate: number; count: number; seeds: Set<string>;
-    sources: Set<string>; tokens: Set<string>; relevanceHits: number;
+    sources: Set<string>; tokens: Set<string>; relevanceHits: number; sourceName: string;
   };
   const clusters: Cluster[] = [];
   recent.forEach(article => {
@@ -1084,6 +1084,8 @@ async function collectNicheTrendData() {
       clusters.push({
         title: article.title, link: article.link, pubDate: article.pubDate,
         count: 1, seeds: new Set([article.seed]), sources: new Set(article.source ? [article.source] : []), tokens,
+        // 대표 링크(title/link)를 준 기사와 같은 기사의 언론사명 — 목록에 "어디 기사인지" 표시용.
+        sourceName: article.source || "",
         relevanceHits: [...titleTokens(article.title)].filter(token => domainPattern.test(token)).length,
       });
     }
@@ -1116,6 +1118,7 @@ async function collectNicheTrendData() {
       keyword: cluster.title,
       link: cluster.link,
       query: [...cluster.seeds][0],
+      press: cluster.sourceName,
       sources: [
         `이슈 ${cluster.score}점`, `기사 ${cluster.count}건`, `언론사 ${cluster.sources.size}곳`,
         fmtAge(cluster.pubDate), [...cluster.seeds].slice(0, 2).join("·"),
