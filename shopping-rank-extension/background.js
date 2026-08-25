@@ -1443,6 +1443,20 @@ async function extractNplusPage(tabId, targetRank, storeName) {
   throw new Error(`N+스토어 수집 스크립트 연결 실패: ${lastError?.message || "알 수 없는 오류"}`);
 }
 
+// 우리 스토어 소속 상품들의 "상품코드:순위" 조합을 정렬된 문자열로 만든다 — 두 번의 추출
+// 시도가 이 값까지 완전히 같으면 "이번엔 안정적으로 나왔다"고 판단한다(교차검증용).
+function nplusMatchSignature(products, storeName) {
+  const matched = (products || []).filter(
+    (p) => !p.isAd && p.mallName && normalizeStoreLabel(p.mallName) === normalizeStoreLabel(storeName)
+  );
+  const byCode = new Map();
+  matched.forEach((p) => {
+    const code = String(p.productCode || p.naverProductId || "").trim();
+    if (code && !byCode.has(code)) byCode.set(code, p.rank);
+  });
+  return [...byCode.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([code, rank]) => `${code}:${rank}`).join(",");
+}
+
 async function saveNplusSnapshot(config, keywordMeta, products) {
   const collectedDate = todayKst();
   const now = new Date().toISOString();
@@ -1514,31 +1528,60 @@ async function runNplusStoreCollection(config) {
     const tab = await chrome.tabs.create({ active: true, url: "about:blank" });
     activeRun.tabId = tab.id;
 
+    // 교차검증 재시도 — README "N+스토어 순위 — 실험 후 보류" 결론대로, 같은 페이지를 다시
+    // 로드할 때마다 광고/위젯 렌더링 타이밍이 비결정적이라 순위가 들쭉날쭉했다. 매번 새로
+    // 내비게이션해서 2번 연속 같은 결과(우리 스토어 상품들의 상품코드:순위 조합)가 나올 때까지
+    // 재시도하고, 최대 시도 안에 끝내 일치하지 않으면 마지막 시도 결과를 "불안정" 표시로 저장한다.
+    const NPLUS_MAX_ATTEMPTS = 3;
+
     for (const keywordMeta of config.keywords) {
       if (!activeRun || activeRun.id !== runId || activeRun.cancelled) throw new Error("사용자가 수집을 중단했습니다.");
       const url = "https://search.shopping.naver.com/ns/search?" + new URLSearchParams({
         query: keywordMeta.keyword, prevQuery: keywordMeta.keyword, sort: "RECOMMEND",
       });
       await updateProgress({ completed, message: `“${keywordMeta.keyword}” 검색 중입니다. (${completed + 1}/${total})` });
-      await chrome.tabs.update(tab.id, { url });
-      await waitForTabComplete(tab.id);
-      await showCollectionStatus(tab.id, {
-        status: "running", keyword: keywordMeta.keyword,
-        message: "스크롤하며 N+스토어 검색결과를 수집하고 있습니다.",
-        pageIndex: 1, pageCount: 1, completed: completed + 1, total,
-      });
 
       let products = [];
-      try {
-        const extracted = await extractNplusPage(tab.id, targetRank, config.storeName);
-        if (extracted.blockedReason) throw new Error(extracted.blockedReason);
-        products = extracted.products || [];
-        const organic = products.filter((p) => !p.isAd);
-        if (organic.length < Math.min(15, targetRank)) {
-          throw new Error(`일반상품이 ${organic.length}개만 확인되어 저장하지 않았습니다.`);
+      let lastSignature = null;
+      let stabilized = false;
+      let attemptError = "";
+      for (let attempt = 1; attempt <= NPLUS_MAX_ATTEMPTS; attempt += 1) {
+        if (!activeRun || activeRun.id !== runId || activeRun.cancelled) throw new Error("사용자가 수집을 중단했습니다.");
+        await chrome.tabs.update(tab.id, { url });
+        await waitForTabComplete(tab.id);
+        await showCollectionStatus(tab.id, {
+          status: "running", keyword: keywordMeta.keyword,
+          message: `스크롤하며 N+스토어 검색결과를 수집하고 있습니다. (교차검증 ${attempt}/${NPLUS_MAX_ATTEMPTS})`,
+          pageIndex: 1, pageCount: 1, completed: completed + 1, total,
+        });
+
+        let extracted;
+        try {
+          extracted = await extractNplusPage(tab.id, targetRank, config.storeName);
+          if (extracted.blockedReason) throw new Error(extracted.blockedReason);
+          const organic = (extracted.products || []).filter((p) => !p.isAd);
+          if (organic.length < Math.min(15, targetRank)) {
+            throw new Error(`일반상품이 ${organic.length}개만 확인되어 저장하지 않았습니다.`);
+          }
+        } catch (error) {
+          attemptError = error?.message || "알 수 없는 오류";
+          if (attempt < NPLUS_MAX_ATTEMPTS) await sleep(1000 + Math.random() * 500);
+          continue;
         }
-      } catch (error) {
-        const reason = error?.message || "알 수 없는 오류";
+
+        const signature = nplusMatchSignature(extracted.products, config.storeName);
+        products = extracted.products || [];
+        console.info(`[NplusCrossCheck] ${keywordMeta.keyword} 시도 ${attempt}/${NPLUS_MAX_ATTEMPTS}: ${signature || "(자사 상품 없음)"}`);
+        if (signature === lastSignature) {
+          stabilized = true;
+          break;
+        }
+        lastSignature = signature;
+        if (attempt < NPLUS_MAX_ATTEMPTS) await sleep(1000 + Math.random() * 500);
+      }
+
+      if (!products.length) {
+        const reason = attemptError || "일반상품을 확인하지 못했습니다.";
         failedKeywords.push({ keyword: keywordMeta.keyword, reason });
         await showCollectionStatus(tab.id, {
           status: "running", keyword: keywordMeta.keyword,
@@ -1549,13 +1592,16 @@ async function runNplusStoreCollection(config) {
         await updateProgress({ completed, message: `${keywordMeta.keyword} 실패: ${reason}` });
         continue;
       }
+      if (!stabilized) {
+        console.warn(`[NplusCrossCheck] ${keywordMeta.keyword} ${NPLUS_MAX_ATTEMPTS}번 시도해도 결과가 안정화되지 않음 — 마지막 시도 값을 사용합니다.`);
+      }
 
       const result = await saveNplusSnapshot(config, keywordMeta, products);
       saved += result.targetCount;
       completed += 1;
       await showCollectionStatus(tab.id, {
         status: "running", keyword: keywordMeta.keyword,
-        message: `${keywordMeta.keyword} · 일반상품 ${products.filter((p) => !p.isAd).length}개 확인 · 자사 매칭 ${result.targetCount}개`,
+        message: `${keywordMeta.keyword} · 일반상품 ${products.filter((p) => !p.isAd).length}개 확인 · 자사 매칭 ${result.targetCount}개 · ${stabilized ? "안정화됨" : "불안정(마지막 값 사용)"}`,
         pageIndex: 1, pageCount: 1, completed, total,
       });
       await updateProgress({ completed, saved });
