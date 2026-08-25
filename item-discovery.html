@@ -585,6 +585,7 @@ function normalizeIdea(row) {
     aiScore: Number(row.ai_score ?? row.aiScore ?? 0),
     contentAngle: row.content_angle || row.contentAngle || "",
     selectionReason: row.selection_reason || row.selectionReason || "",
+    sourceUrl: row.source_url || row.sourceUrl || "",
     status: row.status || (draft.body || row.body ? "drafted" : "candidate"),
     deletedAt: row.deleted_at || row.deletedAt || null,
     seenAt: row.seen_at || row.seenAt || null,
@@ -764,6 +765,9 @@ function renderIdeas() {
         <button type="button" class="ui-circle-btn" data-restore-idea="${esc(item.id)}" aria-label="복구" data-tip="복구">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 2.6-6.36"></path><path d="M3 4v5h5"></path></svg>
         </button>` : `
+        ${item.sourceUrl ? `<button type="button" class="ui-circle-btn" onclick="window.open('${esc(item.sourceUrl)}', '_blank')" aria-label="뉴스 원문 보기" data-tip="뉴스 원문 보기">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14 21 3"/></svg>
+        </button>` : ""}
         <button type="button" class="ui-circle-btn${draftReady ? " is-active" : ""}" data-generate-blog="${esc(item.id)}" aria-label="${blogTip}" data-tip="${blogTip}">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4 10 14"/><path d="M12 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6"/></svg>
         </button>
@@ -992,7 +996,7 @@ function renderTrendRows(items) {
         <a href="https://www.youtube.com/results?search_query=${q}" target="_blank" rel="noopener">유튜브</a>
         <a href="https://www.google.com/search?q=${q}" target="_blank" rel="noopener">구글</a>
       </span>
-      <button type="button" class="trend-idea-btn${added ? " added" : ""}" data-add-idea="${esc(item.keyword)}" data-rank="${Number(item.rank || 0)}" data-volume="${searchVolume}" data-products="${products}" data-competition="${competitionScore}" aria-label="${added ? "발굴 키워드 추가됨" : "발굴 키워드로 추가"}" aria-disabled="${added ? "true" : "false"}">
+      <button type="button" class="trend-idea-btn${added ? " added" : ""}" data-add-idea="${esc(item.keyword)}" data-rank="${Number(item.rank || 0)}" data-volume="${searchVolume}" data-products="${products}" data-competition="${competitionScore}" data-link="${esc(item.link || "")}" aria-label="${added ? "발굴 키워드 추가됨" : "발굴 키워드로 추가"}" aria-disabled="${added ? "true" : "false"}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M8.5 14.5A6 6 0 1 1 15.5 14.5C14.5 15.3 14 16.2 14 18h-4c0-1.8-.5-2.7-1.5-3.5Z"/><path d="M12 2V0"/></svg>
       </button>
     </div>`;
@@ -1134,6 +1138,7 @@ async function addTrendIdea(button) {
       searchVolume: Number(button.dataset.volume || 0),
       products: Number(button.dataset.products || 0),
       competitionScore: Number(button.dataset.competition || 0),
+      sourceUrl: button.dataset.link || "",
     });
     if (!data?.item) throw new Error("저장 결과가 없습니다.");
     const item = normalizeIdea(data.item);

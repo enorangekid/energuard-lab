@@ -648,6 +648,7 @@ async function addContentIdea(body: Record<string, unknown>) {
   const searchVolume = Math.max(0, Number(body.searchVolume || body.search_volume || 0));
   const products = Math.max(0, Number(body.products || 0));
   const requestedCompetition = Number(body.competitionScore || body.competition_score || 0);
+  const sourceUrl = String(body.sourceUrl || body.source_url || body.link || "").trim();
   if (Array.isArray(existing) && existing[0]) {
     const patch: Record<string, unknown> = {
       source: fromSearch ? "keyword_search" : "trend_manual",
@@ -658,6 +659,7 @@ async function addContentIdea(body: Record<string, unknown>) {
     };
     if (searchVolume > 0) patch.search_volume = searchVolume;
     if (requestedCompetition > 0) patch.competition_score = clampScore(requestedCompetition);
+    if (sourceUrl) patch.source_url = sourceUrl;
     const updated = await supabaseRequest(`/rest/v1/${CONTENT_IDEA_TABLE}?id=eq.${encodeURIComponent(id)}`, {
       method: "PATCH",
       headers: { "Prefer": "return=representation" },
@@ -685,6 +687,7 @@ async function addContentIdea(body: Record<string, unknown>) {
     trend_score: trendScore,
     ai_score: clampScore(trendScore * 0.5 + seasonScore * 0.3 + Math.min(20, searchVolume / 1000) - Math.min(10, products / 100000)),
     content_angle: `${keyword} 이슈를 생활 속 단열·열차단·습기 관리 관점에서 검토`,
+    source_url: sourceUrl,
     selection_reason: fromSearch
       ? "키워드 분석에서 저장한 발굴 키워드입니다."
       : "트렌드 분석에서 직접 선택한 영감 키워드입니다.",
