@@ -1090,6 +1090,31 @@ async function loadSpikeTrend() {
   spikeLoading = false;
   renderRealtimeTrend();
 }
+
+// "단열 뉴스"/"단열 급상승"은 저장된 스냅샷을 읽기만 해서, 새로고침을 눌러도 실제로는 새 기사를
+// 안 가져왔다 — 그 자리에서 collectNicheDaily(네이버 뉴스검색+구글 뉴스 RSS 재수집)를 먼저
+// 돌리고 나서 스냅샷을 다시 읽어오도록 바꾼다. 뉴스/급상승 둘 다 한 번에 같이 갱신된다.
+let nicheCollecting = false;
+async function collectNicheNow() {
+  if (nicheCollecting) return;
+  nicheCollecting = true;
+  const btn = document.getElementById("trendRefreshBtn");
+  const meta = document.getElementById("trendMeta");
+  const originalLabel = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "수집 중...";
+  meta.textContent = "네이버 뉴스·구글 뉴스에서 새로 가져오는 중입니다(몇십 초 걸릴 수 있어요)...";
+  try {
+    await callTrendFn({ action: "collectNicheDaily" });
+    await Promise.all([loadNicheTrend(), loadSpikeTrend()]);
+  } catch (e) {
+    meta.textContent = "수집 실패: " + String(e.message || e);
+  } finally {
+    nicheCollecting = false;
+    btn.disabled = false;
+    btn.textContent = originalLabel;
+  }
+}
 async function addTrendIdea(button) {
   if (!button || button.disabled || button.classList.contains("added")) return;
   const keyword = button.dataset.addIdea || "";
@@ -1626,8 +1651,7 @@ document.getElementById("realtimeTrendList").addEventListener("focusout", e => {
   if (e.target.closest("[data-add-idea]")) hideFloatingActionTip();
 });
 document.getElementById("trendRefreshBtn").addEventListener("click", () => {
-  if (activeTrendList === "niche") loadNicheTrend();
-  else if (activeTrendList === "spike") loadSpikeTrend();
+  if (activeTrendList === "niche" || activeTrendList === "spike") collectNicheNow();
   else loadRealtimeTrend("");
 });
 document.getElementById("catSelect1").addEventListener("change", () => onCatSelectChange(1));
