@@ -1346,10 +1346,17 @@ async function runCoupangRecheck(config) {
     runId, mode: "coupangRecheck", message: "준비하고 있습니다.", error: "",
   });
 
+  // 쿠팡 검색 탭이 화면 앞에 튀어나오지 않도록 최소화된 별도 창(popup)에서 연다 — 사용자는
+  // runner.html 진행 화면(큐)만 보면 되고, 실제 페이지 이동/파싱은 백그라운드에서 이뤄진다.
   let tab = null;
+  let collectionWindowId = null;
   async function ensureTab() {
     if (!tab) {
-      tab = await chrome.tabs.create({ active: true, url: "about:blank" });
+      const win = await chrome.windows.create({
+        url: "about:blank", focused: false, state: "minimized", type: "popup",
+      });
+      tab = (win.tabs && win.tabs[0]) || (await chrome.tabs.query({ windowId: win.id }))[0];
+      collectionWindowId = win.id;
       activeRun.tabId = tab.id;
     }
     return tab;
@@ -1425,7 +1432,8 @@ async function runCoupangRecheck(config) {
       saved,
     });
   } finally {
-    if (finishedSuccessfully && activeRun?.tabId) chrome.tabs.remove(activeRun.tabId).catch(() => {});
+    // 실패/중단 시에는 창을 남겨서 무슨 화면이 떠 있었는지 확인할 수 있게 둔다(다른 모드와 동일한 원칙).
+    if (finishedSuccessfully && collectionWindowId) chrome.windows.remove(collectionWindowId).catch(() => {});
     activeRun = null;
   }
 }

@@ -65,12 +65,17 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
     const pageText = (document.body?.innerText || "").slice(0, 3000);
     let blockedReason = "";
+    // 2026-08-26 실측: 로그인 안 된 상태에서 2페이지 이상으로 넘어가면 상품이 있는 검색어인데도
+    // 쿠팡이 "검색결과가 없습니다"를 띄운다 — 캡차와는 다른, 로그인 요구 신호라 따로 구분해서
+    // 사용자가 원인을 바로 알 수 있게 한다.
     if (!products.length && /보안\s*확인|자동입력\s*방지|비정상적인\s*접근|captcha/i.test(pageText)) {
       blockedReason = "쿠팡 접속이 일시적으로 제한되었습니다(캡차로 추정). 잠시 후 다시 시도하세요.";
+    } else if (!products.length && /검색결과가\s*없습니다|다른\s*검색어를\s*입력/.test(pageText)) {
+      blockedReason = "2페이지 이상은 쿠팡 로그인이 필요합니다 — 이 브라우저에서 쿠팡에 로그인한 뒤 다시 시도해 주세요.";
     } else if (!products.length) {
       blockedReason = "상품 카드를 찾지 못했습니다. 페이지 구조가 변경되었을 수 있습니다.";
     }
-    sendResponse({ products, blockedReason, url: location.href, title: document.title });
+    sendResponse({ products, blockedReason, url: location.href, title: document.title, loggedOut: /검색결과가\s*없습니다/.test(pageText) && !products.length });
   })();
   return true;
 });
