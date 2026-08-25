@@ -186,9 +186,14 @@ let cpItems = [];
 let cpHistoryByItem = new Map(); // item.id -> 최신 history row
 let cpCollecting = false;
 
-/* 쿠팡 상품 URL → productId/itemId/vendorItemId. /vp/products/{id}가 기본 형태이고,
-   itemId·vendorItemId 쿼리파라미터가 없으면 옵션 특정이 안 돼 재검색 시 다른 옵션과
-   섞일 수 있어 경고만 하고 등록은 허용한다. */
+/* 쿠팡 상품 URL → productId/itemId/vendorItemId.
+   - productId(/vp/products/{id}) = 상품 노출번호(같은 상품이면 옵션이 달라도 안 바뀜)
+   - vendorItemId = 옵션(실제 판매단위) 번호 — 옵션을 선택할 때마다 바뀌는 진짜 식별자.
+     상품 상세페이지 주소창에서 그대로 복사한 URL은 보통 이것만 있고 itemId는 없다(정상).
+   - itemId = 검색결과에서 클릭해 들어올 때만 붙는 부가 식별자. 있으면 매칭 정확도가
+     조금 더 올라가지만 없어도 문제없다 — 그래서 itemId 부재는 경고하지 않는다.
+   vendorItemId 자체가 없으면(=옵션이 안 정해짐) 재검색 시 어느 옵션이 잡힐지 불확실해서
+   그때만 경고한다. */
 function parseCoupangProductLink(raw) {
   const s = String(raw || "").trim();
   if (!s) return { productId: "", itemId: "", vendorItemId: "", warn: "" };
@@ -200,7 +205,7 @@ function parseCoupangProductLink(raw) {
   const vendorItemId = url.searchParams.get("vendorItemId") || "";
   return {
     productId: m[1], itemId, vendorItemId,
-    warn: (!itemId || !vendorItemId) ? "itemId/vendorItemId가 없는 링크입니다 — 옵션이 여러 개면 재검색 시 정확도가 떨어질 수 있습니다." : "",
+    warn: !vendorItemId ? "옵션 번호(vendorItemId)가 없는 링크입니다 — 상품 상세페이지에서 원하는 옵션을 선택한 뒤 주소창의 URL을 복사해 주세요." : "",
   };
 }
 
@@ -278,9 +283,9 @@ document.getElementById("cpLinkInput").addEventListener("input", (e) => {
   const hint = document.getElementById("cpLinkHint");
   const v = e.target.value.trim();
   if (!v) { hint.textContent = ""; hint.className = "cp-hint"; return; }
-  const { productId, warn } = parseCoupangProductLink(v);
+  const { productId, vendorItemId, warn } = parseCoupangProductLink(v);
   if (!productId) { hint.textContent = "쿠팡 상품 URL을 확인해 주세요(/vp/products/숫자 형태)."; hint.className = "cp-hint error"; return; }
-  hint.textContent = warn || `상품ID 인식됨: ${productId}`;
+  hint.textContent = warn || `상품 ${productId} · 옵션 ${vendorItemId} 인식됨`;
   hint.className = "cp-hint " + (warn ? "error" : "ok");
 });
 
