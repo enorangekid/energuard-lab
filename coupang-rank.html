@@ -49,7 +49,11 @@
   .cp-table th, .cp-table td { padding: 11px 14px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: middle; }
   .cp-table th { font-size: 11.5px; color: var(--sub); font-weight: 800; text-transform: uppercase; letter-spacing: .02em; background: var(--dark-tint); }
   .cp-table tr:last-child td { border-bottom: none; }
+  .cp-name-wrap { display: flex; align-items: center; gap: 6px; min-width: 0; }
   .cp-name { font-weight: 700; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cp-copy-btn { flex-shrink: 0; width: 26px; height: 26px; }
+  .cp-copy-btn svg { width: 13px; height: 13px; }
+  .cp-copy-btn.copied { border-color: var(--good); color: var(--good); }
   .cp-keyword { color: var(--sub); font-weight: 600; }
   .cp-rank { font-family: var(--font-mono); font-weight: 800; font-size: 15px; }
   .cp-rank.none { color: var(--sub); font-weight: 600; font-size: 13px; }
@@ -258,7 +262,14 @@ function renderCoupangTable() {
     const checkedHtml = hist ? esc(new Date(hist.checked_at).toLocaleString("ko-KR")) : "-";
     return `
       <tr>
-        <td class="cp-name" title="${esc(item.product_name || item.product_url)}">${esc(item.product_name || item.product_url || item.product_id)}</td>
+        <td>
+          <div class="cp-name-wrap">
+            <span class="cp-name" title="${esc(item.product_name || item.product_url)}">${esc(item.product_name || item.product_url || item.product_id)}</span>
+            <button type="button" class="cp-icon-btn cp-copy-btn" title="상품 URL 복사" onclick="copyCoupangLink('${esc(item.product_url)}', this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+            </button>
+          </div>
+        </td>
         <td class="cp-keyword">${esc(item.keyword)}</td>
         <td>${rankHtml}${noteHtml}</td>
         <td class="cp-checked">${checkedHtml}</td>
@@ -274,6 +285,28 @@ function renderCoupangTable() {
         </td>
       </tr>`;
   }).join("");
+}
+
+async function copyCoupangLink(url, btn) {
+  if (!url) return;
+  try {
+    await navigator.clipboard.writeText(url);
+  } catch (_) {
+    // 클립보드 API가 막힌 환경(권한/비보안 컨텍스트) 대비 — 임시 textarea로 폴백
+    const ta = document.createElement("textarea");
+    ta.value = url;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand("copy"); } catch (_) {}
+    document.body.removeChild(ta);
+  }
+  if (!btn) return;
+  btn.classList.add("copied");
+  const original = btn.title;
+  btn.title = "복사됨";
+  setTimeout(() => { btn.classList.remove("copied"); btn.title = original; }, 1500);
 }
 
 function openCoupangModal() {
