@@ -1667,11 +1667,7 @@ async function runNplusStoreCollection(config) {
         if (!nplusFastFetchDisabled) {
           try {
             const fast = await fastFetchNplusPage(keywordMeta.keyword, config.storeName);
-            // fetch는 최초 화면(대략 20~40개)만 보므로, 우리 스토어가 안 잡혔다고 "순위 없음"이
-            // 확정되는 게 아니다 — 스크롤해야 나오는 뒤쪽에 있을 수 있다. 그래서 fast 결과를
-            // "최종"으로 받아들이는 건 우리 스토어를 실제로 찾아냈을 때뿐이고, 못 찾으면 탭
-            // (전체 스크롤) 방식으로 넘어가 끝까지 확인한다.
-            if (fast.products?.length && nplusMatchSignature(fast.products, config.storeName)) {
+            if (fast.products?.length) {
               extracted = fast;
               usedFastPath = true;
             } else if (fast.blockedReason && /캡차/.test(fast.blockedReason)) {
