@@ -243,12 +243,16 @@ function validateConfig(raw) {
   if (!storeName) throw new Error("스토어를 선택하세요.");
   if (!keywords.length) throw new Error("수집할 키워드를 선택하세요.");
   if (keywords.length > 200) throw new Error("한 번에 수집할 수 있는 키워드는 200개까지입니다.");
+  const mode = raw?.mode === "analysis" ? "analysis" : (raw?.mode === "nplusStore" ? "nplusStore" : "batch");
   return {
     storeName,
     keywords,
     pageCount: Math.min(5, Math.max(1, Number(raw?.pageCount) || 5)),
     pageDelay: Math.min(10000, Math.max(1500, Number(raw?.pageDelay) || 1500)),
-    mode: raw?.mode === "analysis" ? "analysis" : "batch",
+    mode,
+    // N+스토어는 페이지 이동이 아니라 무한스크롤이라 pageCount 개념이 없고, 대신 몇 위까지
+    // 볼지(targetRank)만 쓴다 — runNplusStoreCollection(background.js)가 이 필드를 읽는다.
+    targetRank: Math.min(1000, Math.max(40, Number(raw?.targetRank) || 200)),
     requestToken: String(raw?.requestToken || ""),
     openReport: raw?.openReport !== false,
   };

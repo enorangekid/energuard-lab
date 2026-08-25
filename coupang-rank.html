@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>쿠팡 순위추적(베타) — 에너가드컴퍼니</title>
+<title>쿠팡·N+스토어 순위추적(베타) — 에너가드컴퍼니</title>
 <link rel="icon" type="image/png" href="img/favicon.png">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -69,6 +69,20 @@
   .cp-icon-btn svg { width: 15px; height: 15px; }
   .cp-empty { padding: 48px 16px; text-align: center; color: var(--sub); font-size: 13.5px; }
 
+  .cp-section-divider { height: 1px; background: var(--line); margin: 32px 0; }
+  .np-chip {
+    display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px 0 12px;
+    border-radius: 15px; background: var(--dark-tint); font-size: 12.5px; font-weight: 700; color: var(--ink);
+  }
+  .np-chip button {
+    border: none; background: none; cursor: pointer; color: var(--sub); font-size: 15px; line-height: 1;
+    padding: 0; display: flex; align-items: center;
+  }
+  .np-chip button:hover { color: var(--bad); }
+  .np-rank { font-family: var(--font-mono); font-weight: 800; }
+  .np-rank.none { color: var(--sub); font-weight: 600; font-size: 13px; }
+  .np-unstable { font-size: 11px; color: var(--bad); margin-left: 4px; }
+
   .cp-modal-backdrop {
     display: none; position: fixed; inset: 0; background: rgba(10,12,18,.45); z-index: 200;
     align-items: center; justify-content: center; padding: 20px;
@@ -103,7 +117,7 @@
       <a href="blog-rank.html">블로그분석</a>
       <a href="sales-analysis.html">매출분석</a>
       <a href="item-discovery.html">아이템발굴</a>
-      <a href="coupang-rank.html" class="active">쿠팡순위(베타)</a>
+      <a href="coupang-rank.html" class="active">쿠팡·N+순위(베타)</a>
       <a href="utility.html">유틸리티</a>
     </nav>
     <div class="topbar-actions" aria-hidden="true"></div>
@@ -141,6 +155,47 @@
       </thead>
       <tbody id="cpTableBody">
         <tr><td colspan="5" class="cp-empty">불러오는 중...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="cp-section-divider"></div>
+
+  <div class="beta-banner">
+    네이버 플러스스토어(N+) 순위 — 교차검증 재시도 실험 중입니다. 같은 페이지를 다시 로드할 때마다 광고/위젯 렌더링 타이밍이 달라져 순위가 들쭉날쭉했던 문제 때문에, 2번 연속 같은 결과가 나올 때까지(최대 3회) 다시 확인한 뒤 저장합니다. "불안정" 표시가 뜨면 3회 안에 값이 수렴하지 않았다는 뜻입니다.
+  </div>
+
+  <header class="app-page-head">
+    <div class="app-title-single">
+      <span class="app-title-label">네이버 플러스스토어 순위추적(베타)</span>
+    </div>
+  </header>
+
+  <div class="coupang-toolbar">
+    <select id="npStoreSelect" class="cp-btn" style="cursor:pointer;">
+      <option value="한국단열">한국단열</option>
+      <option value="에너가드컴퍼니">에너가드컴퍼니</option>
+    </select>
+    <input type="text" id="npKeywordInput" placeholder="키워드 입력 후 Enter" style="height:38px;border:1px solid var(--line);border-radius:var(--radius);padding:0 12px;font-size:13.5px;font-family:inherit;min-width:180px;">
+    <button type="button" class="cp-btn primary" id="npStartBtn" onclick="startNplusCollection()">검색 시작</button>
+    <span class="cp-spacer"></span>
+    <span class="cp-status" id="npStatus"></span>
+  </div>
+
+  <div id="npKeywordChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;"></div>
+
+  <div class="cp-table-wrap">
+    <table class="cp-table">
+      <thead>
+        <tr>
+          <th>키워드</th>
+          <th>상품명</th>
+          <th>순위</th>
+          <th>확인 시각</th>
+        </tr>
+      </thead>
+      <tbody id="npTableBody">
+        <tr><td colspan="4" class="cp-empty">불러오는 중...</td></tr>
       </tbody>
     </table>
   </div>
@@ -419,14 +474,120 @@ window.addEventListener("message", (event) => {
   if (event.source !== window || event.origin !== window.location.origin) return;
   if (event.data?.type !== "ENERGUARD_SHOPPING_RANK_PROGRESS") return;
   const state = event.data.state || {};
-  if (state.mode !== "coupangRecheck") return;
-  const status = document.getElementById("cpStatus");
-  if (state.status === "running") status.textContent = state.message || "재검색 중...";
-  if (state.status === "done") { status.textContent = state.message || "완료"; loadCoupangData(); }
-  if (state.status === "error" || state.status === "cancelled") status.textContent = state.message || "";
+  if (state.mode === "coupangRecheck") {
+    const status = document.getElementById("cpStatus");
+    if (state.status === "running") status.textContent = state.message || "재검색 중...";
+    if (state.status === "done") { status.textContent = state.message || "완료"; loadCoupangData(); }
+    if (state.status === "error" || state.status === "cancelled") status.textContent = state.message || "";
+  }
+  if (state.mode === "nplusStore") {
+    const status = document.getElementById("npStatus");
+    if (state.status === "running") status.textContent = state.message || "검색 중...";
+    if (state.status === "done") { status.textContent = state.message || "완료"; loadNplusData(); }
+    if (state.status === "error" || state.status === "cancelled") status.textContent = state.message || "";
+  }
 });
 
+/* ─── 네이버 플러스스토어(N+) 순위 — 교차검증 재시도 실험 ───
+   등록 개념 없이(키워드 배치 방식) 그때그때 키워드를 담아 보내고, 결과는 keyword_rank_history의
+   source="nplus_store" 행을 그대로 읽어서 보여준다. 확장프로그램 트리거는 코드가 이미 있던
+   범용 배치 경로(ENERGUARD_SHOPPING_RANK_START → START_COLLECTION_FROM_APP)를 그대로 쓰고,
+   config.mode만 "nplusStore"로 지정한다(service-worker.js validateConfig가 이 값을 인식). */
+let npKeywords = [];
+
+function renderNpChips() {
+  document.getElementById("npKeywordChips").innerHTML = npKeywords.map((kw, i) => `
+    <span class="np-chip">${esc(kw)}<button type="button" onclick="removeNpKeyword(${i})" aria-label="삭제">×</button></span>
+  `).join("");
+}
+function removeNpKeyword(i) {
+  npKeywords.splice(i, 1);
+  renderNpChips();
+}
+document.getElementById("npKeywordInput").addEventListener("keydown", (e) => {
+  if (e.key !== "Enter") return;
+  const v = e.target.value.trim();
+  if (v && !npKeywords.includes(v)) { npKeywords.push(v); renderNpChips(); }
+  e.target.value = "";
+});
+
+function startNplusCollectionRequest(config) {
+  return new Promise((resolve, reject) => {
+    const requestId = `nplus-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const timer = setTimeout(() => {
+      window.removeEventListener("message", onResponse);
+      reject(new Error("확장프로그램과 연결되지 않았습니다. chrome://extensions에서 확장프로그램을 새로고침한 뒤 이 페이지도 새로고침하세요."));
+    }, 5000);
+    function onResponse(event) {
+      if (event.source !== window || event.origin !== window.location.origin) return;
+      if (event.data?.type !== "ENERGUARD_SHOPPING_RANK_RESPONSE" || event.data.requestId !== requestId) return;
+      clearTimeout(timer);
+      window.removeEventListener("message", onResponse);
+      if (event.data.ok) resolve(event.data);
+      else reject(new Error(event.data.error || "확장프로그램에서 수집을 시작하지 못했습니다."));
+    }
+    window.addEventListener("message", onResponse);
+    window.postMessage({ type: "ENERGUARD_SHOPPING_RANK_START", requestId, config }, window.location.origin);
+  });
+}
+
+async function startNplusCollection() {
+  const status = document.getElementById("npStatus");
+  if (!npKeywords.length) { status.textContent = "키워드를 1개 이상 입력해 주세요."; return; }
+  const btn = document.getElementById("npStartBtn");
+  btn.disabled = true;
+  status.textContent = "확장프로그램에 요청 중...";
+  try {
+    await startNplusCollectionRequest({
+      mode: "nplusStore",
+      storeName: document.getElementById("npStoreSelect").value,
+      keywords: npKeywords.map(k => ({ keyword: k, mainKeyword: k, isSub: false })),
+      targetRank: 200,
+    });
+    status.textContent = "요청 완료 — 새로 열린 탭에서 진행 상황을 확인하세요.";
+  } catch (e) {
+    status.textContent = e.message || "요청 실패";
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function loadNplusData() {
+  const body = document.getElementById("npTableBody");
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/keyword_rank_history?select=*&source=eq.nplus_store&order=checked_at.desc&limit=500`, { headers: sbHeaders() });
+    if (!res.ok) throw new Error("조회 실패 (" + res.status + ")");
+    const rows = await res.json();
+    if (!rows.length) {
+      body.innerHTML = `<tr><td colspan="4" class="cp-empty">아직 수집된 N+스토어 결과가 없습니다.</td></tr>`;
+      return;
+    }
+    // 같은 키워드+상품코드 조합은 최신(첫 등장, 이미 checked_at desc 정렬) 한 줄만 보여준다.
+    const byKey = new Map();
+    rows.forEach(row => {
+      const key = `${row.keyword}|${row.product_code}`;
+      if (!byKey.has(key)) byKey.set(key, row);
+    });
+    const list = [...byKey.values()];
+    body.innerHTML = list.map(row => {
+      const rankHtml = row.rank != null
+        ? `<span class="np-rank">${row.rank}위</span>`
+        : `<span class="np-rank none">순위 없음</span>`;
+      return `
+        <tr>
+          <td class="cp-keyword">${esc(row.keyword)}</td>
+          <td class="cp-name" title="${esc(row.product_name || "")}">${esc(row.product_name || row.product_code || "-")}</td>
+          <td>${rankHtml}</td>
+          <td class="cp-checked">${esc(new Date(row.checked_at).toLocaleString("ko-KR"))}</td>
+        </tr>`;
+    }).join("");
+  } catch (e) {
+    body.innerHTML = `<tr><td colspan="4" class="cp-empty">불러오지 못했습니다: ${esc(e.message || "오류")}</td></tr>`;
+  }
+}
+
 loadCoupangData();
+loadNplusData();
 </script>
 </body>
 </html>
