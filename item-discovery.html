@@ -93,6 +93,12 @@
     background: var(--accent); color: #fff; font-size: 9px; font-weight: 900;
     font-family: var(--font-mono); line-height: 1;
   }
+  .idea-source-link {
+    display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto;
+    width: 20px; height: 20px; border-radius: 6px; color: var(--sub);
+  }
+  .idea-source-link:hover { background: var(--accent-tint); color: var(--accent); }
+  .idea-source-link svg { width: 13px; height: 13px; }
   .idea-desc { margin-top: 4px; color: var(--sub); font-size: 11.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .idea-side { min-width: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
   .idea-meta-line { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 5px; margin-top: 0; }
@@ -743,7 +749,7 @@ function renderIdeas() {
     <div class="idea-row${item.id === selectedId ? " active" : ""}" data-id="${esc(item.id)}" role="button" tabindex="0">
       <span class="idea-score">${Math.round(item.aiScore || 0)}</span>
       <span class="idea-main">
-        <span class="idea-keyword"><span>${esc(item.keyword)}</span>${newBadge}<span class="pill orange">${esc(item.productGroup)}</span></span>
+        <span class="idea-keyword"><span>${esc(item.keyword)}</span>${newBadge}<span class="pill orange">${esc(item.productGroup)}</span>${item.sourceUrl ? `<a href="${esc(item.sourceUrl)}" target="_blank" rel="noopener" class="idea-source-link" onclick="event.stopPropagation()" aria-label="뉴스 원문 보기" title="뉴스 원문 보기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14 21 3"/></svg></a>` : ""}</span>
         <span class="idea-desc">${esc(ideaSelectionReason(item))}</span>
       </span>
       <span class="idea-side">
@@ -765,9 +771,6 @@ function renderIdeas() {
         <button type="button" class="ui-circle-btn" data-restore-idea="${esc(item.id)}" aria-label="복구" data-tip="복구">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 2.6-6.36"></path><path d="M3 4v5h5"></path></svg>
         </button>` : `
-        ${item.sourceUrl ? `<button type="button" class="ui-circle-btn" onclick="window.open('${esc(item.sourceUrl)}', '_blank')" aria-label="뉴스 원문 보기" data-tip="뉴스 원문 보기">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14 21 3"/></svg>
-        </button>` : ""}
         <button type="button" class="ui-circle-btn${draftReady ? " is-active" : ""}" data-generate-blog="${esc(item.id)}" aria-label="${blogTip}" data-tip="${blogTip}">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4 10 14"/><path d="M12 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6"/></svg>
         </button>
