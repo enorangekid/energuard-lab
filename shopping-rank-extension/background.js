@@ -1317,6 +1317,144 @@ async function runTrackedItemsBatchLookup(config) {
 const COUPANG_PAGE_SIZE = 72;   // 쿠팡 검색결과 1페이지당 대략적인 노출 수(실측 기준, 페이지네이션 확인 전까지 잠정치)
 const COUPANG_MAX_PAGES = 3;    // 페이지네이션 파라미터가 실제로 "page=N"인지 아직 실측 전이라 우선 보수적으로 3페이지
 
+// ═══ 쿠팡 빠른 조회(탭 없이 fetch) ═══
+// 네이버 fastFetchSearchPage(위 485줄대)와 완전히 같은 원리 — declarativeNetRequest로
+// sec-fetch-*/UA/클라이언트힌트를 "실제 문서 탐색"처럼 위장해서 탭을 열지 않고 fetch()만으로
+// 검색결과 HTML을 받는다. buildBrowserHeaderHints()는 플랫폼 무관 공용 함수라 그대로 재사용.
+// 다만 이건 쿠팡 전용으로 검증된 조합이 아니라(참고할 경쟁 확장프로그램 코드가 없었음) 실패하면
+// runCoupangRecheck에서 바로 탭(백그라운드 창) 방식으로 안전하게 폴백한다.
+const COUPANG_FAST_FETCH_RULE_ID = 90002;
+
+async function withCoupangFastFetchHeaders(referer, fn) {
+  const SET = chrome.declarativeNetRequest.HeaderOperation.SET;
+  const REMOVE = chrome.declarativeNetRequest.HeaderOperation.REMOVE;
+  const hints = await buildBrowserHeaderHints();
+  const rule = {
+    id: COUPANG_FAST_FETCH_RULE_ID,
+    priority: 1,
+    condition: {
+      urlFilter: "https://www.coupang.com/np/search*",
+      resourceTypes: [
+        chrome.declarativeNetRequest.ResourceType.XMLHTTPREQUEST,
+        chrome.declarativeNetRequest.ResourceType.OTHER,
+      ],
+    },
+    action: {
+      type: chrome.declarativeNetRequest.RuleActionType.MODIFY_HEADERS,
+      requestHeaders: [
+        { header: "accept", operation: SET, value: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7" },
+        { header: "accept-language", operation: SET, value: "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7" },
+        { header: "cache-control", operation: SET, value: "max-age=0" },
+        { header: "priority", operation: SET, value: "u=0, i" },
+        { header: "referer", operation: SET, value: referer },
+        { header: "sec-ch-ua", operation: SET, value: hints.secChUa },
+        { header: "sec-ch-ua-arch", operation: SET, value: hints.secChUaArch },
+        { header: "sec-ch-ua-bitness", operation: SET, value: hints.secChUaBitness },
+        { header: "sec-ch-ua-form-factors", operation: SET, value: hints.secChUaFormFactors },
+        { header: "sec-ch-ua-full-version-list", operation: SET, value: hints.secChUaFullVersionList },
+        { header: "sec-ch-ua-mobile", operation: SET, value: hints.mobile },
+        { header: "sec-ch-ua-model", operation: SET, value: hints.secChUaModel },
+        { header: "sec-ch-ua-platform", operation: SET, value: hints.platform },
+        { header: "sec-ch-ua-platform-version", operation: SET, value: hints.secChUaPlatformVersion },
+        { header: "sec-ch-ua-wow64", operation: SET, value: hints.secChUaWow64 },
+        { header: "sec-fetch-dest", operation: SET, value: "document" },
+        { header: "sec-fetch-mode", operation: SET, value: "navigate" },
+        { header: "sec-fetch-site", operation: SET, value: "same-origin" },
+        { header: "sec-fetch-user", operation: SET, value: "?1" },
+        { header: "upgrade-insecure-requests", operation: SET, value: "1" },
+        { header: "user-agent", operation: SET, value: hints.ua },
+        { header: "sec-fetch-storage-access", operation: REMOVE },
+      ],
+    },
+  };
+  await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds: [COUPANG_FAST_FETCH_RULE_ID], addRules: [rule] });
+  try {
+    return await fn();
+  } finally {
+    await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds: [COUPANG_FAST_FETCH_RULE_ID] }).catch(() => {});
+  }
+}
+
+function isCoupangBlockedHtml(html) {
+  return /보안\s*확인|자동입력\s*방지|비정상적인\s*접근|captcha|Access Denied|Request unsuccessful/i.test(html || "");
+}
+
+function coupangHasNoResultsHtml(html) {
+  return /검색결과가\s*없습니다|다른\s*검색어를\s*입력/.test(html || "");
+}
+
+// 서비스워커/페이지 컨텍스트 둘 다에서 쓸 수 있게 DOMParser 대신 정규식으로 뽑는다
+// (coupang-page-collector.js의 DOM 버전과 판정 로직은 동일 — href 파라미터 기준).
+function parseCoupangProductsFromHtml(html) {
+  const results = [];
+  const anchorRe = /<a\s+href="([^"]*\/vp\/products\/\d+[^"]*)"[^>]*>([\s\S]*?)<\/a>/g;
+  let m;
+  while ((m = anchorRe.exec(html))) {
+    const hrefRaw = m[1].replace(/&amp;/g, "&");
+    let url;
+    try { url = new URL(hrefRaw, "https://www.coupang.com"); } catch (_) { continue; }
+    const idMatch = url.pathname.match(/\/vp\/products\/(\d+)/);
+    if (!idMatch) continue;
+    const params = url.searchParams;
+    const sourceType = params.get("sourceType") || "";
+    const rankParam = params.get("rank") || params.get("searchRank");
+    const altMatch = m[2].match(/<img[^>]*\salt="([^"]*)"/);
+    results.push({
+      productId: idMatch[1],
+      itemId: params.get("itemId") || "",
+      vendorItemId: params.get("vendorItemId") || "",
+      isAd: sourceType === "srp_product_ads",
+      rank: rankParam ? Number(rankParam) : null,
+      productName: altMatch ? altMatch[1].replace(/&quot;/g, '"').replace(/&amp;/g, "&").replace(/&#39;/g, "'") : "",
+    });
+  }
+  const byKey = new Map();
+  results.forEach((card) => {
+    const key = `${card.productId}|${card.itemId}|${card.vendorItemId}`;
+    const existing = byKey.get(key);
+    if (!existing || (existing.rank == null && card.rank != null)) byKey.set(key, card);
+  });
+  return [...byKey.values()];
+}
+
+async function fastFetchCoupangPage(keyword, page) {
+  const url = "https://www.coupang.com/np/search?" + new URLSearchParams({ q: keyword, page: String(page) });
+  const referer = "https://www.coupang.com/np/search?q=" + encodeURIComponent(keyword);
+  return withCoupangFastFetchHeaders(referer, async () => {
+    let res;
+    try {
+      res = await fetch(url, { credentials: "include", signal: AbortSignal.timeout(15000) });
+    } catch (error) {
+      console.warn(`[CoupangFastFetch] ${keyword} p${page} 네트워크 오류:`, error);
+      return { blockedReason: `네트워크 오류: ${error?.message || "알 수 없는 오류"}`, products: [] };
+    }
+    if (res.status === 403 || res.status === 429) {
+      console.warn(`[CoupangFastFetch] ${keyword} p${page} 상태코드 ${res.status} → 차단 판정`);
+      return { blockedReason: `쿠팡 접속이 제한되었습니다(HTTP ${res.status}).`, products: [] };
+    }
+    if (!res.ok) {
+      console.warn(`[CoupangFastFetch] ${keyword} p${page} 응답 오류 ${res.status}`);
+      return { blockedReason: `쿠팡 응답 오류 (${res.status})`, products: [] };
+    }
+    const html = await res.text();
+    if (isCoupangBlockedHtml(html)) {
+      console.warn(`[CoupangFastFetch] ${keyword} p${page} 본문에서 캡차/차단 문구 감지`);
+      return { blockedReason: "쿠팡 접속이 일시적으로 제한되었습니다(캡차로 추정).", products: [] };
+    }
+    if (coupangHasNoResultsHtml(html)) {
+      console.warn(`[CoupangFastFetch] ${keyword} p${page} "검색결과 없음"(로그인 필요 추정)`);
+      return { blockedReason: "2페이지 이상은 쿠팡 로그인이 필요합니다 — 이 브라우저에서 쿠팡에 로그인한 뒤 다시 시도해 주세요.", products: [] };
+    }
+    const products = parseCoupangProductsFromHtml(html);
+    if (!products.length) {
+      console.warn(`[CoupangFastFetch] ${keyword} p${page} 상품 카드 0개, html 길이=${html.length}`);
+      return { blockedReason: "상품 카드를 찾지 못했습니다(빠른 조회).", products: [] };
+    }
+    console.info(`[CoupangFastFetch] ${keyword} p${page} 성공 · 카드 ${products.length}개`);
+    return { products, blockedReason: "" };
+  });
+}
+
 async function extractCoupangPage(tabId) {
   let lastError;
   for (let attempt = 0; attempt < 4; attempt += 1) {
@@ -1365,6 +1503,7 @@ async function runCoupangRecheck(config) {
   let completed = 0;
   let saved = 0;
   let finishedSuccessfully = false;
+  let coupangFastFetchDisabled = false; // 캡차 한 번 걸리면 이후 상품도 계속 막힐 가능성 높아 탭 방식으로 전환(네이버와 동일 원칙)
   const collectedDate = todayKst();
   const now = new Date().toISOString();
   const rows = [];
@@ -1375,25 +1514,47 @@ async function runCoupangRecheck(config) {
       completed += 1;
       await updateProgress({ completed, message: `"${item.keyword}" 검색 중입니다. (${completed}/${total})` });
 
-      await ensureTab();
       let foundRank = null;
       let pageError = "";
+      let usedFastPathAny = false;
       for (let page = 1; page <= COUPANG_MAX_PAGES; page += 1) {
-        const url = "https://www.coupang.com/np/search?" + new URLSearchParams({
-          q: item.keyword, page: String(page),
-        });
-        await chrome.tabs.update(tab.id, { url });
-        await waitForTabComplete(tab.id);
-        await sleep(1500 + Math.random() * 800);
-
-        let extracted;
-        try {
-          extracted = await extractCoupangPage(tab.id);
-        } catch (error) {
-          pageError = error?.message || "수집 실패";
-          break;
+        let extracted = null;
+        let usedFastPath = false;
+        if (!coupangFastFetchDisabled) {
+          try {
+            const fast = await fastFetchCoupangPage(item.keyword, page);
+            if (fast.products?.length) {
+              extracted = fast;
+              usedFastPath = true;
+              usedFastPathAny = true;
+            } else if (fast.blockedReason && /캡차/.test(fast.blockedReason)) {
+              coupangFastFetchDisabled = true;
+            } else if (fast.blockedReason) {
+              // 로그인 필요/응답 오류 등은 탭으로 재시도해도 결과가 같을 가능성이 높지만,
+              // 탭은 실제 로그인 세션이 더 확실히 반영되니 한 번은 탭으로 다시 시도해본다.
+            }
+          } catch (_) {
+            // 빠른 경로 예외 — 아래에서 탭 방식으로 폴백
+          }
         }
-        if (extracted.blockedReason) { pageError = extracted.blockedReason; break; }
+
+        if (!extracted) {
+          await ensureTab();
+          const url = "https://www.coupang.com/np/search?" + new URLSearchParams({
+            q: item.keyword, page: String(page),
+          });
+          await chrome.tabs.update(tab.id, { url });
+          await waitForTabComplete(tab.id);
+          await sleep(1500 + Math.random() * 800);
+          try {
+            extracted = await extractCoupangPage(tab.id);
+          } catch (error) {
+            pageError = error?.message || "수집 실패";
+            break;
+          }
+        }
+
+        if (extracted.blockedReason && !(extracted.products || []).length) { pageError = extracted.blockedReason; break; }
 
         const match = (extracted.products || []).find((product) =>
           product.productId === item.product_id &&
@@ -1402,7 +1563,7 @@ async function runCoupangRecheck(config) {
           !product.isAd && product.rank != null
         );
         if (match) { foundRank = match.rank; break; }
-        if (page < COUPANG_MAX_PAGES) await sleep(800 + Math.random() * 600);
+        if (page < COUPANG_MAX_PAGES) await sleep(usedFastPath ? (400 + Math.random() * 400) : (800 + Math.random() * 600));
       }
 
       rows.push({
@@ -1411,7 +1572,8 @@ async function runCoupangRecheck(config) {
         collected_date: collectedDate, checked_at: now, note: pageError,
       });
       saved += 1;
-      await updateProgress({ saved, message: `${item.keyword} · ${foundRank ? foundRank + "위" : (pageError || "순위 없음")}` });
+      const sourceLabel = usedFastPathAny ? "FAST" : "TAB";
+      await updateProgress({ saved, message: `${item.keyword} · ${sourceLabel} · ${foundRank ? foundRank + "위" : (pageError || "순위 없음")}` });
     }
 
     if (rows.length) await postRows("coupang_rank_history", rows, "item_id,collected_date");
