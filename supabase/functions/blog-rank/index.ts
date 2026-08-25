@@ -1341,8 +1341,11 @@ async function addBlog(body: Record<string, unknown>) {
   const blogId = parseBlogId(body.blogUrl);
   const isMine = !!body.isMine;
   const now = new Date().toISOString();
+  const manualBlogName = cleanText(body.blogName);
 
-  const { blogName, posts } = await fetchBlogRss(blogId);
+  const { blogName: rssBlogName, posts } = await fetchBlogRss(blogId);
+  // 직접 입력한 이름이 있으면 그걸 우선한다 — RSS 채널 제목은 홍보문구가 섞여 나오는 경우가 있다.
+  const blogName = manualBlogName || rssBlogName;
 
   await db("blog_rank_blogs?on_conflict=blog_id", {
     method: "POST",
@@ -1372,17 +1375,6 @@ async function removeBlog(blogId: string) {
   await db(`blog_rank_blogs?blog_id=eq.${encodeURIComponent(blogId)}`, {
     method: "DELETE",
     headers: { Prefer: "return=minimal" },
-  });
-  return listData();
-}
-
-async function renameBlog(blogId: string, blogName: string) {
-  if (!blogId) throw new Error("이름을 바꿀 블로그가 없습니다.");
-  if (!blogName) throw new Error("새 이름을 입력해 주세요.");
-  await db(`blog_rank_blogs?blog_id=eq.${encodeURIComponent(blogId)}`, {
-    method: "PATCH",
-    headers: { Prefer: "return=minimal" },
-    body: JSON.stringify({ blog_name: blogName, updated_at: new Date().toISOString() }),
   });
   return listData();
 }
@@ -1796,7 +1788,6 @@ Deno.serve(async (request) => {
     if (action === "list") return json(await listData());
     if (action === "addBlog") return json(await addBlog(body));
     if (action === "removeBlog") return json(await removeBlog(cleanText(body.blogId)));
-    if (action === "renameBlog") return json(await renameBlog(cleanText(body.blogId), cleanText(body.blogName)));
     if (action === "refreshPosts") return json(await refreshPosts(cleanText(body.blogId)));
     if (action === "addPostKeyword") return json(await addPostKeyword(body));
     if (action === "removePostKeyword") return json(await removePostKeyword(Number(body.id)));
