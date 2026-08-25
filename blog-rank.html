@@ -2901,6 +2901,9 @@ function renderBlogCard(blog) {
           <div class="card-sub app-card-subtitle">${esc(blog.blog_id)} · 포스팅 ${posts.length}개 · 추적 키워드 ${keywordCount}개</div>
         </div>
         <div class="blog-actions">
+          <button class="row-btn" type="button" data-tip="이름 수정" onclick="renameBlogPrompt('${esc(blog.blog_id)}', '${esc(blog.blog_name || blog.blog_id)}')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"></path></svg>
+          </button>
           <button class="row-btn" type="button" data-tip="포스팅 새로고침" onclick="refreshPosts('${esc(blog.blog_id)}')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><path d="M21 12a9 9 0 0 1-15.5 6.2"></path><path d="M3 12a9 9 0 0 1 15.5-6.2"></path><path d="M18 3v4h-4"></path><path d="M6 21v-4h4"></path></svg>
           </button>
@@ -4772,6 +4775,22 @@ async function collectPostTitleCheckHandler(blogId) {
   }
 }
 
+async function renameBlogPrompt(blogId, currentName) {
+  const next = prompt("블로그 이름을 입력해 주세요.", currentName || "");
+  if (next === null) return; // 취소
+  const trimmed = next.trim();
+  if (!trimmed || trimmed === currentName) return;
+  showLoading("블로그 이름을 수정하는 중입니다.");
+  try {
+    state = await callApi("renameBlog", { blogId, blogName: trimmed });
+    renderAll();
+    showToast("블로그 이름을 수정했습니다.");
+  } catch (error) {
+    showToast(error.message);
+  } finally {
+    hideLoading();
+  }
+}
 async function deleteBlog(blogId, blogName) {
   if (!confirm(`"${blogName}" 블로그 추적을 삭제할까요?\n등록된 키워드와 순위 이력이 모두 삭제됩니다.`)) return;
   showLoading("블로그를 삭제하는 중입니다.");

@@ -1376,6 +1376,17 @@ async function removeBlog(blogId: string) {
   return listData();
 }
 
+async function renameBlog(blogId: string, blogName: string) {
+  if (!blogId) throw new Error("이름을 바꿀 블로그가 없습니다.");
+  if (!blogName) throw new Error("새 이름을 입력해 주세요.");
+  await db(`blog_rank_blogs?blog_id=eq.${encodeURIComponent(blogId)}`, {
+    method: "PATCH",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify({ blog_name: blogName, updated_at: new Date().toISOString() }),
+  });
+  return listData();
+}
+
 async function refreshPosts(blogId: string) {
   if (!blogId) throw new Error("블로그가 없습니다.");
   // blog_name은 addBlog(최초 등록) 때만 RSS 채널 제목으로 채운다 — 새로고침마다 다시 덮어쓰면
@@ -1785,6 +1796,7 @@ Deno.serve(async (request) => {
     if (action === "list") return json(await listData());
     if (action === "addBlog") return json(await addBlog(body));
     if (action === "removeBlog") return json(await removeBlog(cleanText(body.blogId)));
+    if (action === "renameBlog") return json(await renameBlog(cleanText(body.blogId), cleanText(body.blogName)));
     if (action === "refreshPosts") return json(await refreshPosts(cleanText(body.blogId)));
     if (action === "addPostKeyword") return json(await addPostKeyword(body));
     if (action === "removePostKeyword") return json(await removePostKeyword(Number(body.id)));
