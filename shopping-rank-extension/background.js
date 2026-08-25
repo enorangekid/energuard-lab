@@ -1684,11 +1684,7 @@ async function runNplusStoreCollection(config) {
         try {
           if (extracted.blockedReason) throw new Error(extracted.blockedReason);
           const organic = (extracted.products || []).filter((p) => !p.isAd);
-          // fetch(최초 화면만)는 스크롤을 안 하니 탭(전체 스크롤) 기준 15개를 그대로 적용하면
-          // 정상적으로 적은 화면(예: 13개)까지 "불완전"으로 오판해서 버리게 된다 — fast는
-          // 완전히 빈 경우만 걸러내면 충분하다(진짜 빈 건 이미 blockedReason으로 걸러짐).
-          const minOrganic = usedFastPath ? 1 : Math.min(15, targetRank);
-          if (organic.length < minOrganic) {
+          if (organic.length < Math.min(15, targetRank)) {
             throw new Error(`일반상품이 ${organic.length}개만 확인되어 저장하지 않았습니다.`);
           }
         } catch (error) {
