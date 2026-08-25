@@ -987,9 +987,49 @@ async function fetchNicheNews(seed: string, sort: "date" | "sim") {
   }));
 }
 
+// 네이버 뉴스검색에 안 잡히는 업계 전문지(칸(KHARN) 등 냉난방공조·건축 전문지 — 네이버 뉴스제휴사가
+// 아니라 openapi로는 절대 안 잡힘, 2026-08-26 확인)를 보완하려고 구글 뉴스의 비공식 공개 RSS 검색을
+// 쓴다(news.google.com/rss/search — API 키 불필요). site:도메인으로 그 매체 안에서만 검색해서,
+// 네이버가 이미 잘 주는 일반 언론사 기사와 안 겹치게 한다. 전문지가 더 생기면 이 배열만 늘리면 된다.
+const NICHE_GOOGLE_NEWS_SITES = ["kharn.kr"];
+
+async function fetchNicheNewsGoogle(seed: string, site: string) {
+  const q = `${seed} site:${site}`;
+  const res = await fetch(
+    `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=ko&gl=KR&ceid=KR:ko`,
+    { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(10_000) },
+  );
+  if (!res.ok) throw new Error(`구글뉴스 RSS ${res.status}`);
+  const xml = await res.text();
+  const items: Array<{ title: string; description: string; link: string; source: string; pubDate: number; seed: string; sort: string }> = [];
+  const itemRe = /<item>([\s\S]*?)<\/item>/g;
+  let m;
+  while ((m = itemRe.exec(xml))) {
+    const block = m[1];
+    const rawTitle = stripTags((block.match(/<title>([\s\S]*?)<\/title>/) || [])[1] || "");
+    const link = (block.match(/<link>([\s\S]*?)<\/link>/) || [])[1] || "";
+    const pubDateRaw = (block.match(/<pubDate>([\s\S]*?)<\/pubDate>/) || [])[1] || "";
+    const sourceUrlAttr = (block.match(/<source url="([^"]*)"/) || [])[1] || "";
+    const sourceName = stripTags((block.match(/<source[^>]*>([\s\S]*?)<\/source>/) || [])[1] || "");
+    // 구글 뉴스 제목은 "실제 제목 - 언론사명" 형태로 접미사가 붙어 나온다 — 그 접미사만 정확히 제거.
+    const title = sourceName && rawTitle.endsWith(` - ${sourceName}`)
+      ? rawTitle.slice(0, -(sourceName.length + 3)).trim()
+      : rawTitle;
+    const source = (() => {
+      try { return new URL(sourceUrlAttr).hostname.replace(/^www\./, ""); } catch (_) { return site; }
+    })();
+    if (!title || !link) continue;
+    items.push({ title, description: "", link, source, pubDate: new Date(pubDateRaw).getTime() || 0, seed, sort: "google" });
+  }
+  return items;
+}
+
 async function collectNicheTrendData() {
   const seeds = nicheSeeds();
-  const requests = seeds.flatMap(seed => [fetchNicheNews(seed, "date"), fetchNicheNews(seed, "sim")]);
+  const requests: Promise<Array<{ title: string; description: string; link: string; source: string; pubDate: number; seed: string; sort: string }>>[] = [
+    ...seeds.flatMap(seed => [fetchNicheNews(seed, "date"), fetchNicheNews(seed, "sim")]),
+    ...NICHE_GOOGLE_NEWS_SITES.flatMap(site => seeds.map(seed => fetchNicheNewsGoogle(seed, site))),
+  ];
   const results = await Promise.allSettled(requests);
   const articles: Array<{ title: string; description: string; link: string; source: string; pubDate: number; seed: string; sort: string }> = [];
   results.forEach(result => {
