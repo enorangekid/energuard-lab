@@ -1308,6 +1308,128 @@ async function runTrackedItemsBatchLookup(config) {
   }
 }
 
+// ═══ 쿠팡(www.coupang.com/np/search) 순위 재검색 ═══
+// sellerrank.kr 같은 서버형 크롤러가 아니라, 지금 있는 확장프로그램 방식 그대로 — 등록된
+// 상품(coupang_rank_items)을 하나씩, 재사용하는 탭 하나로 순차 재검색한다(2026-08-26 신규).
+// 쿠팡 검색결과 링크에 rank가 이미 박혀 있어서(coupang-page-collector.js 참고) 페이지 안에서
+// 위치를 세는 로직이 필요 없다 — 등록 상품의 productId/itemId/vendorItemId와 일치하는 오가닉
+// 카드를 찾아 그 rank 값을 그대로 저장한다.
+const COUPANG_PAGE_SIZE = 72;   // 쿠팡 검색결과 1페이지당 대략적인 노출 수(실측 기준, 페이지네이션 확인 전까지 잠정치)
+const COUPANG_MAX_PAGES = 3;    // 페이지네이션 파라미터가 실제로 "page=N"인지 아직 실측 전이라 우선 보수적으로 3페이지
+
+async function extractCoupangPage(tabId) {
+  let lastError;
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    try {
+      return await chrome.tabs.sendMessage(tabId, { type: "EXTRACT_COUPANG_PAGE" });
+    } catch (error) {
+      lastError = error;
+      await sleep(700);
+    }
+  }
+  throw new Error(`쿠팡 수집 스크립트 연결 실패: ${lastError?.message || "알 수 없는 오류"}`);
+}
+
+async function runCoupangRecheck(config) {
+  const runId = crypto.randomUUID();
+  activeRun = { id: runId, cancelled: false, tabId: null };
+
+  const idsFilter = Array.isArray(config.itemIds) && config.itemIds.length
+    ? `&id=in.(${config.itemIds.map((id) => `"${id}"`).join(",")})`
+    : "";
+  const items = await fetchJson(`/rest/v1/coupang_rank_items?select=*${idsFilter}&limit=2000`);
+  if (!items.length) throw new Error("재검색할 쿠팡 상품이 없습니다.");
+
+  const total = items.length;
+  await updateProgress({
+    status: "running", title: "쿠팡 순위 재검색", completed: 0, total, saved: 0,
+    runId, mode: "coupangRecheck", message: "준비하고 있습니다.", error: "",
+  });
+
+  let tab = null;
+  async function ensureTab() {
+    if (!tab) {
+      tab = await chrome.tabs.create({ active: true, url: "about:blank" });
+      activeRun.tabId = tab.id;
+    }
+    return tab;
+  }
+
+  let completed = 0;
+  let saved = 0;
+  let finishedSuccessfully = false;
+  const collectedDate = todayKst();
+  const now = new Date().toISOString();
+  const rows = [];
+
+  try {
+    for (const item of items) {
+      if (!activeRun || activeRun.id !== runId || activeRun.cancelled) throw new Error("사용자가 수집을 중단했습니다.");
+      completed += 1;
+      await updateProgress({ completed, message: `"${item.keyword}" 검색 중입니다. (${completed}/${total})` });
+
+      await ensureTab();
+      let foundRank = null;
+      let pageError = "";
+      for (let page = 1; page <= COUPANG_MAX_PAGES; page += 1) {
+        const url = "https://www.coupang.com/np/search?" + new URLSearchParams({
+          q: item.keyword, page: String(page),
+        });
+        await chrome.tabs.update(tab.id, { url });
+        await waitForTabComplete(tab.id);
+        await sleep(1500 + Math.random() * 800);
+
+        let extracted;
+        try {
+          extracted = await extractCoupangPage(tab.id);
+        } catch (error) {
+          pageError = error?.message || "수집 실패";
+          break;
+        }
+        if (extracted.blockedReason) { pageError = extracted.blockedReason; break; }
+
+        const match = (extracted.products || []).find((product) =>
+          product.productId === item.product_id &&
+          (!item.item_id || product.itemId === item.item_id) &&
+          (!item.vendor_item_id || product.vendorItemId === item.vendor_item_id) &&
+          !product.isAd && product.rank != null
+        );
+        if (match) { foundRank = match.rank; break; }
+        if (page < COUPANG_MAX_PAGES) await sleep(800 + Math.random() * 600);
+      }
+
+      rows.push({
+        item_id: item.id, keyword: item.keyword,
+        rank: foundRank, max_rank: COUPANG_MAX_PAGES * COUPANG_PAGE_SIZE,
+        collected_date: collectedDate, checked_at: now, note: pageError,
+      });
+      saved += 1;
+      await updateProgress({ saved, message: `${item.keyword} · ${foundRank ? foundRank + "위" : (pageError || "순위 없음")}` });
+    }
+
+    if (rows.length) await postRows("coupang_rank_history", rows, "item_id,collected_date");
+
+    await updateProgress({
+      status: "done", title: "재검색 완료", completed: total, total, saved,
+      runId, mode: "coupangRecheck", message: `${total}개 상품의 쿠팡 순위를 확인했습니다.`,
+    });
+    finishedSuccessfully = true;
+  } catch (error) {
+    const cancelled = /중단/.test(error?.message || "");
+    await updateProgress({
+      status: cancelled ? "cancelled" : "error",
+      title: cancelled ? "수집 중단" : "수집 실패",
+      runId, mode: "coupangRecheck",
+      message: error?.message || "수집 중 오류가 발생했습니다.",
+      error: cancelled ? "" : (error?.message || "수집 중 오류가 발생했습니다."),
+      saved,
+    });
+  } finally {
+    if (finishedSuccessfully && activeRun?.tabId) chrome.tabs.remove(activeRun.tabId).catch(() => {});
+    activeRun = null;
+  }
+}
+
 // ═══ N+스토어(search.shopping.naver.com/ns/search) 순위 수집 ═══
 // 가격비교와 개념이 다른 별도 랭킹(프로모션/멤버십 맥락이 섞인 결과셋)이라, 저장은 같은
 // keyword_rank_history 테이블에 source="nplus_store"로 분리해서 넣는다 — curated(가격비교)/
@@ -1797,6 +1919,10 @@ async function runCollection(config) {
   }
   if (config.mode === "nplusStore") {
     await runNplusStoreCollection(config);
+    return;
+  }
+  if (config.mode === "coupangRecheck") {
+    await runCoupangRecheck(config);
     return;
   }
   const runId = crypto.randomUUID();

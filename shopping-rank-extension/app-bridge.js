@@ -3,6 +3,8 @@ const APP_RESPONSE = "ENERGUARD_SHOPPING_RANK_RESPONSE";
 const APP_PROGRESS = "ENERGUARD_SHOPPING_RANK_PROGRESS";
 const TRACKED_ITEMS_REQUEST = "ENERGUARD_TRACKED_ITEMS_START";
 const TRACKED_ITEMS_RESPONSE = "ENERGUARD_TRACKED_ITEMS_RESPONSE";
+const COUPANG_RECHECK_REQUEST = "ENERGUARD_COUPANG_RECHECK_START";
+const COUPANG_RECHECK_RESPONSE = "ENERGUARD_COUPANG_RECHECK_RESPONSE";
 const ANALYSIS_REQUEST = "ENERGUARD_KEYWORD_ANALYSIS_START";
 const ANALYSIS_RESPONSE = "ENERGUARD_KEYWORD_ANALYSIS_RESPONSE";
 
@@ -50,6 +52,33 @@ window.addEventListener("message", (event) => {
     } catch (error) {
       window.postMessage({
         type: TRACKED_ITEMS_RESPONSE,
+        requestId,
+        ok: false,
+        error: "확장프로그램이 갱신되었습니다. 페이지를 새로고침한 뒤 다시 시도하세요.",
+      }, window.location.origin);
+    }
+    return;
+  }
+  if (event.data?.type === COUPANG_RECHECK_REQUEST) {
+    const requestId = String(event.data.requestId || "");
+    try {
+      chrome.runtime.sendMessage({
+        type: "START_COUPANG_RECHECK",
+        itemIds: event.data.itemIds,
+        authSession: getEnerguardAuthSession(),
+      }).then((result) => {
+        window.postMessage({ type: COUPANG_RECHECK_RESPONSE, requestId, ...result }, window.location.origin);
+      }).catch((error) => {
+        window.postMessage({
+          type: COUPANG_RECHECK_RESPONSE,
+          requestId,
+          ok: false,
+          error: error?.message || "확장프로그램 연결에 실패했습니다.",
+        }, window.location.origin);
+      });
+    } catch (error) {
+      window.postMessage({
+        type: COUPANG_RECHECK_RESPONSE,
         requestId,
         ok: false,
         error: "확장프로그램이 갱신되었습니다. 페이지를 새로고침한 뒤 다시 시도하세요.",

@@ -309,6 +309,30 @@ async function openTrackedItemsRunner(pageDelay) {
   return tab.id;
 }
 
+// 쿠팡 순위 재검색 전용 — 아이템 추적과 마찬가지로 등록 UI가 이 서비스워커 밖(coupang-rank.html)에
+// 있으니, 여기서는 재검색할 상품 id 목록만 그대로 PENDING_KEY에 실어서 runner.html을 연다.
+async function openCoupangRecheckRunner(itemIds) {
+  const current = await chrome.storage.local.get(PROGRESS_KEY);
+  const runnerUrl = chrome.runtime.getURL("runner.html");
+  const existing = await chrome.tabs.query({ url: `${runnerUrl}*` });
+  if (current[PROGRESS_KEY]?.status === "running" && existing[0]) {
+    throw new Error("이미 수집을 진행하고 있습니다.");
+  }
+  await chrome.storage.local.set({
+    [PENDING_KEY]: {
+      mode: "coupangRecheck",
+      itemIds: Array.isArray(itemIds) ? itemIds.map(String).filter(Boolean) : [],
+    },
+  });
+  if (existing[0]) {
+    await chrome.tabs.reload(existing[0].id);
+    await chrome.tabs.update(existing[0].id, { active: true });
+    return existing[0].id;
+  }
+  const tab = await chrome.tabs.create({ active: true, url: runnerUrl });
+  return tab.id;
+}
+
 // 네이버 가격비교 검색 페이지에 띄우는 키워드 분석 패널(keyword-insight-panel.js)용 데이터 조회.
 // 콘텐츠 스크립트가 직접 fetch하면 네이버 페이지의 CSP에 걸릴 수 있어, 이 서비스워커가 대신
 // Supabase를 호출해 결과만 돌려준다(기존 확장프로그램의 다른 Supabase 호출도 전부 이 방식).
@@ -370,6 +394,18 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         sendResponse({ ok: true, tabId });
       } catch (error) {
         sendResponse({ ok: false, error: error?.message || "아이템 추적 수집을 시작하지 못했습니다." });
+      }
+    })();
+    return true;
+  }
+  if (message?.type === "START_COUPANG_RECHECK") {
+    (async () => {
+      try {
+        await saveAuthSession(message.authSession);
+        const tabId = await openCoupangRecheckRunner(message.itemIds);
+        sendResponse({ ok: true, tabId });
+      } catch (error) {
+        sendResponse({ ok: false, error: error?.message || "쿠팡 재검색을 시작하지 못했습니다." });
       }
     })();
     return true;

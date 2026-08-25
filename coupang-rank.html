@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>쿠팡 순위추적(베타) — 에너가드컴퍼니</title>
+<link rel="icon" type="image/png" href="img/favicon.png">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="common.css?v=20260826-coupang1">
+<style>
+  :root {
+    --bg: #f8f9fb; --card: #fff; --ink: #1a1f2e; --sub: #5a6378;
+    --line: #e8ecf2; --dark: #05070b; --dark-tint: #eef0f3;
+    --accent: #e85d2f; --accent-dark: #d04420; --accent-tint: #fdeee7;
+    --danger: #dc2626; --good: #16803c; --bad: #dc2626;
+    --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+    --font-main: "Pretendard Variable", Pretendard, -apple-system, sans-serif;
+    --radius: 6px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { overflow-y: scroll; scrollbar-gutter: stable; }
+  body { font-family: var(--font-main); background: var(--bg); color: var(--ink); font-size: 15px; line-height: 1.55; }
+
+  .beta-banner {
+    background: var(--accent-tint); color: var(--accent-dark); font-size: 12.5px; font-weight: 700;
+    padding: 8px 16px; border-radius: var(--radius); margin-bottom: 16px;
+  }
+
+  .coupang-toolbar {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap;
+  }
+  .cp-btn {
+    display: inline-flex; align-items: center; gap: 6px; height: 38px; padding: 0 16px;
+    border-radius: var(--radius); border: 1px solid var(--line); background: #fff; color: var(--ink);
+    font-size: 13.5px; font-weight: 700; cursor: pointer; font-family: inherit;
+  }
+  .cp-btn:hover { border-color: var(--accent); color: var(--accent-dark); }
+  .cp-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .cp-btn.primary:hover { background: var(--accent-dark); border-color: var(--accent-dark); color: #fff; }
+  .cp-btn:disabled { opacity: .5; cursor: not-allowed; }
+  .cp-spacer { flex: 1; }
+  .cp-status { font-size: 12.5px; color: var(--sub); font-weight: 600; }
+
+  .cp-table-wrap { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  table.cp-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  .cp-table th, .cp-table td { padding: 11px 14px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  .cp-table th { font-size: 11.5px; color: var(--sub); font-weight: 800; text-transform: uppercase; letter-spacing: .02em; background: var(--dark-tint); }
+  .cp-table tr:last-child td { border-bottom: none; }
+  .cp-name { font-weight: 700; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cp-keyword { color: var(--sub); font-weight: 600; }
+  .cp-rank { font-family: var(--font-mono); font-weight: 800; font-size: 15px; }
+  .cp-rank.none { color: var(--sub); font-weight: 600; font-size: 13px; }
+  .cp-note { font-size: 11.5px; color: var(--bad); margin-top: 2px; }
+  .cp-checked { color: var(--sub); font-size: 12px; }
+  .cp-row-actions { display: flex; gap: 6px; }
+  .cp-icon-btn {
+    width: 30px; height: 30px; border-radius: 6px; border: 1px solid var(--line); background: #fff;
+    display: inline-flex; align-items: center; justify-content: center; cursor: pointer; color: var(--sub);
+  }
+  .cp-icon-btn:hover { border-color: var(--accent); color: var(--accent-dark); }
+  .cp-icon-btn.danger:hover { border-color: var(--danger); color: var(--danger); }
+  .cp-icon-btn svg { width: 15px; height: 15px; }
+  .cp-empty { padding: 48px 16px; text-align: center; color: var(--sub); font-size: 13.5px; }
+
+  .cp-modal-backdrop {
+    display: none; position: fixed; inset: 0; background: rgba(10,12,18,.45); z-index: 200;
+    align-items: center; justify-content: center; padding: 20px;
+  }
+  .cp-modal-backdrop.open { display: flex; }
+  .cp-modal { width: 100%; max-width: 440px; background: #fff; border-radius: 12px; padding: 24px; }
+  .cp-modal h2 { font-size: 17px; margin-bottom: 18px; }
+  .cp-field { margin-bottom: 14px; }
+  .cp-field label { display: block; font-size: 12px; font-weight: 700; color: var(--sub); margin-bottom: 6px; }
+  .cp-field input, .cp-field textarea {
+    width: 100%; height: 40px; border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 0 12px; font-size: 13.5px; font-family: inherit; color: var(--ink);
+  }
+  .cp-field textarea { height: 64px; padding: 8px 12px; resize: vertical; }
+  .cp-field input:focus, .cp-field textarea:focus { outline: none; border-color: var(--accent); }
+  .cp-hint { font-size: 12px; margin-top: 6px; color: var(--sub); }
+  .cp-hint.ok { color: var(--good); }
+  .cp-hint.error { color: var(--bad); }
+  .cp-modal-actions { display: flex; gap: 8px; margin-top: 18px; }
+  .cp-modal-actions .cp-btn { flex: 1; justify-content: center; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth-guard.js?v=20260812a"></script>
+</head>
+<body>
+<header class="topbar" data-topbar>
+  <div class="topbar-inner">
+    <a href="index.html" class="topbar-logo"><span>ENERGUARD</span><span>LAB</span></a>
+    <nav class="topbar-nav">
+      <a href="rank-tracker.html">랭킹추적</a>
+      <a href="naver-rank.html">키워드분석</a>
+      <a href="blog-rank.html">블로그분석</a>
+      <a href="sales-analysis.html">매출분석</a>
+      <a href="item-discovery.html">아이템발굴</a>
+      <a href="coupang-rank.html" class="active">쿠팡순위(베타)</a>
+      <a href="utility.html">유틸리티</a>
+    </nav>
+    <div class="topbar-actions" aria-hidden="true"></div>
+  </div>
+</header>
+
+<div class="wrap app-shell">
+  <div class="beta-banner">베타 페이지 — 완성도를 보고 나중에 랭킹추적 페이지 안으로 옮길 예정입니다. 쿠팡 상품 URL을 직접 등록하고 "재검색" 버튼으로만 순위를 확인합니다(자동 수집 없음).</div>
+
+  <header class="app-page-head">
+    <div class="app-title-single">
+      <span class="app-title-label">쿠팡 순위추적</span>
+    </div>
+  </header>
+
+  <div class="coupang-toolbar">
+    <button type="button" class="cp-btn primary" onclick="openCoupangModal()">+ 상품 등록</button>
+    <button type="button" class="cp-btn" id="cpRecheckAllBtn" onclick="recheckCoupang()">전체 재검색</button>
+    <span class="cp-spacer"></span>
+    <span class="cp-status" id="cpStatus"></span>
+  </div>
+
+  <div class="cp-table-wrap">
+    <table class="cp-table">
+      <thead>
+        <tr>
+          <th>상품명</th>
+          <th>키워드</th>
+          <th>현재 순위</th>
+          <th>확인 시각</th>
+          <th style="width:90px;"></th>
+        </tr>
+      </thead>
+      <tbody id="cpTableBody">
+        <tr><td colspan="5" class="cp-empty">불러오는 중...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="cp-modal-backdrop" id="cpModalBackdrop">
+  <div class="cp-modal">
+    <h2>쿠팡 상품 등록</h2>
+    <div class="cp-field">
+      <label>쿠팡 상품 URL</label>
+      <input type="text" id="cpLinkInput" placeholder="https://www.coupang.com/vp/products/...">
+      <div class="cp-hint" id="cpLinkHint"></div>
+    </div>
+    <div class="cp-field">
+      <label>추적 키워드</label>
+      <input type="text" id="cpKeywordInput" placeholder="예: 아이소핑크">
+    </div>
+    <div class="cp-field">
+      <label>메모 (선택)</label>
+      <textarea id="cpMemoInput" placeholder="구분용 메모"></textarea>
+    </div>
+    <div class="cp-modal-actions">
+      <button type="button" class="cp-btn" onclick="closeCoupangModal()">취소</button>
+      <button type="button" class="cp-btn primary" id="cpSaveBtn" onclick="saveCoupangItem()">등록</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = "https://eukwfypbfqojbaihfqye.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_MiBvlf3d6ulcVBsi7Odcgw_PTXSmXKj";
+</script>
+<script src="common.js?v=20260812-logout1"></script>
+<script>
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+function sbHeaders(extra) {
+  return {
+    "Content-Type": "application/json",
+    "apikey": SUPABASE_ANON_KEY,
+    "Authorization": "Bearer " + SUPABASE_ANON_KEY,
+    ...(extra || {}),
+  };
+}
+
+let cpItems = [];
+let cpHistoryByItem = new Map(); // item.id -> 최신 history row
+let cpCollecting = false;
+
+/* 쿠팡 상품 URL → productId/itemId/vendorItemId. /vp/products/{id}가 기본 형태이고,
+   itemId·vendorItemId 쿼리파라미터가 없으면 옵션 특정이 안 돼 재검색 시 다른 옵션과
+   섞일 수 있어 경고만 하고 등록은 허용한다. */
+function parseCoupangProductLink(raw) {
+  const s = String(raw || "").trim();
+  if (!s) return { productId: "", itemId: "", vendorItemId: "", warn: "" };
+  let url;
+  try { url = new URL(s); } catch (_) { return { productId: "", itemId: "", vendorItemId: "", warn: "" }; }
+  const m = url.pathname.match(/\/vp\/products\/(\d+)/);
+  if (!m) return { productId: "", itemId: "", vendorItemId: "", warn: "" };
+  const itemId = url.searchParams.get("itemId") || "";
+  const vendorItemId = url.searchParams.get("vendorItemId") || "";
+  return {
+    productId: m[1], itemId, vendorItemId,
+    warn: (!itemId || !vendorItemId) ? "itemId/vendorItemId가 없는 링크입니다 — 옵션이 여러 개면 재검색 시 정확도가 떨어질 수 있습니다." : "",
+  };
+}
+
+async function loadCoupangData() {
+  const body = document.getElementById("cpTableBody");
+  body.innerHTML = `<tr><td colspan="5" class="cp-empty">불러오는 중...</td></tr>`;
+  try {
+    const [itemsRes, historyRes] = await Promise.all([
+      fetch(`${SUPABASE_URL}/rest/v1/coupang_rank_items?select=*&order=created_at.desc`, { headers: sbHeaders() }),
+      fetch(`${SUPABASE_URL}/rest/v1/coupang_rank_history?select=*&order=collected_date.desc,checked_at.desc&limit=2000`, { headers: sbHeaders() }),
+    ]);
+    if (!itemsRes.ok) throw new Error("상품 목록 조회 실패 (" + itemsRes.status + ")");
+    if (!historyRes.ok) throw new Error("이력 조회 실패 (" + historyRes.status + ")");
+    cpItems = await itemsRes.json();
+    const historyRows = await historyRes.json();
+    cpHistoryByItem = new Map();
+    historyRows.forEach(row => {
+      if (!cpHistoryByItem.has(row.item_id)) cpHistoryByItem.set(row.item_id, row); // 이미 최신순 정렬됨
+    });
+    renderCoupangTable();
+  } catch (e) {
+    body.innerHTML = `<tr><td colspan="5" class="cp-empty">불러오지 못했습니다: ${esc(e.message || "오류")}<br>
+      Supabase에 coupang_rank_items/coupang_rank_history 테이블이 있는지 확인해 주세요.</td></tr>`;
+  }
+}
+
+function renderCoupangTable() {
+  const body = document.getElementById("cpTableBody");
+  if (!cpItems.length) {
+    body.innerHTML = `<tr><td colspan="5" class="cp-empty">등록된 쿠팡 상품이 없습니다. 우측 상단 <b>+ 상품 등록</b>으로 추가해 보세요.</td></tr>`;
+    return;
+  }
+  body.innerHTML = cpItems.map(item => {
+    const hist = cpHistoryByItem.get(item.id);
+    const rankHtml = hist && hist.rank != null
+      ? `<span class="cp-rank">${hist.rank}위</span>`
+      : `<span class="cp-rank none">${hist ? "순위 없음" : "미확인"}</span>`;
+    const noteHtml = hist && hist.note ? `<div class="cp-note">${esc(hist.note)}</div>` : "";
+    const checkedHtml = hist ? esc(new Date(hist.checked_at).toLocaleString("ko-KR")) : "-";
+    return `
+      <tr>
+        <td class="cp-name" title="${esc(item.product_name || item.product_url)}">${esc(item.product_name || item.product_url || item.product_id)}</td>
+        <td class="cp-keyword">${esc(item.keyword)}</td>
+        <td>${rankHtml}${noteHtml}</td>
+        <td class="cp-checked">${checkedHtml}</td>
+        <td>
+          <div class="cp-row-actions">
+            <button type="button" class="cp-icon-btn" title="재검색" onclick="recheckCoupang('${item.id}')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-15.5 6.2"></path><path d="M3 12a9 9 0 0 1 15.5-6.2"></path><path d="M18 3v4h-4"></path><path d="M6 21v-4h4"></path></svg>
+            </button>
+            <button type="button" class="cp-icon-btn danger" title="삭제" onclick="deleteCoupangItem('${item.id}')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M19 6l-1 14H6L5 6"></path></svg>
+            </button>
+          </div>
+        </td>
+      </tr>`;
+  }).join("");
+}
+
+function openCoupangModal() {
+  document.getElementById("cpLinkInput").value = "";
+  document.getElementById("cpKeywordInput").value = "";
+  document.getElementById("cpMemoInput").value = "";
+  document.getElementById("cpLinkHint").textContent = "";
+  document.getElementById("cpLinkHint").className = "cp-hint";
+  document.getElementById("cpModalBackdrop").classList.add("open");
+}
+function closeCoupangModal() {
+  document.getElementById("cpModalBackdrop").classList.remove("open");
+}
+document.getElementById("cpModalBackdrop").addEventListener("click", (e) => {
+  if (e.target.id === "cpModalBackdrop") closeCoupangModal();
+});
+document.getElementById("cpLinkInput").addEventListener("input", (e) => {
+  const hint = document.getElementById("cpLinkHint");
+  const v = e.target.value.trim();
+  if (!v) { hint.textContent = ""; hint.className = "cp-hint"; return; }
+  const { productId, warn } = parseCoupangProductLink(v);
+  if (!productId) { hint.textContent = "쿠팡 상품 URL을 확인해 주세요(/vp/products/숫자 형태)."; hint.className = "cp-hint error"; return; }
+  hint.textContent = warn || `상품ID 인식됨: ${productId}`;
+  hint.className = "cp-hint " + (warn ? "error" : "ok");
+});
+
+async function saveCoupangItem() {
+  const linkRaw = document.getElementById("cpLinkInput").value.trim();
+  const keyword = document.getElementById("cpKeywordInput").value.trim();
+  const memo = document.getElementById("cpMemoInput").value.trim();
+  const { productId, itemId, vendorItemId } = parseCoupangProductLink(linkRaw);
+  const hint = document.getElementById("cpLinkHint");
+  if (!productId) { hint.textContent = "쿠팡 상품 URL을 확인해 주세요."; hint.className = "cp-hint error"; return; }
+  if (!keyword) { hint.textContent = "추적 키워드를 입력해 주세요."; hint.className = "cp-hint error"; return; }
+
+  const btn = document.getElementById("cpSaveBtn");
+  btn.disabled = true;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/coupang_rank_items`, {
+      method: "POST",
+      headers: sbHeaders({ Prefer: "return=minimal" }),
+      body: JSON.stringify([{
+        keyword, product_url: linkRaw, product_id: productId,
+        item_id: itemId, vendor_item_id: vendorItemId, memo,
+      }]),
+    });
+    if (!res.ok) throw new Error("저장 실패 (" + res.status + ")");
+    closeCoupangModal();
+    await loadCoupangData();
+  } catch (e) {
+    hint.textContent = e.message || "저장에 실패했습니다.";
+    hint.className = "cp-hint error";
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function deleteCoupangItem(id) {
+  const item = cpItems.find(i => i.id === id);
+  if (!item) return;
+  if (!confirm(`"${item.product_name || item.keyword}" 추적을 중단할까요?\n(쌓인 이력은 함께 삭제됩니다)`)) return;
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/coupang_rank_items?id=eq.${encodeURIComponent(id)}`, {
+    method: "DELETE", headers: sbHeaders(),
+  });
+  if (!res.ok) return alert("삭제 실패 (" + res.status + ")");
+  await loadCoupangData();
+}
+
+/* 재검색 — 확장프로그램 postMessage 브리지(app-bridge.js)를 통해 요청만 보내고, 실제 수집은
+   확장프로그램이 새 탭(runner.html)에서 진행한다. id를 넘기면 그 상품만, 안 넘기면 전체. */
+function startCoupangRecheck(itemIds) {
+  return new Promise((resolve, reject) => {
+    const requestId = `coupang-recheck-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const timer = setTimeout(() => {
+      window.removeEventListener("message", onResponse);
+      reject(new Error("확장프로그램과 연결되지 않았습니다. chrome://extensions에서 확장프로그램을 새로고침한 뒤 이 페이지도 새로고침하세요."));
+    }, 5000);
+    function onResponse(event) {
+      if (event.source !== window || event.origin !== window.location.origin) return;
+      if (event.data?.type !== "ENERGUARD_COUPANG_RECHECK_RESPONSE" || event.data.requestId !== requestId) return;
+      clearTimeout(timer);
+      window.removeEventListener("message", onResponse);
+      if (event.data.ok) resolve(event.data);
+      else reject(new Error(event.data.error || "확장프로그램에서 재검색을 시작하지 못했습니다."));
+    }
+    window.addEventListener("message", onResponse);
+    window.postMessage({ type: "ENERGUARD_COUPANG_RECHECK_START", requestId, itemIds: itemIds || [] }, window.location.origin);
+  });
+}
+
+async function recheckCoupang(singleId) {
+  if (cpCollecting) return;
+  const status = document.getElementById("cpStatus");
+  cpCollecting = true;
+  status.textContent = "확장프로그램에 요청 중...";
+  try {
+    await startCoupangRecheck(singleId ? [singleId] : []);
+    status.textContent = "요청 완료 — 새로 열린 탭에서 진행 상황을 확인하세요.";
+  } catch (e) {
+    status.textContent = e.message || "재검색 요청 실패";
+  } finally {
+    cpCollecting = false;
+    setTimeout(() => { if (status.textContent) status.textContent = ""; }, 6000);
+  }
+}
+
+// 확장프로그램이 진행 상황을 브로드캐스트하면(app-bridge.js), 완료 시 목록을 자동 새로고침한다.
+window.addEventListener("message", (event) => {
+  if (event.source !== window || event.origin !== window.location.origin) return;
+  if (event.data?.type !== "ENERGUARD_SHOPPING_RANK_PROGRESS") return;
+  const state = event.data.state || {};
+  if (state.mode !== "coupangRecheck") return;
+  const status = document.getElementById("cpStatus");
+  if (state.status === "running") status.textContent = state.message || "재검색 중...";
+  if (state.status === "done") { status.textContent = state.message || "완료"; loadCoupangData(); }
+  if (state.status === "error" || state.status === "cancelled") status.textContent = state.message || "";
+});
+
+loadCoupangData();
+</script>
+</body>
+</html>

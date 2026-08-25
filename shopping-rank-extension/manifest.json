@@ -1,11 +1,12 @@
 {
   "manifest_version": 3,
   "name": "Energuard Lab Shopping Rank Collector",
-  "version": "0.22.0",
-  "description": "직원 브라우저에서 네이버 쇼핑 검색결과 전체를 수집하고 자사·추적 상품을 분류합니다.",
+  "version": "0.23.0",
+  "description": "직원 브라우저에서 네이버 쇼핑·쿠팡 검색결과를 수집하고 자사·추적 상품을 분류합니다.",
   "permissions": ["tabs", "storage", "declarativeNetRequest"],
   "host_permissions": [
     "https://search.shopping.naver.com/*",
+    "https://www.coupang.com/*",
     "https://eukwfypbfqojbaihfqye.supabase.co/*"
   ],
   "icons": {
@@ -53,6 +54,11 @@
       "matches": ["https://search.shopping.naver.com/ns/search*"],
       "js": ["parser-core.js", "nplus-collector.js"],
       "run_at": "document_start"
+    },
+    {
+      "matches": ["https://www.coupang.com/np/search*"],
+      "js": ["coupang-page-collector.js"],
+      "run_at": "document_idle"
     },
     {
       "matches": [
