@@ -103,6 +103,23 @@
   .cp-hint.error { color: var(--bad); }
   .cp-modal-actions { display: flex; gap: 8px; margin-top: 18px; }
   .cp-modal-actions .cp-btn { flex: 1; justify-content: center; }
+
+  .ad-badge {
+    display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 12px;
+    font-size: 11.5px; font-weight: 800;
+  }
+  .ad-badge.high { background: #fdecec; color: var(--danger); }
+  .ad-badge.mid { background: #fef6e6; color: #a15c00; }
+  .ad-badge.low { background: #eaf6ee; color: var(--good); }
+  .ad-num { font-family: var(--font-mono); font-weight: 700; }
+  .ad-bar-cell { min-width: 160px; }
+  .ad-bar-wrap { display: flex; align-items: center; gap: 8px; }
+  .ad-bar-track { flex: 1; height: 8px; border-radius: 4px; background: var(--dark-tint); overflow: hidden; }
+  .ad-bar-fill { height: 100%; background: var(--accent); border-radius: 4px; }
+  .ad-trend { font-size: 11.5px; font-weight: 800; }
+  .ad-trend.up { color: var(--danger); }
+  .ad-trend.down { color: var(--good); }
+  .ad-trend.flat { color: var(--sub); }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="auth-guard.js?v=20260812a"></script>
@@ -196,6 +213,58 @@
       </thead>
       <tbody id="npTableBody">
         <tr><td colspan="4" class="cp-empty">불러오는 중...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="cp-section-divider"></div>
+
+  <div class="beta-banner">
+    키워드별 광고 압박도 / 경쟁사 광고 강도 — 위 N+스토어 수집 시 같이 잡히는 광고 슬롯(몰이름·노출순서)을
+    저장해서 만든 지표라 별도 수집 없이 채워집니다. 압박도 배지 기준(상단광고 3개↑=높음, 1~2개=보통,
+    0개=낮음)과 리더보드 급증/급감 기준(최근 30일 vs 이전 30일, 1.5배↑/0.5배↓)은 잠정치입니다.
+  </div>
+
+  <header class="app-page-head">
+    <div class="app-title-single">
+      <span class="app-title-label">키워드별 광고 압박도</span>
+    </div>
+  </header>
+  <div class="cp-table-wrap">
+    <table class="cp-table">
+      <thead>
+        <tr>
+          <th>키워드</th>
+          <th>자연순위</th>
+          <th>상단광고 수</th>
+          <th>광고주 수</th>
+          <th>압박도</th>
+        </tr>
+      </thead>
+      <tbody id="adPressureBody">
+        <tr><td colspan="5" class="cp-empty">불러오는 중...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="cp-section-divider"></div>
+
+  <header class="app-page-head">
+    <div class="app-title-single">
+      <span class="app-title-label">경쟁사 광고 강도 리더보드</span>
+    </div>
+  </header>
+  <div class="cp-table-wrap">
+    <table class="cp-table">
+      <thead>
+        <tr>
+          <th>광고주(몰)</th>
+          <th class="ad-bar-cell">최근 30일 노출</th>
+          <th>추세</th>
+        </tr>
+      </thead>
+      <tbody id="adLeaderboardBody">
+        <tr><td colspan="3" class="cp-empty">불러오는 중...</td></tr>
       </tbody>
     </table>
   </div>
@@ -483,7 +552,12 @@ window.addEventListener("message", (event) => {
   if (state.mode === "nplusStore") {
     const status = document.getElementById("npStatus");
     if (state.status === "running") status.textContent = state.message || "검색 중...";
-    if (state.status === "done") { status.textContent = state.message || "완료"; loadNplusData(); }
+    if (state.status === "done") {
+      status.textContent = state.message || "완료";
+      loadNplusData();
+      loadAdPressureData();
+      loadAdvertiserLeaderboard();
+    }
     if (state.status === "error" || state.status === "cancelled") status.textContent = state.message || "";
   }
 });
@@ -586,8 +660,140 @@ async function loadNplusData() {
   }
 }
 
+/* ─── 키워드별 광고 압박도 / 경쟁사 광고 강도 리더보드 ───
+   N+스토어 수집(runNplusStoreCollection → saveAdSlotSnapshot)이 같이 저장해두는
+   ad_slot_snapshots(광고 슬롯: 키워드·몰이름·노출순서)을 그대로 집계만 해서 보여준다.
+   별도 수집 트리거가 없다 — 위 "검색 시작"으로 N+스토어를 수집할 때마다 같이 채워진다. */
+const AD_PRESSURE_HIGH_THRESHOLD = 3; // 상단광고 수 >= 3 → 높음
+const AD_PRESSURE_MID_THRESHOLD = 1;  // 1~2 → 보통, 0 → 낮음
+
+function adPressureBadge(adCount) {
+  if (adCount >= AD_PRESSURE_HIGH_THRESHOLD) return { text: "높음", cls: "high" };
+  if (adCount >= AD_PRESSURE_MID_THRESHOLD) return { text: "보통", cls: "mid" };
+  return { text: "낮음", cls: "low" };
+}
+
+async function loadAdPressureData() {
+  const body = document.getElementById("adPressureBody");
+  try {
+    const [rankRes, adRes] = await Promise.all([
+      fetch(`${SUPABASE_URL}/rest/v1/keyword_rank_history?select=keyword,rank,checked_at&source=eq.nplus_store&order=checked_at.desc&limit=1000`, { headers: sbHeaders() }),
+      fetch(`${SUPABASE_URL}/rest/v1/ad_slot_snapshots?select=keyword,mall_name,checked_at&order=checked_at.desc&limit=2000`, { headers: sbHeaders() }),
+    ]);
+    if (!rankRes.ok) throw new Error("자연순위 조회 실패 (" + rankRes.status + ")");
+    if (!adRes.ok) throw new Error("광고 슬롯 조회 실패 (" + adRes.status + ")");
+    const rankRows = await rankRes.json();
+    const adRows = await adRes.json();
+
+    // 자연순위: 키워드당 가장 최근(checked_at desc) 한 줄. 같은 키워드로 우리 매칭 상품이
+    // 여러 개면 그중 가장 좋은(작은) 순위를 대표값으로 쓴다.
+    const rankByKeyword = new Map();
+    rankRows.forEach((row) => {
+      if (row.rank == null) return;
+      const prev = rankByKeyword.get(row.keyword);
+      if (!prev || row.rank < prev) rankByKeyword.set(row.keyword, row.rank);
+    });
+
+    // 광고 슬롯: 키워드별로 가장 최근 수집 1회분(같은 checked_at)만 남긴다.
+    const latestCheckedAtByKeyword = new Map();
+    adRows.forEach((row) => {
+      if (!latestCheckedAtByKeyword.has(row.keyword)) latestCheckedAtByKeyword.set(row.keyword, row.checked_at);
+    });
+    const adByKeyword = new Map();
+    adRows.forEach((row) => {
+      if (row.checked_at !== latestCheckedAtByKeyword.get(row.keyword)) return;
+      const bucket = adByKeyword.get(row.keyword) || { adCount: 0, malls: new Set() };
+      bucket.adCount += 1;
+      if (row.mall_name) bucket.malls.add(row.mall_name);
+      adByKeyword.set(row.keyword, bucket);
+    });
+
+    const keywords = new Set([...rankByKeyword.keys(), ...adByKeyword.keys()]);
+    if (!keywords.size) {
+      body.innerHTML = `<tr><td colspan="5" class="cp-empty">아직 수집된 데이터가 없습니다. 위에서 N+스토어 검색을 먼저 실행하세요.</td></tr>`;
+      return;
+    }
+    const list = [...keywords].map((keyword) => {
+      const ad = adByKeyword.get(keyword) || { adCount: 0, malls: new Set() };
+      return { keyword, rank: rankByKeyword.get(keyword) ?? null, adCount: ad.adCount, advertiserCount: ad.malls.size };
+    }).sort((a, b) => b.adCount - a.adCount);
+
+    body.innerHTML = list.map((row) => {
+      const badge = adPressureBadge(row.adCount);
+      const rankHtml = row.rank != null ? `<span class="np-rank">${row.rank}위</span>` : `<span class="np-rank none">순위 없음</span>`;
+      return `
+        <tr>
+          <td class="cp-keyword">${esc(row.keyword)}</td>
+          <td>${rankHtml}</td>
+          <td class="ad-num">${row.adCount}개</td>
+          <td class="ad-num">${row.advertiserCount}곳</td>
+          <td><span class="ad-badge ${badge.cls}">${badge.text}</span></td>
+        </tr>`;
+    }).join("");
+  } catch (e) {
+    body.innerHTML = `<tr><td colspan="5" class="cp-empty">불러오지 못했습니다: ${esc(e.message || "오류")}</td></tr>`;
+  }
+}
+
+function adTrendLabel(recent, prior) {
+  if (!recent && !prior) return { text: "-", cls: "flat" };
+  if (!prior) return { text: "신규", cls: "up" };
+  const ratio = recent / prior;
+  if (ratio >= 1.5) return { text: "급증", cls: "up" };
+  if (ratio <= 0.5) return { text: "급감", cls: "down" };
+  return { text: "유지", cls: "flat" };
+}
+
+async function loadAdvertiserLeaderboard() {
+  const body = document.getElementById("adLeaderboardBody");
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/ad_slot_snapshots?select=mall_name,collected_date&order=collected_date.desc&limit=5000`, { headers: sbHeaders() });
+    if (!res.ok) throw new Error("조회 실패 (" + res.status + ")");
+    const rows = await res.json();
+
+    const now = new Date();
+    const cutoff30 = new Date(now); cutoff30.setDate(cutoff30.getDate() - 30);
+    const cutoff60 = new Date(now); cutoff60.setDate(cutoff60.getDate() - 60);
+    const counts = new Map(); // mall_name -> { recent, prior }
+    rows.forEach((row) => {
+      if (!row.mall_name) return;
+      const d = new Date(row.collected_date + "T00:00:00+09:00");
+      const bucket = counts.get(row.mall_name) || { recent: 0, prior: 0 };
+      if (d >= cutoff30) bucket.recent += 1;
+      else if (d >= cutoff60) bucket.prior += 1;
+      counts.set(row.mall_name, bucket);
+    });
+
+    if (!counts.size) {
+      body.innerHTML = `<tr><td colspan="3" class="cp-empty">아직 수집된 데이터가 없습니다. 위에서 N+스토어 검색을 먼저 실행하세요.</td></tr>`;
+      return;
+    }
+    const list = [...counts.entries()]
+      .map(([mall, c]) => ({ mall, ...c, trend: adTrendLabel(c.recent, c.prior) }))
+      .filter((row) => row.recent > 0 || row.prior > 0)
+      .sort((a, b) => b.recent - a.recent);
+    const maxRecent = Math.max(1, ...list.map((row) => row.recent));
+
+    body.innerHTML = list.map((row) => `
+      <tr>
+        <td class="cp-name">${esc(row.mall)}</td>
+        <td class="ad-bar-cell">
+          <div class="ad-bar-wrap">
+            <div class="ad-bar-track"><div class="ad-bar-fill" style="width:${Math.round((row.recent / maxRecent) * 100)}%"></div></div>
+            <span class="ad-num">${row.recent}회</span>
+          </div>
+        </td>
+        <td><span class="ad-trend ${row.trend.cls}">${row.trend.text}</span></td>
+      </tr>`).join("");
+  } catch (e) {
+    body.innerHTML = `<tr><td colspan="3" class="cp-empty">불러오지 못했습니다: ${esc(e.message || "오류")}</td></tr>`;
+  }
+}
+
 loadCoupangData();
 loadNplusData();
+loadAdPressureData();
+loadAdvertiserLeaderboard();
 </script>
 </body>
 </html>

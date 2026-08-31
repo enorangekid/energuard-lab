@@ -1510,6 +1510,47 @@ async function saveNplusSnapshot(config, keywordMeta, products) {
   return { targetCount: rows.filter((row) => row.product_code).length };
 }
 
+// 순위 계산에서는 걸러내던 isAd=true 레코드를 "광고 압박도"/"경쟁사 광고 강도" 집계용으로
+// 별도 저장한다. saveNplusSnapshot과 같은 products 배열을 재사용하므로 추가 수집 비용이 없다.
+// slot_no는 화면(DOM 문서 순서)에 나온 순서를 그대로 쓴다 — N+스토어는 광고 슬롯이 항상
+// 상단(일반상품 그리드보다 먼저)에 나오므로 이게 곧 "몇 번째 상단광고인지"가 된다.
+async function saveAdSlotSnapshot(config, keywordMeta, products) {
+  const collectedDate = todayKst();
+  const now = new Date().toISOString();
+  const ads = products.filter((p) => p.isAd);
+
+  const rows = ads.map((p, i) => ({
+    store_name: config.storeName,
+    keyword: keywordMeta.keyword,
+    main_keyword: keywordMeta.mainKeyword,
+    is_sub: keywordMeta.isSub,
+    slot_no: i + 1,
+    mall_name: p.mallName || "",
+    product_code: String(p.productCode || p.naverProductId || ""),
+    product_name: p.title || "",
+    product_price: Number(p.price) || 0,
+    source: "nplus_store",
+    collected_date: collectedDate,
+    checked_at: now,
+  }));
+  if (rows.length) {
+    await postRows("ad_slot_snapshots", rows, "store_name,keyword,collected_date,source,slot_no");
+  }
+
+  // 같은 날 재수집(재검증 등)했을 때 이번 결과보다 광고가 더 많이 잡혔던 이전 저장분이
+  // 그대로 남아있지 않도록, 이번 checked_at이 아닌 그날 이전 행은 정리한다.
+  const cleanupUrl = `${SUPABASE_URL}/rest/v1/ad_slot_snapshots` +
+    `?store_name=eq.${encodeURIComponent(config.storeName)}` +
+    `&keyword=eq.${encodeURIComponent(keywordMeta.keyword)}` +
+    `&collected_date=eq.${encodeURIComponent(collectedDate)}` +
+    `&source=eq.nplus_store` +
+    `&checked_at=neq.${encodeURIComponent(now)}`;
+  const cleanup = await fetch(cleanupUrl, { method: "DELETE", headers: sbHeaders() });
+  if (!cleanup.ok) throw new Error(`이전 광고 슬롯 정리 실패: ${await cleanup.text()}`);
+
+  return { adCount: rows.length, advertiserCount: new Set(rows.map((r) => r.mall_name).filter(Boolean)).size };
+}
+
 async function runNplusStoreCollection(config) {
   const runId = crypto.randomUUID();
   const total = config.keywords.length;
@@ -1598,11 +1639,12 @@ async function runNplusStoreCollection(config) {
       }
 
       const result = await saveNplusSnapshot(config, keywordMeta, products);
+      const adResult = await saveAdSlotSnapshot(config, keywordMeta, products);
       saved += result.targetCount;
       completed += 1;
       await showCollectionStatus(tab.id, {
         status: "running", keyword: keywordMeta.keyword,
-        message: `${keywordMeta.keyword} · 일반상품 ${products.filter((p) => !p.isAd).length}개 확인 · 자사 매칭 ${result.targetCount}개 · ${stabilized ? "안정화됨" : "불안정(마지막 값 사용)"}`,
+        message: `${keywordMeta.keyword} · 일반상품 ${products.filter((p) => !p.isAd).length}개 확인 · 자사 매칭 ${result.targetCount}개 · 광고 ${adResult.adCount}개(광고주 ${adResult.advertiserCount}곳) · ${stabilized ? "안정화됨" : "불안정(마지막 값 사용)"}`,
         pageIndex: 1, pageCount: 1, completed, total,
       });
       await updateProgress({ completed, saved });
