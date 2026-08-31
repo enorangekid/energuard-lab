@@ -243,7 +243,10 @@ function validateConfig(raw) {
   if (!storeName) throw new Error("스토어를 선택하세요.");
   if (!keywords.length) throw new Error("수집할 키워드를 선택하세요.");
   if (keywords.length > 200) throw new Error("한 번에 수집할 수 있는 키워드는 200개까지입니다.");
-  const mode = raw?.mode === "analysis" ? "analysis" : (raw?.mode === "nplusStore" ? "nplusStore" : "batch");
+  const mode = raw?.mode === "analysis" ? "analysis"
+    : raw?.mode === "nplusStore" ? "nplusStore"
+    : raw?.mode === "nplusAdsOnly" ? "nplusAdsOnly"
+    : "batch";
   return {
     storeName,
     keywords,

@@ -177,9 +177,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type !== "EXTRACT_NPLUS_PAGE") return false;
   (async () => {
     const targetRank = Number(message.targetRank) || 200;
+    // 광고만 필요할 땐(adsOnly) 최초 화면(DOM)만 보고 끝낸다 — 광고 슬롯은 항상 일반상품
+    // 그리드보다 먼저 나오므로 이미 다 잡혀 있고, 정확한 자연순위를 내려고 목표 순위까지
+    // 스크롤을 반복하는 scrollAndCollect(최대 40회 × 650ms)가 필요 없다.
+    const adsOnly = !!message.adsOnly;
     await waitForInitialCards();
     extractInitialDom(String(message.storeName || ""));
-    await scrollAndCollect(targetRank);
+    if (!adsOnly) await scrollAndCollect(targetRank);
     const products = [...productByKey.values()];
     const pageText = (document.body?.innerText || "").slice(0, 3000);
     let blockedReason = "";

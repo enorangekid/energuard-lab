@@ -1430,11 +1430,11 @@ async function runCoupangRecheck(config) {
 // 가격비교와 개념이 다른 별도 랭킹(프로모션/멤버십 맥락이 섞인 결과셋)이라, 저장은 같은
 // keyword_rank_history 테이블에 source="nplus_store"로 분리해서 넣는다 — curated(가격비교)/
 // naver_diagnosis(관리자 진단)와 절대 안 섞이게 정리 쿼리도 source로 좁힌다.
-async function extractNplusPage(tabId, targetRank, storeName) {
+async function extractNplusPage(tabId, targetRank, storeName, adsOnly = false) {
   let lastError;
   for (let attempt = 0; attempt < 4; attempt += 1) {
     try {
-      return await chrome.tabs.sendMessage(tabId, { type: "EXTRACT_NPLUS_PAGE", targetRank, storeName });
+      return await chrome.tabs.sendMessage(tabId, { type: "EXTRACT_NPLUS_PAGE", targetRank, storeName, adsOnly });
     } catch (error) {
       lastError = error;
       await sleep(700);
@@ -1549,6 +1549,87 @@ async function saveAdSlotSnapshot(config, keywordMeta, products) {
   if (!cleanup.ok) throw new Error(`이전 광고 슬롯 정리 실패: ${await cleanup.text()}`);
 
   return { adCount: rows.length, advertiserCount: new Set(rows.map((r) => r.mall_name).filter(Boolean)).size };
+}
+
+// "광고만 수집" 전용 경로 — runNplusStoreCollection과 달리 자연순위를 안 다룬다.
+// 순위추적이 필요로 했던 것(목표 순위까지 스크롤, 2회 연속 일치할 때까지 재시도)은 전부
+// "우리 상품이 정확히 몇 위인가"를 구하기 위한 비용이었는데, 광고 유무/광고주 파악은 그 정밀도가
+// 필요 없어서(사용자 지정, 2026-08-31) 최초 화면 1회 조회로 끝낸다 — 키워드당 훨씬 빠르다.
+async function runAdSlotCollection(config) {
+  const runId = crypto.randomUUID();
+  const total = config.keywords.length;
+  activeRun = { id: runId, cancelled: false, tabId: null };
+  await updateProgress({
+    status: "running", title: "광고 수집", completed: 0, total, saved: 0,
+    runId, mode: "nplusAdsOnly", message: "네이버플러스스토어 광고를 수집할 준비를 하고 있습니다.", error: "",
+  });
+
+  let completed = 0;
+  let totalAds = 0;
+  const failedKeywords = [];
+  try {
+    const tab = await chrome.tabs.create({ active: false, url: "about:blank" });
+    activeRun.tabId = tab.id;
+
+    for (const keywordMeta of config.keywords) {
+      if (!activeRun || activeRun.id !== runId || activeRun.cancelled) throw new Error("사용자가 수집을 중단했습니다.");
+      const url = "https://search.shopping.naver.com/ns/search?" + new URLSearchParams({
+        query: keywordMeta.keyword, prevQuery: keywordMeta.keyword, sort: "RECOMMEND",
+      });
+      await updateProgress({ completed, message: `“${keywordMeta.keyword}” 광고 확인 중입니다. (${completed + 1}/${total})` });
+      await showCollectionStatus(tab.id, {
+        status: "running", keyword: keywordMeta.keyword,
+        message: "광고 슬롯을 확인하고 있습니다.", pageIndex: 1, pageCount: 1, completed: completed + 1, total,
+      });
+
+      await chrome.tabs.update(tab.id, { url });
+      await waitForTabComplete(tab.id);
+
+      let extracted;
+      try {
+        extracted = await extractNplusPage(tab.id, 0, config.storeName, true);
+        if (extracted.blockedReason) throw new Error(extracted.blockedReason);
+      } catch (error) {
+        failedKeywords.push({ keyword: keywordMeta.keyword, reason: error?.message || "알 수 없는 오류" });
+        completed += 1;
+        await updateProgress({ completed, message: `${keywordMeta.keyword} 실패: ${error?.message || "알 수 없는 오류"}` });
+        continue;
+      }
+
+      const adResult = await saveAdSlotSnapshot(config, keywordMeta, extracted.products || []);
+      totalAds += adResult.adCount;
+      completed += 1;
+      await showCollectionStatus(tab.id, {
+        status: "running", keyword: keywordMeta.keyword,
+        message: `${keywordMeta.keyword} · 광고 ${adResult.adCount}개(광고주 ${adResult.advertiserCount}곳)`,
+        pageIndex: 1, pageCount: 1, completed, total,
+      });
+      await updateProgress({ completed, saved: totalAds });
+    }
+
+    const allFailed = failedKeywords.length > 0 && failedKeywords.length === total;
+    const failureNote = failedKeywords.length
+      ? ` · 실패 ${failedKeywords.length}개(${failedKeywords.map((f) => `${f.keyword}: ${f.reason}`).join(" / ")})`
+      : "";
+    await updateProgress({
+      status: allFailed ? "error" : "done",
+      title: allFailed ? "수집 실패" : "수집 완료",
+      completed: total, total, saved: totalAds,
+      runId, mode: "nplusAdsOnly",
+      message: `${total}개 키워드에서 광고 ${totalAds}개를 저장했습니다.${failureNote}`,
+      error: allFailed ? failedKeywords.map((f) => `${f.keyword}: ${f.reason}`).join(" / ") : "",
+    });
+    if (!allFailed) await chrome.tabs.remove(tab.id).catch(() => {});
+  } catch (error) {
+    if (error?.message !== "사용자가 수집을 중단했습니다.") {
+      await updateProgress({
+        status: "error", title: "수집 실패", runId, mode: "nplusAdsOnly",
+        message: error?.message || "알 수 없는 오류", error: error?.message || "알 수 없는 오류",
+      });
+    }
+  } finally {
+    if (activeRun?.id === runId) activeRun = null;
+  }
 }
 
 async function runNplusStoreCollection(config) {
@@ -2004,6 +2085,10 @@ async function runCollection(config) {
   }
   if (config.mode === "nplusStore") {
     await runNplusStoreCollection(config);
+    return;
+  }
+  if (config.mode === "nplusAdsOnly") {
+    await runAdSlotCollection(config);
     return;
   }
   if (config.mode === "coupangRecheck") {
