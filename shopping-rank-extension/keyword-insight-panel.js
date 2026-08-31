@@ -158,6 +158,13 @@
     const organic = products.filter((p) => !p.isAd);
     if (!organic.length) return null;
 
+    // 광고 압박도 — 지금 로딩된 화면 기준(스크롤로 더 불러오면 값이 늘어남)의 광고 카드 수·
+    // 광고주 수. 순위/노출 점유율 계산에선 원래부터 걸러내던 isAd=true 카드를 여기서만
+    // 별도로 센다(2026-08-31, "가격비교 레이어에도 표기해달라"는 요청).
+    const adCards = products.filter((p) => p.isAd);
+    const adCount = adCards.length;
+    const advertiserCount = new Set(adCards.map((p) => p.mallName).filter(Boolean)).size;
+
     const prices = organic.map((p) => p.price).filter((p) => p > 0);
     const priceRange = prices.length ? { min: Math.min(...prices), max: Math.max(...prices) } : null;
 
@@ -222,6 +229,7 @@
     return {
       priceRange, score, ratio, isPageCountOnly, myBestRank, sellers, productCount,
       organicCount: organic.length, topCategory, topTags, avgPurchase, avgReview,
+      adCount, advertiserCount,
     };
   }
 
@@ -231,6 +239,13 @@
     if (score < 40) return { text: "좋음", cls: "good" };
     if (score < 70) return { text: "보통", cls: "mid" };
     return { text: "나쁨", cls: "bad" };
+  }
+
+  // report.js/rank-tracker.html의 압박도 배지와 동일한 기준(상단광고 3개↑=높음).
+  function adPressureBadge(adCount) {
+    if (adCount >= 3) return { text: "높음", cls: "bad" };
+    if (adCount >= 1) return { text: "보통", cls: "mid" };
+    return { text: "낮음", cls: "good" };
   }
 
   // "0.3 : 1" / "1 : 3.2" 형태 — naver-rank.html의 fmtRatio와 동일한 규칙.
@@ -677,6 +692,11 @@
     const myRankRow = page
       ? `<div class="side-box-row"><span>내 스토어 순위</span><b style="${page.myBestRank != null ? "color:#e85d2f" : ""}">${page.myBestRank != null ? page.myBestRank + "위" : "미노출"}</b></div>`
       : "";
+    // 광고 압박도 — 지금 로딩된 화면(스크롤로 더 불러올수록 늘어남) 기준이라 report.html의
+    // "그 실행에서 수집한 전체"와는 표본이 달라 숫자가 정확히 일치하진 않는다.
+    const adRow = page
+      ? `<div class="side-box-row"><span>광고 압박도</span><b>${fmt(page.adCount)}개(광고주 ${fmt(page.advertiserCount)}곳) <span class="grade ${adPressureBadge(page.adCount).cls}">${adPressureBadge(page.adCount).text}</span></b></div>`
+      : "";
     return `
       <div class="side-box">
         <div class="side-box-row"><span>등록 상품수</span><b>${page ? fmt(page.productCount) + "개" : "-"}</b></div>
@@ -696,6 +716,7 @@
         ${purchaseRow}
         ${reviewRow}
         ${myRankRow}
+        ${adRow}
       </div>`;
   }
 

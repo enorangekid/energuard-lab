@@ -465,6 +465,93 @@ function sellersHtml(sellers) {
   return `<div class="side-box"><div class="side-box-title">노출 순위</div>${body}</div>`;
 }
 
+/* ── 광고 압박도 / 경쟁사 광고 강도 ──
+   순위 계산할 땐 걸러내고 버리던 is_ad=true 행(이 실행에서 이미 수집해둔 state.rows에도,
+   과거 실행분에도 shopping_search_snapshots에 그대로 쌓여있다)을 읽어서 만든다. 압박도(이
+   실행/키워드 기준)는 이미 로드된 state.rows로 즉시 계산되고, 경쟁사 강도(30일 추세)만
+   과거분까지 봐야 해서 별도 조회가 필요하다. */
+function adPressureBadge(adCount) {
+  if (adCount >= 3) return { text: "높음", cls: "bad" };
+  if (adCount >= 1) return { text: "보통", cls: "mid" };
+  return { text: "낮음", cls: "good" };
+}
+
+function adTrendLabel(recent, prior) {
+  if (!recent && !prior) return { text: "-", cls: "flat" };
+  if (!prior) return { text: "신규", cls: "up" };
+  const ratio = recent / prior;
+  if (ratio >= 1.5) return { text: "급증", cls: "up" };
+  if (ratio <= 0.5) return { text: "급감", cls: "down" };
+  return { text: "유지", cls: "flat" };
+}
+
+function adAdvertisersHtml(list) {
+  const body = !list || !list.length
+    ? `<div class="empty">최근 30일 안에 잡힌 광고가 없습니다.</div>`
+    : `
+      <div class="sellers">
+        ${list.slice(0, 8).map((row, i) => `
+          <div class="seller-row">
+            <span class="seller-rank">${i + 1}</span>
+            <span class="seller-name">${escapeHtml(row.mall)}</span>
+            <span class="ad-trend-label ${row.trend.cls}">${row.trend.text}</span>
+            <span class="seller-bar-wrap"><span class="seller-bar" style="width:${Math.round((row.recent / (list[0].recent || 1)) * 100)}%"></span></span>
+          </div>`).join("")}
+      </div>`;
+  return `<div class="side-box"><div class="side-box-title">경쟁사 광고 강도<span style="font-weight:600;color:#98a2b3;">최근 30일 노출횟수</span></div>${body}</div>`;
+}
+
+async function fetchAdLeaderboard(storeName, keyword) {
+  if (!storeName || !keyword) return [];
+  const headers = await getAuthenticatedHeaders();
+  const since = new Date();
+  since.setDate(since.getDate() - 60);
+  const sinceDate = since.toISOString().slice(0, 10);
+  const query = new URLSearchParams({
+    select: "mall_name,collected_date",
+    store_name: `eq.${storeName}`,
+    keyword: `eq.${keyword}`,
+    is_ad: "eq.true",
+    collected_date: `gte.${sinceDate}`,
+    limit: "5000",
+  });
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/shopping_search_snapshots?${query}`, { headers });
+  if (!response.ok) return [];
+  const rows = await response.json();
+
+  const now = new Date();
+  const cutoff30 = new Date(now); cutoff30.setDate(cutoff30.getDate() - 30);
+  const counts = new Map(); // mall -> { recent, prior }
+  rows.forEach((row) => {
+    if (!row.mall_name) return;
+    const d = new Date(row.collected_date + "T00:00:00+09:00");
+    const bucket = counts.get(row.mall_name) || { recent: 0, prior: 0 };
+    if (d >= cutoff30) bucket.recent += 1;
+    else bucket.prior += 1;
+    counts.set(row.mall_name, bucket);
+  });
+  return [...counts.entries()]
+    .map(([mall, c]) => ({ mall, ...c, trend: adTrendLabel(c.recent, c.prior) }))
+    .filter((row) => row.recent > 0 || row.prior > 0)
+    .sort((a, b) => b.recent - a.recent);
+}
+
+let adLeaderRenderToken = 0;
+async function loadAdBand(keyword, storeName, adCount, advertiserCount) {
+  document.getElementById("adMetrics").innerHTML = [
+    ["상단광고", `${number.format(adCount)}개`, adPressureBadge(adCount).cls === "bad" ? "accent" : ""],
+    ["광고주", `${number.format(advertiserCount)}곳`, ""],
+  ].map(([label, value, className]) => `
+    <div class="metric"><span>${label}</span><strong class="${className}">${value}</strong></div>
+  `).join("");
+
+  const token = ++adLeaderRenderToken;
+  document.getElementById("adLeaderCol").innerHTML = `<div class="side-box"><div class="side-box-title">경쟁사 광고 강도</div><div class="empty">불러오는 중...</div></div>`;
+  const list = await fetchAdLeaderboard(storeName, keyword);
+  if (token !== adLeaderRenderToken) return; // 그 사이 다른 키워드로 바뀌었으면 버림
+  document.getElementById("adLeaderCol").innerHTML = adAdvertisersHtml(list);
+}
+
 async function fetchKeywordInsightData(keyword) {
   const headers = await getAuthenticatedHeaders({ "Content-Type": "application/json" });
   const normalized = keyword.replace(/\s+/g, "").toLowerCase();
@@ -522,7 +609,9 @@ function render() {
   const rows = currentRows();
   const allKeywordRows = state.rows.filter((row) => row.keyword === state.keyword);
   const collectedAt = allKeywordRows[0]?.collected_at ? new Date(allKeywordRows[0].collected_at).toLocaleString("ko-KR") : "-";
-  const adCount = allKeywordRows.filter((row) => row.is_ad).length;
+  const adRows = allKeywordRows.filter((row) => row.is_ad);
+  const adCount = adRows.length;
+  const advertiserCount = new Set(adRows.map((row) => row.mall_name).filter(Boolean)).size;
   document.getElementById("summaryKeyword").textContent = state.keyword || "-";
   document.getElementById("summarySentence").textContent = `일반상품 ${number.format(rows.length)}개를 노출 순서대로 분석했습니다. 광고 ${number.format(adCount)}개는 순위에서 제외했습니다.`;
   document.getElementById("reportMeta").textContent = `키워드 ${state.keyword || "-"} · 수집 ${collectedAt} · 일반상품 ${number.format(rows.length)}개`;
@@ -531,6 +620,7 @@ function render() {
   renderInsights(rows);
   renderRows(rows);
   loadAndRenderInsightBand(state.keyword, rows);
+  loadAdBand(state.keyword, allKeywordRows[0]?.store_name || "", adCount, advertiserCount);
 }
 
 function csvCell(value) {
