@@ -1167,7 +1167,7 @@ async function fetchProductMasters() {
 async function fetchAdSnapshots(storeName) {
   const headers = { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer " + SUPABASE_ANON_KEY };
   const url = `${SUPABASE_URL}/rest/v1/shopping_search_snapshots` +
-    `?select=keyword,mall_name,collected_date,collected_at` +
+    `?select=keyword,mall_name,collected_date,checked_at` +
     `&store_name=eq.${encodeURIComponent(storeName)}&is_ad=eq.true&order=collected_date.desc`;
   const result = await fetchAllPaged(url, headers, 1000, 30);
   if (!result.ok) throw new Error("광고 데이터 조회 실패 (" + result.status + ")");
@@ -1192,14 +1192,14 @@ function adTrendLabel(recent, prior) {
 // rows: fetchAdSnapshots()가 준 is_ad=true 행 전체(모든 키워드 통합). 키워드별 압박도(가장 최근
 // 수집 1회분)와, 키워드×몰별 30일 vs 이전30일 노출 카운트를 한 번에 만든다.
 function buildAdMetrics(rows) {
-  const latestCollectedAtByKeyword = new Map();
+  const latestCheckedAtByKeyword = new Map();
   rows.forEach((row) => {
-    const cur = latestCollectedAtByKeyword.get(row.keyword);
-    if (!cur || row.collected_at > cur) latestCollectedAtByKeyword.set(row.keyword, row.collected_at);
+    const cur = latestCheckedAtByKeyword.get(row.keyword);
+    if (!cur || row.checked_at > cur) latestCheckedAtByKeyword.set(row.keyword, row.checked_at);
   });
   const pressure = new Map();
   rows.forEach((row) => {
-    if (row.collected_at !== latestCollectedAtByKeyword.get(row.keyword)) return;
+    if (row.checked_at !== latestCheckedAtByKeyword.get(row.keyword)) return;
     const bucket = pressure.get(row.keyword) || { adCount: 0, malls: new Set() };
     bucket.adCount += 1;
     if (row.mall_name) bucket.malls.add(row.mall_name);
