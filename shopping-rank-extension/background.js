@@ -2032,6 +2032,28 @@ async function saveSearchSnapshot(config, keywordMeta, products, runId, context)
       ...volumeFields,
     });
   }
+  // product_rankings(상품 마스터)의 name은 최초 등록 후 자동으로 갱신되는 경로가 없어서,
+  // 실제 네이버 상품명이 바뀌어도 rank-tracker.html의 화면 표시(buildProducts)는 계속
+  // 마스터 이름을 최우선으로 쓰기 때문에 옛날 이름이 그대로 보였다(2026-08-31 사용자 지적).
+  // 화면 쪽 우선순위(마스터 우선)는 그대로 두고, 여기서 오늘 실제로 잡힌 이름으로 "이미 있는"
+  // 마스터 행만 최신화한다 — 새 행은 만들지 않는다(마스터는 카테고리/체크 여부를 사람이 직접
+  // 관리하는 테이블이라 수집만으로 자동 등록되면 안 됨).
+  const freshNameByCode = new Map();
+  targetPayload.forEach((row) => {
+    if (row.product_code && row.product_name) freshNameByCode.set(row.product_code, row.product_name);
+  });
+  for (const [code, name] of freshNameByCode) {
+    const syncRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/product_rankings?code=eq.${encodeURIComponent(code)}`,
+      {
+        method: "PATCH",
+        headers: sbHeaders({ "Content-Type": "application/json", Prefer: "return=minimal" }),
+        body: JSON.stringify({ name }),
+      }
+    );
+    if (!syncRes.ok) console.warn(`[MasterNameSync] ${code} 마스터 이름 갱신 실패: ${await syncRes.text()}`);
+  }
+
   await postRows(
     "keyword_rank_history",
     targetPayload,
