@@ -108,17 +108,6 @@
   .summary-mover-delta { flex: 0 0 auto; margin-left: auto; font-family: var(--font-mono); font-size: 12px; font-weight: 800; white-space: nowrap; }
   .summary-mover-delta.up { color: #16a34a; }
   .summary-mover-delta.down { color: var(--danger); }
-  .ad-badge {
-    flex: 0 0 auto; margin-left: auto; display: inline-flex; align-items: center; height: 20px;
-    padding: 0 8px; border-radius: 10px; font-size: 10.5px; font-weight: 800; white-space: nowrap;
-  }
-  .ad-badge.high { background: #fdecec; color: var(--danger); }
-  .ad-badge.mid { background: #fef6e6; color: #a15c00; }
-  .ad-badge.low { background: #eafaf0; color: #16a34a; }
-  .ad-trend { flex: 0 0 auto; margin-left: auto; font-size: 11.5px; font-weight: 800; white-space: nowrap; }
-  .ad-trend.up { color: var(--danger); }
-  .ad-trend.down { color: #16a34a; }
-  .ad-trend.flat { color: var(--sub); }
   /* 이탈 상품 한 행에 여러 개 빠진 키워드가 달릴 수 있어, 상세 줄을 칩 여러 개가 줄바꿈되는
      형태로 바꾼다(다른 무버 행의 한 줄짜리 상세와 다름). */
   .summary-mover-row-detail.dropout-keywords { display: flex; flex-wrap: wrap; gap: 6px; font-family: inherit; }
@@ -916,12 +905,6 @@ let cachedProducts = [];
 let cachedSectionByName = new Map(); // renderProducts()가 만든 카테고리별 section — 요약 대시보드만
 // 부분 갱신할 때(updateCategoryDashboard) buildCategorySections를 다시 돌리지 않고 재사용한다.
 let cachedDropped = [];
-// 광고 압박도/경쟁사 광고 강도 — shopping_search_snapshots(가격비교 일괄수집이 순위 계산 없이
-// 그냥 걸러내던 is_ad=true 행)를 키워드별로 집계해둔 것. 초기 로드를 막지 않으려고 rank 데이터와
-// 별도로 백그라운드에서 불러와 채운다(loadTrackedData와 같은 패턴).
-let adMetricsLoaded = false;
-let adPressureByKeyword = new Map();  // keyword -> { adCount, advertiserCount }
-let adLeaderboardByKeyword = new Map(); // keyword -> [{ mall, recent, prior, trend }] (recent desc)
 let memoTargetCode = "";
 const expandedCategories = new Set();
 
@@ -1051,11 +1034,6 @@ document.getElementById("storeChips").addEventListener("click", (e) => {
   activeCategory = getTrackerCategories()[0];
   cachedProducts = [];
   expandedCategories.clear();
-  // 광고 지표는 스토어별로 다른 shopping_search_snapshots 행을 보므로, 스토어를 바꾸면
-  // 이전 스토어 값이 그대로 남지 않게 다시 불러오게 한다.
-  adMetricsLoaded = false;
-  adPressureByKeyword = new Map();
-  adLeaderboardByKeyword = new Map();
   document.getElementById("storeChips").classList.remove("open");
   renderStoreChips();
   loadAndRender();
@@ -1158,94 +1136,6 @@ async function fetchProductMasters() {
     return result.rows;
   }
   throw new Error("상품 마스터 조회 실패 (컬럼 불일치)");
-}
-
-/* ─── 광고 압박도 / 경쟁사 광고 강도 ───
-   가격비교 키워드 일괄수집(background.js runCollection)이 이미 매번 shopping_search_snapshots에
-   is_ad 여부·mall_name까지 저장해두고 있다(순위 계산에선 걸러내고 버리기만 했었음) — 새 수집
-   로직 없이 이 테이블만 읽어서 키워드별 광고 슬롯 수/광고주 수, 몰별 30일 노출 추세를 만든다. */
-async function fetchAdSnapshots(storeName) {
-  const headers = { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer " + SUPABASE_ANON_KEY };
-  const url = `${SUPABASE_URL}/rest/v1/shopping_search_snapshots` +
-    `?select=keyword,mall_name,collected_date,checked_at` +
-    `&store_name=eq.${encodeURIComponent(storeName)}&is_ad=eq.true&order=collected_date.desc`;
-  const result = await fetchAllPaged(url, headers, 1000, 30);
-  if (!result.ok) throw new Error("광고 데이터 조회 실패 (" + result.status + ")");
-  return result.rows;
-}
-
-function adPressureBadge(adCount) {
-  if (adCount >= 3) return { text: "높음", cls: "high" };
-  if (adCount >= 1) return { text: "보통", cls: "mid" };
-  return { text: "낮음", cls: "low" };
-}
-
-function adTrendLabel(recent, prior) {
-  if (!recent && !prior) return { text: "-", cls: "flat" };
-  if (!prior) return { text: "신규", cls: "up" };
-  const ratio = recent / prior;
-  if (ratio >= 1.5) return { text: "급증", cls: "up" };
-  if (ratio <= 0.5) return { text: "급감", cls: "down" };
-  return { text: "유지", cls: "flat" };
-}
-
-// rows: fetchAdSnapshots()가 준 is_ad=true 행 전체(모든 키워드 통합). 키워드별 압박도(가장 최근
-// 수집 1회분)와, 키워드×몰별 30일 vs 이전30일 노출 카운트를 한 번에 만든다.
-function buildAdMetrics(rows) {
-  const latestCheckedAtByKeyword = new Map();
-  rows.forEach((row) => {
-    const cur = latestCheckedAtByKeyword.get(row.keyword);
-    if (!cur || row.checked_at > cur) latestCheckedAtByKeyword.set(row.keyword, row.checked_at);
-  });
-  const pressure = new Map();
-  rows.forEach((row) => {
-    if (row.checked_at !== latestCheckedAtByKeyword.get(row.keyword)) return;
-    const bucket = pressure.get(row.keyword) || { adCount: 0, malls: new Set() };
-    bucket.adCount += 1;
-    if (row.mall_name) bucket.malls.add(row.mall_name);
-    pressure.set(row.keyword, bucket);
-  });
-  const pressureByKeyword = new Map();
-  pressure.forEach((bucket, keyword) => {
-    pressureByKeyword.set(keyword, { adCount: bucket.adCount, advertiserCount: bucket.malls.size });
-  });
-
-  const now = new Date();
-  const cutoff30 = new Date(now); cutoff30.setDate(cutoff30.getDate() - 30);
-  const cutoff60 = new Date(now); cutoff60.setDate(cutoff60.getDate() - 60);
-  const perKeywordMall = new Map(); // keyword -> mall -> { recent, prior }
-  rows.forEach((row) => {
-    if (!row.mall_name) return;
-    const d = new Date(row.collected_date + "T00:00:00+09:00");
-    if (!perKeywordMall.has(row.keyword)) perKeywordMall.set(row.keyword, new Map());
-    const mallMap = perKeywordMall.get(row.keyword);
-    const bucket = mallMap.get(row.mall_name) || { recent: 0, prior: 0 };
-    if (d >= cutoff30) bucket.recent += 1;
-    else if (d >= cutoff60) bucket.prior += 1;
-    mallMap.set(row.mall_name, bucket);
-  });
-  const leaderboardByKeyword = new Map();
-  perKeywordMall.forEach((mallMap, keyword) => {
-    const list = [...mallMap.entries()]
-      .map(([mall, c]) => ({ mall, ...c, trend: adTrendLabel(c.recent, c.prior) }))
-      .filter((row) => row.recent > 0 || row.prior > 0)
-      .sort((a, b) => b.recent - a.recent);
-    if (list.length) leaderboardByKeyword.set(keyword, list);
-  });
-
-  return { pressureByKeyword, leaderboardByKeyword };
-}
-
-async function loadAdMetrics() {
-  try {
-    const rows = await fetchAdSnapshots(selectedStore);
-    const built = buildAdMetrics(rows);
-    adPressureByKeyword = built.pressureByKeyword;
-    adLeaderboardByKeyword = built.leaderboardByKeyword;
-    adMetricsLoaded = true;
-  } catch (e) {
-    console.warn("광고 지표 불러오기 실패:", e.message || e);
-  }
 }
 
 function deltaHtml(delta) {
@@ -2337,7 +2227,6 @@ function buildDashStats(section) {
     hasVolume: uniqueKeywords.some(k => k.search_volume_total != null),
     upMovers: allKeywords.filter(k => moveScore(k) > 0).sort((a, b) => moveScore(b) - moveScore(a)).slice(0, MOVER_EXPANDED_LIMIT),
     downMovers: allKeywords.filter(k => moveScore(k) < 0).sort((a, b) => moveScore(a) - moveScore(b)).slice(0, MOVER_EXPANDED_LIMIT),
-    allKeywords, // 광고 압박도 카드용 — 이 섹션에 속한 키워드별 최고 순위(자연순위) 조회에 재사용
   };
   return stats;
 }
@@ -2424,30 +2313,6 @@ function moverProductRowHtml(product, k, rank) {
       ${summaryMoverDeltaHtml(k.delta)}
     </div>
     <div class="summary-mover-row-detail">${esc(k.keyword)} · ${prevRank}위 → ${k.rank}위</div>
-  </div>`;
-}
-
-function adPressureRowHtml(entry, rank) {
-  const badge = adPressureBadge(entry.adCount);
-  const rankLabel = entry.rank != null ? `자연순위 ${entry.rank}위` : "자연순위 -";
-  return `<div class="summary-mover-row">
-    <div class="summary-mover-row-main">
-      <span class="summary-top3-rank">${rank}</span>
-      <a class="summary-top3-name" href="${esc(keywordUrl(entry.keyword))}" title="${esc(entry.keyword)}">${esc(entry.keyword)}</a>
-      <span class="ad-badge ${badge.cls}">${badge.text}</span>
-    </div>
-    <div class="summary-mover-row-detail">${rankLabel} · 상단광고 ${entry.adCount}개 · 광고주 ${entry.advertiserCount}곳</div>
-  </div>`;
-}
-
-function adLeaderRowHtml(entry, rank) {
-  return `<div class="summary-mover-row">
-    <div class="summary-mover-row-main">
-      <span class="summary-top3-rank">${rank}</span>
-      <span class="summary-top3-name" title="${esc(entry.mall)}">${esc(entry.mall)}</span>
-      <span class="ad-trend ${entry.trend.cls}">${entry.trend.text}</span>
-    </div>
-    <div class="summary-mover-row-detail">최근 30일 노출 ${entry.recent}회</div>
   </div>`;
 }
 
@@ -2549,37 +2414,6 @@ function renderCategoryDashboard(section) {
     <div class="summary-divider" style="margin:18px 0;"></div>
     ${dashMoverSubCard("이탈 상품", sliceFor(dropKey, droppedProducts).map((p, i) => dropoutRowHtml(p, i + 1)).join("") + moverMoreBtnHtml(dropKey, droppedProducts.length))}` : "";
 
-  // 광고 압박도/경쟁사 광고 강도 — shopping_search_snapshots(가격비교 수집이 이미 걸러내고
-  // 버리던 is_ad 행)을 이 카테고리에 속한 키워드로만 좁혀서 보여준다. adPressureByKeyword/
-  // adLeaderboardByKeyword가 아직 안 채워졌으면(로딩 중) 그냥 빈 카드 없이 생략한다.
-  const pressureEntries = s.allKeywords
-    .map(k => {
-      const ad = adPressureByKeyword.get(k.keyword);
-      return ad ? { keyword: k.keyword, rank: k.rank, adCount: ad.adCount, advertiserCount: ad.advertiserCount } : null;
-    })
-    .filter(Boolean)
-    .sort((a, b) => b.adCount - a.adCount);
-  const leaderTotals = new Map(); // mall -> { recent, prior } — 이 카테고리 키워드들 합산
-  s.allKeywords.forEach(k => {
-    (adLeaderboardByKeyword.get(k.keyword) || []).forEach(row => {
-      const bucket = leaderTotals.get(row.mall) || { recent: 0, prior: 0 };
-      bucket.recent += row.recent;
-      bucket.prior += row.prior;
-      leaderTotals.set(row.mall, bucket);
-    });
-  });
-  const leaderEntries = [...leaderTotals.entries()]
-    .map(([mall, c]) => ({ mall, ...c, trend: adTrendLabel(c.recent, c.prior) }))
-    .sort((a, b) => b.recent - a.recent);
-  const adPressureKey = `mover-adpress-${section.name}`;
-  const adLeaderKey = `mover-adlead-${section.name}`;
-  const adHtml = (pressureEntries.length || leaderEntries.length) ? `
-    <div class="summary-divider" style="margin:18px 0;"></div>
-    <div class="summary-top3-row-wrap summary-mover-grid">
-      ${dashMoverSubCard("키워드별 광고 압박도", sliceFor(adPressureKey, pressureEntries).map((e, i) => adPressureRowHtml(e, i + 1)).join("") + moverMoreBtnHtml(adPressureKey, pressureEntries.length))}
-      ${dashMoverSubCard("경쟁사 광고 강도", sliceFor(adLeaderKey, leaderEntries).map((e, i) => adLeaderRowHtml(e, i + 1)).join("") + moverMoreBtnHtml(adLeaderKey, leaderEntries.length))}
-    </div>` : "";
-
   return `<div class="rank-dash">
     <div class="rank-dash-tiles">
       <div class="dash-tile"><div class="dash-label">추적 상품</div><div class="dash-value">${section.products.length.toLocaleString()}<small>개</small></div></div>
@@ -2592,7 +2426,6 @@ function renderCategoryDashboard(section) {
     ${barHtml}
     ${moversHtml}
     ${dropoutHtml}
-    ${adHtml}
   </div>`;
 }
 
@@ -2904,11 +2737,6 @@ async function loadAndRender() {
     renderProducts(products);
     if (!trackedLoaded) {
       loadTrackedData()
-        .then(() => renderProducts(cachedProducts))
-        .catch(() => {});
-    }
-    if (!adMetricsLoaded) {
-      loadAdMetrics()
         .then(() => renderProducts(cachedProducts))
         .catch(() => {});
     }
