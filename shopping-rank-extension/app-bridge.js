@@ -30,6 +30,15 @@ function getEnerguardAuthSession() {
 
 window.postMessage({ type: "ENERGUARD_SHOPPING_RANK_READY" }, window.location.origin);
 
+// 2026-09-02: 예전엔 세션이 "에너가드랩에서 뭔가 실행할 때"만 chrome.storage에 저장됐다 —
+// 그래서 팝업 전용 기능(내 상품 체커/경쟁사 가격 이력)만 쓰고 며칠간 에너가드랩 자체 기능을
+// 안 쓰면 세션이 낡아서 팝업이 "로그인 필요"로 실패할 수 있었다. 이제 에너가드랩 페이지를
+// 열 때마다(아무것도 안 눌러도) 조용히 세션을 동기화해서 팝업 기능도 항상 최신 세션을 쓴다.
+try {
+  const session = getEnerguardAuthSession();
+  if (session) chrome.runtime.sendMessage({ type: "SYNC_AUTH_SESSION", authSession: session }).catch(() => {});
+} catch (_) {}
+
 window.addEventListener("message", (event) => {
   if (event.source !== window || event.origin !== window.location.origin) return;
   if (event.data?.type === TRACKED_ITEMS_REQUEST) {

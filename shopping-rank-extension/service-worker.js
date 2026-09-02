@@ -365,7 +365,174 @@ async function fetchKeywordInsight(keyword) {
   return { insight, trendRows };
 }
 
+// ═══ 경쟁사 상품 옵션가 수집 (smartstore-product-collector.js) ═══
+// [Supabase 테이블 DDL — 최초 1회 실행]
+// -- 원본 그대로 다 쌓아두는 테이블(감사/엑셀 검토용) — 매칭 성공 여부와 무관하게 스캔할
+// -- 때마다 전부 기록됨.
+// CREATE TABLE IF NOT EXISTS competitor_price_scans (
+//   id                bigserial PRIMARY KEY,
+//   product_url       text NOT NULL,
+//   product_name      text,
+//   store_name        text,
+//   option_label      text,
+//   option_delta      integer,
+//   final_price       integer,
+//   prev_final_price  integer,  -- 같은 상품+옵션의 직전 스캔 가격(없으면 NULL = 첫 수집)
+//   price_diff        integer,  -- final_price - prev_final_price (변동 없으면 0)
+//   stock_quantity    integer,
+//   sold_out          boolean DEFAULT false,
+//   collected_at      timestamptz DEFAULT now()
+// );
+// ALTER TABLE competitor_price_scans DISABLE ROW LEVEL SECURITY;
+// -- 이미 테이블이 있다면(2026-09-02 이전 버전) 이 두 컬럼만 추가:
+// -- ALTER TABLE competitor_price_scans ADD COLUMN IF NOT EXISTS prev_final_price integer;
+// -- ALTER TABLE competitor_price_scans ADD COLUMN IF NOT EXISTS price_diff integer;
+//
+// 2026-09-02: 스캔한 상품 URL이 이미 competitor_prices의 comp1_link/comp2_link/comp3_link로
+// 등록돼있는 (tab_id, grade_id, thickness) 행이 있으면, 그 두께에 해당하는 옵션 라벨(예:
+// "50T")을 찾아 comp{n}_price에 자동 반영한다 — 사용자가 단가표에서 이미 "이 URL = 이 두께"
+// 라고 직접 등록해둔 정보를 거꾸로 활용하는 것(관리자 지시). 매칭 안 되는 건 원본만 남기고
+// 나중에 엑셀로 검토.
+function extractThicknessMm(label) {
+  const m = String(label || "").match(/(\d+)\s*T\b/i);
+  return m ? Number(m[1]) : null;
+}
+
+async function saveCompetitorPriceScan(payload) {
+  const headers = await authenticatedHeaders({ "Content-Type": "application/json" });
+  const rows = Array.isArray(payload?.rows) ? payload.rows : [];
+  const productUrl = String(payload?.productUrl || "");
+  if (!productUrl || !rows.length) throw new Error("수집된 데이터가 없습니다.");
+
+  // 0) 같은 상품 URL의 "직전" 스캔값을 옵션 라벨별로 하나씩 조회해서 변동을 계산한다.
+  // 한 상품에 옵션이 여러 개라 라벨별로 따로 쿼리하지 않고, 최근 것들을 한 번에 받아와
+  // JS에서 라벨별 "가장 최근 것" 하나만 골라 쓴다(2026-09-02, 가격 변동 확인 요청 반영).
+  const prevRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/competitor_price_scans?product_url=eq.${encodeURIComponent(productUrl)}` +
+    `&select=option_label,final_price,collected_at&order=collected_at.desc&limit=500`,
+    { headers }
+  );
+  const prevRows = prevRes.ok ? await prevRes.json() : [];
+  const latestByLabel = new Map();
+  for (const r of prevRows) {
+    if (!latestByLabel.has(r.option_label)) latestByLabel.set(r.option_label, r.final_price);
+  }
+
+  // 1) 원본 전부 저장(항상) — 이전값/변동폭 같이 기록
+  const scanRows = rows.map((r) => {
+    const prevPrice = latestByLabel.has(r.label) ? latestByLabel.get(r.label) : null;
+    const finalPrice = Number.isFinite(r.finalPrice) ? r.finalPrice : null;
+    const priceDiff = (prevPrice != null && finalPrice != null) ? finalPrice - prevPrice : null;
+    return {
+      product_url: productUrl,
+      product_name: payload.productName || null,
+      store_name: payload.storeName || null,
+      option_label: r.label || null,
+      option_delta: Number.isFinite(r.delta) ? r.delta : null,
+      final_price: finalPrice,
+      prev_final_price: prevPrice,
+      price_diff: priceDiff,
+      stock_quantity: Number.isFinite(r.stockQuantity) ? r.stockQuantity : null,
+      sold_out: !!r.soldOut,
+    };
+  });
+  const scanRes = await fetch(`${SUPABASE_URL}/rest/v1/competitor_price_scans`, {
+    method: "POST",
+    headers: { ...headers, Prefer: "return=minimal" },
+    body: JSON.stringify(scanRows),
+  });
+  if (!scanRes.ok) throw new Error(`원본 저장 실패 (${scanRes.status})`);
+  const changed = scanRows.filter((r) => r.price_diff);
+
+  // 2) 이미 이 URL을 comp{n}_link로 등록해둔 행 찾기
+  const orExpr = [1, 2, 3].map((n) => `comp${n}_link.eq.${encodeURIComponent(productUrl)}`).join(",");
+  const lookupRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/competitor_prices?or=(${orExpr})&select=id,thickness,comp1_link,comp2_link,comp3_link`,
+    { headers }
+  );
+  const registered = lookupRes.ok ? await lookupRes.json() : [];
+
+  let matched = 0;
+  for (const reg of registered) {
+    for (const idx of [1, 2, 3]) {
+      if (reg[`comp${idx}_link`] !== productUrl) continue;
+      const hit = rows.find((r) => extractThicknessMm(r.label) === reg.thickness);
+      if (!hit || hit.soldOut) continue;
+      const patchRes = await fetch(`${SUPABASE_URL}/rest/v1/competitor_prices?id=eq.${reg.id}`, {
+        method: "PATCH",
+        headers: { ...headers, Prefer: "return=minimal" },
+        body: JSON.stringify({ [`comp${idx}_price`]: hit.finalPrice, updated_at: new Date().toISOString() }),
+      });
+      if (patchRes.ok) matched++;
+    }
+  }
+
+  return {
+    savedRaw: scanRows.length,
+    matched,
+    changes: changed.map((r) => ({ label: r.option_label, prev: r.prev_final_price, curr: r.final_price, diff: r.price_diff })),
+  };
+}
+
+// ═══ 내 상품 가격 체커 (구 energuard-checker, 2026-09-02 이 확장으로 통합) ═══
+// 예전엔 popup.js가 anon key를 수동으로 받아 pricing_costs/product_mapping을 직접
+// REST 호출했는데, anon 권한이 잠긴 뒤로 계속 조용히 실패하고 있었다(사용자가 그 이후
+// 안 고쳤다고 확인함). 이제 이 확장이 이미 갖고 있는 로그인 세션(authenticatedHeaders)
+// 으로 대신 조회한다 — 설정 화면(Supabase URL/Key 입력)도 더 이상 필요 없어졌다.
+async function fetchPricingCheckData() {
+  const headers = await authenticatedHeaders();
+  const [pricingRes, mappingRes] = await Promise.all([
+    fetch(`${SUPABASE_URL}/rest/v1/pricing_costs?product_type=eq.all&select=*`, { headers }),
+    fetch(`${SUPABASE_URL}/rest/v1/product_mapping?select=*&limit=5000`, { headers }),
+  ]);
+  if (!pricingRes.ok) throw new Error(`단가 데이터 조회 실패 (${pricingRes.status})`);
+  const pricingRows = await pricingRes.json();
+  const mappingRows = mappingRes.ok ? await mappingRes.json() : [];
+  return {
+    pricingData: pricingRows?.[0] || null,
+    mappingData: Object.fromEntries((Array.isArray(mappingRows) ? mappingRows : []).map((r) => [r.product_id, r])),
+  };
+}
+
+// ═══ 경쟁사 가격 수집 이력(팝업에서 최근 스캔 조회용) ═══
+async function fetchCompetitorScanHistory(limit = 20) {
+  const headers = await authenticatedHeaders();
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/competitor_price_scans?select=product_url,product_name,store_name,option_label,final_price,price_diff,collected_at&order=collected_at.desc&limit=${Math.min(200, Number(limit) || 20)}`,
+    { headers }
+  );
+  if (!res.ok) throw new Error(`수집 이력 조회 실패 (${res.status})`);
+  return res.json();
+}
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type === "SYNC_AUTH_SESSION") {
+    // 에너가드랩 페이지를 열 때마다 app-bridge.js가 조용히 보내는 세션 동기화(2026-09-02) —
+    // 팝업 전용 기능(내 상품 체커/경쟁사 이력)이 에너가드랩 자체 기능을 안 써도 항상 최신
+    // 세션을 쓰게 하기 위함.
+    saveAuthSession(message.authSession)
+      .then(() => sendResponse({ ok: true }))
+      .catch((error) => sendResponse({ ok: false, error: error?.message }));
+    return true;
+  }
+  if (message?.type === "FETCH_PRICING_CHECK_DATA") {
+    fetchPricingCheckData()
+      .then((data) => sendResponse({ ok: true, ...data }))
+      .catch((error) => sendResponse({ ok: false, error: error?.message || "조회 실패" }));
+    return true;
+  }
+  if (message?.type === "FETCH_COMPETITOR_SCAN_HISTORY") {
+    fetchCompetitorScanHistory(message.limit)
+      .then((rows) => sendResponse({ ok: true, rows }))
+      .catch((error) => sendResponse({ ok: false, error: error?.message || "조회 실패" }));
+    return true;
+  }
+  if (message?.type === "SAVE_COMPETITOR_SCAN") {
+    saveCompetitorPriceScan(message.payload)
+      .then((result) => sendResponse({ ok: true, ...result }))
+      .catch((error) => sendResponse({ ok: false, error: error?.message || "저장 실패" }));
+    return true;
+  }
   if (message?.type === "FETCH_KEYWORD_ANALYSIS") {
     const keyword = String(message.keyword || "").trim();
     const maxRank = Math.min(1000, Math.max(40, Number(message.maxRank) || 200));

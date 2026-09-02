@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>에너가드컴퍼니 통합 확장프로그램</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Pretendard', -apple-system, sans-serif;
+    width: 380px;
+    background: #fff;
+    color: #111827;
+    font-size: 12px;
+  }
+
+  /* ── 헤더: Admin_backup 톤(플랫, 인디고 포인트만) ── */
+  .header { padding: 13px 16px; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; gap: 10px; }
+  .brand-badge {
+    width: 28px; height: 28px; border-radius: 7px; background: #4f46e5; color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10.5px; font-weight: 800; letter-spacing: -0.3px; flex-shrink: 0;
+  }
+  .header-text h1 { font-size: 12.5px; font-weight: 700; color: #111827; }
+  .header-text p  { font-size: 10.5px; color: #9ca3af; margin-top: 1px; }
+
+  /* ── 탭 ── */
+  .tabs { display: flex; border-bottom: 1px solid #e5e7eb; }
+  .tab-btn {
+    flex: 1; padding: 10px; background: none; border: none; cursor: pointer;
+    font-size: 12px; font-weight: 700; color: #9ca3af;
+    border-bottom: 2px solid transparent; transition: color .15s, border-color .15s;
+  }
+  .tab-btn:hover { color: #4f46e5; }
+  .tab-btn.active { color: #4f46e5; border-bottom-color: #4f46e5; }
+
+  /* ── 본문: 탭 바뀌어도 팝업 크기 안 바뀌게 고정 높이 + 내부 스크롤 ── */
+  .body-wrap { height: 470px; overflow-y: auto; }
+  .pane { display: none; }
+  .pane.active { display: block; }
+
+  .status-bar { padding: 9px 16px; border-bottom: 1px solid #f1f5f9; display: flex; align-items: center; gap: 6px; }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: #d1d5db; flex-shrink: 0; }
+  .status-dot.ok  { background: #16a34a; }
+  .status-dot.err { background: #ef4444; }
+  .status-text { font-size: 11px; color: #6b7280; }
+
+  .action-section { padding: 12px 16px; border-bottom: 1px solid #f1f5f9; }
+  .info-box {
+    margin: 12px 16px; padding: 9px 11px; background: #eef2ff; border: 1px solid #c7d2fe;
+    border-radius: 8px; font-size: 10.5px; color: #4338ca; line-height: 1.55;
+  }
+
+  .btn-primary {
+    width: 100%; padding: 10px; background: #4f46e5; color: #fff; border: none; border-radius: 8px;
+    font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; transition: background .15s;
+  }
+  .btn-primary:hover { background: #4338ca; }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-primary.tonal { background: #eef2ff; color: #4f46e5; }
+  .btn-primary.tonal:hover { background: #e0e7ff; }
+
+  .btn-row { display: flex; gap: 6px; margin-top: 7px; }
+  .btn-sub {
+    flex: 1; padding: 7px; background: #f9fafb; color: #374151; border: 1px solid #e5e7eb;
+    border-radius: 7px; font-size: 10.5px; font-weight: 600; cursor: pointer; font-family: inherit;
+    transition: background .15s;
+  }
+  .btn-sub:hover { background: #f3f4f6; }
+
+  .result-section { padding: 10px 16px 14px; }
+  .result-empty { text-align: center; padding: 30px 10px; color: #9ca3af; font-size: 11px; line-height: 1.7; }
+  .loading { text-align: center; padding: 26px; color: #9ca3af; font-size: 11px; }
+  .spinner {
+    width: 18px; height: 18px; border: 2px solid #e5e7eb; border-top-color: #4f46e5;
+    border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 8px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .result-summary { display: flex; gap: 7px; margin-bottom: 10px; }
+  .summary-card { flex: 1; background: #f9fafb; border-radius: 8px; padding: 9px; text-align: center; border: 1px solid #f1f5f9; }
+  .summary-card .num { font-size: 17px; font-weight: 800; color: #374151; }
+  .summary-card .lbl { font-size: 9.5px; color: #9ca3af; margin-top: 1px; }
+  .summary-card.ok   .num { color: #16a34a; }
+  .summary-card.err  .num { color: #dc2626; }
+  .summary-card.total .num { color: #4f46e5; }
+
+  .result-list { display: flex; flex-direction: column; gap: 5px; }
+  .result-item {
+    background: #fff; border-radius: 7px; padding: 9px 10px; border: 1px solid #f1f5f9;
+    border-left: 3px solid #e5e7eb; display: flex; align-items: center; gap: 9px;
+  }
+  .result-item.mismatch { border-left-color: #ef4444; background: #fef2f2; }
+  .result-item.match    { border-left-color: #16a34a; background: #f0fdf4; }
+  .result-badge {
+    flex-shrink: 0; font-size: 9px; font-weight: 800; padding: 2px 6px; border-radius: 10px;
+    white-space: nowrap;
+  }
+  .result-item.mismatch .result-badge { background: #fee2e2; color: #dc2626; }
+  .result-item.match .result-badge    { background: #dcfce7; color: #16a34a; }
+  .result-item.unmapped .result-badge { background: #f3f4f6; color: #9ca3af; }
+  .result-info { flex: 1; min-width: 0; }
+  .result-name { font-size: 10.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #1e293b; }
+  .result-prices { font-size: 9.5px; color: #9ca3af; margin-top: 2px; }
+  .result-prices .table  { color: #4f46e5; font-weight: 600; }
+  .result-prices .diff   { color: #dc2626; font-weight: 700; }
+  .result-prices .match  { color: #16a34a; font-weight: 600; }
+  .note-box {
+    margin-top: 10px; padding: 9px 11px; background: #fffbeb; border: 1px solid #fde68a;
+    border-radius: 8px; font-size: 10.5px; color: #92400e; line-height: 1.5;
+  }
+
+  .scan-item { background: #fff; border-radius: 8px; padding: 9px 11px; border: 1px solid #f1f5f9; margin-bottom: 6px; }
+  .scan-item .scan-name { font-size: 10.5px; font-weight: 700; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .scan-item .scan-meta { font-size: 9.5px; color: #9ca3af; margin-top: 2px; }
+  .scan-item .scan-row { display: flex; justify-content: space-between; font-size: 10px; color: #475569; margin-top: 4px; }
+  .scan-diff-up   { color: #dc2626; font-weight: 700; }
+  .scan-diff-down { color: #4f46e5; font-weight: 700; }
+
+  .footer { padding: 7px 16px; text-align: center; font-size: 9.5px; color: #d1d5db; border-top: 1px solid #f1f5f9; }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="brand-badge">EG</div>
+  <div class="header-text">
+    <h1>에너가드컴퍼니 통합 확장프로그램</h1>
+    <p>랭킹 수집은 에너가드랩에서 · 가격 체크는 여기서</p>
+  </div>
+</div>
+
+<div class="tabs">
+  <button class="tab-btn active" id="tabCompetitor" data-tab="competitor">경쟁사 가격</button>
+  <button class="tab-btn" id="tabChecker" data-tab="checker">내 상품 체커</button>
+</div>
+
+<div class="body-wrap">
+  <!-- ═══ 경쟁사 가격 — 팝업에서 수집 버튼으로 진행 ═══ -->
+  <div class="pane active" id="paneCompetitor">
+    <div class="info-box">경쟁사 상품 상세페이지를 열어두고 아래 버튼을 눌러야 수집됩니다. 페이지를 여는 것만으로는 자동 수집되지 않습니다.</div>
+    <div class="status-bar">
+      <span class="status-dot" id="compStatusDot"></span><span class="status-text" id="compStatusText">대기 중</span>
+    </div>
+    <div class="action-section">
+      <button class="btn-primary" id="btnCollectHere">현재 페이지 경쟁사 가격 수집</button>
+    </div>
+    <div class="result-section" id="collectResultSection"></div>
+
+    <div class="action-section" style="border-top:1px solid #e5e7eb;">
+      <button class="btn-primary tonal" id="btnRefreshScans">최근 수집 이력 새로고침</button>
+    </div>
+    <div class="result-section" id="scanSection">
+      <div class="result-empty">새로고침을 눌러 최근 수집 이력을 불러오세요</div>
+    </div>
+  </div>
+
+  <!-- ═══ 내 상품 가격 체커 ═══ -->
+  <div class="pane" id="paneChecker">
+    <div class="status-bar">
+      <span class="status-dot" id="statusDot"></span><span class="status-text" id="statusText">대기 중</span>
+      <span class="status-text" id="pageInfo" style="margin-left:auto;font-size:10px;"></span>
+    </div>
+    <div class="action-section">
+      <button class="btn-primary" id="btnCheck">현재 페이지 가격 체크</button>
+      <div class="btn-row">
+        <button class="btn-sub" id="btnHighlight">불일치 하이라이트</button>
+        <button class="btn-sub" id="btnClear">하이라이트 제거</button>
+      </div>
+    </div>
+    <div class="result-section" id="resultSection">
+      <div class="result-empty">스마트스토어 상품 목록 페이지에서<br>가격 체크 버튼을 눌러주세요</div>
+    </div>
+  </div>
+</div>
+
+<div class="footer">에너가드컴퍼니 내부 도구</div>
+
+<script src="popup.js"></script>
+</body>
+</html>

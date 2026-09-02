@@ -1,11 +1,12 @@
 {
   "manifest_version": 3,
-  "name": "Energuard Lab Shopping Rank Collector",
-  "version": "0.24.6",
-  "description": "직원 브라우저에서 네이버 쇼핑·쿠팡 검색결과를 수집하고 자사·추적 상품을 분류합니다.",
-  "permissions": ["tabs", "storage", "declarativeNetRequest"],
+  "name": "에너가드컴퍼니 통합 확장프로그램",
+  "version": "0.26.2",
+  "description": "직원 브라우저에서 네이버 쇼핑·쿠팡 순위 수집(에너가드랩 연동), 경쟁사 상품 옵션가 자동 수집, 우리 스마트스토어 가격-단가표 일치 여부 체크를 한 확장에서 처리합니다.",
+  "permissions": ["tabs", "storage", "declarativeNetRequest", "activeTab", "scripting"],
   "host_permissions": [
     "https://search.shopping.naver.com/*",
+    "https://smartstore.naver.com/*",
     "https://www.coupang.com/*",
     "https://eukwfypbfqojbaihfqye.supabase.co/*"
   ],
@@ -16,7 +17,8 @@
     "128": "icon.png"
   },
   "action": {
-    "default_title": "쇼핑 순위 수집 — 에너가드랩에서 실행하세요",
+    "default_title": "에너가드컴퍼니 통합 확장프로그램 — 랭킹 수집은 에너가드랩에서, 가격 체크는 여기서",
+    "default_popup": "popup/popup.html",
     "default_icon": {
       "16": "icon.png",
       "32": "icon.png",
@@ -58,6 +60,24 @@
     {
       "matches": ["https://www.coupang.com/np/search*"],
       "js": ["coupang-page-collector.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://smartstore.naver.com/*/products/*"],
+      "js": ["smartstore-network-tap.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://smartstore.naver.com/*/products/*"],
+      "js": ["smartstore-product-collector.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://smartstore.naver.com/*"],
+      "exclude_matches": ["https://smartstore.naver.com/*/products/*"],
+      "js": ["checker-content.js"],
+      "css": ["checker-content.css"],
       "run_at": "document_idle"
     },
     {
