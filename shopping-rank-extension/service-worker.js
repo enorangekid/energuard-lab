@@ -398,6 +398,35 @@ function extractThicknessMm(label) {
   return m ? Number(m[1]) : null;
 }
 
+// 2026-09-02 버그 수정: 두께 하나에 규격(사이즈) 옵션까지 겹쳐 있는 상품(예: 심재준불연
+// 비드법 모음전은 같은 URL 안에 900x1800/600x1200 두 규격이 같이 있음)에서, 두께만 보고
+// 매칭하면 같은 두께의 두 규격 중 하나가 다른 하나를 덮어써 버리는 문제가 있었다.
+// grade_id별로 "이 등급은 어느 규격에 해당하는지" 표를 두고, 후보가 여러 개일 때만 규격으로
+// 한 번 더 걸러낸다(후보가 하나뿐인 단일 옵션 등급은 기존처럼 두께만으로 매칭 — 그대로 둠).
+// 2026-09-02(2차): 처음엔 "900x1800"/"600x1200" 문자열을 정확히 일치시키려 했는데, 실제
+// 경쟁사 상품은 판매자가 규격을 자유 입력하는 옵션값이라 구분자가 x/×/X/* 등 제각각이고
+// 스캔해도 여전히 덮어써지는 문제가 계속 나서, 구분자에 상관없이 숫자 두 개(가로x세로)만
+// 뽑아서 값 범위로 판정하도록 바꿈(더 관대함).
+function sizeCategoryOf(s) {
+  const str = String(s || "");
+  const m = str.match(/(\d{3,4})\s*[x×X*]\s*(\d{3,4})/);
+  if (!m) return null;
+  const lo = Math.min(Number(m[1]), Number(m[2]));
+  const hi = Math.max(Number(m[1]), Number(m[2]));
+  if (lo <= 650 && hi <= 1300) return "small";                                  // 600x1200 근방(비드법 준불연/PF보드 소형)
+  if (lo >= 850 && lo <= 950 && hi >= 1700 && hi <= 1900) return "bead_l";       // 900x1800 근방(비드법 준불연 큰 규격)
+  return "large";                                                               // 그 외(PF보드 1.2x2, 1x1.2 등) 큰 규격
+}
+const GRADE_SIZE_CATEGORY = {
+  ib_09: "bead_l", ib_06: "small",
+  lxo_s: "small", lxo_l: "large", lxi_s: "small", lxi_l: "large",
+  kdo_s: "small", kdo_l: "large", kdi_s: "small", kdi_l: "large",
+  imo_s: "small", imo_l: "large", imi_s: "small", imi_l: "large",
+};
+function rowSizeCategory(row) {
+  return sizeCategoryOf(row.optionName1) || sizeCategoryOf(row.optionName2) || sizeCategoryOf(row.optionName3);
+}
+
 async function saveCompetitorPriceScan(payload) {
   const headers = await authenticatedHeaders({ "Content-Type": "application/json" });
   const rows = Array.isArray(payload?.rows) ? payload.rows : [];
@@ -447,17 +476,27 @@ async function saveCompetitorPriceScan(payload) {
   // 2) 이미 이 URL을 comp{n}_link로 등록해둔 행 찾기
   const orExpr = [1, 2, 3].map((n) => `comp${n}_link.eq.${encodeURIComponent(productUrl)}`).join(",");
   const lookupRes = await fetch(
-    `${SUPABASE_URL}/rest/v1/competitor_prices?or=(${orExpr})&select=id,thickness,comp1_link,comp2_link,comp3_link`,
+    `${SUPABASE_URL}/rest/v1/competitor_prices?or=(${orExpr})&select=id,grade_id,thickness,comp1_link,comp2_link,comp3_link`,
     { headers }
   );
   const registered = lookupRes.ok ? await lookupRes.json() : [];
 
-  let matched = 0;
+  let matched = 0, ambiguous = 0;
   for (const reg of registered) {
     for (const idx of [1, 2, 3]) {
       if (reg[`comp${idx}_link`] !== productUrl) continue;
-      const hit = rows.find((r) => extractThicknessMm(r.label) === reg.thickness);
-      if (!hit || hit.soldOut) continue;
+      const candidates = rows.filter((r) => extractThicknessMm(r.label) === reg.thickness && !r.soldOut);
+      let hit = null;
+      if (candidates.length <= 1) {
+        hit = candidates[0] || null;
+      } else {
+        // 같은 두께에 규격(사이즈) 옵션이 겹치는 경우 — grade_id로 어느 규격인지 알면 그것만 채택,
+        // 모르면 잘못 덮어쓰느니 이번엔 건너뛰고 나중에 엑셀 원본(competitor_price_scans)으로 확인.
+        const cat = GRADE_SIZE_CATEGORY[reg.grade_id];
+        if (cat) hit = candidates.find((r) => rowSizeCategory(r) === cat) || null;
+        if (!hit) { ambiguous++; continue; }
+      }
+      if (!hit) continue;
       const patchRes = await fetch(`${SUPABASE_URL}/rest/v1/competitor_prices?id=eq.${reg.id}`, {
         method: "PATCH",
         headers: { ...headers, Prefer: "return=minimal" },
@@ -470,6 +509,7 @@ async function saveCompetitorPriceScan(payload) {
   return {
     savedRaw: scanRows.length,
     matched,
+    ambiguous,
     changes: changed.map((r) => ({ label: r.option_label, prev: r.prev_final_price, curr: r.final_price, diff: r.price_diff })),
   };
 }

@@ -501,7 +501,10 @@ $('btnCollectHere').addEventListener('click', async () => {
       return;
     }
     const changeCount = saveRes.changes?.length || 0;
-    setCompStatus('ok', `원본 ${saveRes.savedRaw}건 저장 · 자동반영 ${saveRes.matched}건` + (changeCount ? ` · 변동 ${changeCount}건` : ''));
+    const ambiguousCount = saveRes.ambiguous || 0;
+    setCompStatus('ok', `원본 ${saveRes.savedRaw}건 저장 · 자동반영 ${saveRes.matched}건`
+      + (changeCount ? ` · 변동 ${changeCount}건` : '')
+      + (ambiguousCount ? ` · 규격 구분 안 됨 ${ambiguousCount}건(수동 확인 필요)` : ''));
     const diffByLabel = new Map((saveRes.changes || []).map(c => [c.label, c.diff]));
     const rowsHtml = scanData.rows.map(r => {
       const diff = diffByLabel.get(r.label);
