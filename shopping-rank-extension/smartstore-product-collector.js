@@ -22,12 +22,40 @@
    - 페이지가 로드되면 예전처럼 네트워크 응답을 조용히 가로채서 계산까지만 해두고(캐시)
    - 화면에 아무것도 띄우지 않고, 저장도 하지 않는다
    - 팝업(popup.js)이 "GET_COMPETITOR_SCAN_DATA" 메시지를 보내면 그때 계산된 rows를 돌려준다
-     (팝업이 그 rows를 SAVE_COMPETITOR_SCAN으로 service-worker.js에 보내 실제 저장한다) */
+     (팝업이 그 rows를 SAVE_COMPETITOR_SCAN으로 service-worker.js에 보내 실제 저장한다)
+
+   2026-09-02 추가 수정: 스마트스토어가 SPA라서(page-collector.js 등에서 이미 확인된 사실),
+   검색/목록 페이지에서 링크 클릭으로 상품 상세페이지에 "들어와도" 브라우저가 진짜 새 페이지
+   로드로 안 치는 경우가 있다 — 그러면 이 스크립트가 그 상품 페이지에서 아예 실행된 적이
+   없어서(상품 상세 URL에만 설치돼있었음) 계속 "not_ready"만 뜬다(실사용 중 발견). 그래서:
+   1) manifest.json에서 이 스크립트를 스마트스토어 전체 페이지에 깔아두도록 넓힘(상품 상세가
+      아니어도 항상 실행 — 아래 로직이 상품 상세일 때만 동작하므로 다른 페이지에선 조용히 대기)
+   2) location.href를 주기적으로 감시해서 상품번호가 바뀌면(같은 탭 안에서 SPA로 다른 상품/
+      페이지로 이동) productData/benefitData를 초기화 — network-tap의 fetch/XHR 몽키패치는
+      탭이 살아있는 한 계속 걸려있으므로, SPA가 새 상품 데이터를 다시 불러올 때 그 응답을
+      새로 잡아낼 수 있다. */
 (function () {
   const TAG = "[EG-SMARTSTORE]";
 
   let productData = null;   // .../products/{id} 응답
   let benefitData = null;   // .../product-benefits/{id} 응답
+  let lastProductId = currentProductId();
+
+  function currentProductId() {
+    const m = location.href.match(/\/products\/(\d+)/);
+    return m ? m[1] : null;
+  }
+
+  // SPA 내부 이동 감지 — pushState/replaceState는 이벤트가 안 따로 없어서 주기적으로 확인한다.
+  setInterval(() => {
+    const id = currentProductId();
+    if (id && id !== lastProductId) {
+      console.log(TAG, "다른 상품으로 이동 감지, 상태 초기화:", lastProductId, "→", id);
+      lastProductId = id;
+      productData = null;
+      benefitData = null;
+    }
+  }, 800);
 
   function isProductDetailUrl(url) {
     return /\/i\/v2\/channels\/[^/]+\/products\/\d+(\?|$)/.test(url) && !/\/(contents|verticals|category-navigations|provided-notice)/.test(url);
@@ -75,6 +103,13 @@
       const label = [c.optionName1, c.optionName2, c.optionName3].filter(Boolean).join(" / ");
       return {
         label,
+        // 비드법처럼 옵션축이 2개(종류+규격)라 등급까지 옵션에 따라 달라지는 경우, 팝업의
+        // "모음전 옵션 체크"가 조인된 label 문자열만으론 정확히 못 갈라서 원본 축을 따로
+        // 같이 보낸다(2026-09-02, 단가표 모음전 엑셀 export 로직을 기준으로 역파싱하려면
+        // optionName1/optionName2가 각각 필요함).
+        optionName1: c.optionName1 || null,
+        optionName2: c.optionName2 || null,
+        optionName3: c.optionName3 || null,
         finalPrice: base + Number(c.price || 0),
         delta: Number(c.price || 0),
         stockQuantity: c.stockQuantity,

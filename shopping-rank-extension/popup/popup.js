@@ -42,13 +42,35 @@ async function ensureContentScript(tabId) {
   }
 }
 
-function sendToServiceWorker(message) {
-  return new Promise((resolve) => {
+// 2026-09-02: 콘텐츠 스크립트/서비스워커가 응답을 안 주는 경우(막 새 상품으로 넘어간 직후처럼
+// 아직 준비 안 됐거나, 드물게 메시지 채널이 안 붙는 경우) 콜백이 영원히 안 오는 것처럼 보여서
+// 스피너가 끝없이 도는 문제가 있었다 — 일정 시간 지나면 확실히 실패로 처리해서 재시도할 수
+// 있게 타임아웃을 씌운다.
+function withTimeout(promise, ms, timeoutResult) {
+  return Promise.race([
+    promise,
+    new Promise((resolve) => setTimeout(() => resolve(timeoutResult), ms)),
+  ]);
+}
+
+function sendToTab(tabId, message, timeoutMs = 8000) {
+  const raw = new Promise((resolve) => {
+    chrome.tabs.sendMessage(tabId, message, (res) => {
+      if (chrome.runtime.lastError) { resolve({ ok: false, reason: 'no_content_script', error: chrome.runtime.lastError.message }); return; }
+      resolve(res || { ok: false, reason: 'no_content_script' });
+    });
+  });
+  return withTimeout(raw, timeoutMs, { ok: false, reason: 'timeout' });
+}
+
+function sendToServiceWorker(message, timeoutMs = 8000) {
+  const raw = new Promise((resolve) => {
     chrome.runtime.sendMessage(message, (res) => {
       if (chrome.runtime.lastError) { resolve({ ok: false, error: chrome.runtime.lastError.message }); return; }
       resolve(res || { ok: false, error: '응답 없음' });
     });
   });
+  return withTimeout(raw, timeoutMs, { ok: false, error: 'timeout' });
 }
 
 $('btnCheck').addEventListener('click', async () => {
@@ -280,6 +302,165 @@ function setStatus(type, msg) {
 }
 
 // ════════════════════════════════════════
+// 내 상품 — 모음전(옵션형) 상품 체크
+// 2026-09-02 추가: 목록 페이지의 가격 하나만 보고 비교하면, 두께 등을 옵션으로 묶어 파는
+// 모음전 상품은 옵션 하나(대개 최저가 옵션)만 확인되고 나머지 옵션이 실제로 단가표랑
+// 맞는지는 알 수 없었다. smartstore-product-collector.js(경쟁사 가격 수집용으로 이미
+// 만든 것 — 상품 상세 API를 가로채 옵션별 최종가를 계산)를 그대로 재사용해서, "우리" 상품
+// 상세페이지를 열어도 옵션별 실제가를 가져올 수 있다.
+//
+// 옵션 라벨 → 실제 계산 파라미터 역산은 pricing.js의 "모음전 옵션 엑셀 저장"(_doSmartStoreExport/
+// _doBeadExport/_doPuExport 등)이 기준(정답)이다 — 사장님이 그 엑셀을 그대로 네이버에 업로드해서
+// 옵션을 관리하시므로, 라벨 형식이 정확히 그 export 로직이 만든 그대로임이 보장된다.
+//   - 아이소핑크/PU/PF/불연: 옵션축 1개(두께만), 등급은 상품 하나에 고정 → product_mapping의
+//     grade_id 그대로 쓰고 라벨에서 두께만 추출(resolveOptionMapping 참고)
+//   - 비드법: 옵션축 2개(종류+규격) — 등급 자체가 옵션마다 바뀐다("1종3호"/"2종2호" 등, 준불연은
+//     규격이 600x1200/900x1800으로 등급을 가름) → product_mapping은 product_type='bead'만
+//     있으면 되고, grade_id/thickness/area는 매번 옵션에서 새로 역산(resolveOptionMapping)
+//   - PF보드: 옵션축 2개(두께+규격) — 규격(작은/큰 사이즈)에 따라 등급의 _s/_l이 갈리고 면적도
+//     다름 → product_mapping의 grade_id엔 mk 접두어만(예: 'lxo') 등록, _s/_l은 옵션에서 판정
+// product_mapping에 이 상품번호가 등록되어 있어야 하고, 없으면 "매핑 필요" 안내만 뜬다.
+function extractThicknessMm(label) {
+  const m = String(label || '').match(/(\d+)\s*T\b/i);
+  return m ? Number(m[1]) : null;
+}
+
+// 비드법은 모음전 엑셀(pricing.js _doBeadExport)이 등급까지 옵션축에 실어보낸다 — 등급이
+// 상품 하나에 고정이 아니라 옵션마다 바뀐다. 그 export 로직을 기준(정답)으로 역파싱한다.
+//   1jong/2jong: optionName1="비드법단열재 1종3호" 형태, optionName2="900x1800 30T"
+//   junbul:      optionName1="심재준불연 비드법 단열재 30T", optionName2="600x1200"|"900x1800"
+// (pricing.js BEAD_GRADES의 sub 필드와 정확히 일치해야 함 — 거기 값 바뀌면 여기도 같이 바꿀 것)
+const BEAD_SUB_TO_GRADE_ID = {
+  '2종 3호': 'ia1', '2종 2호': 'iia1', '2종 1호': 'iiia2',
+  '1종 3호': 'ia2', '1종 2호': 'iia2', '1종 1호': 'iiib',
+};
+const BEAD_GRADE_AREA = { ia1: 1.62, iia1: 1.62, iiia2: 1.62, ia2: 1.62, iia2: 1.62, iiib: 1.62, ib_09: 1.62, ib_06: 0.72 };
+
+// PF보드도 비드법과 마찬가지로 모음전 엑셀(pricing.js _doPfExport)이 옵션축 2개(두께+규격)를
+// 쓴다 — 규격(600x1200 등 작은 사이즈 vs 큰 사이즈)에 따라 실제 등급(PF_GRADES의 _s/_l)이
+// 갈린다. product_mapping에는 mk 접두어만 등록(예: 'lxo')하고, 규격 옵션값으로 _s/_l을
+// 붙여 완성한다. 작은 사이즈는 전부 "600x1200"으로 동일 — 그 외 값이면 큰 사이즈로 간주.
+const PF_GRADE_AREA = {
+  lxo_s: 0.72, lxo_l: 2.4, lxi_s: 0.72, lxi_l: 2.4,
+  kdo_s: 0.72, kdo_l: 2.4, kdi_s: 0.72, kdi_l: 2.4,
+  imo_s: 0.72, imo_l: 1.2, imi_s: 0.72, imi_l: 1.2,
+};
+
+// 옵션 1개(row)를 보고 실제 계산에 쓸 {gradeId, thickness, area}를 알아낸다.
+// 비드법/PF보드가 아니면 단순히 mapping의 고정 grade_id/area + 라벨에서 두께만 뽑으면 된다.
+function resolveOptionMapping(mapping, row) {
+  if (mapping.product_type === 'pf') {
+    const opt2 = String(row.optionName2 || '').trim();
+    const suffix = opt2 === '600x1200' ? '_s' : '_l';
+    const gradeId = `${mapping.grade_id}${suffix}`;
+    const t = extractThicknessMm(row.optionName1);
+    return (t == null || !PF_GRADE_AREA[gradeId]) ? null : { gradeId, thickness: t, area: PF_GRADE_AREA[gradeId] };
+  }
+  if (mapping.product_type !== 'bead') {
+    const t = extractThicknessMm(row.label);
+    return t == null ? null : { gradeId: mapping.grade_id, thickness: t, area: mapping.area };
+  }
+  // 준불연: optionName2가 "600x1200"/"900x1800" 그 자체(두께 표기가 없음)면 이쪽
+  const opt2 = String(row.optionName2 || '').trim();
+  if (opt2 === '600x1200' || opt2 === '900x1800') {
+    const gradeId = opt2 === '600x1200' ? 'ib_06' : 'ib_09';
+    const t = extractThicknessMm(row.optionName1);
+    return t == null ? null : { gradeId, thickness: t, area: BEAD_GRADE_AREA[gradeId] };
+  }
+  // 1종/2종: optionName1에서 "1종3호" 같은 걸 읽어 등급으로 역매칭, 두께는 optionName2에서
+  const jongMatch = String(row.optionName1 || '').match(/([12]종)\s*(\d호)/);
+  if (!jongMatch) return null;
+  const subKey = `${jongMatch[1]} ${jongMatch[2]}`;
+  const gradeId = BEAD_SUB_TO_GRADE_ID[subKey];
+  const t = extractThicknessMm(row.optionName2);
+  if (!gradeId || t == null) return null;
+  return { gradeId, thickness: t, area: BEAD_GRADE_AREA[gradeId] };
+}
+
+$('btnCheckBundle').addEventListener('click', async () => {
+  $('btnCheckBundle').disabled = true;
+  $('bundleResultSection').innerHTML = `<div class="loading"><div class="spinner"></div>옵션별 가격 확인 중...</div>`;
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const idMatch = tab?.url?.match(/\/products\/(\d+)/);
+    if (!idMatch) {
+      $('bundleResultSection').innerHTML = `<div class="result-empty">상품 상세페이지(.../products/숫자)를 열고 다시 눌러주세요</div>`;
+      return;
+    }
+    const productId = idMatch[1];
+
+    const [scanData, checkData] = await Promise.all([
+      sendToTab(tab.id, { type: 'GET_COMPETITOR_SCAN_DATA' }),
+      sendToServiceWorker({ type: 'FETCH_PRICING_CHECK_DATA' }),
+    ]);
+
+    if (!scanData.ok) {
+      const msg = scanData.reason === 'not_ready'
+        ? '아직 이 페이지의 옵션 데이터를 다 못 받았습니다. 1~2초 후 다시 눌러주세요.'
+        : scanData.reason === 'timeout'
+          ? '응답 시간이 초과됐습니다. 페이지가 다 로드된 상태인지 확인하고 다시 눌러주세요.'
+          : '페이지에서 옵션 데이터를 가져오지 못했습니다. 새로고침 후 다시 시도해주세요.';
+      $('bundleResultSection').innerHTML = `<div class="result-empty">${msg}</div>`;
+      return;
+    }
+    if (!checkData.ok) {
+      $('bundleResultSection').innerHTML = `<div class="result-empty" style="color:#ef4444;">단가 데이터 로드 실패: ${checkData.error || ''}</div>`;
+      return;
+    }
+    const mapping = checkData.mappingData[productId];
+    if (!mapping) {
+      $('bundleResultSection').innerHTML = `<div class="note-box">이 상품(ID ${productId})은 통합 관리 시스템의 상품 매핑에 등록되어 있지 않습니다. product_type(비드법이면 grade_id/area는 필요 없음, 그 외는 grade_id/area도 등록)을 등록해두면 옵션별 체크가 가능합니다.</div>`;
+      return;
+    }
+
+    const results = scanData.rows.map((r) => {
+      const resolved = resolveOptionMapping(mapping, r);
+      if (!resolved) return { ...r, status: 'unknown', tablePrice: null };
+      const tablePrice = getTablePrice({ product_type: mapping.product_type, grade_id: resolved.gradeId, thickness: resolved.thickness, area: resolved.area }, checkData.pricingData);
+      if (!tablePrice) return { ...r, status: 'unknown', tablePrice: null };
+      const match = r.finalPrice === tablePrice;
+      return { ...r, thickness: resolved.thickness, tablePrice, status: match ? 'match' : 'mismatch', diff: r.finalPrice - tablePrice };
+    });
+    renderBundleResults(scanData.productName, results);
+  } catch (e) {
+    $('bundleResultSection').innerHTML = `<div class="result-empty" style="color:#ef4444;">오류: ${e.message}</div>`;
+  } finally {
+    $('btnCheckBundle').disabled = false;
+  }
+});
+
+function renderBundleResults(productName, results) {
+  const mismatched = results.filter(r => r.status === 'mismatch').length;
+  const matched = results.filter(r => r.status === 'match').length;
+  const unknown = results.filter(r => r.status === 'unknown').length;
+
+  const summaryHtml = `
+    <div class="result-summary">
+      <div class="summary-card total"><div class="num">${results.length}</div><div class="lbl">옵션</div></div>
+      <div class="summary-card ok"><div class="num">${matched}</div><div class="lbl">일치</div></div>
+      <div class="summary-card err"><div class="num">${mismatched}</div><div class="lbl">불일치</div></div>
+    </div>`;
+
+  const sorted = [
+    ...results.filter(r => r.status === 'mismatch'),
+    ...results.filter(r => r.status === 'match'),
+    ...results.filter(r => r.status === 'unknown'),
+  ];
+  const rowsHtml = sorted.map((r) => {
+    if (r.status === 'mismatch') {
+      const sign = r.diff > 0 ? '+' : '';
+      return `<div class="result-item mismatch"><span class="result-badge">불일치</span><div class="result-info"><div class="result-name">${r.label}</div><div class="result-prices">쇼핑몰 ${r.finalPrice.toLocaleString()}원 · 단가표 <span class="table">${r.tablePrice.toLocaleString()}원</span> · <span class="diff">${sign}${r.diff.toLocaleString()}원</span></div></div></div>`;
+    }
+    if (r.status === 'match') {
+      return `<div class="result-item match"><span class="result-badge">일치</span><div class="result-info"><div class="result-name">${r.label}</div><div class="result-prices"><span class="match">${r.finalPrice.toLocaleString()}원</span></div></div></div>`;
+    }
+    return `<div class="result-item unmapped"><span class="result-badge">확인불가</span><div class="result-info"><div class="result-name">${r.label}</div><div class="result-prices">두께 인식 실패 또는 원가 미입력 · ${(r.finalPrice ?? 0).toLocaleString()}원</div></div></div>`;
+  }).join('');
+
+  $('bundleResultSection').innerHTML = `<div class="scan-item"><div class="scan-name">${productName}</div></div>${summaryHtml}<div class="result-list">${rowsHtml}</div>`;
+}
+
+// ════════════════════════════════════════
 // 경쟁사 가격 — 현재 페이지 수집(2026-09-02: 자동수집 대신 팝업 버튼으로 변경)
 // ════════════════════════════════════════
 function setCompStatus(type, msg) {
@@ -299,16 +480,13 @@ $('btnCollectHere').addEventListener('click', async () => {
       $('collectResultSection').innerHTML = `<div class="result-empty">스마트스토어 상품 상세페이지(.../products/숫자)를 열고 다시 눌러주세요</div>`;
       return;
     }
-    const scanData = await new Promise((resolve) => {
-      chrome.tabs.sendMessage(tab.id, { type: 'GET_COMPETITOR_SCAN_DATA' }, (res) => {
-        if (chrome.runtime.lastError) resolve({ ok: false, reason: 'no_content_script' });
-        else resolve(res || { ok: false });
-      });
-    });
+    const scanData = await sendToTab(tab.id, { type: 'GET_COMPETITOR_SCAN_DATA' });
     if (!scanData.ok) {
       const msg = scanData.reason === 'not_ready'
         ? '아직 이 페이지의 가격 데이터를 다 못 받았습니다. 1~2초 후 다시 눌러주세요.'
-        : '페이지에서 데이터를 가져오지 못했습니다. 페이지를 새로고침한 뒤 다시 시도해주세요.';
+        : scanData.reason === 'timeout'
+          ? '응답 시간이 초과됐습니다. 페이지가 다 로드된 상태인지 확인하고 다시 눌러주세요.'
+          : '페이지에서 데이터를 가져오지 못했습니다. 페이지를 새로고침한 뒤 다시 시도해주세요.';
       setCompStatus('err', '수집 실패');
       $('collectResultSection').innerHTML = `<div class="result-empty">${msg}</div>`;
       return;
