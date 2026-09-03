@@ -1306,7 +1306,11 @@ async function collectPostAiCheck(body: Record<string, unknown>, principal: stri
 async function listData() {
   const [blogs, posts, postKeywords, history, diagnosis, targetKeywords, exposureHistory, postTitleChecks, postContentChecks, postAiChecks] = await Promise.all([
     dbAll<BlogRow>("blog_rank_blogs?select=*&order=created_at.desc"),
-    db("blog_rank_posts?select=*&order=published_at.desc.nullslast&limit=500") as Promise<PostRow[]>,
+    // 예전엔 limit=500 단발 조회였다 — 경쟁사 블로그 포스팅까지 같은 예산을 나눠 쓰다 보니
+    // (2026-08-31 실측: 경쟁사 439개가 82%를 차지) 내 블로그의 오래된 포스팅 일부가 밀려서
+    // 아예 안 불러와지는 문제가 있었다. history/exposureHistory와 같은 dbAll(사실상 무제한
+    // 페이지네이션)로 통일.
+    dbAll<PostRow>("blog_rank_posts?select=*&order=published_at.desc.nullslast"),
     dbAll<PostKeywordRow>("blog_rank_post_keywords?select=*&order=created_at.asc"),
     dbAll<Record<string, unknown>>("blog_rank_history?select=*&order=collected_at.desc", 3000),
     dbAll<Record<string, unknown>>("blog_rank_diagnosis?select=*&order=snapshot_date.desc", 400),
