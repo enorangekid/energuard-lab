@@ -1166,15 +1166,9 @@ async function collectNicheTrendData() {
   // 뽁뽁이/문풍지/웃풍(전문용어 아닌 실생활 용어)도 같이 추가.
   const domainPattern = /단열|결로|곰팡이|방수|냉방|난방|폭염|열대야|장마|제습|습기|에어컨|실외기|창문|창호|샷시|햇빛|열차단|외풍|보일러|리모델링|집수리|에너지효율|에너지 효율|녹색건축|제로에너지|패시브|우레탄|아이소핑크|스티로폼|준불연|PF보드|단열필름|불연|난연|방염|내화|샌드위치패널|복합자재|심재|글라스울|미네랄울|은박|페놀폼|열전도율|열관류율|열저항|그린리모델링|에너지효율등급|폴리스티렌|뽁뽁이|문풍지|웃풍/i;
   const noisePattern = /선거|증시|코인|야구|축구|연예|콘서트|게임|드라마|영화|부고|인사 이동|보험 손해율|치과용|진료|건강보험/i;
-  // 지자체(구/시/군/도)가 주어인 보도자료성 "OO구, ~~ 지원" 헤드라인 — 창호·차열페인트처럼
-  // 관련 소재를 언급해도 결국 구청/시청 복지 지원사업 공고라 콘텐츠 소재로는 안 맞다는 지적
-  // (2026-09-07, "양천구, 취약계층 가구당 5만원 냉방비 지원" / "...서울시, 창호·차열페인트
-  // 지원" 두 사례로 확인). 중앙부처(국토부 등)는 구/시/군/도로 안 끝나서 안 걸린다 — 전국
-  // 단위 정책은 그대로 통과.
-  const localGovSubsidyPattern = /[가-힣]{2,6}(구|시|군|도)\s*,\s*[^,]{0,40}(지원|지원금|보조금|바우처)/;
   const physicalCondensationPattern = /창문|유리|벽|천장|주택|건물|건축|아파트|습기|곰팡이|단열|창호|겨울|하자|시공|방지|제습/i;
   const isRelevantTitle = (title: string) => {
-    if (!title || noisePattern.test(title) || localGovSubsidyPattern.test(title) || !domainPattern.test(title)) return false;
+    if (!title || noisePattern.test(title) || !domainPattern.test(title)) return false;
     if (/결로/.test(title) && !physicalCondensationPattern.test(title)) return false;
     return true;
   };
