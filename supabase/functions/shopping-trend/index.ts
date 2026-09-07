@@ -1330,7 +1330,11 @@ async function collectNicheSpikeData() {
     const spikeScore = Math.min(100, Math.max(0, (spike - 0.8) * 48));
     const momentumScore = Math.min(100, Math.max(0, (momentum - 0.8) * 55));
     const levelScore = Math.min(100, Math.max(0, recent));
-    const signalScore = spikeScore * 0.5 + momentumScore * 0.28 + levelScore * 0.22;
+    // "급상승"이란 이름과 달리 절대 수준(levelScore)이 22%나 차지해서, 원래 검색량이 큰
+    // 키워드(전기장판·제습기·뽁뽁이 등)가 실제론 하락 중(spike<1)이어도 계속 상위에 남았다
+    // (2026-09-07 사용자 지적, 실측: 상위 20개 중 1위만 진짜 상승, 나머지는 대부분 하락 중).
+    // spike/momentum 비중을 압도적으로 올리고 level은 미세 보정만 남긴다.
+    const signalScore = spikeScore * 0.78 + momentumScore * 0.17 + levelScore * 0.05;
     return {
       keyword: s.title,
       spike: Math.round(spike * 10) / 10,
@@ -1349,10 +1353,16 @@ async function collectNicheSpikeData() {
   const volumeMap = await fetchSearchVolumeBatch(candidates.map(item => item.keyword));
   const items = candidates.map(item => {
     const volume = volumeMap.has(item.keyword) ? volumeMap.get(item.keyword)! : null;
+    // 검색량 보정 폭도 0.68~1.0배(±32%)에서 0.85~1.0배(±15%)로 줄인다 — 여기서도 큰 키워드를
+    // 밀어주는 힘이 너무 셌다(2026-09-07).
     const volumeConfidence = volume == null ? 0.55 : Math.min(1, Math.log10(Math.max(volume, 10)) / 4);
-    return { ...item, volume, score: Math.round(item.signalScore * (0.68 + volumeConfidence * 0.32)) };
+    return { ...item, volume, score: Math.round(item.signalScore * (0.85 + volumeConfidence * 0.15)) };
   })
   .filter(item => item.volume == null || item.volume >= 10)
+  // 진짜 "급상승"만 남긴다 — 평소(baseline) 대비 최소 15% 이상 오른 것만 보여준다(2026-09-07
+  // 사용자 지정). 이 기준 밑이면 원래 검색량이 아무리 커도(전기장판·제습기 등) 노출 안 함 —
+  // 그날 해당하는 키워드가 없으면 목록이 20개보다 적거나 빌 수 있는데, 그게 정상이다.
+  .filter(item => item.spike >= 1.15)
   .sort((a, b) => b.score - a.score || b.spike - a.spike || b.recent - a.recent);
 
   return {
