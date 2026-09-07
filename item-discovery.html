@@ -1055,11 +1055,14 @@ function renderRealtimeTrend() {
   chipsEl.innerHTML = fixedSlotChips(slots);
   const items = trendData[activeTrendList] || [];
   listEl.innerHTML = renderTrendRows(items);
+  // 구글급상승은 실시간통합(여러 소스 종합 순위)과 달리 관련 기사 링크를 갖고 있어서,
+  // 키워드를 누르면 그 화제가 왜 떴는지 원문 기사로 바로 이동한다 — 그 차이를 안내한다.
+  const googleHint = activeTrendList === "google" ? " · 키워드 클릭 시 관련 기사가 열립니다" : "";
   if (activeSlot) {
-    document.getElementById("trendMeta").textContent = slotLabel(activeSlot) + " 시점 순위";
+    document.getElementById("trendMeta").textContent = slotLabel(activeSlot) + " 시점 순위" + googleHint;
   } else if (trendData.capturedAt) {
     const t = new Date(trendData.capturedAt);
-    document.getElementById("trendMeta").textContent = `${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")} 기준${trendData.sourceNote ? ` · ${trendData.sourceNote}` : ""}`;
+    document.getElementById("trendMeta").textContent = `${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")} 기준${trendData.sourceNote ? ` · ${trendData.sourceNote}` : ""}${googleHint}`;
   }
 }
 // "단열 뉴스"/"단열 급상승"과 같은 문제 — 실시간통합/구글급상승도 새로고침을 눌러도 저장된

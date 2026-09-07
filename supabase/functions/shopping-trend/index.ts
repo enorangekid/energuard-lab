@@ -384,12 +384,12 @@ async function readSlots() {
 
 async function readSnapshot(slot: string, listType: string) {
   const rows = await supabaseRequest(
-    `/rest/v1/${SNAPSHOT_TABLE}?slot=eq.${encodeURIComponent(slot)}&list_type=eq.${listType}&select=rank,keyword,sources,captured_at&order=rank.asc&limit=100`,
+    `/rest/v1/${SNAPSHOT_TABLE}?slot=eq.${encodeURIComponent(slot)}&list_type=eq.${listType}&select=rank,keyword,sources,link_url,captured_at&order=rank.asc&limit=100`,
   ) || [];
-  return rows as Array<{ rank: number; keyword: string; sources: string; captured_at?: string }>;
+  return rows as Array<{ rank: number; keyword: string; sources: string; link_url?: string; captured_at?: string }>;
 }
 
-async function saveSnapshot(slot: string, listType: string, items: { rank: number; keyword: string; sources?: string[] }[]) {
+async function saveSnapshot(slot: string, listType: string, items: { rank: number; keyword: string; sources?: string[]; link?: string }[]) {
   await supabaseRequest(`/rest/v1/${SNAPSHOT_TABLE}?slot=eq.${encodeURIComponent(slot)}&list_type=eq.${listType}`, { method: "DELETE" });
   await supabaseRequest(`/rest/v1/${SNAPSHOT_TABLE}`, {
     method: "POST",
@@ -397,11 +397,12 @@ async function saveSnapshot(slot: string, listType: string, items: { rank: numbe
     body: JSON.stringify(items.map(item => ({
       slot, list_type: listType, rank: item.rank, keyword: item.keyword,
       sources: JSON.stringify(item.sources || []),
+      link_url: item.link || "",
     }))),
   });
 }
 
-async function saveTrendArchive(slot: string, listType: string, items: { rank: number; keyword: string; sources?: string[] }[]) {
+async function saveTrendArchive(slot: string, listType: string, items: { rank: number; keyword: string; sources?: string[]; link?: string }[]) {
   if (!items.length) return 0;
   await supabaseRequest(`/rest/v1/${TREND_ARCHIVE_TABLE}?on_conflict=slot,list_type,keyword`, {
     method: "POST",
@@ -409,6 +410,7 @@ async function saveTrendArchive(slot: string, listType: string, items: { rank: n
     body: JSON.stringify(items.map(item => ({
       slot, list_type: listType, rank: item.rank, keyword: item.keyword,
       sources: JSON.stringify(item.sources || []),
+      link_url: item.link || "",
       updated_at: new Date().toISOString(),
     }))),
   });
@@ -417,9 +419,9 @@ async function saveTrendArchive(slot: string, listType: string, items: { rank: n
 
 async function readTrendArchive(listType: string) {
   const rows = await supabaseRequest(
-    `/rest/v1/${TREND_ARCHIVE_TABLE}?select=id,slot,list_type,rank,keyword,sources,captured_at&list_type=eq.${encodeURIComponent(listType)}&deleted_at=is.null&order=slot.desc,rank.asc&limit=300`,
+    `/rest/v1/${TREND_ARCHIVE_TABLE}?select=id,slot,list_type,rank,keyword,sources,link_url,captured_at&list_type=eq.${encodeURIComponent(listType)}&deleted_at=is.null&order=slot.desc,rank.asc&limit=300`,
   ) || [];
-  return rows as Array<{ id: string; slot: string; list_type: string; rank: number; keyword: string; sources: string; captured_at?: string }>;
+  return rows as Array<{ id: string; slot: string; list_type: string; rank: number; keyword: string; sources: string; link_url?: string; captured_at?: string }>;
 }
 
 async function deleteTrendArchive(idRaw: unknown) {
@@ -917,6 +919,10 @@ async function collectRealtime() {
         item.newsCount ? `관련 뉴스 ${item.newsCount}건` : "",
         item.newsSource ? `대표 ${item.newsSource}` : "",
       ].filter(Boolean),
+      // 실시간통합(종합 순위)과 차별화 — 이 화제가 왜 떴는지 실제 기사로 바로 갈 수 있게
+      // newsUrl을 같이 내려준다(전엔 가져와놓고 화면에 안 넘기고 버렸음). renderTrendRows가
+      // 이미 item.link를 클릭 이동 URL/발굴 카드 원문 링크로 쓰고 있어서 그 필드명에 맞춘다.
+      link: item.newsUrl || "",
     }));
 
   // 스냅샷 저장 + 직전 슬롯과 비교해 변동 계산
@@ -953,13 +959,14 @@ async function collectRealtime() {
 async function handleRealtime() {
   const slots = await readSlots();
   const slot = slots[0] || "";
-  const mapArchiveRows = (rows: Array<{ id: string; slot: string; rank: number; keyword: string; sources: string; captured_at?: string }>) =>
+  const mapArchiveRows = (rows: Array<{ id: string; slot: string; rank: number; keyword: string; sources: string; link_url?: string; captured_at?: string }>) =>
     rows.map((row, index) => ({
       id: row.id,
       rank: index + 1,
       originalRank: row.rank,
       keyword: row.keyword,
       sources: parseStoredSources(row.sources),
+      link: row.link_url || "",
       slot: row.slot,
       capturedAt: row.captured_at,
       change: "same",
@@ -986,8 +993,8 @@ async function handleRealtimeAt(slotRaw: string) {
   const prevSlot = slots.find(s => s < slot);
   const realtimeRows = await readSnapshot(slot, "realtime");
   const googleRows = await readSnapshot(slot, "google");
-  const mapRows = (rows: Array<{ rank: number; keyword: string; sources: string }>) =>
-    rows.map(row => ({ rank: row.rank, keyword: row.keyword, sources: parseStoredSources(row.sources) }));
+  const mapRows = (rows: Array<{ rank: number; keyword: string; sources: string; link_url?: string }>) =>
+    rows.map(row => ({ rank: row.rank, keyword: row.keyword, sources: parseStoredSources(row.sources), link: row.link_url || "" }));
   return {
     slot,
     slots,
