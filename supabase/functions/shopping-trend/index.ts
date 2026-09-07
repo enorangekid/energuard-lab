@@ -900,7 +900,12 @@ async function collectRealtime() {
   const slot = kstSlot();
   const slotsBefore = await readSlots().catch(() => [] as string[]);
   const previousSlot = slotsBefore.find(item => item < slot) || "";
-  const previousRealtime = previousSlot ? await readSnapshot(previousSlot, "realtime").catch(() => []) : [];
+  // 구글을 실시간통합에서 뺀 직후엔, 직전 슬롯이 구글 포함 시절에 저장된 자료라 fillFromPrevious가
+  // 그 구글 항목을 다시 채워 넣어 "여전히 구글이 남아있다"는 문제가 생긴다 — 그런 행은 폐기한다.
+  const previousRealtime = previousSlot
+    ? (await readSnapshot(previousSlot, "realtime").catch(() => []))
+      .filter(row => !parseStoredSources(row.sources).includes("구글"))
+    : [];
 
   // 실시간통합은 구글을 뺀다(2026-09-07, 사용자 지정) — 구글급상승 탭이 따로 있는데 구글을
   // 종합 순위에도 최고 가중치로 넣으니 두 탭이 사실상 같은 걸 보여줬다. 실시간통합은 옛 "네이버
