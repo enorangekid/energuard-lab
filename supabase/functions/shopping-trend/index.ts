@@ -95,7 +95,9 @@ async function fetchRank(cid: string, start: string, end: string, unit: string, 
   return ranks; // 빈 배열 = 해당 날짜 집계 전 (호출부에서 날짜 이동 재시도)
 }
 
-/* ───────── 실시간 급상승 키워드 (시그널 + 네이트 + 구글 트렌드) ───────── */
+/* ───────── 실시간 급상승 키워드 — 실시간통합(시그널+네이트, 옛 네이버 인기 검색어 대체)과
+   구글급상승(구글 트렌드 단독, 관련 기사 링크 포함)을 따로 수집한다(2026-09-07부터 분리).
+   전엔 구글까지 실시간통합에 합쳐서 두 탭이 사실상 같은 걸 보여줬다. ───────── */
 
 const SNAPSHOT_TABLE = "realtime_trend_snapshot";
 const TREND_ARCHIVE_TABLE = "realtime_trend_archive";
@@ -305,7 +307,9 @@ function mergeRealtime(lists: { name: string; items: Array<{ rank: number; keywo
       if (!key) return;
       if (!map.has(key)) map.set(key, { keyword, score: 0, best: 99, sources: [], trafficValue: 0, tokens: keywordTokens(keyword) });
       const acc = map.get(key)!;
-      const sourceWeight = name === "구글" ? 1.12 : name === "시그널" ? 1.05 : 1;
+      // 구글은 더 이상 여기 안 들어온다(실시간통합=시그널+네이트 전용, 구글은 구글급상승 전용) —
+      // 시그널을 살짝 더 쳐주는 것만 남긴다.
+      const sourceWeight = name === "시그널" ? 1.05 : 1;
       acc.score += Math.max(21 - item.rank, 1) * sourceWeight;
       acc.best = Math.min(acc.best, item.rank);
       acc.trafficValue = Math.max(acc.trafficValue, Number(item.trafficValue || 0));
@@ -898,10 +902,12 @@ async function collectRealtime() {
   const previousSlot = slotsBefore.find(item => item < slot) || "";
   const previousRealtime = previousSlot ? await readSnapshot(previousSlot, "realtime").catch(() => []) : [];
 
+  // 실시간통합은 구글을 뺀다(2026-09-07, 사용자 지정) — 구글급상승 탭이 따로 있는데 구글을
+  // 종합 순위에도 최고 가중치로 넣으니 두 탭이 사실상 같은 걸 보여줬다. 실시간통합은 옛 "네이버
+  // 인기 검색어"처럼 국내 포털(시그널·네이트) 기준 화제만, 구글은 구글급상승 전용으로 분리한다.
   const mergedBase = mergeRealtime([
     { name: "시그널", items: signal },
     { name: "네이트", items: nate },
-    { name: "구글", items: google },
   ]);
   const merged = fillFromPrevious(mergedBase, previousRealtime);
   // 구글급상승도 실시간통합과 같은 기준으로 거른다 — 경기 스코어성 대진표("A 대 B"/"A vs B")와
