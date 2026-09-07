@@ -1259,7 +1259,7 @@ const SPIKE_KEYWORDS = [
   "썬쉐이드", "차박단열", "은박단열재", "온도리", "미네랄울", "경질우레탄보드",
 ];
 
-async function fetchDatalabTrend(keywords: string[], startDate: string, endDate: string) {
+async function fetchDatalabTrend(keywords: string[], startDate: string, endDate: string, timeUnit: "date" | "week" = "date") {
   const clientId = Deno.env.get("NAVER_CLIENT_ID") || "";
   const clientSecret = Deno.env.get("NAVER_CLIENT_SECRET") || "";
   if (!clientId || !clientSecret) throw new Error("NAVER_CLIENT_ID / NAVER_CLIENT_SECRET 시크릿이 필요합니다.");
@@ -1272,7 +1272,7 @@ async function fetchDatalabTrend(keywords: string[], startDate: string, endDate:
       "X-Naver-Client-Secret": clientSecret,
     },
     body: JSON.stringify({
-      startDate, endDate, timeUnit: "date",
+      startDate, endDate, timeUnit,
       keywordGroups: keywords.map(k => ({ groupName: k, keywords: [k] })),
     }),
   });
@@ -1281,10 +1281,18 @@ async function fetchDatalabTrend(keywords: string[], startDate: string, endDate:
   return (data.results || []) as Array<{ title: string; data: Array<{ period: string; ratio: number }> }>;
 }
 
+// "단열급상승" — 원래는 "어제·그제 대비 오늘 튀었나"였는데, 단열재는 유행을 타는 카테고리가
+// 아니라 이 방식으로는 진짜 급상승이 하루 1~3개도 안 나오고, 원래 검색량이 큰 키워드가 계속
+// 상위를 차지했다(2026-09-07). 사용자가 이 기능을 만든 목적("이슈/날짜에 반응하는 키워드로
+// 콘텐츠 방향 잡기")을 다시 보면, "이슈"는 단열뉴스가 담당하고 "날짜(계절)"는 원래 이 기능이
+// 담당해야 하는데 단기 비교만 해서 그 역할을 못 하고 있었다. "작년 이맘때도 이 키워드가
+// 오르기 시작했나"를 보는 계절 예보형으로 바꾼다 — 매년 반복되는 패턴이라 콘텐츠를 미리
+// 준비할 수 있는 선행지표가 된다.
 async function collectNicheSpikeData() {
   const kst = new Date(Date.now() + 9 * 3600 * 1000);
   const end = new Date(Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate()) - 86400000); // 어제
-  const start = new Date(end.getTime() - 29 * 86400000);
+  // 작년 같은 시기(52주 전) 앞뒤로 4주씩 볼 여유를 두고 420일치를 주간 단위로 받는다.
+  const start = new Date(end.getTime() - 419 * 86400000);
   const startDate = fmtDate(start);
   const endDate = fmtDate(end);
 
@@ -1296,7 +1304,7 @@ async function collectNicheSpikeData() {
   // 네이버 API의 순간 호출 제한과 전체 대기 시간을 함께 제어한다.
   for (let i = 0; i < batches.length; i += 4) {
     const settled = await Promise.allSettled(
-      batches.slice(i, i + 4).map(batch => fetchDatalabTrend(batch, startDate, endDate)),
+      batches.slice(i, i + 4).map(batch => fetchDatalabTrend(batch, startDate, endDate, "week")),
     );
     settled.forEach(result => {
       if (result.status === "fulfilled") series.push(...result.value);
@@ -1308,77 +1316,61 @@ async function collectNicheSpikeData() {
   }
 
   const average = (values: number[]) => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
-  const robustAverage = (values: number[]) => {
-    const sorted = [...values].sort((a, b) => a - b);
-    const trimmed = sorted.length >= 10 ? sorted.slice(1, -1) : sorted;
-    return average(trimmed);
-  };
 
   const candidates = series.map(s => {
-    const byDate = new Map(s.data.map(d => [d.period, d.ratio]));
-    // 최근 30일 날짜 배열 구성 (빠진 날 = 0)
-    const ratios: number[] = [];
-    for (let t = start.getTime(); t <= end.getTime(); t += 86400000) {
-      ratios.push(byDate.get(fmtDate(new Date(t))) || 0);
+    // API가 요청 구간을 주 단위로 시간순 정렬해서 돌려준다고 신뢰하고 끝에서부터 센다(일간
+    // 30일 버전과 동일한 방식) — 52주(작년 같은 주) 위치는 배열 길이 기준으로 역산한다.
+    const points = s.data.map(d => d.ratio);
+    const thisYearRecent = average(points.slice(-2));       // 최근 2주
+    const thisYearPrior = average(points.slice(-6, -2));    // 그 앞 4주
+    const thisYearRise = thisYearRecent / Math.max(thisYearPrior, 1);
+
+    const lastYearIdx = points.length - 1 - 52;
+    let seasonalRise = 0;
+    let lastYearAt = 0;
+    let lastYearPrior = 0;
+    if (lastYearIdx - 4 >= 0) {
+      lastYearAt = average(points.slice(lastYearIdx, lastYearIdx + 2));
+      lastYearPrior = average(points.slice(lastYearIdx - 4, lastYearIdx));
+      seasonalRise = lastYearAt / Math.max(lastYearPrior, 1);
     }
-    const recent = average(ratios.slice(-2));
-    const baseline = robustAverage(ratios.slice(0, -7));
-    const currentWeek = average(ratios.slice(-7));
-    const previousWeek = average(ratios.slice(-14, -7));
-    const spike = recent / Math.max(baseline, 1);
-    const momentum = currentWeek / Math.max(previousWeek, 1);
-    const spikeScore = Math.min(100, Math.max(0, (spike - 0.8) * 48));
-    const momentumScore = Math.min(100, Math.max(0, (momentum - 0.8) * 55));
-    const levelScore = Math.min(100, Math.max(0, recent));
-    // "급상승"이란 이름과 달리 절대 수준(levelScore)이 22%나 차지해서, 원래 검색량이 큰
-    // 키워드(전기장판·제습기·뽁뽁이 등)가 실제론 하락 중(spike<1)이어도 계속 상위에 남았다
-    // (2026-09-07 사용자 지적, 실측: 상위 20개 중 1위만 진짜 상승, 나머지는 대부분 하락 중).
-    // spike/momentum 비중을 압도적으로 올리고 level은 미세 보정만 남긴다.
-    const signalScore = spikeScore * 0.78 + momentumScore * 0.17 + levelScore * 0.05;
+
     return {
       keyword: s.title,
-      spike: Math.round(spike * 10) / 10,
-      momentum: Math.round(momentum * 10) / 10,
-      recent: Math.round(recent),
-      baseline: Math.round(baseline),
-      signalScore,
-      week: ratios.slice(-7).map(r => Math.round(r)),
+      seasonalRise: Math.round(seasonalRise * 100) / 100,
+      thisYearRise: Math.round(thisYearRise * 100) / 100,
+      thisYearRecent: Math.round(thisYearRecent),
+      lastYearAt: Math.round(lastYearAt),
+      lastYearPrior: Math.round(lastYearPrior),
     };
   })
-  .filter(item => item.recent > 0)
-  .sort((a, b) => b.signalScore - a.signalScore || b.spike - a.spike)
+  // 작년 이맘때 최소 20% 이상 상승 구간에 들어섰던 키워드만 "다가오는 시즌" 후보로 본다.
+  .filter(item => item.seasonalRise >= 1.2)
+  .sort((a, b) => b.seasonalRise - a.seasonalRise || b.thisYearRise - a.thisYearRise)
   .slice(0, 30);
 
-  // 검색량 검증은 급상승 가능성이 높은 30개에만 수행해 응답 시간을 줄인다.
+  // 검색량 검증은 후보 30개에만 수행해 응답 시간을 줄인다.
   const volumeMap = await fetchSearchVolumeBatch(candidates.map(item => item.keyword));
-  const items = candidates.map(item => {
-    const volume = volumeMap.has(item.keyword) ? volumeMap.get(item.keyword)! : null;
-    // 검색량 보정 폭도 0.68~1.0배(±32%)에서 0.85~1.0배(±15%)로 줄인다 — 여기서도 큰 키워드를
-    // 밀어주는 힘이 너무 셌다(2026-09-07).
-    const volumeConfidence = volume == null ? 0.55 : Math.min(1, Math.log10(Math.max(volume, 10)) / 4);
-    return { ...item, volume, score: Math.round(item.signalScore * (0.85 + volumeConfidence * 0.15)) };
-  })
-  .filter(item => item.volume == null || item.volume >= 10)
-  // 진짜 "급상승"만 남긴다 — 평소(baseline) 대비 최소 15% 이상 오른 것만 보여준다(2026-09-07
-  // 사용자 지정). 이 기준 밑이면 원래 검색량이 아무리 커도(전기장판·제습기 등) 노출 안 함 —
-  // 그날 해당하는 키워드가 없으면 목록이 20개보다 적거나 빌 수 있는데, 그게 정상이다.
-  .filter(item => item.spike >= 1.15)
-  .sort((a, b) => b.score - a.score || b.spike - a.spike || b.recent - a.recent);
+  const items = candidates
+    .map(item => ({ ...item, volume: volumeMap.has(item.keyword) ? volumeMap.get(item.keyword)! : null }))
+    .filter(item => item.volume == null || item.volume >= 10)
+    .sort((a, b) => b.seasonalRise - a.seasonalRise || b.thisYearRise - a.thisYearRise);
 
   return {
-    date: `${endDate} 기준 · 직전 3주 평균 대비 최근 이틀`,
+    date: `${endDate} 기준 · 작년 같은 시기 검색 패턴으로 다가올 시즌 예측`,
     failNote: failCount ? `${failCount}개 배치 조회 실패` : "",
     niche: items.slice(0, 20).map((item, i) => ({
       rank: i + 1,
       keyword: item.keyword,
-      spike: item.spike,
+      spike: item.seasonalRise,
       volume: item.volume,
       query: item.keyword,
       sources: [
-        `급상승 ${item.score}점`, `평소 ${item.baseline} → 최근 ${item.recent}`,
-        `주간 ×${item.momentum}`, item.volume == null ? "검색량 확인 안 됨" : `월간 ${item.volume.toLocaleString()}회`,
+        `작년 이맘때 ${Math.round((item.seasonalRise - 1) * 100)}% 상승 시작`,
+        item.thisYearRise >= 1.15 ? "올해도 이미 시작됨" : "올해는 아직 시작 전(예상)",
+        item.volume == null ? "검색량 확인 안 됨" : `월간 ${item.volume.toLocaleString()}회`,
       ],
-      change: item.spike >= 1.5 ? "up" : "same",
+      change: item.thisYearRise >= 1.15 ? "up" : "same",
       delta: null,
     })),
   };
