@@ -1062,6 +1062,31 @@ function renderRealtimeTrend() {
     document.getElementById("trendMeta").textContent = `${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")} 기준${trendData.sourceNote ? ` · ${trendData.sourceNote}` : ""}`;
   }
 }
+// "단열 뉴스"/"단열 급상승"과 같은 문제 — 실시간통합/구글급상승도 새로고침을 눌러도 저장된
+// 스냅샷만 다시 읽어서 실제로는 새로 안 가져왔다. 여기서도 collectRealtime(시그널·네이트·구글
+// 트렌드 재수집)을 먼저 돌리고 나서 다시 읽어오도록 바꾼다(2026-09-07).
+let realtimeCollecting = false;
+async function collectRealtimeNow() {
+  if (realtimeCollecting) return;
+  realtimeCollecting = true;
+  const btn = document.getElementById("trendRefreshBtn");
+  const meta = document.getElementById("trendMeta");
+  const originalLabel = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "수집 중...";
+  meta.textContent = "시그널·네이트·구글 트렌드에서 새로 가져오는 중입니다...";
+  try {
+    await callTrendFn({ action: "collectRealtime" });
+    await loadRealtimeTrend("");
+  } catch (e) {
+    meta.textContent = "수집 실패: " + String(e.message || e);
+  } finally {
+    realtimeCollecting = false;
+    btn.disabled = false;
+    btn.textContent = originalLabel;
+  }
+}
+
 async function loadRealtimeTrend(slot = "") {
   if (trendLoading) return;
   trendLoading = true;
@@ -1665,7 +1690,7 @@ document.getElementById("realtimeTrendList").addEventListener("focusout", e => {
 });
 document.getElementById("trendRefreshBtn").addEventListener("click", () => {
   if (activeTrendList === "niche" || activeTrendList === "spike") collectNicheNow();
-  else loadRealtimeTrend("");
+  else collectRealtimeNow();
 });
 document.getElementById("catSelect1").addEventListener("change", () => onCatSelectChange(1));
 document.getElementById("catSelect2").addEventListener("change", () => onCatSelectChange(2));

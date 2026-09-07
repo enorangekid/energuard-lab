@@ -261,14 +261,49 @@ async function fetchGoogleTrends(): Promise<GoogleTrendItem[]> {
   throw new Error("google trends 조회 실패");
 }
 
+// 실시간통합에서 순수 "경기 스코어 조회"성 키워드("A 대 B"/"A vs B" 대진표)는 화제/이슈가
+// 아니라 제외한다 — 실측(2026-09-06~07, 7개 시간대)으로 상위 20개 중 25~50%가 이 패턴이었고
+// 전부 구글 트렌드 단일 소스였다(라이브 스포츠 검색량 급증에 유독 민감한 구글 트렌드 특성).
+// 옛 "네이버 실시간급상승검색어"가 보여주려던 건 화제성 이슈였지 경기 스코어 조회가 아니었다는
+// 원래 취지에 맞춘다. 양쪽 다 24자 이내로 짧아야만 매치해서 "정부 대책 발표"처럼 문장 중간에
+// "대"가 낀 일반 문장까지 걸리지 않게 한다.
+function isSportsFixturePattern(keyword: string) {
+  return /^[가-힣a-zA-Z0-9.\s]{1,24}\s(?:대|vs\.?)\s[가-힣a-zA-Z0-9.\s]{1,24}$/i.test(keyword.trim());
+}
+
+// 구글 트렌드(geo=KR)가 가끔 한국 트렌드인데도 태국어 등 완전히 다른 문자권 키워드를 그대로
+// 섞어 내려준다(실측: "อาร์เซนอล พบ เชลซี" = "아스널 대 첼시"의 태국어판, 같은 경기가 영어
+// "arsenal vs chelsea"로도 따로 잡혀 중복까지 겹쳤었다) — 한글/영문/숫자/기본 문장부호 밖의
+// 문자가 하나라도 섞여있으면 걸러낸다.
+function isForeignScriptNoise(keyword: string) {
+  return /[^가-힣ᄀ-ᇿ㄰-㆏a-zA-Z0-9\s.,!?'"\-·&()%/]/.test(keyword);
+}
+
+function normalizeMergeKey(keyword: string) {
+  return keyword.replace(/[^0-9a-z가-힣]/gi, "").toLowerCase();
+}
+
+function keywordTokens(keyword: string) {
+  return new Set(keyword.split(/\s+/).map(normalizeMergeKey).filter(Boolean));
+}
+
+function tokenOverlapRatio(a: Set<string>, b: Set<string>) {
+  if (!a.size || !b.size) return 0;
+  let shared = 0;
+  a.forEach(token => { if (b.has(token)) shared += 1; });
+  return shared / Math.min(a.size, b.size);
+}
+
 // 여러 소스의 순위·중복 노출·구글 검색량을 함께 반영한 실시간 종합 순위
 function mergeRealtime(lists: { name: string; items: Array<{ rank: number; keyword: string; trafficValue?: number }> }[]) {
-  const map = new Map<string, { keyword: string; score: number; best: number; sources: string[]; trafficValue: number }>();
+  const map = new Map<string, { keyword: string; score: number; best: number; sources: string[]; trafficValue: number; tokens: Set<string> }>();
   lists.forEach(({ name, items }) => {
     items.forEach(item => {
-      const key = item.keyword.replace(/[^0-9a-z가-힣]/gi, "").toLowerCase();
+      const keyword = String(item.keyword || "").trim();
+      if (!keyword || isSportsFixturePattern(keyword) || isForeignScriptNoise(keyword)) return;
+      const key = normalizeMergeKey(keyword);
       if (!key) return;
-      if (!map.has(key)) map.set(key, { keyword: item.keyword, score: 0, best: 99, sources: [], trafficValue: 0 });
+      if (!map.has(key)) map.set(key, { keyword, score: 0, best: 99, sources: [], trafficValue: 0, tokens: keywordTokens(keyword) });
       const acc = map.get(key)!;
       const sourceWeight = name === "구글" ? 1.12 : name === "시그널" ? 1.05 : 1;
       acc.score += Math.max(21 - item.rank, 1) * sourceWeight;
@@ -277,7 +312,30 @@ function mergeRealtime(lists: { name: string; items: Array<{ rank: number; keywo
       if (!acc.sources.includes(name)) acc.sources.push(name);
     });
   });
-  return [...map.values()]
+
+  // 완전일치 병합만으로는 소스마다 문구가 다른 같은 이슈("이재명 프랑스 입국"/"이재명 프랑스
+  // 도착", "손흥민 1골 1도움"/"...활약")를 못 잡는다 — 공백 기준 단어 집합이 절반 이상 겹치면
+  // 같은 이슈로 보고 합친다. 소스를 더 많이 확보한(또는 더 짧고 간결한) 쪽을 대표 키워드로 남김.
+  const candidates = [...map.values()].sort((a, b) => b.sources.length - a.sources.length || a.keyword.length - b.keyword.length);
+  const used = new Set<number>();
+  const grouped: typeof candidates = [];
+  candidates.forEach((item, i) => {
+    if (used.has(i)) return;
+    for (let j = i + 1; j < candidates.length; j++) {
+      if (used.has(j)) continue;
+      if (tokenOverlapRatio(item.tokens, candidates[j].tokens) >= 0.5) {
+        const other = candidates[j];
+        item.score += other.score;
+        item.best = Math.min(item.best, other.best);
+        item.trafficValue = Math.max(item.trafficValue, other.trafficValue);
+        other.sources.forEach(source => { if (!item.sources.includes(source)) item.sources.push(source); });
+        used.add(j);
+      }
+    }
+    grouped.push(item);
+  });
+
+  return grouped
     .map(item => ({
       ...item,
       score: item.score + Math.max(0, item.sources.length - 1) * 18
