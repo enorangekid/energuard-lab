@@ -902,17 +902,22 @@ async function collectRealtime() {
     { name: "구글", items: google },
   ]);
   const merged = fillFromPrevious(mergedBase, previousRealtime);
-  const googleList = google.map(item => ({
-    rank: item.rank,
-    keyword: item.keyword,
-    sources: [
-      "구글",
-      item.trafficLabel ? `검색 ${item.trafficLabel}` : "",
-      relativeAge(item.publishedAt),
-      item.newsCount ? `관련 뉴스 ${item.newsCount}건` : "",
-      item.newsSource ? `대표 ${item.newsSource}` : "",
-    ].filter(Boolean),
-  }));
+  // 구글급상승도 실시간통합과 같은 기준으로 거른다 — 경기 스코어성 대진표("A 대 B"/"A vs B")와
+  // 외국어 노이즈. 실측해보니 관측된 다국어 중복(같은 경기가 한글·영어·태국어로 각각 잡힘)이
+  // 전부 이 대진표 패턴이었어서, 이 필터 하나로 두 문제가 같이 정리된다.
+  const googleList = google
+    .filter(item => !isSportsFixturePattern(item.keyword) && !isForeignScriptNoise(item.keyword))
+    .map((item, i) => ({
+      rank: i + 1,
+      keyword: item.keyword,
+      sources: [
+        "구글",
+        item.trafficLabel ? `검색 ${item.trafficLabel}` : "",
+        relativeAge(item.publishedAt),
+        item.newsCount ? `관련 뉴스 ${item.newsCount}건` : "",
+        item.newsSource ? `대표 ${item.newsSource}` : "",
+      ].filter(Boolean),
+    }));
 
   // 스냅샷 저장 + 직전 슬롯과 비교해 변동 계산
   let realtimeOut = merged.map(item => ({ ...item, change: "same", delta: null as number | null }));
