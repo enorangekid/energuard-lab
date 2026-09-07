@@ -493,6 +493,7 @@ type ContentIdeaCandidate = {
   sources: string[];
   context?: string;
   searchVolume?: number;
+  sourceUrl?: string;
 };
 
 type SemanticIdea = ContentIdeaCandidate & {
@@ -523,11 +524,17 @@ function contentIdeaPool(
     const keyword = cleanIdeaKeyword(item.keyword);
     const key = ideaKey(keyword);
     if (!key || isBlogNoise(keyword) || !isPotentialContentTopic(keyword)) return;
+    // 구글급상승과 같은 기준으로 거른다(2026-09-07) — 경기 스코어성 대진표·외국어 노이즈는
+    // 대부분 isPotentialContentTopic에서 이미 걸러지지만, 혹시 모를 오탐까지 이중으로 막는다.
+    if (isSportsFixturePattern(keyword) || isForeignScriptNoise(keyword)) return;
     const current = map.get(key);
     const sources = [...new Set([...(current?.sources || []), "구글"] )];
     map.set(key, {
       rank: Math.min(current?.rank || 99, item.rank), keyword, sources,
       context: [item.newsTitle, item.newsSource, item.trafficLabel && `검색 ${item.trafficLabel}`].filter(Boolean).join(" · "),
+      // 자동 생성 후보도 수동 "발굴" 추가와 똑같이 원문 링크를 들고 가게 한다(2026-09-07) —
+      // 전엔 여기서 newsUrl을 버려서, 자동으로 뜬 후보는 카드에 원문 보기 버튼이 안 붙었다.
+      sourceUrl: item.newsUrl || current?.sourceUrl || "",
     });
   });
   return [...map.values()].sort((a, b) => a.rank - b.rank).slice(0, 36);
@@ -537,7 +544,7 @@ function contentIdeaPool(
    실시간 통합과 달리 이 둘은 애초에 단열 시드어로만 모은 데이터라 관련성 필터
    (isBlogNoise/isPotentialContentTopic)를 다시 걸 필요가 없어 그대로 통과시킨다. */
 function contentIdeaPoolFromNiche(
-  newsNiche: Array<{ rank: number; keyword: string; sources?: string[]; query?: string }>,
+  newsNiche: Array<{ rank: number; keyword: string; sources?: string[]; query?: string; link?: string }>,
   spikeNiche: Array<{ rank: number; keyword: string; sources?: string[]; volume?: number | null }>,
 ) {
   const map = new Map<string, ContentIdeaCandidate>();
@@ -550,6 +557,9 @@ function contentIdeaPoolFromNiche(
       keyword,
       sources: item.sources || [],
       context: item.query ? `시드어: ${item.query}` : undefined,
+      // 수동 "발굴" 추가(addTrendIdea)는 이미 원문 링크를 들고 가는데, 자동 생성 후보는
+      // 여기서 버려지고 있었다(2026-09-07) — 자동 후보 카드에도 원문 보기 버튼이 뜨도록 맞춘다.
+      sourceUrl: item.link || "",
     });
   });
   spikeNiche.forEach(item => {
@@ -653,6 +663,8 @@ async function saveContentIdeas(slot: string, items: SemanticIdea[], idPrefix = 
       ai_score: clampScore(item.relevanceScore * 0.48 + trendScore * 0.34 + seasonScore * 0.18),
       content_angle: item.contentAngle,
       selection_reason: item.selectionReason,
+      // 자동 생성 후보도 원문 링크를 저장한다(2026-09-07) — 수동 발굴 추가와 같은 필드.
+      source_url: item.sourceUrl || "",
       updated_at: new Date().toISOString(),
     };
   });
