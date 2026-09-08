@@ -137,7 +137,6 @@ const BEAD_FB = (() => {
 const BEAD_MARGIN_KEY_MAP = {
   ia1: 'bead_m2_3', iia1: 'bead_m2_2', iiia2: 'bead_m2_1',
   ia2: 'bead_m1_3', iia2: 'bead_m1_2', iiib: 'bead_m1_1',
-  ib_09: 'bead_mj', ib_06: 'bead_mj',
 };
 const PU_FB = {
   ic:    {40:100,50:90,60:70,70:55,80:50,90:45,100:35,110:35,120:35,130:35,140:35,150:35,160:35,170:35,180:35,190:35,200:35,210:35,220:35,230:35},
@@ -166,16 +165,21 @@ function calcRealPrice(costPerM2, marginPerM2, t, area) {
   const sellPerSheet = Math.round((costPerM2 + marginPerM2) * t * area * 1.1);
   return Math.ceil(sellPerSheet / 100) * 100;
 }
-function calcIsoRealPrice(data, t) {
+const ISO_DEFS = {10:35,20:70,30:60,40:60,50:60,60:60,70:60,80:60,90:60,100:60,110:60,120:60,130:60,140:60,150:60,160:60,170:60,180:60,190:55,200:55,210:55,220:55,230:55,240:55,250:55,260:55,270:55,280:55,290:55,300:55};
+// 2026-09-08: 아이소핑크 1호 신설(커밋 248a760) 이후 특호(grade_id='isopink')와 원가/마진
+// 필드가 t>=30 구간에서 갈라졌다 — gradeId를 안 받고 무조건 특호 필드만 보고 있어서
+// 1호 매핑이 생기면 계속 특호 가격으로 잘못 계산할 뻔했다. gradeId로 분기.
+function calcIsoRealPrice(data, t, gradeId) {
   const margins = data.margins || {};
+  const is1ho = gradeId === '1ho';
   let cost;
   if (t <= 15) cost = data.cost_900_1800_thin1 || 0;
   else if (t <= 25) cost = data.cost_900_1800_thin2 || 0;
-  else if (t <= 180) cost = data.cost_900_1800_mid || 0;
-  else cost = data.cost_900_1800_thick || 0;
+  else if (t <= 180) cost = (is1ho ? data.cost_900_1800_1ho_mid : data.cost_900_1800_mid) || 0;
+  else cost = (is1ho ? data.cost_900_1800_1ho_thick : data.cost_900_1800_thick) || 0;
   if (!cost) return null;
-  const ISO_DEFS = {10:35,20:70,30:60,40:60,50:60,60:60,70:60,80:60,90:60,100:60,110:60,120:60,130:60,140:60,150:60,160:60,170:60,180:60,190:55,200:55,210:55,220:55,230:55,240:55,250:55,260:55,270:55,280:55,290:55,300:55};
-  const margin = getVal(margins, `margin_iso_t${t}`, ISO_DEFS[t] ?? 55);
+  const marginKey = (is1ho && t >= 30) ? `margin_iso_1ho_t${t}` : `margin_iso_t${t}`;
+  const margin = getVal(margins, marginKey, ISO_DEFS[t] ?? 55);
   return Math.ceil(Math.round(t * (cost + margin) * 1.1) / 100) * 100;
 }
 function calcFrRealPrice(costPerM2, marginPerSheet, area) {
@@ -185,20 +189,43 @@ function calcFrRealPrice(costPerM2, marginPerSheet, area) {
   const vatSell = Math.round(sellPerSheet * 1.1);
   return Math.ceil(vatSell / 100) * 100;
 }
+// "동일가로만 맞춤" 오버라이드(pricing.js _getOverrideId와 동일 규칙) — 정수 마진으로
+// 경쟁사가를 정확히 못 맞출 때 마진 계산 대신 가격 자체를 강제 고정해둔 값. 이 필드가
+// 있으면 그게 진짜 표시가라 마진 계산을 건너뛰고 그대로 써야 한다(2026-09-08, 이 체커가
+// 오버라이드를 전혀 안 보고 있어서 "동일가 맞춤" 걸린 행은 항상 불일치로 잡히던 문제).
+function getOverrideId(type, gradeId, t) {
+  if (type === 'iso') {
+    if (gradeId === 'isopink') return `iso_price_override_t${t}`;
+    if (gradeId === '1ho') return t < 30 ? `iso_price_override_t${t}` : `iso_price_override_1ho_t${t}`;
+    return null;
+  }
+  return `${type}_price_override_${gradeId}_t${t}`;
+}
 function getTablePrice(mapping, pricingData) {
   if (!mapping || !pricingData) return null;
   const { product_type: type, grade_id: gradeId, thickness: t, area } = mapping;
   if (!area) return null;
   const margins = pricingData.margins || {};
 
-  if (type === 'iso') return calcIsoRealPrice(pricingData, t);
+  const overrideId = getOverrideId(type, gradeId, t);
+  const overrideVal = overrideId != null ? Number(margins[overrideId]) : NaN;
+  if (Number.isFinite(overrideVal) && overrideVal > 0) return overrideVal;
+
+  if (type === 'iso') return calcIsoRealPrice(pricingData, t, gradeId);
 
   if (type === 'bead') {
     const COST_MAP = { ia1:'bead_cost_ia1', iia1:'bead_cost_iia1', iiia2:'bead_cost_iiia2', ia2:'bead_cost_ia2', iia2:'bead_cost_iia2', iiib:'bead_cost_iiib', ib_09:'bead_cost_ib', ib_06:'bead_cost_ib' };
     const cost = pricingData[COST_MAP[gradeId]] || 0;
     const tKey = Math.min(300, Math.max(10, Math.round(t / 10) * 10));
-    const marginKey = `${BEAD_MARGIN_KEY_MAP[gradeId]}_t${tKey}`;
-    const margin = getVal(margins, marginKey, BEAD_FB[marginKey] ?? 0);
+    // 2026-09-08: 준불연(ib_09/ib_06)은 pricing.js에서 마진 필드를 규격별로 완전히
+    // 독립시켰다(bead_mj_t{T} 공유 → bead_mj_ib_09_t{T}/bead_mj_ib_06_t{T} 분리,
+    // 커밋 761c3e1) — 여기서 옛 공유 키만 보고 있어서 분리 이후 값이 바뀌어도 체커가
+    // 계속 예전 값으로 계산해 실제 가격과 안 맞았다.
+    const marginKey = (gradeId === 'ib_09' || gradeId === 'ib_06')
+      ? `bead_mj_${gradeId}_t${tKey}`
+      : `${BEAD_MARGIN_KEY_MAP[gradeId]}_t${tKey}`;
+    const fallbackKey = (gradeId === 'ib_09' || gradeId === 'ib_06') ? `bead_mj_t${tKey}` : marginKey;
+    const margin = getVal(margins, marginKey, getVal(margins, fallbackKey, BEAD_FB[fallbackKey] ?? 0));
     return calcRealPrice(cost, margin, t, area);
   }
   if (type === 'pu') {
@@ -221,8 +248,12 @@ function getTablePrice(mapping, pricingData) {
     const MK = { lxo_s:'lxo',lxo_l:'lxo', lxi_s:'lxi',lxi_l:'lxi', kdo_s:'kdo',kdo_l:'kdo', kdi_s:'kdi',kdi_l:'kdi', imo_s:'imo',imo_l:'imo', imi_s:'imi',imi_l:'imi' };
     const cost = pricingData[COST_MAP[gradeId]] || 0;
     const mk = MK[gradeId];
-    const marginKey = `pf_m_${mk}_t${t}`;
-    const margin = getVal(margins, marginKey, PF_FB[mk]?.[t] ?? 35);
+    // 2026-09-08: 소형(_s)/대형(_l) 마진도 pricing.js에서 완전히 독립시켰다(pf_m_{mk}_t{T}
+    // 공유 → pf_m_{gradeId}_t{T} 분리, 커밋 761c3e1) — 옛 공유 키만 보던 걸 새 키 우선으로
+    // 고치고, 없으면(마이그레이션 전 데이터) 옛 키로 폴백한다.
+    const marginKey = `pf_m_${gradeId}_t${t}`;
+    const legacyKey = `pf_m_${mk}_t${t}`;
+    const margin = getVal(margins, marginKey, getVal(margins, legacyKey, PF_FB[mk]?.[t] ?? 35));
     return calcRealPrice(cost, margin, t, area);
   }
   if (type === 'fr') {
