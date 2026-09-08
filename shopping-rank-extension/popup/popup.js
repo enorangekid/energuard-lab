@@ -195,9 +195,13 @@ function calcFrRealPrice(costPerM2, marginPerSheet, area) {
 // 오버라이드를 전혀 안 보고 있어서 "동일가 맞춤" 걸린 행은 항상 불일치로 잡히던 문제).
 function getOverrideId(type, gradeId, t) {
   if (type === 'iso') {
-    if (gradeId === 'isopink') return `iso_price_override_t${t}`;
+    // 1호 신설 전부터 등록된 product_mapping 행들은 grade_id를 비워두거나 다른 값을
+    // 써도 무조건 특호로 취급하고 있었다(calcIsoRealPrice와 동일한 이유) — 여기서
+    // gradeId==='isopink'만 정확히 일치해야 한다고 해뒀더니 그 행들만 오버라이드를
+    // 못 찾아서 여전히 마진 계산값(실제보다 살짝 낮음)으로 나오고 있었다. 1호만
+    // 명시적으로 걸러내고 나머지는 전부 특호로 처리하도록 통일.
     if (gradeId === '1ho') return t < 30 ? `iso_price_override_t${t}` : `iso_price_override_1ho_t${t}`;
-    return null;
+    return `iso_price_override_t${t}`;
   }
   return `${type}_price_override_${gradeId}_t${t}`;
 }
