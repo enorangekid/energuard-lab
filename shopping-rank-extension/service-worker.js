@@ -519,10 +519,17 @@ async function saveCompetitorPriceScan(payload) {
 // REST 호출했는데, anon 권한이 잠긴 뒤로 계속 조용히 실패하고 있었다(사용자가 그 이후
 // 안 고쳤다고 확인함). 이제 이 확장이 이미 갖고 있는 로그인 세션(authenticatedHeaders)
 // 으로 대신 조회한다 — 설정 화면(Supabase URL/Key 입력)도 더 이상 필요 없어졌다.
+// 2026-09-08: pricing_costs는 관리자 화면에 "지금 입력 중/저장만 해둔" draft 값이라
+// 실제 스마트스토어에 반영된 가격과 다를 수 있다(Admin_backup의 estimate.js/pricing.js도
+// 이 이유로 draft 대신 pricing_costs_history의 is_live=true 행만 본다, 2026-08-20 정책).
+// 이 체커도 "실제 적용단가"와 비교하는 게 목적이므로 draft가 아니라 is_live 행을 조회
+// 해야 하는데 pricing_costs를 직접 보고 있었다 — 수정한 단가가 아직 "실제 적용"으로
+// 지정 전이면 체커가 엉뚱한(구버전) 값과 비교해서 불일치가 안 잡히거나 잘못 잡히는
+// 원인이었다.
 async function fetchPricingCheckData() {
   const headers = await authenticatedHeaders();
   const [pricingRes, mappingRes] = await Promise.all([
-    fetch(`${SUPABASE_URL}/rest/v1/pricing_costs?product_type=eq.all&select=*`, { headers }),
+    fetch(`${SUPABASE_URL}/rest/v1/pricing_costs_history?product_type=eq.all&is_live=eq.true&select=*&limit=1`, { headers }),
     fetch(`${SUPABASE_URL}/rest/v1/product_mapping?select=*&limit=5000`, { headers }),
   ]);
   if (!pricingRes.ok) throw new Error(`단가 데이터 조회 실패 (${pricingRes.status})`);
