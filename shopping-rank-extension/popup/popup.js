@@ -394,23 +394,24 @@ function resolveOptionMapping(mapping, row) {
     return (t == null || !PF_GRADE_AREA[gradeId]) ? null : { gradeId, thickness: t, area: PF_GRADE_AREA[gradeId] };
   }
   if (mapping.product_type === 'iso') {
-    // 2026-09-10: 아이소핑크는 두 가지 판매 형태 모두 이 분기로 처리한다.
-    //   ① 모음전: 1호(10~300T)+특호(30~300T)가 한 상품에 옵션으로 같이 들어있음.
-    //      옵션 라벨마다 두께와 "1호"/"특호"가 다 적혀있음(_doSmartStoreExport 기준).
-    //   ② 단품+특호옵션: 상품 하나 = 두께 하나, 기본가 = 1호. 옵션 "특호"를 고르면
-    //      추가금. 이때 옵션 라벨엔 두께가 없고(상품명에만 있음) "특호"만 있거나,
-    //      기본 옵션은 라벨이 비어있다 → 두께는 product_mapping.thickness로 보완하고,
-    //      등급 키워드가 없으면 기본가 = 1호로 본다.
+    // 2026-09-10: 아이소핑크는 판매 형태가 두 가지라 product_mapping.grade_id로 구분한다.
+    //   • grade_id = '1ho' → 이 상품은 1호로 판매(기본가 = 1호). 특호는 별도 옵션가산일
+    //     뿐이므로, 옛 라벨에 "특호"/"II-B-2"가 남아있어도 모든 옵션을 1호로 비교한다.
+    //   • 그 외(비어있음/'isopink'/'mix' 등) → 1호+특호가 옵션으로 갈리는 통합 모음전으로
+    //     보고, 옵션 라벨의 "특호"/"1호" 키워드로 행마다 판정(_doSmartStoreExport 라벨 기준).
+    //     키워드가 없으면 기본가(1호)로 본다.
     const combined = [row.label, row.optionName1, row.optionName2].map(x => String(x || '')).join(' ');
     const t = extractThicknessMm(row.optionName2) ?? extractThicknessMm(row.optionName1)
       ?? extractThicknessMm(combined) ?? (Number(mapping.thickness) || null);
     if (t == null) return null;
-    // "특호"를 먼저 본다 — 상품 카테고리/그룹 라벨에 "1호/특호"가 통째로 들어가 있으면
-    // "1호"가 모든 옵션에 섞여 잡혀서 특호 행까지 1호로 오분류되던 문제가 있었다.
-    // 키워드가 전혀 없으면 기본가(1호)로 본다(단품 기본 옵션, 모음전 10T/20T).
-    let gradeId = '1ho';
-    if (/특호/.test(combined)) gradeId = 'isopink';
-    else if (/1호/.test(combined)) gradeId = '1ho';
+    let gradeId;
+    if (String(mapping.grade_id || '').trim() === '1ho') {
+      gradeId = '1ho'; // 1호 판매 상품 — 라벨에 "특호"가 남아있어도 1호로 비교
+    } else if (/특호/.test(combined)) {
+      gradeId = 'isopink';
+    } else {
+      gradeId = '1ho';
+    }
     return { gradeId, thickness: t, area: mapping.area };
   }
   if (mapping.product_type !== 'bead') {
