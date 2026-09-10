@@ -207,9 +207,13 @@ function getOverrideId(type, gradeId, t) {
 }
 function getTablePrice(mapping, pricingData) {
   if (!mapping || !pricingData) return null;
-  const { product_type: type, grade_id: gradeId, thickness: t, area } = mapping;
+  const { product_type: type, thickness: t, area } = mapping;
   if (!area) return null;
   const margins = pricingData.margins || {};
+  // 아이소핑크는 기본 등급이 1호 — grade_id가 명시적으로 'isopink'(특호)가 아니면
+  // (비어있음/null/'mix' 등 포함) 1호로 본다. 단품 목록 체크는 라벨이 없어서 이
+  // 기본값이 곧 판정값이 된다(단품은 전부 1호 판매).
+  const gradeId = (type === 'iso') ? (mapping.grade_id === 'isopink' ? 'isopink' : '1ho') : mapping.grade_id;
 
   const overrideId = getOverrideId(type, gradeId, t);
   const overrideVal = overrideId != null ? Number(margins[overrideId]) : NaN;
@@ -394,24 +398,20 @@ function resolveOptionMapping(mapping, row) {
     return (t == null || !PF_GRADE_AREA[gradeId]) ? null : { gradeId, thickness: t, area: PF_GRADE_AREA[gradeId] };
   }
   if (mapping.product_type === 'iso') {
-    // 2026-09-10: 아이소핑크는 판매 형태가 두 가지라 product_mapping.grade_id로 구분한다.
-    //   • grade_id = '1ho' → 이 상품은 1호로 판매(기본가 = 1호). 특호는 별도 옵션가산일
-    //     뿐이므로, 옛 라벨에 "특호"/"II-B-2"가 남아있어도 모든 옵션을 1호로 비교한다.
-    //   • 그 외(비어있음/'isopink'/'mix' 등) → 1호+특호가 옵션으로 갈리는 통합 모음전으로
-    //     보고, 옵션 라벨의 "특호"/"1호" 키워드로 행마다 판정(_doSmartStoreExport 라벨 기준).
-    //     키워드가 없으면 기본가(1호)로 본다.
+    // 2026-09-10: 아이소핑크 옵션 등급은 라벨의 "특호"/"1호" 키워드로 행마다 판정한다.
+    //   • 통합 모음전: 옵션마다 "아이소핑크 KS정품 1호|특호 / 900x1800 30T" → 키워드로 갈림
+    //   • 단품(두께 1개) + 1호/특호 선택옵션: "1호"/"특호" 옵션 → 키워드로 갈림, 두께는
+    //     상품명/매핑(thickness)에서
+    //   • 키워드가 전혀 없는 행(단품 기본옵션 등)은 product_mapping.grade_id로 판정하되,
+    //     아이소핑크 기본 등급은 1호이므로 'isopink'가 명시된 경우만 특호로 본다.
     const combined = [row.label, row.optionName1, row.optionName2].map(x => String(x || '')).join(' ');
     const t = extractThicknessMm(row.optionName2) ?? extractThicknessMm(row.optionName1)
       ?? extractThicknessMm(combined) ?? (Number(mapping.thickness) || null);
     if (t == null) return null;
     let gradeId;
-    if (String(mapping.grade_id || '').trim() === '1ho') {
-      gradeId = '1ho'; // 1호 판매 상품 — 라벨에 "특호"가 남아있어도 1호로 비교
-    } else if (/특호/.test(combined)) {
-      gradeId = 'isopink';
-    } else {
-      gradeId = '1ho';
-    }
+    if (/특호/.test(combined)) gradeId = 'isopink';
+    else if (/1호/.test(combined)) gradeId = '1ho';
+    else gradeId = mapping.grade_id === 'isopink' ? 'isopink' : '1ho';
     return { gradeId, thickness: t, area: mapping.area };
   }
   if (mapping.product_type !== 'bead') {
