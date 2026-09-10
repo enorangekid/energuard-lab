@@ -391,6 +391,19 @@ function resolveOptionMapping(mapping, row) {
     const t = extractThicknessMm(row.optionName1);
     return (t == null || !PF_GRADE_AREA[gradeId]) ? null : { gradeId, thickness: t, area: PF_GRADE_AREA[gradeId] };
   }
+  if (mapping.product_type === 'iso') {
+    // 2026-09-10: 1호(10~300T)·특호(30~300T)가 같은 모음전 상품에 옵션으로 같이
+    // 들어있다(실제 네이버 등록 확인) — product_mapping의 grade_id 하나로는 구분이
+    // 안 되므로, 옵션 라벨에서 "1호"/"특호"를 직접 읽어 등급을 정한다. 라벨 형식은
+    // pricing.js _doSmartStoreExport 기준("아이소핑크 KS정품 1호" / "900x1800 30T").
+    const combined = [row.label, row.optionName1, row.optionName2].map(x => String(x || '')).join(' ');
+    const t = extractThicknessMm(combined);
+    if (t == null) return null;
+    let gradeId = mapping.grade_id || 'isopink';
+    if (/1호/.test(combined)) gradeId = '1ho';
+    else if (/특호/.test(combined)) gradeId = 'isopink';
+    return { gradeId, thickness: t, area: mapping.area };
+  }
   if (mapping.product_type !== 'bead') {
     const t = extractThicknessMm(row.label);
     return t == null ? null : { gradeId: mapping.grade_id, thickness: t, area: mapping.area };
