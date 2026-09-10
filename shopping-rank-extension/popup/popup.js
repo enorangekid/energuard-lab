@@ -356,7 +356,9 @@ function setStatus(type, msg) {
 //     다름 → product_mapping의 grade_id엔 mk 접두어만(예: 'lxo') 등록, _s/_l은 옵션에서 판정
 // product_mapping에 이 상품번호가 등록되어 있어야 하고, 없으면 "매핑 필요" 안내만 뜬다.
 function extractThicknessMm(label) {
-  const m = String(label || '').match(/(\d+)\s*T\b/i);
+  // 시트 규격 표기(900x1800, 1000x2000 등)의 숫자가 두께로 잘못 잡히지 않게 먼저 지운다.
+  const cleaned = String(label || '').replace(/\d+\s*[xX*×]\s*\d+/g, ' ');
+  const m = cleaned.match(/(\d+)\s*T\b/i) || cleaned.match(/(\d+)\s*(?:mm|밀리|미리)\b/i);
   return m ? Number(m[1]) : null;
 }
 
@@ -397,11 +399,15 @@ function resolveOptionMapping(mapping, row) {
     // 안 되므로, 옵션 라벨에서 "1호"/"특호"를 직접 읽어 등급을 정한다. 라벨 형식은
     // pricing.js _doSmartStoreExport 기준("아이소핑크 KS정품 1호" / "900x1800 30T").
     const combined = [row.label, row.optionName1, row.optionName2].map(x => String(x || '')).join(' ');
-    const t = extractThicknessMm(combined);
+    // 두께는 규격축(대개 optionName2)에서 먼저 찾고, 없으면 합친 문자열에서 찾는다.
+    const t = extractThicknessMm(row.optionName2) ?? extractThicknessMm(row.optionName1) ?? extractThicknessMm(combined);
     if (t == null) return null;
+    // "특호"를 먼저 본다 — 상품 카테고리/그룹 라벨에 "1호/특호"가 통째로 들어가 있으면
+    // "1호"가 모든 옵션에 섞여 잡혀서 특호 행까지 1호로 오분류되던 문제가 있었다.
     let gradeId = mapping.grade_id || 'isopink';
-    if (/1호/.test(combined)) gradeId = '1ho';
-    else if (/특호/.test(combined)) gradeId = 'isopink';
+    if (/특호/.test(combined)) gradeId = 'isopink';
+    else if (/1호/.test(combined)) gradeId = '1ho';
+    else if (t < 30) gradeId = '1ho'; // 30T 미만은 특호가 생산 안 됨 → 무조건 1호
     return { gradeId, thickness: t, area: mapping.area };
   }
   if (mapping.product_type !== 'bead') {
@@ -463,12 +469,15 @@ $('btnCheckBundle').addEventListener('click', async () => {
 
     const results = scanData.rows.map((r) => {
       const resolved = resolveOptionMapping(mapping, r);
-      if (!resolved) return { ...r, status: 'unknown', tablePrice: null };
+      if (!resolved) return { ...r, status: 'unknown', tablePrice: null, reason: '옵션 라벨에서 두께(숫자+T)를 못 찾음' };
       const tablePrice = getTablePrice({ product_type: mapping.product_type, grade_id: resolved.gradeId, thickness: resolved.thickness, area: resolved.area }, checkData.pricingData);
-      if (!tablePrice) return { ...r, status: 'unknown', tablePrice: null };
+      if (!tablePrice) return { ...r, gradeId: resolved.gradeId, thickness: resolved.thickness, status: 'unknown', tablePrice: null, reason: `단가표에 ${resolved.gradeId} ${resolved.thickness}T 원가/마진 없음 (area=${resolved.area ?? '없음'})` };
       const match = r.finalPrice === tablePrice;
-      return { ...r, thickness: resolved.thickness, tablePrice, status: match ? 'match' : 'mismatch', diff: r.finalPrice - tablePrice };
+      return { ...r, gradeId: resolved.gradeId, thickness: resolved.thickness, tablePrice, status: match ? 'match' : 'mismatch', diff: r.finalPrice - tablePrice };
     });
+    // 디버그: 팝업 우클릭 → 검사 → Console 에서 각 옵션이 어떻게 해석됐는지 확인 가능
+    console.log('[EG] 모음전 매핑:', mapping);
+    console.table(results.map(r => ({ label: r.label, opt1: r.optionName1, opt2: r.optionName2, grade: r.gradeId, t: r.thickness, 쇼핑몰: r.finalPrice, 단가표: r.tablePrice, 판정: r.status, 사유: r.reason || '' })));
     renderBundleResults(scanData.productName, results);
   } catch (e) {
     $('bundleResultSection').innerHTML = `<div class="result-empty" style="color:#ef4444;">오류: ${e.message}</div>`;
@@ -487,7 +496,9 @@ function renderBundleResults(productName, results) {
       <div class="summary-card total"><div class="num">${results.length}</div><div class="lbl">옵션</div></div>
       <div class="summary-card ok"><div class="num">${matched}</div><div class="lbl">일치</div></div>
       <div class="summary-card err"><div class="num">${mismatched}</div><div class="lbl">불일치</div></div>
+      <div class="summary-card"><div class="num">${unknown}</div><div class="lbl">확인불가</div></div>
     </div>`;
+  const gt = (r) => (r.gradeId ? `<span class="result-tag">${r.gradeId === '1ho' ? '1호' : r.gradeId === 'isopink' ? '특호' : r.gradeId}${r.thickness ? ' ' + r.thickness + 'T' : ''}</span> ` : '');
 
   const sorted = [
     ...results.filter(r => r.status === 'mismatch'),
@@ -497,12 +508,12 @@ function renderBundleResults(productName, results) {
   const rowsHtml = sorted.map((r) => {
     if (r.status === 'mismatch') {
       const sign = r.diff > 0 ? '+' : '';
-      return `<div class="result-item mismatch"><span class="result-badge">불일치</span><div class="result-info"><div class="result-name">${r.label}</div><div class="result-prices">쇼핑몰 ${r.finalPrice.toLocaleString()}원 · 단가표 <span class="table">${r.tablePrice.toLocaleString()}원</span> · <span class="diff">${sign}${r.diff.toLocaleString()}원</span></div></div></div>`;
+      return `<div class="result-item mismatch"><span class="result-badge">불일치</span><div class="result-info"><div class="result-name">${gt(r)}${r.label}</div><div class="result-prices">쇼핑몰 ${r.finalPrice.toLocaleString()}원 · 단가표 <span class="table">${r.tablePrice.toLocaleString()}원</span> · <span class="diff">${sign}${r.diff.toLocaleString()}원</span></div></div></div>`;
     }
     if (r.status === 'match') {
-      return `<div class="result-item match"><span class="result-badge">일치</span><div class="result-info"><div class="result-name">${r.label}</div><div class="result-prices"><span class="match">${r.finalPrice.toLocaleString()}원</span></div></div></div>`;
+      return `<div class="result-item match"><span class="result-badge">일치</span><div class="result-info"><div class="result-name">${gt(r)}${r.label}</div><div class="result-prices"><span class="match">${r.finalPrice.toLocaleString()}원</span></div></div></div>`;
     }
-    return `<div class="result-item unmapped"><span class="result-badge">확인불가</span><div class="result-info"><div class="result-name">${r.label}</div><div class="result-prices">두께 인식 실패 또는 원가 미입력 · ${(r.finalPrice ?? 0).toLocaleString()}원</div></div></div>`;
+    return `<div class="result-item unmapped"><span class="result-badge">확인불가</span><div class="result-info"><div class="result-name">${gt(r)}${r.label}</div><div class="result-prices">${r.reason || '두께 인식 실패 또는 원가 미입력'} · ${(r.finalPrice ?? 0).toLocaleString()}원</div></div></div>`;
   }).join('');
 
   $('bundleResultSection').innerHTML = `<div class="scan-item"><div class="scan-name">${productName}</div></div>${summaryHtml}<div class="result-list">${rowsHtml}</div>`;
