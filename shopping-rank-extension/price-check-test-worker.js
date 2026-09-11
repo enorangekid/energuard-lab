@@ -318,9 +318,15 @@ async function listStep(state){
   for(const item of state.items.slice(state.done)){
     const p=listed.get(String(item.productId));
     const expected=getTablePrice(item.mapping,state.pricing);
-    const row=p && listEligible(item) && !/모음|선택|종합/.test(p.name||'') && Number.isFinite(p.price) && expected>0 && p.price===expected;
-    // List mismatch/ambiguous values are rechecked using detail options, never finalized here.
-    if(row){hits.push(item);state.rows.push({productId:item.productId,label:(p.name||'단품')+' — 대표가만 확인',actual:p.price,expected,diff:0,status:'대표가 일치',source:'상품 목록 (옵션 미검사)'});}else remaining.push(item);
+    // 목록에서 찾은 단품(옵션 없는 제품군)은 대표가 = 실제 판매가이므로 일치든 불일치든
+    // 여기서 바로 확정한다(상세페이지 안 들어가 시간 절약 — 테스트 중 불일치가 많아도 빠름).
+    // 옵션 붙는 아이소핑크 단품/모음전은 listEligible=false라 이 경로 안 탐. 목록에서
+    // 못 찾았거나 이름이 모음전스러우면(remaining) 상세 스캔으로 넘긴다.
+    if(p && listEligible(item) && !/모음|선택|종합/.test(p.name||'') && Number.isFinite(p.price)){
+      hits.push(item);
+      const status=!(expected>0)?'단가 확인 불가':p.price===expected?'일치':'불일치';
+      state.rows.push({productId:item.productId,label:(p.name||'단품')+' — 대표가(옵션 미검사)',actual:p.price,expected:expected>0?expected:null,diff:expected>0?p.price-expected:null,status,source:'상품 목록'});
+    } else remaining.push(item);
   }
   state.items=[...state.items.slice(0,state.done),...hits,...remaining];state.done+=hits.length;
   state.listMatched=(state.listMatched||0)+hits.length;
@@ -381,7 +387,7 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
   const host=new URL(sender.url||'https://invalid').hostname;
   if(!['localhost','127.0.0.1','enorangekid.github.io'].includes(host))return;
   (async()=>{
-    if(message.action==='ping')return {ok:true,version:'0.29.0'};
+    if(message.action==='ping')return {ok:true,version:'0.29.1'};
     if(message.action==='status'){
       const s=await readState();
       if(!s)return {ok:true,state:null};
