@@ -370,7 +370,11 @@ async function processNext(){
       const item=state.items[state.done];
       if(!item){state.running=false;state.finishedAt=Date.now();state.reason=state.reason||'완료';await save(state);await chrome.alarms.clear(ALARM);return;}
       const listPrice=Number(state.listPrices?.[String(item.productId)]);
-      const fast=item.mapping?.thickness!=null && listPrice>0;
+      // 아이소핑크 단품은 1호/특호 선택옵션이 붙어있어 목록 대표가로는 특호 옵션을
+      // 못 본다 → 상세페이지 스캔으로 돌린다. product_mapping.scan_detail=true 면
+      // 다른 제품군도 강제 상세 스캔.
+      const forceDetail=item.mapping?.scan_detail===true || item.mapping?.product_type==='iso';
+      const fast=!forceDetail && item.mapping?.thickness!=null && listPrice>0;
       if(fast){
         const expected=getTablePrice(item.mapping,state.pricing);
         const status=!(expected>0)?'단가 확인 불가':expected===listPrice?'일치':'불일치';
@@ -381,7 +385,8 @@ async function processNext(){
         if(!state.running){await chrome.alarms.clear(ALARM);return;}
         continue; // 다음 상품 즉시 (지연 없음)
       }
-      // 상세 스캔 1건 → 알람에 양보
+      // 상세 스캔 1건. 같은 실행 안에서 짧은 간격으로 이어가되(우리 스토어라 부담 적음),
+      // arm()을 미리 걸어둬서 워커가 중간에 죽어도 30초 뒤 알람이 이어받는다.
       state.currentProduct=item.productId;await save(state);
       await arm(); // 워치독
       let rows,failed=false;
@@ -392,8 +397,9 @@ async function processNext(){
       if(failed){state.running=false;state.reason='수집 실패로 일시정지';}
       if(state.done>=state.total){state.running=false;state.finishedAt=Date.now();state.reason=failed?'검사 종료 — 수집 실패 포함':'완료';}
       await save(state);
-      if(state.running)await arm();else await chrome.alarms.clear(ALARM);
-      return; // 다음 상세 스캔은 다음 알람에
+      if(!state.running){await chrome.alarms.clear(ALARM);return;}
+      await delay(4000); // 상세 스캔 간 간격
+      continue;
     }
   }catch(error){const state=await readState();if(state){state.running=false;state.reason='실행 오류: '+error.message;await save(state);}await chrome.alarms.clear(ALARM);}
   finally{processing=false;}
