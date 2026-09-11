@@ -358,8 +358,17 @@ async function processNext(){
     if(orphan){const old=await chrome.tabs.get(orphan.id).catch(()=>null);if(old?.url===orphan.url)await chrome.tabs.remove(orphan.id).catch(()=>{});await chrome.storage.local.remove('priceCheckTab');}
     if(!state.listVisited){
       state.listVisited=[];
-      const stores=[...new Set(state.items.slice(state.done).filter(listEligible).map(i=>new URL(i.productUrl||'https://smartstore.naver.com/energuardcompany/products/'+i.productId).pathname.split('/')[1]))];
-      state.listQueue=stores.map(store=>'https://smartstore.naver.com/'+store+'/category/ALL?st=TOTAL&dt=BIG_IMAGE&page=1&size=80');
+      // 카테고리별 목록 URL을 지정해뒀으면(state.listUrl, pricing-check-test.js의
+      // CATEGORY_LIST_URL) 전체상품(/category/ALL)에서 찾는 대신 그 URL부터 시작한다 —
+      // 상품 수가 훨씬 적어서 더 빠르고 확실하다(2026-09-11).
+      if(state.listUrl){
+        const u=new URL(state.listUrl);
+        if(!u.searchParams.get('page'))u.searchParams.set('page','1');
+        state.listQueue=[u.href];
+      }else{
+        const stores=[...new Set(state.items.slice(state.done).filter(listEligible).map(i=>new URL(i.productUrl||'https://smartstore.naver.com/energuardcompany/products/'+i.productId).pathname.split('/')[1]))];
+        state.listQueue=stores.map(store=>'https://smartstore.naver.com/'+store+'/category/ALL?st=TOTAL&dt=BIG_IMAGE&page=1&size=80');
+      }
     }
     if(state.listQueue.length){
       await arm();
@@ -400,7 +409,7 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
   const host=new URL(sender.url||'https://invalid').hostname;
   if(!['localhost','127.0.0.1','enorangekid.github.io'].includes(host))return;
   (async()=>{
-    if(message.action==='ping')return {ok:true,version:'0.29.3'};
+    if(message.action==='ping')return {ok:true,version:'0.29.4'};
     if(message.action==='status'){
       const s=await readState();
       if(!s)return {ok:true,state:null};
@@ -424,7 +433,13 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
       const p=message.payload;
       if(!p?.pricing?.id || p.pricing.is_live!==true || !Array.isArray(p.items) || !p.items.length || p.items.some(i=>!/^\d+$/.test(String(i.productId)) || !i.mapping))throw Error('검사 데이터 오류');
       if(new Set(p.items.map(i=>String(i.productId))).size!==p.items.length)throw Error('중복 상품번호');
-      state={runId:crypto.randomUUID(),running:true,startedAt:Date.now(),liveId:p.pricing.id,done:0,total:p.items.length,rows:[],items:p.items,pricing:p.pricing};
+      let listUrl=null;
+      if(p.listUrl){
+        const u=new URL(String(p.listUrl));
+        if(u.origin!=='https://smartstore.naver.com'||!/^\/(energuardcompany|hkdy)\//.test(u.pathname)||u.pathname.includes('/products/'))throw Error('카테고리 목록 URL이 올바르지 않습니다.');
+        listUrl=u.href;
+      }
+      state={runId:crypto.randomUUID(),running:true,startedAt:Date.now(),liveId:p.pricing.id,done:0,total:p.items.length,rows:[],items:p.items,pricing:p.pricing,listUrl};
       await save(state);await arm();processNext();return {ok:true};
     }finally{commandBusy=false;}
   })().then(respond).catch(error=>respond({ok:false,error:error.message}));return true;
