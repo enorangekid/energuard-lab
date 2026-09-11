@@ -330,14 +330,19 @@ async function listStep(state){
   }
   state.items=[...state.items.slice(0,state.done),...hits,...remaining];state.done+=hits.length;
   state.listMatched=(state.listMatched||0)+hits.length;
+  // 연속으로 몇 페이지째 하나도 못 맞히면(카테고리 상품들이 이 목록에 아예 안 걸리는
+  // 경우 — 예: PF보드처럼 카드가 옵션조합 대표가라 단품 매핑과 안 맞음) 끝까지 훑어봐야
+  // 소용없다고 보고 목록을 포기한다. 안 그러면 최대 30페이지를 전부 열었다 닫으며
+  // 진행률이 하나도 안 올라가는 것처럼 보인다(2026-09-11 PF보드 카테고리에서 실사용 중 발견).
+  state.listNoHitStreak = hits.length>0 ? 0 : (state.listNoHitStreak||0)+1;
   // 다음 페이지는 카테고리 페이지의 <a> 링크(data.next)에 의존하지 않고 이 URL의 page
   // 파라미터를 직접 +1 해서 만든다 — SPA 카테고리 목록은 페이지네이션이 실제 <a href>가
   // 아니라 버튼/스크립트로 되어 있는 경우가 많아 링크 탐색이 못 찾으면 1페이지(최대 80개)
   // 만 긁고 끝나버려, 카테고리 필터로 골라낸 상품들이 뒤 페이지에 몰려있으면 전부 상세
-  // 스캔으로 새는 문제가 있었다(2026-09-11). 빈 페이지가 나오거나 남은 대상이 없을 때만 중단.
+  // 스캔으로 새는 문제가 있었다(2026-09-11).
   const prev=new URL(url);
   const curPage=Number(prev.searchParams.get('page'))||1;
-  if(data.products.length>0 && curPage<30 && remaining.some(listEligible)){
+  if(data.products.length>0 && curPage<30 && state.listNoHitStreak<3 && remaining.some(listEligible)){
     const nextUrl=new URL(url);
     nextUrl.searchParams.set('page',String(curPage+1));
     if(!state.listVisited.includes(nextUrl.href))state.listQueue.push(nextUrl.href);
@@ -395,7 +400,7 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
   const host=new URL(sender.url||'https://invalid').hostname;
   if(!['localhost','127.0.0.1','enorangekid.github.io'].includes(host))return;
   (async()=>{
-    if(message.action==='ping')return {ok:true,version:'0.29.2'};
+    if(message.action==='ping')return {ok:true,version:'0.29.3'};
     if(message.action==='status'){
       const s=await readState();
       if(!s)return {ok:true,state:null};
