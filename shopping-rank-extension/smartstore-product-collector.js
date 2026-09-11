@@ -37,6 +37,7 @@
 (function () {
   const TAG = "[EG-SMARTSTORE]";
 
+  let detailUrl = null, benefitUrl = null;
   let productData = null;   // .../products/{id} 응답
   let benefitData = null;   // .../product-benefits/{id} 응답
   let lastProductId = currentProductId();
@@ -52,7 +53,7 @@
     if (id && id !== lastProductId) {
       console.log(TAG, "다른 상품으로 이동 감지, 상태 초기화:", lastProductId, "→", id);
       lastProductId = id;
-      productData = null;
+      productData = null; detailUrl = null; benefitUrl = null;
       benefitData = null;
     }
   }, 800);
@@ -71,14 +72,14 @@
 
     if (isProductDetailUrl(msg.url) && msg.data?.optionCombinations !== undefined) {
       if (!productData) {
-        productData = msg.data;
+        productData = msg.data; detailUrl = msg.url;
         console.log(TAG, "상품 상세 응답 확보(팝업에서 수집 버튼 누르면 사용됨):", productData.name);
       }
     } else if (isBenefitUrl(msg.url)) {
       // ⚠️ 옵션을 직접 클릭하면 "선택된 옵션 기준"으로 다시 호출되어 이중계산 위험 —
       // 페이지 로드 후 첫 응답만 기준가로 쓰고 이후 응답은 무시(2026-09-02 실사용 중 발견).
       if (!benefitData) {
-        benefitData = msg.data;
+        benefitData = msg.data; benefitUrl = msg.url;
         console.log(TAG, "할인 정보 응답 확보(최초 1회만 반영)");
       }
     }
@@ -127,7 +128,7 @@
       return false;
     }
     sendResponse({
-      ok: true,
+      ok: true, detailUrl, benefitUrl, benefitReady: benefitData != null,
       productName: productData.name || document.title,
       storeName: productData.channel?.channelName || null,
       productUrl: location.href.split("?")[0].split("#")[0],

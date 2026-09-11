@@ -1,9 +1,16 @@
 {
   "manifest_version": 3,
   "name": "에너가드컴퍼니 통합 확장프로그램",
-  "version": "0.27.3",
+  "version": "0.28.0",
   "description": "직원 브라우저에서 네이버 쇼핑·쿠팡 순위 수집(에너가드랩 연동), 경쟁사 상품 옵션가 자동 수집, 우리 스마트스토어 가격-단가표 일치 여부 체크를 한 확장에서 처리합니다.",
-  "permissions": ["tabs", "storage", "declarativeNetRequest", "activeTab", "scripting"],
+  "permissions": [
+    "tabs",
+    "storage",
+    "declarativeNetRequest",
+    "activeTab",
+    "scripting",
+    "alarms"
+  ],
   "host_permissions": [
     "https://search.shopping.naver.com/*",
     "https://smartstore.naver.com/*",
@@ -31,53 +38,96 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["icon.png"],
-      "matches": ["https://search.shopping.naver.com/*"]
+      "resources": [
+        "icon.png"
+      ],
+      "matches": [
+        "https://search.shopping.naver.com/*"
+      ]
     }
   ],
   "content_scripts": [
     {
-      "matches": ["https://search.shopping.naver.com/*"],
-      "js": ["search-network-tap.js"],
+      "matches": [
+        "https://search.shopping.naver.com/*"
+      ],
+      "js": [
+        "search-network-tap.js"
+      ],
       "run_at": "document_start",
       "world": "MAIN"
     },
     {
-      "matches": ["https://search.shopping.naver.com/search/*"],
-      "js": ["parser-core.js", "page-collector.js"],
+      "matches": [
+        "https://search.shopping.naver.com/search/*"
+      ],
+      "js": [
+        "parser-core.js",
+        "page-collector.js"
+      ],
       "run_at": "document_idle"
     },
     {
-      "matches": ["https://search.shopping.naver.com/search/*"],
-      "js": ["parser-core.js", "keyword-insight-panel.js"],
+      "matches": [
+        "https://search.shopping.naver.com/search/*"
+      ],
+      "js": [
+        "parser-core.js",
+        "keyword-insight-panel.js"
+      ],
       "run_at": "document_idle"
     },
     {
-      "matches": ["https://search.shopping.naver.com/ns/search*"],
-      "js": ["parser-core.js", "nplus-collector.js"],
+      "matches": [
+        "https://search.shopping.naver.com/ns/search*"
+      ],
+      "js": [
+        "parser-core.js",
+        "nplus-collector.js"
+      ],
       "run_at": "document_start"
     },
     {
-      "matches": ["https://www.coupang.com/np/search*"],
-      "js": ["coupang-page-collector.js"],
+      "matches": [
+        "https://www.coupang.com/np/search*"
+      ],
+      "js": [
+        "coupang-page-collector.js"
+      ],
       "run_at": "document_idle"
     },
     {
-      "matches": ["https://smartstore.naver.com/*"],
-      "js": ["smartstore-network-tap.js"],
+      "matches": [
+        "https://smartstore.naver.com/*"
+      ],
+      "js": [
+        "smartstore-network-tap.js"
+      ],
       "run_at": "document_start",
       "world": "MAIN"
     },
     {
-      "matches": ["https://smartstore.naver.com/*"],
-      "js": ["smartstore-product-collector.js"],
+      "matches": [
+        "https://smartstore.naver.com/*"
+      ],
+      "js": [
+        "smartstore-product-collector.js"
+      ],
       "run_at": "document_idle"
     },
     {
-      "matches": ["https://smartstore.naver.com/*"],
-      "exclude_matches": ["https://smartstore.naver.com/*/products/*"],
-      "js": ["checker-content.js"],
-      "css": ["checker-content.css"],
+      "matches": [
+        "https://smartstore.naver.com/*"
+      ],
+      "exclude_matches": [
+        "https://smartstore.naver.com/*/products/*"
+      ],
+      "js": [
+        "checker-content.js"
+      ],
+      "css": [
+        "checker-content.css"
+      ],
       "run_at": "document_idle"
     },
     {
@@ -86,8 +136,22 @@
         "http://localhost/*",
         "https://enorangekid.github.io/energuard-lab/*"
       ],
-      "js": ["app-bridge.js"],
+      "js": [
+        "app-bridge.js"
+      ],
       "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "http://127.0.0.1/*",
+        "http://localhost/*",
+        "https://enorangekid.github.io/*"
+      ],
+      "js": [
+        "price-check-test-bridge.js"
+      ],
+      "run_at": "document_start"
     }
-  ]
+  ],
+  "minimum_chrome_version": "120"
 }

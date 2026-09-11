@@ -644,3 +644,5 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   })();
   return true;
 });
+
+importScripts("price-check-test-worker.js");
