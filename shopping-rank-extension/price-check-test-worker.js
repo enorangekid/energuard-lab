@@ -286,62 +286,49 @@ async function inspect(item, pricing) {
   } finally { await chrome.tabs.remove(tab.id).catch(()=>{}); await chrome.storage.local.remove('priceCheckTab'); }
 }
 
-// ── 스토어 전체상품 목록 스크랩 ────────────────────────────────────────────
-// 단품(product_mapping.thickness 있음)은 상세페이지에 안 들어가고 목록 대표가로
-// 바로 비교한다(팝업 btnCheck와 동일 방식). 상세 스캔은 옵션가가 필요한 모음전
-// (thickness=null)과 목록에서 못 찾은 상품에만 쓴다.
-function slugFromProductUrl(u){
-  try{ const m=new URL(u).pathname.match(/^\/([^/]+)\/products\/\d+/); return m?m[1]:null; }catch{ return null; }
-}
-function waitTabComplete(tabId,timeout=15000){
-  return new Promise(resolve=>{
-    const t0=Date.now();
-    const iv=setInterval(async()=>{
-      const tab=await chrome.tabs.get(tabId).catch(()=>null);
-      if(!tab || tab.status==='complete' || Date.now()-t0>timeout){ clearInterval(iv); resolve(); }
-    },400);
-  });
-}
-async function getListRows(tabId){
-  let res;
-  try{ res=await chrome.tabs.sendMessage(tabId,{type:'GET_PRODUCTS'}); }catch{}
-  if(!Array.isArray(res)){
-    try{ await chrome.scripting.executeScript({target:{tabId},files:['checker-content.js']}); }catch{}
-    await delay(400);
-    try{ res=await chrome.tabs.sendMessage(tabId,{type:'GET_PRODUCTS'}); }catch{}
-  }
-  return Array.isArray(res)?res:[];
-}
-async function scrapeStoreLists(slugs){
-  const prices={};
-  const tab=await chrome.tabs.create({url:'about:blank',active:false});
-  await chrome.storage.local.set({priceCheckTab:{id:tab.id,url:'list-scan'}});
-  try{
-    for(const slug of slugs){
-      for(let page=1;page<=20;page++){
-        const url=`https://smartstore.naver.com/${slug}/category/ALL?st=RECENT&size=80&page=${page}`;
-        await chrome.tabs.update(tab.id,{url});
-        await waitTabComplete(tab.id);
-        await delay(1200);
-        for(let s=0;s<4;s++){
-          try{ await chrome.scripting.executeScript({target:{tabId:tab.id},func:()=>window.scrollTo(0,document.body.scrollHeight)}); }catch{}
-          await delay(600);
-        }
-        const rows=await getListRows(tab.id);
-        let added=0;
-        for(const r of rows){
-          if(r?.productId && Number(r.price)>0 && prices[r.productId]==null){ prices[r.productId]=Number(r.price); added++; }
-        }
-        if(rows.length===0 || added===0) break; // 마지막 페이지 지나면 네이버가 같은 내용 반복 → added 0
-      }
-    }
-  }finally{ await chrome.tabs.remove(tab.id).catch(()=>{}); await chrome.storage.local.remove('priceCheckTab'); }
-  return prices;
-}
-
 // One product per alarm; queue and fixed live snapshot survive popup/worker closure.
 async function readState(){return (await chrome.storage.local.get('priceTest')).priceTest;}
 async function arm(){await chrome.alarms.create(ALARM,{delayInMinutes:0.5});}
+
+function listEligible(item){
+  const m=item.mapping||{};
+  // ISO single products may contain 1호/특호 choices; keep detailed inspection.
+  return m.product_type!=='iso' && m.product_type!=='isopink' && !m.is_bundle && Number(m.thickness)>0 && Number(m.area)>0 && !!m.grade_id && getTablePrice(m,{})!==0;
+}
+async function readList(url){
+  const u=new URL(url);
+  if(u.origin!=='https://smartstore.naver.com'||!/^\/(energuardcompany|hkdy)\//.test(u.pathname)||u.pathname.includes('/products/'))throw Error('목록 주소 오류');
+  const tab=await chrome.tabs.create({url:u.href,active:false});
+  await chrome.storage.local.set({priceCheckTab:{id:tab.id,url:u.href}});
+  try{
+    for(let n=0;n<15;n++){
+      await delay(1000);
+      try{const data=await chrome.tabs.sendMessage(tab.id,{type:'EG_PRICE_LIST_PAGE'});if(data?.products?.length)return data;}catch{}
+    }
+    return {products:[],next:null};
+  }finally{await chrome.tabs.remove(tab.id).catch(()=>{});await chrome.storage.local.remove('priceCheckTab');}
+}
+async function listStep(state){
+  const url=state.listQueue.shift();
+  if(state.listVisited.includes(url))return;
+  state.listVisited.push(url);
+  const data=await readList(url);
+  const listed=new Map(data.products.map(p=>[String(p.productId),p]));
+  const hits=[],remaining=[];
+  for(const item of state.items.slice(state.done)){
+    const p=listed.get(String(item.productId));
+    const expected=getTablePrice(item.mapping,state.pricing);
+    const row=p && listEligible(item) && !/모음|선택|종합/.test(p.name||'') && Number.isFinite(p.price) && expected>0 && p.price===expected;
+    // List mismatch/ambiguous values are rechecked using detail options, never finalized here.
+    if(row){hits.push(item);state.rows.push({productId:item.productId,label:(p.name||'단품')+' — 대표가만 확인',actual:p.price,expected,diff:0,status:'대표가 일치',source:'상품 목록 (옵션 미검사)'});}else remaining.push(item);
+  }
+  state.items=[...state.items.slice(0,state.done),...hits,...remaining];state.done+=hits.length;
+  state.listMatched=(state.listMatched||0)+hits.length;
+  if(data.next && !state.listVisited.includes(data.next) && remaining.some(listEligible)){
+    const next=new URL(data.next),prev=new URL(url);
+    if(next.origin===prev.origin && next.pathname===prev.pathname && Number(next.searchParams.get('page'))>Number(prev.searchParams.get('page')))state.listQueue.push(next.href);
+  }
+}
 async function processNext(){
   if(processing)return;
   processing=true;
@@ -350,57 +337,37 @@ async function processNext(){
     if(!state || !state.running)return;
     const orphan=(await chrome.storage.local.get('priceCheckTab')).priceCheckTab;
     if(orphan){const old=await chrome.tabs.get(orphan.id).catch(()=>null);if(old?.url===orphan.url)await chrome.tabs.remove(orphan.id).catch(()=>{});await chrome.storage.local.remove('priceCheckTab');}
-
-    // 1) 목록 스크랩 단계 — 한 번만, 큐 시작 전에
-    if(!state.listPhaseDone){
-      await arm(); // 스크랩이 멈춰도 워치독이 복구
-      const slugs=[...new Set(state.items.map(i=>slugFromProductUrl(i.productUrl)).filter(Boolean))];
-      if(!slugs.length) slugs.push('energuardcompany');
-      let listPrices={};
-      try{ listPrices=await scrapeStoreLists(slugs); }catch(e){ listPrices={}; } // 실패해도 비치명적 — 전부 상세 스캔으로 폴백
-      const s1=await readState(); if(s1?.runId!==state.runId)return;
-      state=s1; state.listPrices=listPrices; state.listPhaseDone=true; state.updatedAt=Date.now();
-      await save(state); await arm(); return;
+    if(!state.listVisited){
+      state.listVisited=[];
+      const stores=[...new Set(state.items.slice(state.done).filter(listEligible).map(i=>new URL(i.productUrl||'https://smartstore.naver.com/energuardcompany/products/'+i.productId).pathname.split('/')[1]))];
+      state.listQueue=stores.map(store=>'https://smartstore.naver.com/'+store+'/category/ALL?st=TOTAL&dt=BIG_IMAGE&page=1&size=80');
     }
-
-    // 2) 큐 처리 — 단품(목록가 있음)은 탭 없이 연속 처리, 상세 스캔 대상은 알람당 1개
-    while(true){
-      state=await readState();
-      if(!state?.running || state.runId==null)return;
-      const item=state.items[state.done];
-      if(!item){state.running=false;state.finishedAt=Date.now();state.reason=state.reason||'완료';await save(state);await chrome.alarms.clear(ALARM);return;}
-      const listPrice=Number(state.listPrices?.[String(item.productId)]);
-      // 아이소핑크 단품은 1호/특호 선택옵션이 붙어있어 목록 대표가로는 특호 옵션을
-      // 못 본다 → 상세페이지 스캔으로 돌린다. product_mapping.scan_detail=true 면
-      // 다른 제품군도 강제 상세 스캔.
-      const forceDetail=item.mapping?.scan_detail===true || item.mapping?.product_type==='iso';
-      const fast=!forceDetail && item.mapping?.thickness!=null && listPrice>0;
-      if(fast){
-        const expected=getTablePrice(item.mapping,state.pricing);
-        const status=!(expected>0)?'단가 확인 불가':expected===listPrice?'일치':'불일치';
-        state.rows.push({productId:String(item.productId),label:'(목록 대표가)',actual:listPrice,expected:expected>0?expected:null,status,source:'목록',diff:expected>0?listPrice-expected:null});
-        state.done++;state.currentProduct=null;state.updatedAt=Date.now();
-        if(state.done>=state.total){state.running=false;state.finishedAt=Date.now();state.reason='완료';}
-        await save(state);
-        if(!state.running){await chrome.alarms.clear(ALARM);return;}
-        continue; // 다음 상품 즉시 (지연 없음)
-      }
-      // 상세 스캔 1건. 같은 실행 안에서 짧은 간격으로 이어가되(우리 스토어라 부담 적음),
-      // arm()을 미리 걸어둬서 워커가 중간에 죽어도 30초 뒤 알람이 이어받는다.
-      state.currentProduct=item.productId;await save(state);
-      await arm(); // 워치독
-      let rows,failed=false;
-      try{rows=await inspect(item,state.pricing);}catch(error){failed=true;rows=[{productId:item.productId,status:'수집 실패',label:error.message}];}
+    if(state.listQueue.length){
+      await arm();
+      await listStep(state);
       const latest=await readState();
       if(latest?.runId!==state.runId)return;
-      state=latest;state.rows.push(...rows);state.done++;state.currentProduct=null;state.updatedAt=Date.now();
-      if(failed){state.running=false;state.reason='수집 실패로 일시정지';}
-      if(state.done>=state.total){state.running=false;state.finishedAt=Date.now();state.reason=failed?'검사 종료 — 수집 실패 포함':'완료';}
+      state.running=latest.running;state.reason=latest.reason;state.phase='목록 수집';
+      if(state.done>=state.total){state.running=false;state.finishedAt=Date.now();state.reason='완료';}
       await save(state);
-      if(!state.running){await chrome.alarms.clear(ALARM);return;}
-      await delay(4000); // 상세 스캔 간 간격
-      continue;
+      if(state.running){await arm();setTimeout(processNext,3000);}else await chrome.alarms.clear(ALARM);
+      return;
     }
+    state.phase='옵션 상세 검사';
+    const item=state.items[state.done];
+    if(!item){state.running=false;state.finishedAt=Date.now();await save(state);return;}
+    state.currentProduct=item.productId;await save(state);
+    // Watchdog also recovers a worker interrupted during this product.
+    await arm();
+    let rows,failed=false;
+    try{rows=await inspect(item,state.pricing);}catch(error){failed=true;rows=[{productId:item.productId,status:'수집 실패',label:error.message}];}
+    const latest=await readState();
+    if(latest?.runId!==state.runId)return;
+    state=latest;state.rows.push(...rows);state.done++;state.currentProduct=null;state.updatedAt=Date.now();
+    if(failed){state.running=false;state.reason='수집 실패로 일시정지';}
+    if(state.done>=state.total){state.running=false;state.finishedAt=Date.now();state.reason=failed?'검사 종료 — 수집 실패 포함':'완료';}
+    await save(state);
+    if(state.running){await arm();setTimeout(processNext,3000);}else await chrome.alarms.clear(ALARM);
   }catch(error){const state=await readState();if(state){state.running=false;state.reason='실행 오류: '+error.message;await save(state);}await chrome.alarms.clear(ALARM);}
   finally{processing=false;}
 }
@@ -414,12 +381,12 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
   const host=new URL(sender.url||'https://invalid').hostname;
   if(!['localhost','127.0.0.1','enorangekid.github.io'].includes(host))return;
   (async()=>{
-    if(message.action==='ping')return {ok:true,version:'0.28.0'};
+    if(message.action==='ping')return {ok:true,version:'0.29.0'};
     if(message.action==='status'){
       const s=await readState();
       if(!s)return {ok:true,state:null};
-      const {items,pricing,listPrices,...state}=s;
-      return {ok:true,state,listCount:listPrices?Object.keys(listPrices).length:0};
+      const {items,pricing,...state}=s;
+      return {ok:true,state};
     }
     if(commandBusy)throw Error('요청 처리 중입니다. 잠시 후 다시 시도해주세요.');
     commandBusy=true;
@@ -438,7 +405,7 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
       const p=message.payload;
       if(!p?.pricing?.id || p.pricing.is_live!==true || !Array.isArray(p.items) || !p.items.length || p.items.some(i=>!/^\d+$/.test(String(i.productId)) || !i.mapping))throw Error('검사 데이터 오류');
       if(new Set(p.items.map(i=>String(i.productId))).size!==p.items.length)throw Error('중복 상품번호');
-      state={runId:crypto.randomUUID(),running:true,startedAt:Date.now(),liveId:p.pricing.id,done:0,total:p.items.length,rows:[],items:p.items,pricing:p.pricing,listPhaseDone:false,listPrices:{}};
+      state={runId:crypto.randomUUID(),running:true,startedAt:Date.now(),liveId:p.pricing.id,done:0,total:p.items.length,rows:[],items:p.items,pricing:p.pricing};
       await save(state);await arm();processNext();return {ok:true};
     }finally{commandBusy=false;}
   })().then(respond).catch(error=>respond({ok:false,error:error.message}));return true;
