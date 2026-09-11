@@ -308,6 +308,11 @@ async function readList(url){
     return {products:[],next:null};
   }finally{await chrome.tabs.remove(tab.id).catch(()=>{});await chrome.storage.local.remove('priceCheckTab');}
 }
+// 네이버 스토어 카테고리 목록의 실제 페이지 파라미터는 "cp"(current page)다 —
+// 사장님이 준 실제 카테고리 URL(?cp=1)로 확인됨. 혹시 page= 로 들어온 URL(예전에
+// /category/ALL에 직접 붙였던 것)도 계속 동작하게, URL에 이미 있는 쪽을 우선 쓰고
+// 둘 다 없으면 cp를 기본으로 한다(2026-09-11).
+function pageParamOf(u){ return u.searchParams.has('page') ? 'page' : 'cp'; }
 async function listStep(state){
   const url=state.listQueue.shift();
   if(state.listVisited.includes(url))return;
@@ -335,16 +340,17 @@ async function listStep(state){
   // 소용없다고 보고 목록을 포기한다. 안 그러면 최대 30페이지를 전부 열었다 닫으며
   // 진행률이 하나도 안 올라가는 것처럼 보인다(2026-09-11 PF보드 카테고리에서 실사용 중 발견).
   state.listNoHitStreak = hits.length>0 ? 0 : (state.listNoHitStreak||0)+1;
-  // 다음 페이지는 카테고리 페이지의 <a> 링크(data.next)에 의존하지 않고 이 URL의 page
-  // 파라미터를 직접 +1 해서 만든다 — SPA 카테고리 목록은 페이지네이션이 실제 <a href>가
-  // 아니라 버튼/스크립트로 되어 있는 경우가 많아 링크 탐색이 못 찾으면 1페이지(최대 80개)
-  // 만 긁고 끝나버려, 카테고리 필터로 골라낸 상품들이 뒤 페이지에 몰려있으면 전부 상세
-  // 스캔으로 새는 문제가 있었다(2026-09-11).
+  // 다음 페이지는 카테고리 페이지의 <a> 링크(data.next)에 의존하지 않고 이 URL의
+  // 페이지 파라미터를 직접 +1 해서 만든다 — SPA 카테고리 목록은 페이지네이션이 실제
+  // <a href>가 아니라 버튼/스크립트로 되어 있는 경우가 많아 링크 탐색이 못 찾으면
+  // 1페이지(최대 80개)만 긁고 끝나버려, 카테고리 필터로 골라낸 상품들이 뒤 페이지에
+  // 몰려있으면 전부 상세 스캔으로 새는 문제가 있었다(2026-09-11).
   const prev=new URL(url);
-  const curPage=Number(prev.searchParams.get('page'))||1;
+  const pageKey=pageParamOf(prev);
+  const curPage=Number(prev.searchParams.get(pageKey))||1;
   if(data.products.length>0 && curPage<30 && state.listNoHitStreak<3 && remaining.some(listEligible)){
     const nextUrl=new URL(url);
-    nextUrl.searchParams.set('page',String(curPage+1));
+    nextUrl.searchParams.set(pageKey,String(curPage+1));
     if(!state.listVisited.includes(nextUrl.href))state.listQueue.push(nextUrl.href);
   }
 }
@@ -363,11 +369,12 @@ async function processNext(){
       // 상품 수가 훨씬 적어서 더 빠르고 확실하다(2026-09-11).
       if(state.listUrl){
         const u=new URL(state.listUrl);
-        if(!u.searchParams.get('page'))u.searchParams.set('page','1');
+        const key=pageParamOf(u);
+        if(!u.searchParams.get(key))u.searchParams.set(key,'1');
         state.listQueue=[u.href];
       }else{
         const stores=[...new Set(state.items.slice(state.done).filter(listEligible).map(i=>new URL(i.productUrl||'https://smartstore.naver.com/energuardcompany/products/'+i.productId).pathname.split('/')[1]))];
-        state.listQueue=stores.map(store=>'https://smartstore.naver.com/'+store+'/category/ALL?st=TOTAL&dt=BIG_IMAGE&page=1&size=80');
+        state.listQueue=stores.map(store=>'https://smartstore.naver.com/'+store+'/category/ALL?st=TOTAL&dt=BIG_IMAGE&cp=1&size=80');
       }
     }
     if(state.listQueue.length){
@@ -409,7 +416,7 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
   const host=new URL(sender.url||'https://invalid').hostname;
   if(!['localhost','127.0.0.1','enorangekid.github.io'].includes(host))return;
   (async()=>{
-    if(message.action==='ping')return {ok:true,version:'0.29.4'};
+    if(message.action==='ping')return {ok:true,version:'0.29.5'};
     if(message.action==='status'){
       const s=await readState();
       if(!s)return {ok:true,state:null};
