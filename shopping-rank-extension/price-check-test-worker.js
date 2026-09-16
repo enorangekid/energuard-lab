@@ -286,33 +286,134 @@ async function inspect(item, pricing) {
   } finally { await chrome.tabs.remove(tab.id).catch(()=>{}); await chrome.storage.local.remove('priceCheckTab'); }
 }
 
+// 두께로 걸러도 후보가 여러 개 남을 수 있다 — 실사용 중 확인된 것만도: PF보드 브랜드
+// 내부/외부(lx/kd/im + i|o), 규격 소형/대형(_s/_l, 또는 비드법 준불연 ib_06/ib_09),
+// 신품/B급 같은 품질 등급. 셋 다 두께와는 독립된 축이라 gradeId가 뜻하는 축들로 좁혀나간다.
+//
+// ⚠️ 각 축을 "적용 가능하면 걸러보고, 하나도 안 남으면 그냥 포기하고 이전 상태 유지"
+// 식으로 순서대로 적용했더니, 앞선 축(예: 내/외부)이 먼저 1개로 좁혀버리면 뒤 축(예:
+// 규격)이 그 1개를 걸러도 될지 검증할 기회가 없어서 조용히 넘어가버리는 버그가 있었다
+// (2026-09-16, LX 상품이 "대형"만 팔아서 규격 표기가 아예 없는데도 lxi_s가 lxi_l과
+// 똑같이 매칭되던 문제). 그래서 이제 "이 상품 후보들 안에 그 축이 실제로 존재하는지"부터
+// 먼저 확인하고, 존재하는 축들만 모아 동시에(AND) 걸러낸다 — 소형(_s)인데 후보 중
+// 600x1200 표기가 하나도 없으면(=이 페이지엔 소형이 아예 없음) 억지로 대형에 매칭하지
+// 않고 바로 매칭 불가로 처리한다.
+function narrowToOne(candidates, gradeId) {
+  if (candidates.length <= 1) return candidates[0] || null;
+  const text = r => [r.optionName1, r.optionName2, r.optionName3, r.label].filter(Boolean).join(' ');
+  const texts = candidates.map(text);
+  const isSmallGrade = /_s$/.test(gradeId) || gradeId === 'ib_06';
+  const isLargeGrade = /_l$/.test(gradeId) || gradeId === 'ib_09';
+
+  // 규격 소형/대형 — 소형은 판매자 불문 "600x1200" 표기가 같아 그걸로 고정 판별한다.
+  // 후보 중 600x1200 표기가 하나도 없으면 이 페이지엔 소형 자체가 없다는 뜻 — 소형을
+  // 찾는 중이면 바로 매칭 불가, 대형을 찾는 중이면 규격 축 자체를 적용하지 않는다
+  // (판매자마다 대형 표기 치수가 다 달라서 "아니면 전부 대형"이라고 단정할 수 없음).
+  const hasSmallOption = texts.some(t => /600\s*[xX*×]\s*1200/.test(t));
+  if (isSmallGrade && !hasSmallOption) return null;
+
+  const checks = [];
+  // 브랜드 내부/외부 — grade_id가 lx|kd|im + i(내부)|o(외부) + _s|_l 형태고, 후보 중
+  // 실제로 "내"/"외" 표기가 존재할 때만(그런 축이 아예 없는 상품에 들이대지 않기 위함).
+  const io = String(gradeId || '').match(/^(?:lx|kd|im)(i|o)_/);
+  if (io && texts.some(t => /내|외/.test(t))) checks.push(t => (io[1] === 'i' ? /내/ : /외/).test(t));
+  if (hasSmallOption) {
+    if (isSmallGrade) checks.push(t => /600\s*[xX*×]\s*1200/.test(t));
+    else if (isLargeGrade) checks.push(t => !/600\s*[xX*×]\s*1200/.test(t));
+  }
+
+  let scoped = candidates.filter((_, i) => checks.every(check => check(texts[i])));
+  // 신품/B급처럼 등급과 무관하게 품질이 갈리는 경우 — 열위 표기가 있는 쪽을 제외한다.
+  if (scoped.length > 1) {
+    const normal = scoped.filter(r => !/B급|비품|리퍼|아울렛|전시|중고|하자|스크래치|흠집|반품|불량/.test(text(r)));
+    if (normal.length) scoped = normal;
+  }
+  return scoped.length === 1 ? scoped[0] : null;
+}
+
+// 경쟁사 상품 검사(2026-09-15) — 같은 GET_COMPETITOR_SCAN_DATA 수집을 그대로 쓰되,
+// 대상이 우리 매핑이 아니라 admin이 competitor_prices에 직접 기록해둔 (등급,두께)별
+// 가격이다. 한 링크(모음전)에 여러 두께가 옵션으로 같이 걸려있을 수 있어 entries가
+// 배열이다 — 옵션이 여러 개면 라벨에서 두께를 뽑아 유일하게 매칭될 때만 비교하고,
+// 애매하면(0개/2개 이상 매칭) 추측하지 않고 "옵션 자동 매칭 불가"로 넘긴다.
+async function inspectCompetitor(link, entries) {
+  const url = new URL(link);
+  if (url.origin !== 'https://smartstore.naver.com' || !/^\/[^/]+\/products\/\d+\/?$/.test(url.pathname)) throw Error('허용되지 않은 경쟁사 상품 주소');
+  const tab = await chrome.tabs.create({url:url.href,active:false});
+  await chrome.storage.local.set({priceCheckTab:{id:tab.id,url:url.href}});
+  try {
+    let scan;
+    for (let n=0;n<25;n++) {
+      await delay(1000);
+      try { scan = await chrome.tabs.sendMessage(tab.id,{type:'GET_COMPETITOR_SCAN_DATA'}); } catch {}
+      if (scan?.ok && scan.benefitReady && scan.detailUrl && scan.benefitUrl) break;
+    }
+    // 할인 없는 상품은 product-benefits 요청 자체가 발생하지 않을 수 있다. 수집기는 이때도
+    // 상품 상세 응답의 salePrice로 행을 만들 수 있으므로, 충분히 기다린 뒤 유효한 행이 있으면
+    // 그대로 사용한다. benefit 응답을 무조건 요구하면 정상 상품도 수집 실패가 된다.
+    if (!scan?.ok || !Array.isArray(scan.rows) || !scan.rows.length) {
+      const detail = scan?.error || scan?.reason;
+      throw Error(`페이지 판매가 확인 불가${detail ? ` (${detail})` : ''} — 로그인·차단·삭제 여부 확인 필요`);
+    }
+    const rows = scan.rows;
+    return entries.map(entry => {
+      let matched = null;
+      // rows.length===1(옵션 없음/단일가)이어도, 이 링크에 두께가 여러 개 묶여있으면(entries.length>1
+      // — 모음전으로 기록해둔 경우) 그 단일가가 "이 entry의" 가격이라고 단정할 수 없다. 실제로는
+      // 페이지가 딱 한 두께짜리 단품인데 나머지 두께들이 같은 링크로 잘못 기록됐을 수도 있어서,
+      // 링크가 정말 단품(entries 1개)일 때만 무조건 매칭하고 그 외엔 라벨에서 두께를 뽑아 확인한다
+      // (2026-09-15, 비드법 단품 링크가 여러 두께에 재사용돼 전부 "불일치"로 잘못 뜨던 문제 수정).
+      if (rows.length === 1 && entries.length === 1) matched = rows[0];
+      else {
+        const candidates = rows.filter(r => extractThicknessMm(r.label) === entry.thickness);
+        matched = narrowToOne(candidates, entry.gradeId);
+      }
+      if (!matched) return {...entry, actual:null, status:'옵션 자동 매칭 불가', diff:null};
+      if (matched.soldOut) return {...entry, actual:null, status:'품절', diff:null};
+      if (!Number.isFinite(matched.finalPrice) || matched.finalPrice <= 0) return {...entry, actual:null, status:'가격 확인 불가', diff:null};
+      const status = matched.finalPrice === entry.recordedPrice ? '일치' : '불일치';
+      return {...entry, actual:matched.finalPrice, status, diff: matched.finalPrice - entry.recordedPrice};
+    });
+  } finally { await chrome.tabs.remove(tab.id).catch(()=>{}); await chrome.storage.local.remove('priceCheckTab'); }
+}
+
 // One product per alarm; queue and fixed live snapshot survive popup/worker closure.
 async function readState(){return (await chrome.storage.local.get('priceTest')).priceTest;}
 async function arm(){await chrome.alarms.create(ALARM,{delayInMinutes:0.5});}
 
-function listEligible(item){
-  const m=item.mapping||{};
-  // ISO single products may contain 1호/특호 choices; keep detailed inspection.
-  return m.product_type!=='iso' && m.product_type!=='isopink' && !m.is_bundle && Number(m.thickness)>0 && Number(m.area)>0 && !!m.grade_id && getTablePrice(m,{})!==0;
+function listMapping(item){
+  const m={...(item.mapping||{})};
+  if(['iso','isopink'].includes(m.product_type)||[true,1,'true','1'].includes(m.is_bundle)||!(Number(m.thickness)>0)||!m.grade_id)return null;
+  if(m.product_type==='pu'){
+    if(!['ic','iiia','iia','id_in','id_out'].includes(m.grade_id))return null;
+    m.area=Number(m.area)||2;
+  }else if(m.product_type==='pf'){
+    // Old single-product mappings may store a brand prefix plus a fixed area.
+    if(!PF_GRADE_AREA[m.grade_id]){
+      const candidates=Object.keys(PF_GRADE_AREA).filter(id=>id.startsWith(m.grade_id+'_') && Math.abs(PF_GRADE_AREA[id]-Number(m.area))<1e-8);
+      if(candidates.length!==1)return null;
+      m.grade_id=candidates[0];
+    }
+    m.area=PF_GRADE_AREA[m.grade_id];
+  }else if(!(Number(m.area)>0))return null;
+  m.thickness=Number(m.thickness);return m;
 }
+function listEligible(item){return listMapping(item)!=null;}
 async function readList(url){
-  const u=new URL(url);
+  const u=new URL(url);u.searchParams.delete('cp');if(!u.searchParams.has('page'))u.searchParams.set('page','1');
   if(u.origin!=='https://smartstore.naver.com'||!/^\/(energuardcompany|hkdy)\//.test(u.pathname)||u.pathname.includes('/products/'))throw Error('목록 주소 오류');
   const tab=await chrome.tabs.create({url:u.href,active:false});
   await chrome.storage.local.set({priceCheckTab:{id:tab.id,url:u.href}});
   try{
+    let previousSignature=null;
     for(let n=0;n<15;n++){
       await delay(1000);
-      try{const data=await chrome.tabs.sendMessage(tab.id,{type:'EG_PRICE_LIST_PAGE'});if(data?.products?.length)return data;}catch{}
+      try{const data=await chrome.tabs.sendMessage(tab.id,{type:'EG_PRICE_LIST_PAGE',targetPage:Number(u.searchParams.get('page'))||1});if(data?.currentPage===(Number(u.searchParams.get('page'))||1) && data?.products?.length){const signature=data.products.map(p=>p.productId+':'+p.price).join('|');if(signature===previousSignature)return data;previousSignature=signature;}}catch{}
     }
     return {products:[],next:null};
   }finally{await chrome.tabs.remove(tab.id).catch(()=>{});await chrome.storage.local.remove('priceCheckTab');}
 }
-// 네이버 스토어 카테고리 목록의 실제 페이지 파라미터는 "cp"(current page)다 —
-// 사장님이 준 실제 카테고리 URL(?cp=1)로 확인됨. 혹시 page= 로 들어온 URL(예전에
-// /category/ALL에 직접 붙였던 것)도 계속 동작하게, URL에 이미 있는 쪽을 우선 쓰고
-// 둘 다 없으면 cp를 기본으로 한다(2026-09-11).
-function pageParamOf(u){ return u.searchParams.has('page') ? 'page' : 'cp'; }
+function pageParamOf(u){ return 'page'; }
 async function listStep(state){
   const url=state.listQueue.shift();
   if(state.listVisited.includes(url))return;
@@ -322,38 +423,23 @@ async function listStep(state){
   const hits=[],remaining=[];
   for(const item of state.items.slice(state.done)){
     const p=listed.get(String(item.productId));
-    const expected=getTablePrice(item.mapping,state.pricing);
-    // 목록에서 찾은 단품(옵션 없는 제품군)은 대표가 = 실제 판매가이므로 일치든 불일치든
-    // 여기서 바로 확정한다(상세페이지 안 들어가 시간 절약 — 테스트 중 불일치가 많아도 빠름).
-    // 옵션 붙는 아이소핑크 단품/모음전은 listEligible=false라 이 경로 안 탐. 목록에서
-    // 못 찾았거나 이름이 모음전스러우면(remaining) 상세 스캔으로 넘긴다.
-    if(p && listEligible(item) && !/모음|선택|종합/.test(p.name||'') && Number.isFinite(p.price)){
+    const mapping=listMapping(item);
+    const expected=mapping?getTablePrice(mapping,state.pricing):null;
+    // 고정 규격·두께 단품은 목록 대표가 검사로 완료한다. 옵션 전체 판정과 구분한다.
+    if(p && mapping && Number.isFinite(p.price) && p.price>0){
       hits.push(item);
-      const status=!(expected>0)?'단가 확인 불가':p.price===expected?'일치':'불일치';
+      const status=!(expected>0)?'단가 확인 불가':p.price===expected?'대표가 일치':'대표가 불일치';
       state.rows.push({productId:item.productId,label:(p.name||'단품')+' — 대표가(옵션 미검사)',actual:p.price,expected:expected>0?expected:null,diff:expected>0?p.price-expected:null,status,source:'상품 목록'});
     } else remaining.push(item);
   }
   state.items=[...state.items.slice(0,state.done),...hits,...remaining];state.done+=hits.length;
   state.listMatched=(state.listMatched||0)+hits.length;
-  // 연속으로 몇 페이지째 하나도 못 맞히면(카테고리 상품들이 이 목록에 아예 안 걸리는
-  // 경우 — 예: PF보드처럼 카드가 옵션조합 대표가라 단품 매핑과 안 맞음) 끝까지 훑어봐야
-  // 소용없다고 보고 목록을 포기한다. 안 그러면 최대 30페이지를 전부 열었다 닫으며
-  // 진행률이 하나도 안 올라가는 것처럼 보인다(2026-09-11 PF보드 카테고리에서 실사용 중 발견).
   state.listNoHitStreak = hits.length>0 ? 0 : (state.listNoHitStreak||0)+1;
-  // 다음 페이지는 카테고리 페이지의 <a> 링크(data.next)에 의존하지 않고 이 URL의
-  // 페이지 파라미터를 직접 +1 해서 만든다 — SPA 카테고리 목록은 페이지네이션이 실제
-  // <a href>가 아니라 버튼/스크립트로 되어 있는 경우가 많아 링크 탐색이 못 찾으면
-  // 1페이지(최대 80개)만 긁고 끝나버려, 카테고리 필터로 골라낸 상품들이 뒤 페이지에
-  // 몰려있으면 전부 상세 스캔으로 새는 문제가 있었다(2026-09-11).
-  const prev=new URL(url);
-  const pageKey=pageParamOf(prev);
-  const curPage=Number(prev.searchParams.get(pageKey))||1;
-  if(data.products.length>0 && curPage<30 && state.listNoHitStreak<3 && remaining.some(listEligible)){
-    const nextUrl=new URL(url);
-    nextUrl.searchParams.set(pageKey,String(curPage+1));
-    if(!state.listVisited.includes(nextUrl.href))state.listQueue.push(nextUrl.href);
-  }
+  if(data.next && remaining.some(listEligible) && !state.listVisited.includes(data.next))state.listQueue.push(data.next);
 }
+const NEXT_DELAY_MS = 1200; // 2026-09-15: 아이소핑크가 목록 검사를 못 타고 매번 상세 스캔을 도는
+// 탓에 유독 느리다는 피드백 — 상품 간 고정 대기를 3초에서 줄였다. 순차 처리(동시 탭 없음)라
+// 네이버 요청 빈도 자체는 안 늘어난다(직접 API 조회가 아니라 페이지 로딩 대기라 429와 무관).
 async function processNext(){
   if(processing)return;
   processing=true;
@@ -362,7 +448,7 @@ async function processNext(){
     if(!state || !state.running)return;
     const orphan=(await chrome.storage.local.get('priceCheckTab')).priceCheckTab;
     if(orphan){const old=await chrome.tabs.get(orphan.id).catch(()=>null);if(old?.url===orphan.url)await chrome.tabs.remove(orphan.id).catch(()=>{});await chrome.storage.local.remove('priceCheckTab');}
-    if(!state.listVisited){
+    if(state.kind!=='competitor' && !state.listVisited){
       state.listVisited=[];
       // 카테고리별 목록 URL을 지정해뒀으면(state.listUrl, pricing-check-test.js의
       // CATEGORY_LIST_URL) 전체상품(/category/ALL)에서 찾는 대신 그 URL부터 시작한다 —
@@ -377,7 +463,7 @@ async function processNext(){
         state.listQueue=stores.map(store=>'https://smartstore.naver.com/'+store+'/category/ALL?st=TOTAL&dt=BIG_IMAGE&cp=1&size=80');
       }
     }
-    if(state.listQueue.length){
+    if(state.listQueue?.length){
       await arm();
       await listStep(state);
       const latest=await readState();
@@ -385,24 +471,30 @@ async function processNext(){
       state.running=latest.running;state.reason=latest.reason;state.phase='목록 수집';
       if(state.done>=state.total){state.running=false;state.finishedAt=Date.now();state.reason='완료';}
       await save(state);
-      if(state.running){await arm();setTimeout(processNext,3000);}else await chrome.alarms.clear(ALARM);
+      if(state.running){await arm();setTimeout(processNext,NEXT_DELAY_MS);}else await chrome.alarms.clear(ALARM);
       return;
     }
-    state.phase='옵션 상세 검사';
+    state.phase = state.kind==='competitor' ? '경쟁사 상품 스캔' : (listEligible(state.items[state.done]||{})?'단품 목록 누락 확인':'옵션별 상세 검사');
     const item=state.items[state.done];
     if(!item){state.running=false;state.finishedAt=Date.now();await save(state);return;}
-    state.currentProduct=item.productId;await save(state);
+    state.currentProduct = state.kind==='competitor' ? item.link : item.productId;await save(state);
     // Watchdog also recovers a worker interrupted during this product.
     await arm();
     let rows,failed=false;
-    try{rows=await inspect(item,state.pricing);}catch(error){failed=true;rows=[{productId:item.productId,status:'수집 실패',label:error.message}];}
+    try{
+      if (state.kind==='competitor') rows=await inspectCompetitor(item.link,item.entries);
+      else rows=listEligible(item)?[{productId:item.productId,status:'목록 수집 누락',label:'단품 매핑 — 목록에서 가격을 찾지 못했습니다.',source:'상품 목록'}]:await inspect(item,state.pricing);
+    }catch(error){
+      failed=true;
+      rows = state.kind==='competitor' ? item.entries.map(e=>({...e,actual:null,diff:null,status:'수집 실패',errorMsg:error.message})) : [{productId:item.productId,status:'수집 실패',label:error.message}];
+    }
     const latest=await readState();
     if(latest?.runId!==state.runId)return;
     state=latest;state.rows.push(...rows);state.done++;state.currentProduct=null;state.updatedAt=Date.now();
     if(failed){state.running=false;state.reason='수집 실패로 일시정지';}
     if(state.done>=state.total){state.running=false;state.finishedAt=Date.now();state.reason=failed?'검사 종료 — 수집 실패 포함':'완료';}
     await save(state);
-    if(state.running){await arm();setTimeout(processNext,3000);}else await chrome.alarms.clear(ALARM);
+    if(state.running){await arm();setTimeout(processNext,NEXT_DELAY_MS);}else await chrome.alarms.clear(ALARM);
   }catch(error){const state=await readState();if(state){state.running=false;state.reason='실행 오류: '+error.message;await save(state);}await chrome.alarms.clear(ALARM);}
   finally{processing=false;}
 }
@@ -416,7 +508,7 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
   const host=new URL(sender.url||'https://invalid').hostname;
   if(!['localhost','127.0.0.1','enorangekid.github.io'].includes(host))return;
   (async()=>{
-    if(message.action==='ping')return {ok:true,version:'0.29.5'};
+    if(message.action==='ping')return {ok:true,version:chrome.runtime.getManifest().version};
     if(message.action==='status'){
       const s=await readState();
       if(!s)return {ok:true,state:null};
@@ -438,6 +530,16 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
       if(message.action!=='start')throw Error('지원하지 않는 요청');
       if(processing || state?.running)throw Error('검사가 이미 실행 중입니다.');
       const p=message.payload;
+      if(p?.kind==='competitor'){
+        if(!Array.isArray(p.items) || !p.items.length)throw Error('검사할 경쟁사 링크가 없습니다.');
+        for(const it of p.items){
+          const u=new URL(String(it.link||''));
+          if(u.origin!=='https://smartstore.naver.com'||!/^\/[^/]+\/products\/\d+\/?$/.test(u.pathname))throw Error('허용되지 않은 경쟁사 상품 주소');
+          if(!Array.isArray(it.entries)||!it.entries.length)throw Error('검사 데이터 오류');
+        }
+        state={runId:crypto.randomUUID(),kind:'competitor',running:true,startedAt:Date.now(),done:0,total:p.items.length,rows:[],items:p.items};
+        await save(state);await arm();processNext();return {ok:true};
+      }
       if(!p?.pricing?.id || p.pricing.is_live!==true || !Array.isArray(p.items) || !p.items.length || p.items.some(i=>!/^\d+$/.test(String(i.productId)) || !i.mapping))throw Error('검사 데이터 오류');
       if(new Set(p.items.map(i=>String(i.productId))).size!==p.items.length)throw Error('중복 상품번호');
       let listUrl=null;
@@ -446,7 +548,7 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
         if(u.origin!=='https://smartstore.naver.com'||!/^\/(energuardcompany|hkdy)\//.test(u.pathname)||u.pathname.includes('/products/'))throw Error('카테고리 목록 URL이 올바르지 않습니다.');
         listUrl=u.href;
       }
-      state={runId:crypto.randomUUID(),running:true,startedAt:Date.now(),liveId:p.pricing.id,done:0,total:p.items.length,rows:[],items:p.items,pricing:p.pricing,listUrl};
+      state={runId:crypto.randomUUID(),kind:'own',running:true,startedAt:Date.now(),liveId:p.pricing.id,done:0,total:p.items.length,rows:[],items:p.items,pricing:p.pricing,listUrl};
       await save(state);await arm();processNext();return {ok:true};
     }finally{commandBusy=false;}
   })().then(respond).catch(error=>respond({ok:false,error:error.message}));return true;

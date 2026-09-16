@@ -23,18 +23,33 @@ function scrapeProducts() {
     if (!match) return;
     const productId = match[1];
     if (seen.has(productId)) return;
-    seen.add(productId);
+
 
     const card = link.closest('li, article, div[class*="item"]') || link.parentElement;
     const name = extractName(link, card);
-    const price = extractPrice(card || link);
+    const price = extractListPrice(link, productId) ?? extractPrice(card || link);
     if (!price) return;
 
+    seen.add(productId);
     products.push({ productId, name, price });
   });
 
   if (products.length === 0) return scrapeByText();
   return products;
+}
+
+// Naver's listing embeds the displayed price with its channel product ID.
+// Use the ID from the product URL, never the different origin productNo.
+function extractListPrice(link, productId) {
+  if (link.getAttribute('data-shp-contents-id') !== String(productId)) return null;
+  try {
+    const fields = JSON.parse(link.getAttribute('data-shp-contents-dtl') || 'null');
+    if (!Array.isArray(fields)) return null;
+    const prices = fields.filter(f => f.key === 'price');
+    if (prices.length !== 1) return null;
+    const price = Number(prices[0].value);
+    return Number.isSafeInteger(price) && price > 0 ? price : null;
+  } catch { return null; }
 }
 
 function extractName(link, card) {
@@ -45,20 +60,27 @@ function extractName(link, card) {
   return link.textContent?.trim() || '';
 }
 
+// Never concatenate discount %, original price and selling price into one number.
+function parsePriceText(text) {
+  const clean=String(text||'').replace(/\s+/g,' ').trim();
+  const match=clean.match(/^(?:(?:판매가|할인가|판매가격|할인판매가)\s*)?([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+)\s*원?$/);
+  if(!match)return null;
+  const value=Number(match[1].replace(/,/g,''));
+  return Number.isSafeInteger(value)&&value>0?value:null;
+}
 function extractPrice(container) {
-  if (!container) return null;
-  const priceEl = container.querySelector('[class*="price"]:not([class*="original"]):not([class*="before"]):not([class*="del"])');
-  if (priceEl) {
-    const p = parseInt(priceEl.textContent.replace(/[^\d]/g, ''));
-    if (p > 500) return p;
+  const excluded='del,s,[class*="original"],[class*="before"],[class*="origin_price"],[class*="discount_rate"],[class*="delivery"],[class*="shipping"],[class*="point"]';
+  const roots=[...container.querySelectorAll('[class*="price"],[itemprop="price"]')].filter(el=>!el.closest(excluded));
+  const values=new Set();
+  for(const root of roots){
+    for(const el of [root,...root.querySelectorAll('strong,span,em,b')]){
+      if(el.closest(excluded))continue;
+      const value=parsePriceText(el.getAttribute('itemprop')==='price' ? el.getAttribute('content')||el.textContent : el.textContent);
+      if(value!=null)values.add(value);
+    }
   }
-  const text = container.innerText || container.textContent || '';
-  const matches = [...text.matchAll(/(\d[\d,]+)원/g)];
-  if (matches.length > 0) {
-    const prices = matches.map(m => parseInt(m[1].replace(/,/g, ''))).filter(p => p >= 1000 && p <= 9999999);
-    if (prices.length > 0) return Math.min(...prices);
-  }
-  return null;
+  // Multiple amounts are ambiguous; detailed inspection will handle the product.
+  return values.size===1?[...values][0]:null;
 }
 
 function scrapeByText() {
