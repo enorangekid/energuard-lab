@@ -1363,9 +1363,19 @@ function canonicalProductCode(row, masterMaps) {
   return findProductMaster(row, masterMaps)?.code || row.product_code;
 }
 
+// 네이버가 가격비교 카탈로그로 묶어서 엉뚱한 대표사진을 돌려준 적이 확인된 이미지 URL.
+// usableProductImage가 "정상 수집 이미지"로 오인해 마스터의 올바른 사진을 계속 덮어썼다
+// (587600188 "USB형 열선커터기..." 상품이 손잡이만 나온 카탈로그 사진으로 잘못 표시된 사고).
+const KNOWN_BAD_PRODUCT_IMAGES = new Set([
+  "https://shopping-phinf.pstatic.net/main_1074780/10747805813.11.jpg",
+]);
+
 function usableProductImage(value) {
   const url = String(value || "").trim();
-  return url && !/search\.shopping\.naver\.com\/search\//i.test(url) ? url : "";
+  if (!url) return "";
+  if (/search\.shopping\.naver\.com\/search\//i.test(url)) return "";
+  if (KNOWN_BAD_PRODUCT_IMAGES.has(url.split("?")[0])) return "";
+  return url;
 }
 
 function buildProducts(rows, masterMaps, collectedKeywords, todaysMaxRankByKeyword) {
