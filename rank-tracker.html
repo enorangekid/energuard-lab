@@ -1380,20 +1380,25 @@ function usableProductImage(value) {
 
 function buildProducts(rows, masterMaps, collectedKeywords, todaysMaxRankByKeyword) {
   const latestDate = rows[0]?.collected_date || rows[0]?.checked_at?.slice(0, 10) || "";
-  const latestRows = rows.filter(r => rankDate(r) === latestDate && r.rank != null && r.product_code);
+  // 수집기는 검색 범위에서 사라진 기존 상품도 rank:null로 저장한다. 이 행을 제외하면
+  // 가격비교 카탈로그 결합/해제처럼 노출 식별자가 바뀐 상품은 "이탈"로 남지 않고 카드
+  // 자체가 사라진다. 빈 플레이스홀더(product_code="")만 제외하고 최신 null 행도 표시한다.
+  const latestRows = rows.filter(r => rankDate(r) === latestDate && r.product_code);
   const previousByProductKeyword = new Map();
   const historyByProductKeyword = new Map();
   const latestRowByCode = new Map(); // 코드별 가장 최근 행(오늘 데이터가 없으면 과거 중 최신) — 완전 이탈 상품의 카드 기본정보용
 
   rows.forEach(row => {
-    if (row.product_code && row.rank != null) {
+    if (row.product_code) {
       const code = canonicalProductCode(row, masterMaps);
-      const historyKey = code + "|" + row.keyword;
-      if (!historyByProductKeyword.has(historyKey)) historyByProductKeyword.set(historyKey, new Map());
-      const dateMap = historyByProductKeyword.get(historyKey);
-      const date = rankDate(row);
-      if (date && !dateMap.has(date)) dateMap.set(date, Number(row.rank));
       if (!latestRowByCode.has(code)) latestRowByCode.set(code, row); // rows는 최신순 정렬이라 첫 등장이 최신
+      if (row.rank != null) {
+        const historyKey = code + "|" + row.keyword;
+        if (!historyByProductKeyword.has(historyKey)) historyByProductKeyword.set(historyKey, new Map());
+        const dateMap = historyByProductKeyword.get(historyKey);
+        const date = rankDate(row);
+        if (date && !dateMap.has(date)) dateMap.set(date, Number(row.rank));
+      }
     }
     if (!row.product_code || row.rank == null || rankDate(row) === latestDate) return;
     const key = canonicalProductCode(row, masterMaps) + "|" + row.keyword;
