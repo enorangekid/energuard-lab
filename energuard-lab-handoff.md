@@ -19,7 +19,7 @@
 | 키워드분석 | `naver-rank.html` | `naver-rank` 함수 |
 | 블로그분석 | `blog-rank.html` | 블로그 노출진단/포스팅순위, **네이버 API 이슈로 순위 스캔 중단** |
 | 매출분석 | `sales-analysis.html` | 스토어분석/광고분석 탭, 월별 바로가기(연도+12개월 카드) 컴포넌트의 원조 |
-| 아이템발굴 | `item-discovery.html` | 실시간/구글/단열뉴스/단열급상승 4탭, `content_ideas` 테이블 |
+| 아이템발굴 | `item-discovery.html` | 실시간 통합(시그널·네이트·구글)/단열뉴스/단열급상승 3탭, `content_ideas` 테이블 |
 | 유틸리티 | `utility.html` + `utility/calc/*.html` | 단열재 등 실무 계산기 모음 |
 
 주요 Edge Functions: `naver-rank`, `blog-rank`, `shopping-trend`, `naver-ad-report`, `item-draft-openai`, `gemini-chat`.

@@ -164,7 +164,7 @@ alter table public.naver_visit_daily enable row level security;
 
 -- ─────────────────────────────────────────────────────────────
 -- 아이템발굴: 실시간 급상승 키워드 스냅샷 (shopping-trend 함수가 시간대별 저장)
--- list_type: realtime(시그널+네이트 통합) / google(구글 급상승)
+-- list_type: realtime(시그널+네이트+구글 통합) / google(통합 전 과거 호환 데이터)
 -- ─────────────────────────────────────────────────────────────
 create table if not exists public.realtime_trend_snapshot (
   slot text not null,          -- "2026-07-09 10:00" (KST 시간 단위)

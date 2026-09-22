@@ -95,9 +95,7 @@ async function fetchRank(cid: string, start: string, end: string, unit: string, 
   return ranks; // 빈 배열 = 해당 날짜 집계 전 (호출부에서 날짜 이동 재시도)
 }
 
-/* ───────── 실시간 급상승 키워드 — 실시간통합(시그널+네이트, 옛 네이버 인기 검색어 대체)과
-   구글급상승(구글 트렌드 단독, 관련 기사 링크 포함)을 따로 수집한다(2026-09-07부터 분리).
-   전엔 구글까지 실시간통합에 합쳐서 두 탭이 사실상 같은 걸 보여줬다. ───────── */
+/* ───────── 실시간 급상승 키워드 — 시그널·네이트·구글 트렌드를 하나의 종합 순위로 수집한다. ───────── */
 
 const SNAPSHOT_TABLE = "realtime_trend_snapshot";
 const TREND_ARCHIVE_TABLE = "realtime_trend_archive";
@@ -297,22 +295,21 @@ function tokenOverlapRatio(a: Set<string>, b: Set<string>) {
 }
 
 // 여러 소스의 순위·중복 노출·구글 검색량을 함께 반영한 실시간 종합 순위
-function mergeRealtime(lists: { name: string; items: Array<{ rank: number; keyword: string; trafficValue?: number }> }[]) {
-  const map = new Map<string, { keyword: string; score: number; best: number; sources: string[]; trafficValue: number; tokens: Set<string> }>();
+function mergeRealtime(lists: { name: string; items: Array<{ rank: number; keyword: string; trafficValue?: number; link?: string }> }[]) {
+  const map = new Map<string, { keyword: string; score: number; best: number; sources: string[]; trafficValue: number; tokens: Set<string>; link: string }>();
   lists.forEach(({ name, items }) => {
     items.forEach(item => {
       const keyword = String(item.keyword || "").trim();
       if (!keyword || isSportsFixturePattern(keyword) || isForeignScriptNoise(keyword)) return;
       const key = normalizeMergeKey(keyword);
       if (!key) return;
-      if (!map.has(key)) map.set(key, { keyword, score: 0, best: 99, sources: [], trafficValue: 0, tokens: keywordTokens(keyword) });
+      if (!map.has(key)) map.set(key, { keyword, score: 0, best: 99, sources: [], trafficValue: 0, tokens: keywordTokens(keyword), link: "" });
       const acc = map.get(key)!;
-      // 구글은 더 이상 여기 안 들어온다(실시간통합=시그널+네이트 전용, 구글은 구글급상승 전용) —
-      // 시그널을 살짝 더 쳐주는 것만 남긴다.
       const sourceWeight = name === "시그널" ? 1.05 : 1;
       acc.score += Math.max(21 - item.rank, 1) * sourceWeight;
       acc.best = Math.min(acc.best, item.rank);
       acc.trafficValue = Math.max(acc.trafficValue, Number(item.trafficValue || 0));
+      if (!acc.link && item.link) acc.link = item.link;
       if (!acc.sources.includes(name)) acc.sources.push(name);
     });
   });
@@ -332,6 +329,7 @@ function mergeRealtime(lists: { name: string; items: Array<{ rank: number; keywo
         item.score += other.score;
         item.best = Math.min(item.best, other.best);
         item.trafficValue = Math.max(item.trafficValue, other.trafficValue);
+        if (!item.link && other.link) item.link = other.link;
         other.sources.forEach(source => { if (!item.sources.includes(source)) item.sources.push(source); });
         used.add(j);
       }
@@ -347,7 +345,7 @@ function mergeRealtime(lists: { name: string; items: Array<{ rank: number; keywo
     }))
     .sort((a, b) => b.score - a.score || b.sources.length - a.sources.length || a.best - b.best)
     .slice(0, 20)
-    .map((item, i) => ({ rank: i + 1, keyword: item.keyword, sources: item.sources }));
+    .map((item, i) => ({ rank: i + 1, keyword: item.keyword, sources: item.sources, link: item.link }));
 }
 
 function kstSlot() {
@@ -870,8 +868,8 @@ function parseStoredSources(value: string) {
 }
 
 function fillFromPrevious(
-  items: Array<{ rank: number; keyword: string; sources: string[] }>,
-  previous: Array<{ rank: number; keyword: string; sources: string }>,
+  items: Array<{ rank: number; keyword: string; sources: string[]; link?: string }>,
+  previous: Array<{ rank: number; keyword: string; sources: string; link_url?: string }>,
   limit = 20,
 ) {
   const result = [...items];
@@ -881,7 +879,12 @@ function fillFromPrevious(
     const key = row.keyword.replace(/[^0-9a-z가-힣]/gi, "").toLowerCase();
     if (!key || used.has(key)) continue;
     used.add(key);
-    result.push({ rank: result.length + 1, keyword: row.keyword, sources: [...parseStoredSources(row.sources), "직전 자료"] });
+    result.push({
+      rank: result.length + 1,
+      keyword: row.keyword,
+      sources: [...parseStoredSources(row.sources), "직전 자료"],
+      link: row.link_url || "",
+    });
   }
   return result.map((item, index) => ({ ...item, rank: index + 1 }));
 }
@@ -907,56 +910,37 @@ async function collectRealtime() {
   const nate = results[1].status === "fulfilled" ? results[1].value : [];
   const google = results[2].status === "fulfilled" ? results[2].value : [];
   const failed = ["시그널", "네이트", "구글"].filter((_, i) => results[i].status === "rejected");
-  if (!signal.length && !nate.length) throw new Error("실시간 소스 모두 실패: " + failed.join(", "));
+  if (!signal.length && !nate.length && !google.length) throw new Error("실시간 소스 모두 실패: " + failed.join(", "));
 
   const slot = kstSlot();
   const slotsBefore = await readSlots().catch(() => [] as string[]);
   const previousSlot = slotsBefore.find(item => item < slot) || "";
-  // 구글을 실시간통합에서 뺀 직후엔, 직전 슬롯이 구글 포함 시절에 저장된 자료라 fillFromPrevious가
-  // 그 구글 항목을 다시 채워 넣어 "여전히 구글이 남아있다"는 문제가 생긴다 — 그런 행은 폐기한다.
   const previousRealtime = previousSlot
-    ? (await readSnapshot(previousSlot, "realtime").catch(() => []))
-      .filter(row => !parseStoredSources(row.sources).includes("구글"))
+    ? await readSnapshot(previousSlot, "realtime").catch(() => [])
     : [];
 
-  // 실시간통합은 구글을 뺀다(2026-09-07, 사용자 지정) — 구글급상승 탭이 따로 있는데 구글을
-  // 종합 순위에도 최고 가중치로 넣으니 두 탭이 사실상 같은 걸 보여줬다. 실시간통합은 옛 "네이버
-  // 인기 검색어"처럼 국내 포털(시그널·네이트) 기준 화제만, 구글은 구글급상승 전용으로 분리한다.
-  const mergedBase = mergeRealtime([
-    { name: "시그널", items: signal },
-    { name: "네이트", items: nate },
-  ]);
-  const merged = fillFromPrevious(mergedBase, previousRealtime);
-  // 구글급상승도 실시간통합과 같은 기준으로 거른다 — 경기 스코어성 대진표("A 대 B"/"A vs B")와
-  // 외국어 노이즈. 실측해보니 관측된 다국어 중복(같은 경기가 한글·영어·태국어로 각각 잡힘)이
-  // 전부 이 대진표 패턴이었어서, 이 필터 하나로 두 문제가 같이 정리된다.
-  const googleList = google
+  const googleItems = google
     .filter(item => !isSportsFixturePattern(item.keyword) && !isForeignScriptNoise(item.keyword))
-    .map((item, i) => ({
-      rank: i + 1,
+    .map(item => ({
+      rank: item.rank,
       keyword: item.keyword,
-      sources: [
-        "구글",
-        item.trafficLabel ? `검색 ${item.trafficLabel}` : "",
-        relativeAge(item.publishedAt),
-        item.newsCount ? `관련 뉴스 ${item.newsCount}건` : "",
-        item.newsSource ? `대표 ${item.newsSource}` : "",
-      ].filter(Boolean),
-      // 실시간통합(종합 순위)과 차별화 — 이 화제가 왜 떴는지 실제 기사로 바로 갈 수 있게
-      // newsUrl을 같이 내려준다(전엔 가져와놓고 화면에 안 넘기고 버렸음). renderTrendRows가
-      // 이미 item.link를 클릭 이동 URL/발굴 카드 원문 링크로 쓰고 있어서 그 필드명에 맞춘다.
+      trafficValue: item.trafficValue,
       link: item.newsUrl || "",
     }));
 
+  const mergedBase = mergeRealtime([
+    { name: "시그널", items: signal },
+    { name: "네이트", items: nate },
+    { name: "구글", items: googleItems },
+  ]);
+  const merged = fillFromPrevious(mergedBase, previousRealtime);
+
   // 스냅샷 저장 + 직전 슬롯과 비교해 변동 계산
   let realtimeOut = merged.map(item => ({ ...item, change: "same", delta: null as number | null }));
-  let googleOut = googleList.map(item => ({ ...item, change: "same", delta: null as number | null }));
   let slots: string[] = [];
   try {
     await saveSnapshot(slot, "realtime", merged);
     await saveTrendArchive(slot, "realtime", merged);
-    if (googleList.length) await saveSnapshot(slot, "google", googleList);
-    if (googleList.length) await saveTrendArchive(slot, "google", googleList);
     await cleanupRealtimeSnapshots();
     const ideaPool = contentIdeaPool(merged, google);
     const semanticIdeas = await selectSemanticIdeas(ideaPool).catch(() => fallbackSemanticIdeas(ideaPool));
@@ -965,7 +949,6 @@ async function collectRealtime() {
     const prevSlot = slots.find(s => s < slot);
     if (prevSlot) {
       realtimeOut = withDelta(merged, await readSnapshot(prevSlot, "realtime"));
-      googleOut = withDelta(googleList, await readSnapshot(prevSlot, "google"));
     }
   } catch (_) { /* 스냅샷 실패 시 변동 없이 현재 순위만 반환 */ }
 
@@ -974,36 +957,99 @@ async function collectRealtime() {
     slots,
     capturedAt: new Date().toISOString(),
     realtime: realtimeOut,
-    google: googleOut,
     sourceNote: failed.length ? `${failed.join("·")} 소스 응답 없음` : "",
   };
+}
+
+type StoredTrendRow = {
+  id?: string;
+  slot?: string;
+  rank: number;
+  keyword: string;
+  sources: string;
+  link_url?: string;
+  captured_at?: string;
+};
+
+// 구글 전용 탭으로 저장했던 과거 행도 실시간 통합 기록과 함께 보여준다. 같은 시점의 같은
+// 키워드는 한 행으로 합치고, 여러 수집처에 동시에 오른 이슈를 우선 배치한다.
+function combineStoredTrendRows(realtimeRows: StoredTrendRow[], googleRows: StoredTrendRow[]) {
+  type CombinedStoredTrend = {
+    id?: string;
+    slot: string;
+    keyword: string;
+    score: number;
+    best: number;
+    sources: string[];
+    link: string;
+    capturedAt?: string;
+  };
+  const map = new Map<string, CombinedStoredTrend>();
+  [...realtimeRows, ...googleRows].forEach(row => {
+    const keyword = String(row.keyword || "").trim();
+    const normalized = normalizeMergeKey(keyword);
+    const key = `${row.slot || ""}|${normalized}`;
+    if (!keyword || !normalized) return;
+    if (!map.has(key)) {
+      map.set(key, {
+        id: row.id,
+        slot: row.slot || "",
+        keyword,
+        score: 0,
+        best: 99,
+        sources: [],
+        link: row.link_url || "",
+        capturedAt: row.captured_at,
+      });
+    }
+    const item = map.get(key)!;
+    const rowSources = parseStoredSources(row.sources);
+    item.score += Math.max(21 - Number(row.rank || 99), 1);
+    item.best = Math.min(item.best, Number(row.rank || 99));
+    rowSources.forEach(source => { if (!item.sources.includes(source)) item.sources.push(source); });
+    if (!item.link && row.link_url) item.link = row.link_url;
+  });
+
+  const groups = new Map<string, CombinedStoredTrend[]>();
+  map.forEach(item => {
+    if (!groups.has(item.slot)) groups.set(item.slot, []);
+    groups.get(item.slot)!.push(item);
+  });
+  return [...groups.entries()]
+    .sort(([a], [b]) => b.localeCompare(a))
+    .flatMap(([, rows]) => rows
+      .sort((a, b) => {
+        const sourceCount = (sources: string[]) => ["시그널", "네이트", "구글"].filter(source => sources.includes(source)).length;
+        const aScore = a.score + Math.max(0, sourceCount(a.sources) - 1) * 18;
+        const bScore = b.score + Math.max(0, sourceCount(b.sources) - 1) * 18;
+        return bScore - aScore || a.best - b.best;
+      })
+      .map((item, index) => ({
+        id: item.id,
+        rank: index + 1,
+        originalRank: item.best,
+        keyword: item.keyword,
+        sources: item.sources,
+        link: item.link,
+        slot: item.slot,
+        capturedAt: item.capturedAt,
+        change: "same",
+        delta: null,
+      })))
+    .map((item, index) => ({ ...item, rank: index + 1 }));
 }
 
 async function handleRealtime() {
   const slots = await readSlots();
   const slot = slots[0] || "";
-  const mapArchiveRows = (rows: Array<{ id: string; slot: string; rank: number; keyword: string; sources: string; link_url?: string; captured_at?: string }>) =>
-    rows.map((row, index) => ({
-      id: row.id,
-      rank: index + 1,
-      originalRank: row.rank,
-      keyword: row.keyword,
-      sources: parseStoredSources(row.sources),
-      link: row.link_url || "",
-      slot: row.slot,
-      capturedAt: row.captured_at,
-      change: "same",
-      delta: null,
-    }));
   const realtimeRows = await readTrendArchive("realtime").catch(() => []);
   const googleRows = await readTrendArchive("google").catch(() => []);
-  if (!slot && !realtimeRows.length && !googleRows.length) return { slot: "", slots: [], capturedAt: null, realtime: [], google: [], sourceNote: "저장된 실시간 자료 없음" };
+  if (!slot && !realtimeRows.length && !googleRows.length) return { slot: "", slots: [], capturedAt: null, realtime: [], sourceNote: "저장된 실시간 자료 없음" };
   return {
     slot,
     slots,
     capturedAt: realtimeRows[0]?.captured_at || googleRows[0]?.captured_at || null,
-    realtime: mapArchiveRows(realtimeRows),
-    google: mapArchiveRows(googleRows),
+    realtime: combineStoredTrendRows(realtimeRows, googleRows),
     sourceNote: "누적 저장 데이터",
     archive: true,
   };
@@ -1016,14 +1062,21 @@ async function handleRealtimeAt(slotRaw: string) {
   const prevSlot = slots.find(s => s < slot);
   const realtimeRows = await readSnapshot(slot, "realtime");
   const googleRows = await readSnapshot(slot, "google");
-  const mapRows = (rows: Array<{ rank: number; keyword: string; sources: string; link_url?: string }>) =>
-    rows.map(row => ({ rank: row.rank, keyword: row.keyword, sources: parseStoredSources(row.sources), link: row.link_url || "" }));
+  const currentRows = combineStoredTrendRows(
+    realtimeRows.map(row => ({ ...row, slot })),
+    googleRows.map(row => ({ ...row, slot })),
+  );
+  const previousRows = prevSlot
+    ? combineStoredTrendRows(
+      (await readSnapshot(prevSlot, "realtime")).map(row => ({ ...row, slot: prevSlot })),
+      (await readSnapshot(prevSlot, "google")).map(row => ({ ...row, slot: prevSlot })),
+    )
+    : [];
   return {
     slot,
     slots,
     capturedAt: realtimeRows[0]?.captured_at || googleRows[0]?.captured_at || null,
-    realtime: withDelta(mapRows(realtimeRows), prevSlot ? await readSnapshot(prevSlot, "realtime") : []),
-    google: withDelta(mapRows(googleRows), prevSlot ? await readSnapshot(prevSlot, "google") : []),
+    realtime: withDelta(currentRows, previousRows),
     sourceNote: "",
   };
 }

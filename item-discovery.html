@@ -390,7 +390,6 @@
       </div>
       <div class="trend-tabs" id="trendTabs">
         <button type="button" class="trend-tab active" data-list="realtime">실시간 통합</button>
-        <button type="button" class="trend-tab" data-list="google">구글 급상승</button>
         <button type="button" class="trend-tab" data-list="niche">단열 뉴스</button>
         <button type="button" class="trend-tab" data-list="spike">단열 급상승</button>
       </div>
@@ -1055,18 +1054,15 @@ function renderRealtimeTrend() {
   chipsEl.innerHTML = fixedSlotChips(slots);
   const items = trendData[activeTrendList] || [];
   listEl.innerHTML = renderTrendRows(items);
-  // 구글급상승은 실시간통합(여러 소스 종합 순위)과 달리 관련 기사 링크를 갖고 있어서,
-  // 키워드를 누르면 그 화제가 왜 떴는지 원문 기사로 바로 이동한다 — 그 차이를 안내한다.
-  const googleHint = activeTrendList === "google" ? " · 키워드 클릭 시 관련 기사가 열립니다" : "";
   if (activeSlot) {
-    document.getElementById("trendMeta").textContent = slotLabel(activeSlot) + " 시점 순위" + googleHint;
+    document.getElementById("trendMeta").textContent = slotLabel(activeSlot) + " 시점 순위";
   } else if (trendData.capturedAt) {
     const t = new Date(trendData.capturedAt);
-    document.getElementById("trendMeta").textContent = `${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")} 기준${trendData.sourceNote ? ` · ${trendData.sourceNote}` : ""}${googleHint}`;
+    document.getElementById("trendMeta").textContent = `${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")} 기준${trendData.sourceNote ? ` · ${trendData.sourceNote}` : ""}`;
   }
 }
-// "단열 뉴스"/"단열 급상승"과 같은 문제 — 실시간통합/구글급상승도 새로고침을 눌러도 저장된
-// 스냅샷만 다시 읽어서 실제로는 새로 안 가져왔다. 여기서도 collectRealtime(시그널·네이트·구글
+// "단열 뉴스"/"단열 급상승"과 같은 문제 — 실시간 통합도 새로고침을 눌러도 저장된
+// 스냅샷만 다시 읽어서 실제로는 새로 안 가져왔다. collectRealtime(시그널·네이트·구글
 // 트렌드 재수집)을 먼저 돌리고 나서 다시 읽어오도록 바꾼다(2026-09-07).
 let realtimeCollecting = false;
 async function collectRealtimeNow() {
