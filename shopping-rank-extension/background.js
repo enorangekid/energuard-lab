@@ -1774,13 +1774,26 @@ async function runNplusStoreCollection(config) {
   }
 }
 
+// 한 번의 DELETE로 지우면 authenticated 롤의 statement_timeout(8초)에 걸린다 — 스토어 하나만
+// 해도 하루치가 19,000행 안팎이라, 수집을 며칠 쉬어서 정리 안 된 날짜가 쌓이면(2026-09-28 실측,
+// 이틀치 47,476행) 8초 안에 못 끝내고 57014로 실패했다. cleanup_old_shopping_search_snapshots
+// RPC(supabase/sql/cleanup_shopping_search_snapshots_batched.sql)가 5,000행씩 끊어 지우므로,
+// 반환된 삭제 행 수가 0이 될 때까지 반복 호출한다.
 async function cleanupOldSnapshots(retentionDays = 8) {
   const cutoff = kstDateDaysAgo(retentionDays);
-  const response = await fetch(
-    `${SUPABASE_URL}/rest/v1/shopping_search_snapshots?collected_date=lt.${encodeURIComponent(cutoff)}`,
-    { method: "DELETE", headers: sbHeaders() }
-  );
-  if (!response.ok) throw new Error(`오래된 검색 스냅샷 정리 실패: ${await response.text()}`);
+  for (;;) {
+    const response = await fetch(
+      `${SUPABASE_URL}/rest/v1/rpc/cleanup_old_shopping_search_snapshots`,
+      {
+        method: "POST",
+        headers: sbHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ cutoff_date: cutoff, batch_size: 5000 }),
+      }
+    );
+    if (!response.ok) throw new Error(`오래된 검색 스냅샷 정리 실패: ${await response.text()}`);
+    const deleted = await response.json();
+    if (!deleted) break;
+  }
 }
 
 function normalizePageProducts(products, pageIndex) {
