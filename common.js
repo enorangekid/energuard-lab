@@ -960,7 +960,7 @@ async function generateAiInquiryAnswer() {
   copyBtn.hidden = true;
 
   try {
-    const { ok, data } = await fetchAiInquiry(inquiry, { store: activeInquiryStore, mode: "detail" });
+    const { ok, data } = await fetchAiInquiry(inquiry, { store: activeInquiryStore, mode: "simple" });
     if (reqId !== aiInquiryReqId) return; // 응답 도착 전에 문의 내용이 더 바뀌어 새 요청이 이미 시작됨
     if (!ok || data.error) throw new Error(data.error || "서버 오류");
     result.dataset.answer = data.answer || "";
