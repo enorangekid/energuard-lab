@@ -127,6 +127,34 @@ const AI_SUPABASE_ANON_KEY = typeof SUPABASE_ANON_KEY !== "undefined"
 const AI_CHAT_URL = AI_SUPABASE_URL + "/functions/v1/gemini-chat";
 const AI_CHAT_HISTORY_LIMIT = 12;
 let aiWorkChatHistory = [];
+
+// 구글 검색 그라운딩이 얹히면 응답이 오래 걸리거나 서버가 멈춘 것처럼 안 끝날 때가 있었다
+// (2026-09-28, 맞춤법 검사가 "검사 중"에서 무한정 멈춤). 서버 쪽은 useSearch:false일 때 검색을
+// 아예 끄도록 고쳤고(맞춤법/번역/계산 의도 판별처럼 실시간 정보가 필요 없는 작업에 사용), 여기서는
+// 그와 별개로 어떤 경우든 일정 시간 지나면 반드시 에러로 끝나도록 타임아웃을 건다.
+// AbortController만으로는 부족하다 — auth-guard.js가 fetch를 가로채 로그인 세션 갱신을
+// 먼저 기다리는데, 그 단계에서 멈추면 signal이 아직 실제 네트워크 요청에 붙지도 않은
+// 상태라 abort가 의미가 없다. Promise.race로 감싸서 그 경우에도 무조건 시간 내에 끝낸다.
+async function fetchAiChat(chatHistory, { useSearch, timeoutMs = 25000 } = {}) {
+  const controller = new AbortController();
+  const request = fetch(AI_CHAT_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + AI_SUPABASE_ANON_KEY,
+      "apikey": AI_SUPABASE_ANON_KEY,
+    },
+    body: JSON.stringify({ chatHistory, useSearch }),
+    signal: controller.signal,
+  }).then((res) => res.json().then((data) => ({ ok: res.ok, data })));
+  const timeout = new Promise((_, reject) => {
+    setTimeout(() => {
+      controller.abort();
+      reject(new Error("응답이 너무 오래 걸려 중단했습니다. 잠시 후 다시 시도해 주세요."));
+    }, timeoutMs);
+  });
+  return Promise.race([request, timeout]);
+}
 // AI 답변 아바타 — 글자 "AI" 대신 로봇 얼굴 아이콘으로 AI다운 느낌을 준다.
 const AI_AVATAR_ICON = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8V4H8"></path><rect width="16" height="12" x="4" y="8" rx="2"></rect><path d="M2 14h2"></path><path d="M20 14h2"></path><path d="M15 13v2"></path><path d="M9 13v2"></path></svg>`;
 // FAB 버튼 아이콘 — 패널이 닫혀 있을 땐 채팅 말풍선, 열려 있을 땐 종료(X)로 바뀐다.
@@ -643,26 +671,17 @@ async function sendAiWorkChat() {
   }
 
   try {
-    const res = await fetch(AI_CHAT_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer " + AI_SUPABASE_ANON_KEY,
-        "apikey": AI_SUPABASE_ANON_KEY,
-      },
-      body: JSON.stringify({ chatHistory: aiWorkChatHistory.slice(-AI_CHAT_HISTORY_LIMIT) }),
-    });
-    const data = await res.json();
+    const { ok, data } = await fetchAiChat(aiWorkChatHistory.slice(-AI_CHAT_HISTORY_LIMIT));
     hideAiTyping();
     const aiText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!res.ok || data.error || !aiText) throw new Error(data?.error?.message || data?.error || "응답을 받지 못했습니다.");
+    if (!ok || data.error || !aiText) throw new Error(data?.error?.message || data?.error || "응답을 받지 못했습니다.");
     appendAiChatMessage("model", aiText);
     aiWorkChatHistory.push({ role: "model", parts: [{ text: aiText }] });
     trimAiWorkChatHistory();
   } catch (err) {
     hideAiTyping();
     aiWorkChatHistory.pop();
-    appendAiChatMessage("model", "통신 오류가 발생했습니다. gemini-chat 함수 상태를 확인해 주세요.");
+    appendAiChatMessage("model", err.message && err.message.includes("너무 오래") ? err.message : "통신 오류가 발생했습니다. gemini-chat 함수 상태를 확인해 주세요.");
   }
 }
 
@@ -689,16 +708,7 @@ async function tryInsulationBoardCalc(question) {
 문장: "${question}"`;
 
   try {
-    const res = await fetch(AI_CHAT_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer " + AI_SUPABASE_ANON_KEY,
-        "apikey": AI_SUPABASE_ANON_KEY,
-      },
-      body: JSON.stringify({ chatHistory: [{ role: "user", parts: [{ text: extractPrompt }] }] }),
-    });
-    const data = await res.json();
+    const { data } = await fetchAiChat([{ role: "user", parts: [{ text: extractPrompt }] }], { useSearch: false, timeoutMs: 12000 });
     const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
     const jsonText = (raw.match(/\{[\s\S]*\}/) || [])[0];
     if (!jsonText) return null;
@@ -756,19 +766,10 @@ async function generateSpellCheck() {
 문장: "${text}"`;
 
   try {
-    const res = await fetch(AI_CHAT_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer " + AI_SUPABASE_ANON_KEY,
-        "apikey": AI_SUPABASE_ANON_KEY,
-      },
-      body: JSON.stringify({ chatHistory: [{ role: "user", parts: [{ text: prompt }] }] }),
-    });
-    const data = await res.json();
+    const { ok, data } = await fetchAiChat([{ role: "user", parts: [{ text: prompt }] }], { useSearch: false });
     if (reqId !== aiSpellReqId) return;
     const answer = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!res.ok || data.error || !answer) throw new Error(data?.error?.message || data?.error || "응답을 받지 못했습니다.");
+    if (!ok || data.error || !answer) throw new Error(data?.error?.message || data?.error || "응답을 받지 못했습니다.");
     const cleaned = answer.trim().replace(/^["'“”]|["'“”]$/g, "");
     result.dataset.answer = cleaned;
     result.innerHTML = renderSpellCheckDiff(text, cleaned);
@@ -872,19 +873,10 @@ async function generateTranslate() {
 문장: "${text}"`;
 
   try {
-    const res = await fetch(AI_CHAT_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer " + AI_SUPABASE_ANON_KEY,
-        "apikey": AI_SUPABASE_ANON_KEY,
-      },
-      body: JSON.stringify({ chatHistory: [{ role: "user", parts: [{ text: prompt }] }] }),
-    });
-    const data = await res.json();
+    const { ok, data } = await fetchAiChat([{ role: "user", parts: [{ text: prompt }] }], { useSearch: false });
     if (reqId !== aiTranslateReqId) return;
     const answer = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!res.ok || data.error || !answer) throw new Error(data?.error?.message || data?.error || "응답을 받지 못했습니다.");
+    if (!ok || data.error || !answer) throw new Error(data?.error?.message || data?.error || "응답을 받지 못했습니다.");
     const cleaned = answer.trim().replace(/^["'“”]|["'“”]$/g, "");
     result.dataset.answer = cleaned;
     result.innerHTML = formatAiText(cleaned);

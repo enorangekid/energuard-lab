@@ -45,8 +45,13 @@ serve(async (req) => {
 
   try {
     const auth = await authorizeRequest(req)
-    const { chatHistory } = await req.json()
+    const { chatHistory, useSearch } = await req.json()
     const normalizedHistory = normalizeChatHistory(chatHistory)
+    // 기존 클라이언트(useSearch를 안 보내는 "업무 질문" 탭)는 그대로 검색을 켠 채 동작해야 하니
+    // 기본값은 true. 맞춤법 검사/번역처럼 실시간 정보가 전혀 필요 없는 단순 텍스트 변환 작업은
+    // false를 보내 검색 그라운딩을 끈다 — 구글 검색이 불필요하게 붙으면서 응답이 오래 걸리거나
+    // 멈추는 것처럼 보이던 문제(2026-09-28, 맞춤법 검사가 "검사 중"에서 안 끝남)의 원인이었다.
+    const searchEnabled = useSearch !== false
     const apiKey = Deno.env.get('GEMINI_API_KEY')
     if (!apiKey) throw new Error('Gemini API 설정이 누락되었습니다.')
 
@@ -67,8 +72,9 @@ serve(async (req) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         systemInstruction: {
-          parts: [{ 
-            text: `너는 '에너가드컴퍼니'의 만능 AI 비서야. 오늘 날짜와 시간은 ${koreaTime}이야.
+          parts: [{
+            text: searchEnabled
+              ? `너는 '에너가드컴퍼니'의 만능 AI 비서야. 오늘 날짜와 시간은 ${koreaTime}이야.
 
 [절대 규칙]
 1. "잠시 찾아보겠습니다", "기다려주세요", "확인해 보겠습니다" 같은 지연성 멘트를 절대 사용하지 마.
@@ -76,14 +82,11 @@ serve(async (req) => {
 3. 항상 친절하고 똑똑한 비서의 말투를 유지해.
 4. 해외 스포츠(NBA, 해외축구 등) 일정이나 결과를 안내할 때는 검색된 현지 시간을 그대로 말하지 말고, 반드시 **한국 시간(KST)을 기준으로 날짜를 변환해서** 보고해. (예: 미국 25일 저녁 경기 -> 한국 시간 26일 오전 경기)
 5. 스포츠 순위, 경기 결과, 승점 등 수치가 포함된 질문은 반드시 검색 결과의 구체적인 숫자를 직접 인용해서 답변해. 학습 데이터나 추측으로 답변하지 말고, 검색으로 확인된 사실만 말해.`
+              : `너는 '에너가드컴퍼니'의 업무 보조 AI야. 오늘 날짜와 시간은 ${koreaTime}이야. 실시간 검색이 필요 없는 단순 텍스트 작업(맞춤법 교정, 번역 등)이니, 검색 없이 주어진 지시를 정확히 수행해서 결과만 곧바로 출력해. "잠시 찾아보겠습니다" 같은 지연성 멘트는 쓰지 마.`
           }]
         },
         contents: normalizedHistory,
-        tools: [
-          {
-            googleSearch: {}
-          }
-        ],
+        ...(searchEnabled ? { tools: [{ googleSearch: {} }] } : {}),
         generationConfig: {
           thinkingConfig: {
             thinkingBudget: 0
