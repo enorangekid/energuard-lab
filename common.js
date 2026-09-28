@@ -125,8 +125,10 @@ const AI_SUPABASE_ANON_KEY = typeof SUPABASE_ANON_KEY !== "undefined"
   ? SUPABASE_ANON_KEY
   : "sb_publishable_MiBvlf3d6ulcVBsi7Odcgw_PTXSmXKj";
 const AI_CHAT_URL = AI_SUPABASE_URL + "/functions/v1/gemini-chat";
+const AI_INQUIRY_URL = AI_SUPABASE_URL + "/functions/v1/inquiry-assistant";
 const AI_CHAT_HISTORY_LIMIT = 12;
 let aiWorkChatHistory = [];
+let activeInquiryStore = "korean";
 
 // 구글 검색 그라운딩이 얹히면 응답이 오래 걸리거나 서버가 멈춘 것처럼 안 끝날 때가 있었다
 // (2026-09-28, 맞춤법 검사가 "검사 중"에서 무한정 멈춤). 서버 쪽은 useSearch:false일 때 검색을
@@ -135,16 +137,16 @@ let aiWorkChatHistory = [];
 // AbortController만으로는 부족하다 — auth-guard.js가 fetch를 가로채 로그인 세션 갱신을
 // 먼저 기다리는데, 그 단계에서 멈추면 signal이 아직 실제 네트워크 요청에 붙지도 않은
 // 상태라 abort가 의미가 없다. Promise.race로 감싸서 그 경우에도 무조건 시간 내에 끝낸다.
-async function fetchAiChat(chatHistory, { useSearch, timeoutMs = 25000 } = {}) {
+async function fetchAiJson(url, body, { timeoutMs = 25000 } = {}) {
   const controller = new AbortController();
-  const request = fetch(AI_CHAT_URL, {
+  const request = fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "Authorization": "Bearer " + AI_SUPABASE_ANON_KEY,
       "apikey": AI_SUPABASE_ANON_KEY,
     },
-    body: JSON.stringify({ chatHistory, useSearch }),
+    body: JSON.stringify(body),
     signal: controller.signal,
   }).then((res) => res.json().then((data) => ({ ok: res.ok, data })));
   const timeout = new Promise((_, reject) => {
@@ -154,6 +156,14 @@ async function fetchAiChat(chatHistory, { useSearch, timeoutMs = 25000 } = {}) {
     }, timeoutMs);
   });
   return Promise.race([request, timeout]);
+}
+
+async function fetchAiChat(chatHistory, { useSearch, timeoutMs } = {}) {
+  return fetchAiJson(AI_CHAT_URL, { chatHistory, useSearch }, { timeoutMs });
+}
+
+async function fetchAiInquiry(inquiry, { store, mode, timeoutMs } = {}) {
+  return fetchAiJson(AI_INQUIRY_URL, { inquiry, store, mode }, { timeoutMs });
 }
 // AI 답변 아바타 — 글자 "AI" 대신 로봇 얼굴 아이콘으로 AI다운 느낌을 준다.
 const AI_AVATAR_ICON = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8V4H8"></path><rect width="16" height="12" x="4" y="8" rx="2"></rect><path d="M2 14h2"></path><path d="M20 14h2"></path><path d="M15 13v2"></path><path d="M9 13v2"></path></svg>`;
@@ -542,6 +552,7 @@ function initAiWorkPanel() {
     </div>
     <div class="ai-work-tabs" role="tablist">
       <button type="button" class="active" data-ai-tab="chat">업무 질문</button>
+      <button type="button" data-ai-tab="inquiry">문의 답변</button>
       <button type="button" data-ai-tab="spellcheck">맞춤법 검사</button>
       <button type="button" data-ai-tab="translate">번역</button>
     </div>
@@ -558,6 +569,21 @@ function initAiWorkPanel() {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"></path><path d="M22 2 11 13"></path></svg>
         </button>
       </div>
+    </section>
+    <section class="ai-work-pane" data-ai-pane="inquiry">
+      <div class="ai-lang-tabs" id="__aiInquiryStoreTabs">
+        <button type="button" class="ai-lang-tab active" data-inquiry-store="korean">한국단열</button>
+        <button type="button" class="ai-lang-tab" data-inquiry-store="energuard">에너가드컴퍼니</button>
+      </div>
+      <textarea id="__aiInquiryInput" class="ai-inquiry-text" placeholder="고객 문의를 붙여넣으세요."></textarea>
+      <div class="ai-inquiry-actions">
+        <button type="button" class="ai-secondary-btn" data-ai-clear-inquiry>지우기</button>
+        <button type="button" class="ai-primary-btn" data-ai-generate-inquiry>답변 생성</button>
+      </div>
+      <div class="ai-inquiry-result" id="__aiInquiryResult">
+        <span>생성된 고객 답변 초안이 여기에 표시됩니다.</span>
+      </div>
+      <button type="button" class="ai-copy-btn" data-ai-copy-inquiry hidden>답변 복사</button>
     </section>
     <section class="ai-work-pane" data-ai-pane="spellcheck">
       <textarea id="__aiSpellInput" class="ai-inquiry-text" placeholder="맞춤법을 검사할 문장을 입력하세요."></textarea>
@@ -601,7 +627,15 @@ function bindAiWorkPanel() {
       activeTranslateLang = langTab.dataset.lang;
       document.querySelectorAll(".ai-lang-tab").forEach(b => b.classList.toggle("active", b.dataset.lang === activeTranslateLang));
     }
+    const storeTab = e.target.closest("[data-inquiry-store]");
+    if (storeTab) {
+      activeInquiryStore = storeTab.dataset.inquiryStore;
+      document.querySelectorAll("#__aiInquiryStoreTabs .ai-lang-tab").forEach(b => b.classList.toggle("active", b.dataset.inquiryStore === activeInquiryStore));
+    }
     if (e.target.closest("[data-ai-send-chat]")) sendAiWorkChat();
+    if (e.target.closest("[data-ai-generate-inquiry]")) generateAiInquiryAnswer();
+    if (e.target.closest("[data-ai-clear-inquiry]")) clearAiInquiry();
+    if (e.target.closest("[data-ai-copy-inquiry]")) copyAiInquiryAnswer();
     if (e.target.closest("[data-ai-generate-spell]")) generateSpellCheck();
     if (e.target.closest("[data-ai-clear-spell]")) clearSpellCheck();
     if (e.target.closest("[data-ai-copy-spell]")) copySpellCheckAnswer();
@@ -906,6 +940,57 @@ function copyTranslateAnswer() {
   const text = result?.dataset.answer || result?.textContent || "";
   if (!text.trim()) return;
   navigator.clipboard.writeText(text).then(() => showToast("번역 결과를 복사했습니다."));
+}
+
+// ── 문의 답변 탭 ──────────────────────────────────────────────────
+// 문의 내용만으로 AI가 전부 자동 인식하게 한다(제품명, 질문 종류 등). 스토어만 위 탭에서
+// 고른 대로 넘기고, 답변은 항상 심화(detail) 모드로 고정한다.
+let aiInquiryReqId = 0;
+async function generateAiInquiryAnswer() {
+  const input = document.getElementById("__aiInquiryInput");
+  const result = document.getElementById("__aiInquiryResult");
+  const copyBtn = document.querySelector("[data-ai-copy-inquiry]");
+  const inquiry = input ? input.value.trim() : "";
+  if (!inquiry) {
+    showToast("고객 문의 내용을 입력해 주세요.");
+    return;
+  }
+  const reqId = ++aiInquiryReqId;
+  result.innerHTML = `<div class="ai-result-loading">답변 생성 중...</div>`;
+  copyBtn.hidden = true;
+
+  try {
+    const { ok, data } = await fetchAiInquiry(inquiry, { store: activeInquiryStore, mode: "detail" });
+    if (reqId !== aiInquiryReqId) return; // 응답 도착 전에 문의 내용이 더 바뀌어 새 요청이 이미 시작됨
+    if (!ok || data.error) throw new Error(data.error || "서버 오류");
+    result.dataset.answer = data.answer || "";
+    result.innerHTML = formatAiText(data.answer || "");
+    copyBtn.hidden = false;
+  } catch (err) {
+    if (reqId !== aiInquiryReqId) return;
+    result.dataset.answer = "";
+    result.innerHTML = `<span>답변 생성 중 오류가 발생했습니다: ${escapeAiText(err.message || "오류")}</span>`;
+  }
+}
+
+function clearAiInquiry() {
+  aiInquiryReqId++; // 진행 중이던 요청의 응답이 와도 무시되게
+  const input = document.getElementById("__aiInquiryInput");
+  const result = document.getElementById("__aiInquiryResult");
+  const copyBtn = document.querySelector("[data-ai-copy-inquiry]");
+  if (input) input.value = "";
+  if (result) {
+    result.dataset.answer = "";
+    result.innerHTML = "<span>생성된 고객 답변 초안이 여기에 표시됩니다.</span>";
+  }
+  if (copyBtn) copyBtn.hidden = true;
+}
+
+function copyAiInquiryAnswer() {
+  const result = document.getElementById("__aiInquiryResult");
+  const text = result?.dataset.answer || result?.textContent || "";
+  if (!text.trim()) return;
+  navigator.clipboard.writeText(text).then(() => showToast("답변을 복사했습니다."));
 }
 
 function trimAiWorkChatHistory() {
