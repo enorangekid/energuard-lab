@@ -134,13 +134,26 @@
   function logFinalRows(when, rows) {
     const kind = productData?.optionCombinations?.length ? "선택옵션" : pricedSupplements(productData).length >= 2 ? "추가상품" : "단일가";
     console.log(TAG, `최종 옵션 행(${when}, ${rows.length}개, ${kind}):`,
-      JSON.stringify(rows.map(r => ({ label: r.label, optionName1: r.optionName1, optionName2: r.optionName2, finalPrice: r.finalPrice, soldOut: r.soldOut })), null, 1));
+      JSON.stringify(rows.map(r => ({ label: r.label, optionName1: r.optionName1, optionName2: r.optionName2, code: r.code, finalPrice: r.finalPrice, salePrice: r.salePrice, soldOut: r.soldOut })), null, 1));
+    // 옵션 관리코드 필드명을 확인하려고 첫 옵션의 원본 키를 남긴다(한국단열 검사 매칭용).
+    const firstCombo = productData?.optionCombinations?.[0];
+    if (firstCombo) console.log(TAG, "옵션 원본 키:", Object.keys(firstCombo).join(", "));
   }
 
   function baseFinalPrice() {
     const fromBenefit = benefitData?.optimalDiscount?.totalDiscountResult?.summary?.totalPayAmount;
     if (fromBenefit != null) return Number(fromBenefit);
     return Number(productData?.salePrice ?? productData?.dispSalePrice ?? 0);
+  }
+  // 할인 전 판매가(스토어에 입력한 판매가) — 한국단열 검사는 할인가가 아니라 이 값으로 비교한다.
+  function baseSalePrice() {
+    const v = Number(productData?.salePrice ?? productData?.dispSalePrice);
+    return Number.isFinite(v) && v > 0 ? v : null;
+  }
+  // 옵션 관리코드 — 필드명이 응답마다 확실하지 않아 후보를 순서대로 본다.
+  function optionCode(c) {
+    const v = c?.sellerManagerCode ?? c?.sellerManagementCode ?? c?.optionManageCode ?? c?.managementCode;
+    return v ? String(v).trim() : null;
   }
 
   function buildRows() {
@@ -170,8 +183,10 @@
         }
         return rows;
       }
-      return [{ label: "(옵션 없음)", finalPrice: base, delta: 0, soldOut: (productData?.stockQuantity ?? 1) <= 0 }];
+      const sale = baseSalePrice();
+      return [{ label: "(옵션 없음)", finalPrice: base, salePrice: sale, delta: 0, soldOut: (productData?.stockQuantity ?? 1) <= 0 }];
     }
+    const sale = baseSalePrice();
     return combos.map((c) => {
       const label = [c.optionName1, c.optionName2, c.optionName3].filter(Boolean).join(" / ");
       return {
@@ -184,6 +199,8 @@
         optionName2: c.optionName2 || null,
         optionName3: c.optionName3 || null,
         finalPrice: base + Number(c.price || 0),
+        salePrice: sale != null ? sale + Number(c.price || 0) : null,
+        code: optionCode(c),
         delta: Number(c.price || 0),
         stockQuantity: c.stockQuantity,
         soldOut: (c.stockQuantity ?? 1) <= 0,
