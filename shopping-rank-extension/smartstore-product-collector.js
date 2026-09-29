@@ -134,7 +134,8 @@
   function logFinalRows(when, rows) {
     const kind = productData?.optionCombinations?.length ? "선택옵션" : pricedSupplements(productData).length >= 2 ? "추가상품" : "단일가";
     console.log(TAG, `최종 옵션 행(${when}, ${rows.length}개, ${kind}):`,
-      JSON.stringify(rows.map(r => ({ label: r.label, optionName1: r.optionName1, optionName2: r.optionName2, code: r.code, finalPrice: r.finalPrice, salePrice: r.salePrice, soldOut: r.soldOut })), null, 1));
+      JSON.stringify(rows.map(r => ({ label: r.label, optionName1: r.optionName1, optionName2: r.optionName2, code: r.code, finalPrice: r.finalPrice, instantPrice: r.instantPrice, salePrice: r.salePrice, soldOut: r.soldOut })), null, 1));
+    console.log(TAG, "가격 후보:", JSON.stringify(priceInfo()));
     // 옵션 관리코드 필드명을 확인하려고 첫 옵션의 원본 키를 남긴다(한국단열 검사 매칭용).
     const firstCombo = productData?.optionCombinations?.[0];
     if (firstCombo) console.log(TAG, "옵션 원본 키:", Object.keys(firstCombo).join(", "));
@@ -145,10 +146,33 @@
     if (fromBenefit != null) return Number(fromBenefit);
     return Number(productData?.salePrice ?? productData?.dispSalePrice ?? 0);
   }
-  // 할인 전 판매가(스토어에 입력한 판매가) — 한국단열 검사는 할인가가 아니라 이 값으로 비교한다.
+  // 할인 전 판매가(스토어에 입력한 판매가) — 참고용으로 같이 내보낸다.
   function baseSalePrice() {
     const v = Number(productData?.salePrice ?? productData?.dispSalePrice);
     return Number.isFinite(v) && v > 0 ? v : null;
+  }
+  // 즉시할인만 적용된 기준가 — 화면의 "상품 가격"(예: 할인 전 532,000원 → 상품 가격 102,000원). 알림받기·쿠폰 같은
+  // 추가 혜택은 안 빠진 값이라, 그게 다 빠진 "최대할인가"(product-benefits의 totalPayAmount, 100,000원)보다 높다.
+  // 한국단열 검사는 이 값으로 비교한다(2026-09-29, 5697937041처럼 알림쿠폰 2,000원이 걸린 상품이 전부 -2,000으로 나옴).
+  // 상품 상세 응답의 discountedSalePrice가 그 값일 것으로 보고 쓰되(실제 응답은 이 환경에서 못 봐서 후보 필드를 순서대로
+  // 본다), 최대할인가보다 낮거나 할인 전 가격보다 높으면 엉뚱한 값이라 버리고 null을 돌려준다 — 그러면 검사는 예전처럼
+  // 최대할인가로 비교하면서 "쿠폰 포함가"라고 표시한다.
+  function benefitPayAmount() {
+    const v = Number(benefitData?.optimalDiscount?.totalDiscountResult?.summary?.totalPayAmount);
+    return Number.isFinite(v) && v > 0 ? v : null;
+  }
+  function instantBasePrice() {
+    const sale = baseSalePrice(), pay = benefitPayAmount();
+    for (const raw of [productData?.discountedSalePrice, productData?.benefitsView?.discountedSalePrice, productData?.dispDiscountedSalePrice]) {
+      const v = Number(raw);
+      if (Number.isFinite(v) && v > 0 && (sale == null || v <= sale) && (pay == null || v >= pay)) return v;
+    }
+    return null;
+  }
+  // 가격 후보를 그대로 남겨서 검사 결과에서 어느 값을 썼는지 볼 수 있게 한다.
+  function priceInfo() {
+    const pick = (obj) => Object.fromEntries(Object.entries(obj || {}).filter(([k, v]) => /price|discount|sale|benefit/i.test(k) && (typeof v === "number" || typeof v === "string")));
+    return { salePrice: baseSalePrice(), instantBase: instantBasePrice(), benefitTotalPay: benefitPayAmount(), productPriceFields: pick(productData), benefitSummary: pick(benefitData?.optimalDiscount?.totalDiscountResult?.summary) };
   }
   // 옵션 관리코드 — 필드명이 응답마다 확실하지 않아 후보를 순서대로 본다.
   function optionCode(c) {
@@ -183,10 +207,10 @@
         }
         return rows;
       }
-      const sale = baseSalePrice();
-      return [{ label: "(옵션 없음)", finalPrice: base, salePrice: sale, delta: 0, soldOut: (productData?.stockQuantity ?? 1) <= 0 }];
+      const sale = baseSalePrice(), instant = instantBasePrice();
+      return [{ label: "(옵션 없음)", finalPrice: base, salePrice: sale, instantPrice: instant, delta: 0, soldOut: (productData?.stockQuantity ?? 1) <= 0 }];
     }
-    const sale = baseSalePrice();
+    const sale = baseSalePrice(), instant = instantBasePrice();
     return combos.map((c) => {
       const label = [c.optionName1, c.optionName2, c.optionName3].filter(Boolean).join(" / ");
       return {
@@ -200,6 +224,7 @@
         optionName3: c.optionName3 || null,
         finalPrice: base + Number(c.price || 0),
         salePrice: sale != null ? sale + Number(c.price || 0) : null,
+        instantPrice: instant != null ? instant + Number(c.price || 0) : null,
         code: optionCode(c),
         delta: Number(c.price || 0),
         stockQuantity: c.stockQuantity,
@@ -225,6 +250,7 @@
         storeName: productData.channel?.channelName || null,
         productUrl: location.href.split("?")[0].split("#")[0],
         rows,
+        priceInfo: priceInfo(),
       });
     } catch (error) {
       sendResponse({ok:false,reason:"collector_error",error:error?.message || String(error),detailUrl,benefitReady:benefitData != null});

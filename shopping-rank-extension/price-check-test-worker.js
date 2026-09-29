@@ -192,13 +192,17 @@ function normalizeOptionText(text) {
 }
 function matchHkdOptions(storeRows, options) {
   const claimed = new Set();
-  const byCode = new Map(options.filter(o => o.code).map(o => [String(o.code).toLowerCase(), o]));
+  const byCode = new Map();
+  for (const o of options) { const key = o.code ? String(o.code).toLowerCase() : null; if (key && !byCode.has(key)) byCode.set(key, o); }
   const results = [];
   const single = storeRows.length === 1 && options.length === 1;
   for (const row of storeRows) {
     let option = null, source = null;
     const code = row.code ? String(row.code).toLowerCase() : null;
-    if (code && byCode.has(code) && !claimed.has(byCode.get(code))) { option = byCode.get(code); source = '코드 매칭'; }
+    // 코드 매칭은 다대일이다 — 스토어에서 같은 관리코드를 옵션 여러 개에 붙여 쓰는 경우(예: 이중화이트 색상 옵션
+    // 수십 개가 전부 WP_DW_5_1)가 있어서, 이미 짝지어진 우리 옵션이라도 같은 코드의 스토어 행은 그 옵션의 가격과
+    // 비교한다. (이름 매칭은 그대로 일대일 — 이름으로는 같은 옵션을 두 번 짝짓지 않는다.)
+    if (code && byCode.has(code)) { option = byCode.get(code); source = '코드 매칭'; }
     if (!option) {
       const label = normalizeOptionText(row.label);
       const open = options.filter(o => !claimed.has(o));
@@ -207,13 +211,18 @@ function matchHkdOptions(storeRows, options) {
       if (candidates.length === 1) { option = candidates[0]; source = '이름 매칭'; }
     }
     if (!option && single) { option = options[0]; source = '단일 옵션'; }
-    // 에너가드 검사와 같이 할인 적용가(결제가)로 비교한다 — 한국단열 스토어는 판매가를 높게 적고
-    // 즉시할인을 거는 상품이 많아서 할인 전 판매가로 비교하면 상품마다 할인액만큼 전부 틀어진다
-    // (2026-09-28 첫 실검사: 439103571 전 옵션 +18,000, 439904706 전 옵션 +28,900).
-    const actual = row.finalPrice;
+    // 즉시할인만 적용된 가격("상품 가격")으로 비교한다 — 한국단열 스토어는 판매가를 높게 적고 즉시할인을 거는
+    // 상품이 많아서 할인 전 판매가로 비교하면 상품마다 할인액만큼 전부 틀어진다(2026-09-28 첫 실검사:
+    // 439103571 +18,000, 439904706 +28,900). 반대로 최대할인가(알림받기·쿠폰까지 뺀 값)로 비교하면 쿠폰이
+    // 걸린 상품이 틀어진다(5697937041 전 옵션 -2,000 — 알림쿠폰). 수집기가 즉시할인가를 못 찾으면
+    // (instantPrice 없음) 예전처럼 최대할인가로 비교하고 그 사실을 표시한다.
+    const hasInstant = Number.isFinite(row.instantPrice) && row.instantPrice > 0;
+    const actual = hasInstant ? row.instantPrice : row.finalPrice;
+    const priceKind = hasInstant ? '즉시할인가' : '쿠폰 포함가';
     const listPrice = Number.isFinite(row.salePrice) && row.salePrice !== actual ? row.salePrice : null;
+    const maxPrice = Number.isFinite(row.finalPrice) && row.finalPrice !== actual ? row.finalPrice : null;
     if (!option) {
-      results.push({ label: row.label, code: row.code || null, actual, listPrice, expected: null, diff: null, status: row.soldOut ? '품절' : '단가표에 없음', source: '매칭 안 됨' });
+      results.push({ label: row.label, code: row.code || null, actual, listPrice, maxPrice, priceKind, expected: null, diff: null, status: row.soldOut ? '품절' : '단가표에 없음', source: '매칭 안 됨' });
       continue;
     }
     claimed.add(option);
@@ -223,12 +232,12 @@ function matchHkdOptions(storeRows, options) {
     else if (option.status) status = '판매상태 불일치';
     else if (!(expected > 0)) status = '단가 확인 불가';
     else status = actual === expected ? '일치' : '불일치';
-    results.push({ label: row.label, code: option.code, name: option.name, actual, listPrice, expected: expected > 0 ? expected : null, diff: expected > 0 ? actual - expected : null, status, source });
+    results.push({ label: row.label, code: option.code, name: option.name, actual, listPrice, maxPrice, priceKind, expected: expected > 0 ? expected : null, diff: expected > 0 ? actual - expected : null, status, source: hasInstant ? source : source + ' · 쿠폰 포함가' });
   }
   // 우리 표엔 판매중인데 스토어에서 짝을 못 찾은 옵션 — 품절·판매중지로 둔 옵션은 빼고 알린다.
   for (const option of options) {
     if (claimed.has(option) || option.status) continue;
-    results.push({ label: option.name, code: option.code, name: option.name, actual: null, listPrice: null, expected: Number(option.expected) > 0 ? Number(option.expected) : null, diff: null, status: '스토어에 없음', source: '매칭 안 됨' });
+    results.push({ label: option.name, code: option.code, name: option.name, actual: null, listPrice: null, maxPrice: null, priceKind: null, expected: Number(option.expected) > 0 ? Number(option.expected) : null, diff: null, status: '스토어에 없음', source: '매칭 안 됨' });
   }
   return results;
 }
@@ -361,7 +370,9 @@ async function inspectHkd(item) {
     if (!Array.isArray(scan.rows) || !scan.rows.length) throw Error('페이지 옵션 확인 불가');
     const pageUrl = new URL(scan.productUrl);
     if (pageUrl.origin!==url.origin || pageUrl.pathname.replace(/\/$/,'')!==url.pathname.replace(/\/$/,'')) throw Error('수집 상품 주소 불일치');
-    return matchHkdOptions(scan.rows, item.options).map(row => ({productId:id, ...row}));
+    // 가격 후보(정가·즉시할인가·최대할인가 등 응답에서 읽은 값)는 상품의 첫 행에만 붙여서 결과에 남긴다 —
+    // 즉시할인가를 제대로 읽었는지 검사 결과에서 바로 볼 수 있게(2026-09-29).
+    return matchHkdOptions(scan.rows, item.options).map((row,index)=>({productId:id, ...row, ...(index===0&&scan.priceInfo?{priceInfo:scan.priceInfo}:{})}));
   } finally { await chrome.tabs.remove(tab.id).catch(()=>{}); await chrome.storage.local.remove('priceCheckTab'); }
 }
 
