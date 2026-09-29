@@ -362,7 +362,7 @@ async function inspectHkd(item) {
     let scan;
     for (let n=0;n<25;n++) {
       await delay(1000);
-      try { scan = await chrome.tabs.sendMessage(tab.id,{type:'GET_COMPETITOR_SCAN_DATA'}); } catch {}
+      try { scan = await chrome.tabs.sendMessage(tab.id,{type:'GET_COMPETITOR_SCAN_DATA',ignoreSupplements:true}); } catch {}
       if (scan?.ok && scan.detailUrl && scan.benefitReady) break;
     }
     if (!scan?.ok || !scan.detailUrl) throw Error('상품 정보 수집 실패 — 로그인·차단·삭제 여부 확인 필요');

@@ -76,6 +76,19 @@
     // 운송비 선결제처럼 가격은 있지만 두께 상품이 아닌 추가 구성은 판매가 검사에서 제외한다.
     return (d?.supplementProducts || []).filter((sp) => supplementPrice(sp) > 0 && thicknessOf(supplementName(sp)) != null);
   }
+  // 추가상품 전체(두께 여부와 상관없이)를 옵션 행과 따로 돌려준다 — 한국단열 검사는 지금 이걸 안 쓰지만(rows에서 뺌),
+  // 나중에 추가상품만 검증해야 하는 상품이 생기면 매칭에 바로 쓸 수 있게 남겨 둔다(2026-09-29).
+  // 관리코드 필드명은 확인 전이라 옵션(optionCode)과 같은 후보를 본다.
+  function supplementRows(d) {
+    return (d?.supplementProducts || []).map((sp) => ({
+      label: supplementName(sp) || "(추가상품)",
+      group: sp?.groupName || null,
+      code: optionCode(sp),
+      finalPrice: supplementPrice(sp),
+      stockQuantity: sp?.stockQuantity,
+      soldOut: (sp?.stockQuantity ?? 1) <= 0 || sp?.usable === false,
+    }));
+  }
   function hasOptionData(d) {
     if (d?.optionCombinations?.length || d?.combinationOptions?.[0]?.options?.length || d?.standardCombinations?.length) return true;
     // 운송비 같은 가격 없는 부가상품 하나만 있는 건 "옵션 있음"으로 안 친다 — 실제 가격이
@@ -180,7 +193,9 @@
     return v ? String(v).trim() : null;
   }
 
-  function buildRows() {
+  // options.ignoreSupplements: 한국단열 검사는 추가상품을 옵션으로 보지 않는다 — 면테이프 같은 부속을 추가상품으로 파는데
+  // 이름의 "48mm"·"100mm"(테이프 폭)가 두께로 읽혀 옵션 행으로 잡혔다(2026-09-29, 열반사단열재 그룹상품 구성 상품 전부).
+  function buildRows(options = {}) {
     const combos = productData?.optionCombinations?.length
       ? productData.optionCombinations
       : (productData?.combinationOptions?.[0]?.options || productData?.standardCombinations || []);
@@ -190,7 +205,7 @@
       // 선택옵션 콤보가 아니라, 기본 상품(예: 20T) + 추가상품(예: 30T/40T/50T…)으로 두께를
       // 나눠 파는 판매자가 있다(대유물류 확인, 2026-09-15). 추가상품은 optionCombinations의
       // "기준가+추가금" 방식이 아니라 각자 완결된 자기 가격이라 base에 더하지 않는다.
-      const supplements = pricedSupplements(productData);
+      const supplements = options.ignoreSupplements ? [] : pricedSupplements(productData);
       if (supplements.length >= 2) {
         const rows = [{ label: productData?.name || "(기본 상품)", finalPrice: base, delta: 0, soldOut: (productData?.stockQuantity ?? 1) <= 0 }];
         const baseThickness = thicknessOf(productData?.name);
@@ -242,7 +257,7 @@
       return false;
     }
     try {
-      const rows = buildRows();
+      const rows = buildRows({ ignoreSupplements: msg.ignoreSupplements === true });
       logFinalRows("검사 요청 시점", rows);
       sendResponse({
         ok: true, detailUrl, benefitUrl, benefitReady: benefitData != null,
@@ -250,6 +265,7 @@
         storeName: productData.channel?.channelName || null,
         productUrl: location.href.split("?")[0].split("#")[0],
         rows,
+        supplements: supplementRows(productData),
         priceInfo: priceInfo(),
       });
     } catch (error) {
