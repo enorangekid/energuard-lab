@@ -399,6 +399,136 @@ function esmProductUrlOk(url, marketplace, id) {
   if (marketplace==='auction') return url.origin==='https://itempage3.auction.co.kr'&&url.pathname.toLowerCase()==='/detailview.aspx'&&String(url.searchParams.get('ItemNo')||url.searchParams.get('itemno')||'').toUpperCase()===id;
   return false;
 }
+// ── 11번가 ────────────────────────────────────────────────
+// 11번가 구매자 페이지에는 셀러 재고번호(관리코드)가 안 나온다(2026-09-30 확인). 그래서 옵션을 "규격 열쇠"로 짝짓는다 —
+// 단가표 관리코드(예: St_430_430_10_5)와 스토어 옵션 이름(예: "스티로폼(3호)_10T-430x430(5장)")을 같은 모양의 열쇠로 바꿔 비교한다.
+//  · 비드법·아이소핑크: 재질(St 백색/Neo 회색/Iso 아이소핑크)+접착식 여부|두께|가로x세로 (장수는 열쇠에 넣지 않고 따로 대조 — 이름의 장수가 다르면 알려준다)
+//  · 열반사(빌트론): BL|두께|길이|등급(S일반/D고급)+접착(N비접착/A한쪽접착)   · 단열벽지: WP|타입(P1·P2·DW·SK)|두께|길이(2.3m는 23)
+// 옵션 이름과 가격이 서로 바뀐 스토어 옵션은 열쇠가 같아서 짝지어지고 가격이 어긋나 "불일치"로 나온다(그게 이 검사의 목적).
+function st11KeyFromCode(code) {
+  const c = String(code || '');
+  let m = /^(IIso|Iso|Neo|St)(A?)_(\d+)_(\d+)_(\d+)_(\d+)$/.exec(c);
+  if (m) return { key: `${m[1]==='IIso'?'Iso':m[1]}${m[2]}|${m[5]}|${m[3]}x${m[4]}`, count: Number(m[6]) };
+  m = /^BL_(\d+)_(\d+)_([SD][NA])(?:_R)?$/.exec(c);
+  if (m) return { key: `BL|${m[1]}|${m[2]}|${m[3]}`, count: null };
+  m = /^WP_(P1|P2|DW|SK)_(\d+)_(\d+)$/.exec(c);
+  if (m) return { key: `WP|${m[1]}|${m[2]}|${m[3]}`, count: null };
+  return null;
+}
+function st11KeyFromName(name) {
+  // 공백은 한 칸으로 줄여 두고(두께 "20T"가 앞 글자·숫자와 붙어 읽히지 않게), 규격을 읽을 때만 공백을 지운다.
+  const spaced = String(name || '').replace(/㎜|mm/gi, '').replace(/\s+/g, ' ').toLowerCase();
+  const s = spaced.replace(/\s/g, '');
+  const thicknessMatch = /(?<![\d.])(\d{1,3})t(?![a-wyz])/.exec(spaced); // "200Tx600"처럼 뒤에 x가 붙는 표기도 허용
+  const thickness = thicknessMatch ? thicknessMatch[1] : null;
+  if (/빌트론|열반사/.test(s)) {
+    const length = /x(\d+)m/.exec(s);
+    const grade = /고급형/.test(s) ? 'D' : /일반형/.test(s) ? 'S' : null;
+    const adhesive = /한쪽접착/.test(s) ? 'A' : /비접착/.test(s) ? 'N' : null;
+    return thickness && length && grade && adhesive ? { key: `BL|${thickness}|${length[1]}|${grade}${adhesive}`, count: null } : null;
+  }
+  if (/벽지|고급형[12]|이중화이트|실크/.test(s)) {
+    const type = /고급형1/.test(s) ? 'P1' : /고급형2/.test(s) ? 'P2' : /이중화이트/.test(s) ? 'DW' : /실크/.test(s) ? 'SK' : null;
+    const length = /x(\d+(?:\.\d+)?)m/.exec(s);
+    return type && thickness && length ? { key: `WP|${type}|${thickness}|${length[1].replace('.', '')}`, count: null } : null;
+  }
+  const material = /아이소핑크/.test(s) ? 'Iso' : /회색|네오폴|2호|2종/.test(s) ? 'Neo' : /스티로폼|백색/.test(s) ? 'St' : null;
+  if (!material || !thickness) return null;
+  const rest = (spaced.slice(0, thicknessMatch.index) + ' ' + spaced.slice(thicknessMatch.index + thicknessMatch[0].length)).replace(/\s/g, '');
+  const size = /(\d{3,4})x(\d{3,4})/.exec(rest);
+  if (!size) return null;
+  // 장수는 공백을 남긴 문자열에서 읽는다 — "900x1800 10장"을 공백 없이 붙이면 "180010장"으로 읽혀 장수가 틀어진다.
+  const count = /(?<!\d)(\d+)\s*장/.exec(spaced);
+  return { key: `${material}${/접착/.test(s) ? 'A' : ''}|${thickness}|${size[1]}x${size[2]}`, count: count ? Number(count[1]) : null };
+}
+function match11stOptions(productId, allStoreRows, options) {
+  const infos = options.map(option => ({ option, ...(st11KeyFromCode(option.code) || { key: null, count: null }) }));
+  const used = new Set();
+  const results = [];
+  // 단열벽지는 색상 옵션이 수십 개지만 (타입·길이)마다 가격은 하나다(단가표에도 대표 코드 하나) — ESM·홈페이지 단열벽지와 같은 상황.
+  // 색상별로 짝짓지 않고 (타입·두께·길이)마다 대표가 한 줄만 비교한다(아래 wallGroups). 스티로폼·아이소핑크·열반사는 그대로 옵션별 규격 매칭.
+  const wallGroups = new Map();
+  const storeRows = [];
+  for (const row of allStoreRows) {
+    const wallKey = st11KeyFromName(row.name);
+    if (wallKey && wallKey.key.startsWith('WP|')) {
+      if (!wallGroups.has(wallKey.key)) wallGroups.set(wallKey.key, { prefix: String(row.name).split(' / ')[0], rows: [] });
+      wallGroups.get(wallKey.key).rows.push(row);
+    } else storeRows.push(row);
+  }
+  for (const [key, group] of wallGroups) {
+    const index = infos.findIndex((info, i) => info.key === key && !used.has(i));
+    const live = group.rows.filter(row => row.qty !== 0 && Number.isFinite(row.price) && row.price > 0); // 품절 색상은 가격 비교에서 뺀다
+    const head = { productId, store: '11st', label: `${group.prefix} · 대표가`, priceKind: '판매가', maxPrice: null };
+    const colors = `색상 옵션 ${group.rows.length}개`;
+    if (index < 0) { results.push({ ...head, code: null, actual: live[0]?.price ?? null, listPrice: live[0]?.price ?? null, expected: null, diff: null, status: live.length ? '단가표에 없음' : '품절', source: `매칭 안 됨 · ${colors}` }); continue; }
+    used.add(index);
+    const option = infos[index].option;
+    const expected = Number(option.expected);
+    const validExpected = expected > 0;
+    const wrong = validExpected ? live.filter(row => row.price !== expected) : [];
+    const shown = wrong.length ? wrong[0].price : (live[0]?.price ?? null);
+    const status = option.status || !live.length ? '품절' : !validExpected ? '단가 확인 불가' : wrong.length ? '대표가 불일치' : '대표가 일치';
+    results.push({ ...head, code: option.code || null, actual: shown, listPrice: shown, expected: validExpected ? expected : null, diff: validExpected && shown != null ? shown - expected : null, status, source: `대표가 검사 · ${colors}${wrong.length ? ` 중 ${wrong.length}개 가격 다름` : ' 제외(가격 하나)'}` });
+  }
+  for (const row of storeRows) {
+    const parsed = st11KeyFromName(row.name);
+    let hit = null;
+    if (parsed) {
+      const candidates = infos.filter((info, index) => info.key === parsed.key && !used.has(index));
+      // 같은 열쇠가 둘 이상(예: 아이소핑크 900x1800 70T의 1장/3장)이면 장수로 가른다.
+      hit = candidates.length > 1 ? candidates.find(info => parsed.count != null && info.count === parsed.count) : candidates[0];
+    }
+    const price = Number.isFinite(row.price) && row.price > 0 ? row.price : null;
+    const soldOut = row.qty === 0;
+    const base = { productId, store: '11st', label: row.name, actual: price, priceKind: '판매가', listPrice: price, maxPrice: null };
+    if (!hit) { results.push({ ...base, code: null, expected: null, diff: null, status: soldOut ? '품절' : parsed ? '단가표에 없음' : '이름 해석 불가', source: parsed ? '매칭 안 됨' : '규격을 읽지 못함' }); continue; }
+    used.add(infos.indexOf(hit));
+    const expected = Number(hit.option.expected);
+    const validExpected = expected > 0;
+    const countNote = parsed.count != null && hit.count != null && parsed.count !== hit.count ? ` · 장수 표기 다름(스토어 ${parsed.count}장/단가표 ${hit.count}장)` : '';
+    let status = hit.option.status || soldOut ? '품절' : price == null ? '가격 확인 불가' : !validExpected ? '단가 확인 불가' : price === expected ? '일치' : '불일치';
+    if (status === '일치' && countNote) status = '이름 확인 필요';
+    results.push({ ...base, code: hit.option.code || null, expected: validExpected ? expected : null, diff: validExpected && price != null ? price - expected : null, status, source: `규격 매칭${countNote}` });
+  }
+  // 두 옵션의 스토어 가격이 서로의 단가표 가격과 정확히 맞바뀐 경우(예: 600x900이 430x430 가격, 430x430이 600x900 가격) 알려준다 —
+  // 옵션 이름과 가격이 어긋나게 등록된 것으로 보이는 흔한 패턴(2026-09-30 실제 1534558353·1548926732).
+  const mismatched = results.filter(row => row.status === '불일치' && row.actual != null && row.expected != null);
+  mismatched.forEach(row => {
+    const partner = mismatched.find(other => other !== row && other.actual === row.expected && other.expected === row.actual);
+    if (partner) row.source += ` · 짝 옵션(${partner.code})과 가격이 서로 바뀐 것으로 보임`;
+  });
+  infos.forEach((info, index) => {
+    if (used.has(index) || info.option.status) return;
+    results.push({ productId, store: '11st', label: info.option.name, code: info.option.code || null, actual: null, expected: Number(info.option.expected) > 0 ? Number(info.option.expected) : null, diff: null, status: '스토어에 없음', source: '매칭 안 됨', priceKind: '판매가' });
+  });
+  return results;
+}
+function st11ProductUrlOk(url, id) { return url.origin==='https://www.11st.co.kr' && url.pathname.replace(/\/$/,'')==='/products/'+id; }
+async function inspect11st(item, supplementCatalog, mode) {
+  const id = String(item.productId||'').trim();
+  const url = new URL(item.productUrl || 'https://www.11st.co.kr/products/'+id);
+  if (!/^\d+$/.test(id) || !st11ProductUrlOk(url, id)) throw Error('허용되지 않은 11번가 상품 주소');
+  const tab = await chrome.tabs.create({url:url.href,active:false});
+  await chrome.storage.local.set({priceCheckTab:{id:tab.id,url:url.href}});
+  try {
+    let scan;
+    for (let n=0;n<25;n++) {
+      await delay(800);
+      try { scan = await chrome.tabs.sendMessage(tab.id,{type:'GET_11ST_SCAN_DATA',mode:mode==='supplement'?'supplement':'options'}); } catch {}
+      if (scan?.ok || scan?.error) break;
+    }
+    if (!scan?.ok) throw Error(scan?.error||'11번가 상품 정보 수집 실패 — 로그인·차단·삭제 여부 확인 필요');
+    if (String(scan.productId)!==id) throw Error('수집 상품 주소 불일치');
+    if (mode==='supplement') {
+      const found = matchHkdSupplements(scan.supplements, supplementCatalog).map(row=>({productId:id, store:'11st', ...row}));
+      return found.length ? found : [{productId:id, store:'11st', kind:'추가상품', label:'(추가상품 없음)', code:null, actual:null, expected:null, diff:null, status:'추가상품 없음', source:'—'}];
+    }
+    if (!Array.isArray(scan.rows) || !scan.rows.length) throw Error('11번가 옵션 확인 불가');
+    return match11stOptions(id, scan.rows, Array.isArray(item.options)?item.options:[]);
+  } finally { await chrome.tabs.remove(tab.id).catch(()=>{}); await chrome.storage.local.remove('priceCheckTab'); }
+}
+
 // 옵션 상품(단열벽지) 옵션 짝짓기 열쇠 — 단가표 이름("단열벽지 고급형1 5T x 10m")과 스토어 옵션("고급형1_5T" + "10m")을 같은 모양으로 맞춘다.
 function esmOptionKey(text) { return String(text||'').replace(/단열벽지|_|\s/g,'').toLowerCase(); }
 async function inspectEsmOptions(item, id, marketplace, tab) {
@@ -694,7 +824,7 @@ async function processNext(){
     if(!state || !state.running)return;
     const orphan=(await chrome.storage.local.get('priceCheckTab')).priceCheckTab;
     if(orphan){const old=await chrome.tabs.get(orphan.id).catch(()=>null);if(old?.url===orphan.url)await chrome.tabs.remove(orphan.id).catch(()=>{});await chrome.storage.local.remove('priceCheckTab');}
-    if(!['competitor','hkd','esm'].includes(state.kind) && !state.listVisited){
+    if(!['competitor','hkd','esm','11st'].includes(state.kind) && !state.listVisited){
       state.listVisited=[];
       // 카테고리별 목록 URL을 지정해뒀으면(state.listUrl, pricing-check-test.js의
       // CATEGORY_LIST_URL) 전체상품(/category/ALL)에서 찾는 대신 그 URL부터 시작한다 —
@@ -720,7 +850,7 @@ async function processNext(){
       if(state.running){await arm();setTimeout(processNext,NEXT_DELAY_MS);}else await chrome.alarms.clear(ALARM);
       return;
     }
-    state.phase = state.kind==='competitor' ? '경쟁사 상품 스캔' : state.kind==='esm' ? 'ESM 등록가 검사' : state.kind==='hkd' ? (state.channelId==='homepage'?'홈페이지 가격 검사':state.mode==='supplement' ? '한국단열 추가상품 검사' : '한국단열 옵션 검사') : (listEligible(state.items[state.done]||{})?'단품 목록 누락 확인':'옵션별 상세 검사');
+    state.phase = state.kind==='competitor' ? '경쟁사 상품 스캔' : state.kind==='esm' ? 'ESM 등록가 검사' : state.kind==='11st' ? (state.mode==='supplement' ? '11번가 추가상품 검사' : '11번가 옵션 검사') : state.kind==='hkd' ? (state.channelId==='homepage'?'홈페이지 가격 검사':state.mode==='supplement' ? '한국단열 추가상품 검사' : '한국단열 옵션 검사') : (listEligible(state.items[state.done]||{})?'단품 목록 누락 확인':'옵션별 상세 검사');
     const item=state.items[state.done];
     if(!item){state.running=false;state.finishedAt=Date.now();await save(state);return;}
     state.currentProduct = state.kind==='competitor' ? item.link : item.productId;await save(state);
@@ -730,16 +860,17 @@ async function processNext(){
     try{
       if (state.kind==='competitor') rows=await inspectCompetitor(item.link,item.entries);
       else if (state.kind==='esm') rows=await inspectEsm(item);
+      else if (state.kind==='11st') rows=await inspect11st(item,state.supplements,state.mode);
       else if (state.kind==='hkd') rows=await inspectHkd(item,state.supplements,state.mode);
       else rows=listEligible(item)?[{productId:item.productId,status:'목록 수집 누락',label:'단품 매핑 — 목록에서 가격을 찾지 못했습니다.',source:'상품 목록'}]:await inspect(item,state.pricing);
     }catch(error){
       const errorMessage=error?.message||'상품 정보 수집 실패';
       // ESM의 판매중지·삭제 상품은 해당 행만 실패로 남기고 다음 상품을 계속 검사한다.
       // 로그인·봇 확인·차단 화면은 뒤 상품도 같은 원인으로 실패하므로 기존처럼 일시정지한다.
-      failed=state.kind!=='esm'||/(?:사이트 확인 화면|봇|bot|차단|로그인)/i.test(errorMessage);
+      failed=!['esm','11st'].includes(state.kind)||/(?:사이트 확인 화면|봇|bot|차단|로그인)/i.test(errorMessage);
       rows = state.kind==='competitor'
         ? item.entries.map(e=>({...e,actual:null,diff:null,status:'수집 실패',errorMsg:errorMessage}))
-        : [{productId:item.productId,productUrl:item.productUrl,store:item.marketplace||null,status:'수집 실패',label:errorMessage,source:state.kind==='esm'?(item.marketplace==='auction'?'옥션':'G마켓'):'—'}];
+        : [{productId:item.productId,productUrl:item.productUrl,store:item.marketplace||null,status:'수집 실패',label:errorMessage,source:state.kind==='esm'?(item.marketplace==='auction'?'옥션':'G마켓'):state.kind==='11st'?'11번가':'—',...(state.kind==='11st'?{store:'11st'}:{})}];
     }
     const latest=await readState();
     if(latest?.runId!==state.runId)return;
@@ -747,7 +878,8 @@ async function processNext(){
     if(failed){state.running=false;state.reason='수집 실패로 일시정지';}
     if(state.done>=state.total){state.running=false;state.finishedAt=Date.now();state.reason=failed?'검사 종료 — 수집 실패 포함':'완료';}
     await save(state);
-    if(state.running){await arm();setTimeout(processNext,NEXT_DELAY_MS);}else await chrome.alarms.clear(ALARM);
+    // 11번가도 G마켓·옥션처럼 짧은 간격으로 많이 열면 봇 차단이 걸릴 수 있어 상품 사이 대기를 늘린다.
+    if(state.running){await arm();setTimeout(processNext,state.kind==='11st'?3000:NEXT_DELAY_MS);}else await chrome.alarms.clear(ALARM);
   }catch(error){const state=await readState();if(state){state.running=false;state.reason='실행 오류: '+error.message;await save(state);}await chrome.alarms.clear(ALARM);}
   finally{processing=false;}
 }
@@ -805,6 +937,21 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
         }
         const channelId='esm';
         state={runId:crypto.randomUUID(),kind:'esm',channelId,running:true,startedAt:Date.now(),done:0,total:p.items.length,rows:[],items:p.items};
+        await save(state);await arm();processNext();return {ok:true};
+      }
+      if(p?.kind==='11st'){
+        if(!Array.isArray(p.items)||!p.items.length)throw Error('검사할 11번가 상품이 없습니다.');
+        const mode=p.mode==='supplement'?'supplement':'options';
+        for(const it of p.items){
+          const id=String(it.productId||'').trim();
+          if(!/^\d+$/.test(id))throw Error('11번가 상품번호 오류');
+          if(!st11ProductUrlOk(new URL(String(it.productUrl||'https://www.11st.co.kr/products/'+id)),id))throw Error('허용되지 않은 11번가 상품 주소');
+          if(mode==='options'&&(!Array.isArray(it.options)||!it.options.length))throw Error('11번가 옵션 검사 데이터 오류');
+        }
+        if(new Set(p.items.map(i=>String(i.productId))).size!==p.items.length)throw Error('중복 상품번호');
+        const supplements=Array.isArray(p.supplements)?p.supplements.slice(0,500).filter(s=>s&&typeof s.name==='string').map(s=>({code:s.code?String(s.code):null,name:String(s.name).slice(0,200),group:s.group?String(s.group).slice(0,80):null,expected:Number.isFinite(Number(s.expected))?Number(s.expected):null,use:s.use==='N'?'N':'Y'})):null;
+        if(mode==='supplement'&&!(supplements&&supplements.length))throw Error('추가상품 목록이 없습니다');
+        state={runId:crypto.randomUUID(),kind:'11st',channelId:'11st',mode,running:true,startedAt:Date.now(),done:0,total:p.items.length,rows:[],items:p.items,...(mode==='supplement'?{supplements}:{})};
         await save(state);await arm();processNext();return {ok:true};
       }
       if(p?.kind==='hkd'){
