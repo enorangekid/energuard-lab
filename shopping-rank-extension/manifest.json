@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "에너가드컴퍼니 통합 확장프로그램",
-  "version": "0.30.3",
+  "version": "0.30.9",
   "description": "직원 브라우저에서 네이버 쇼핑·쿠팡 순위 수집(에너가드랩 연동), 경쟁사 상품 옵션가 자동 수집, 우리 스마트스토어 가격-단가표 일치 여부 체크를 한 확장에서 처리합니다.",
   "permissions": [
     "tabs",
@@ -15,7 +15,10 @@
     "https://search.shopping.naver.com/*",
     "https://smartstore.naver.com/*",
     "https://www.coupang.com/*",
-    "https://eukwfypbfqojbaihfqye.supabase.co/*"
+    "https://eukwfypbfqojbaihfqye.supabase.co/*",
+    "https://boonimall.kr/*",
+    "https://item.gmarket.co.kr/*",
+    "https://itempage3.auction.co.kr/*"
   ],
   "icons": {
     "16": "icon.png",
@@ -152,6 +155,25 @@
         "price-check-test-bridge.js"
       ],
       "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://boonimall.kr/goods/view*"
+      ],
+      "js": [
+        "boonimall-price-collector.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://item.gmarket.co.kr/Item*",
+        "https://itempage3.auction.co.kr/DetailView.aspx*"
+      ],
+      "js": [
+        "esm-price-collector.js"
+      ],
+      "run_at": "document_idle"
     }
   ],
   "minimum_chrome_version": "120"
