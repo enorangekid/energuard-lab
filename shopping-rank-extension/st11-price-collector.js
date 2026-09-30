@@ -34,7 +34,14 @@
   });
 
   async function collectOptions() {
-    if (!await waitUntil(() => itemsOf(optionSections()[0]).length)) return { ok: false, error: '옵션 목록을 찾지 못했습니다.' };
+    if (!await waitUntil(() => itemsOf(optionSections()[0]).length, 6000)) {
+      // 옵션이 없는 단품 상품(옵션 영역이 아예 없음)은 상품 가격 하나만 읽는다 — 우리 옵션이 하나뿐이면 worker가 그것과 짝짓는다.
+      // 첫 "금액 원" 하나만 읽는다(같은 칸에 "판매가 안내…11번가…" 설명이 붙어 있어 숫자를 다 붙이면 틀린다).
+      const singleMatch = String(document.querySelector('.b_product_info_price dd.price, .price_block dd.price')?.textContent || '').match(/([0-9][0-9,]*)\s*원/);
+      const single = singleMatch ? Number(singleMatch[1].replace(/,/g, '')) : null;
+      if (single) return { ok: true, rows: [{ name: '(옵션 없음)', stck: null, price: single, rangePrice: false, qty: null }] };
+      return { ok: false, error: '옵션 목록을 찾지 못했습니다.' };
+    }
     // 페이지 스크립트가 옵션 클릭 동작을 붙일 시간을 준다(로딩이 끝나고 잠시 더).
     await waitUntil(() => document.readyState === 'complete', 10000);
     await sleep(500); // 클릭이 안 먹으면 아래에서 다시 누르므로 길게 기다리지 않는다
@@ -49,6 +56,9 @@
         if (level === levels - 1) {
           if (!row.price) return { ok: false, error: `"${[...path, row.name].join(' / ')}" 가격을 읽지 못했습니다.` };
           rows.push({ ...row, name: [...path, row.name].join(' / ') });
+        } else if (row.qty === 0 || /disabled|soldout/.test(String(li.className || ''))) {
+          // 품절 1단계 항목(예: "SSEN 폼건")은 눌러도 다음 단계 목록이 없다 — 가격이 하나면 품절(재고 0) 행으로 남기고 다음으로 넘어간다.
+          if (row.price && !row.rangePrice) rows.push({ ...row, name: [...path, row.name].join(' / '), qty: 0 });
         } else {
           // 옵션 목록(li)은 서버에서 먼저 그려지고 클릭 동작은 페이지 스크립트가 나중에 붙인다 — 너무 일찍 누르면 아무 일도 안 일어난다
           // (2026-09-30 실검사에서 "다음 단계 옵션 목록을 찾지 못했습니다" 4건). 그래서 못 찾으면 몇 번 더 눌러 본다.

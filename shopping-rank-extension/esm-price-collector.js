@@ -57,6 +57,21 @@
     const base=collect();
     if(!base.ok)return base;
     // 할인이 없는 옥션 상품은 "원가" 표시 없이 "판매가"만 보인다 — 그 값이 대표 등록가라 그대로 기준으로 쓴다(collect가 폴백으로 읽음).
+    const listItems=box=>box?[...box.querySelectorAll('.select-itemoption-list li')]:[];
+    if(!await waitUntil(()=>listItems(optionBoxes(site)[0]).length))return {ok:false,error:'옵션 목록을 찾지 못했습니다.'};
+    // 1단 옵션 상품(타이거폼 2K·라이트폼 세트 "제품선택: 경질 / 연질") — 누를 것 없이 목록에 보이는 "(+32,400원)" 추가금을 첫 옵션 등록가(기존가/원가)에 더한다.
+    // (추가금 표시가 없는 항목은 0원, 품절 항목은 가격을 알 수 없어 prices를 비운다.)
+    if(optionBoxes(site).length===1){
+      const oneRows=listItems(optionBoxes(site)[0]).map(item=>{
+        const text=cleanText(item);
+        const match=text.match(/\(([+-]?)\s*([0-9][0-9,]*)\s*원\)/);
+        const addOn=match?(match[1]==='-'?-1:1)*Number(match[2].replace(/,/g,'')):0;
+        const name=text.replace(/\(([+-]?)\s*[0-9][0-9,]*\s*원\)/,'').replace(/\s*[0-9,+]+\s*개\s*남음.*$/,'').replace(/\s*(일시)?품절.*$/,'').replace(/\s+/g,' ').trim();
+        return {type:name,size:'',prices:/품절/.test(text)?[]:[base.registeredPrice+addOn]};
+      }).filter(row=>row.type);
+      if(!oneRows.length)return {ok:false,error:'옵션 목록을 읽지 못했습니다.'};
+      return {ok:true,marketplace:base.marketplace,productId:base.productId,productUrl:base.productUrl,title:base.title,registeredPrice:base.registeredPrice,rows:oneRows};
+    }
     if(!await waitUntil(()=>optionLinks(optionBoxes(site)[0],site).length))return {ok:false,error:'옵션 목록을 찾지 못했습니다.'};
     const rows=[];
     const typeCount=optionLinks(optionBoxes(site)[0],site).length;

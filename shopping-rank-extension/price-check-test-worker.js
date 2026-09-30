@@ -441,6 +441,7 @@ function st11KeyFromName(name) {
   const count = /(?<!\d)(\d+)\s*장/.exec(spaced);
   return { key: `${material}${/접착/.test(s) ? 'A' : ''}|${thickness}|${size[1]}x${size[2]}`, count: count ? Number(count[1]) : null };
 }
+function st11NormName(text) { return String(text || '').toLowerCase().replace(/[\s()\[\]{}·_\-\/,.~★●☆※+]/g, ''); }
 function match11stOptions(productId, allStoreRows, options) {
   const infos = options.map(option => ({ option, ...(st11KeyFromCode(option.code) || { key: null, count: null }) }));
   const used = new Set();
@@ -479,6 +480,16 @@ function match11stOptions(productId, allStoreRows, options) {
       // 같은 열쇠가 둘 이상(예: 아이소핑크 900x1800 70T의 1장/3장)이면 장수로 가른다.
       hit = candidates.length > 1 ? candidates.find(info => parsed.count != null && info.count === parsed.count) : candidates[0];
     }
+    // 부자재처럼 규격 열쇠가 없는 옵션(단가표 관리코드가 T_EB_D 같은 이름표)은 옵션 이름이 같은 것끼리 짝짓는다(공백·기호 무시).
+    let byName = false;
+    if (!hit) {
+      const rowName = st11NormName(row.name);
+      // 옵션 이름(option.name)뿐 아니라 11번가 스토어 옵션명(option.storeName — "1단계 / 2단계"·번호 접두어처럼 우리 이름과 다르게 올라간 것)으로도 짝짓는다.
+      if (rowName) hit = infos.find((info, index) => info.key == null && !used.has(index) && [info.option.name, info.option.storeName].some(name => name && st11NormName(name) === rowName));
+      // 옵션이 없는 단품 상품(수집기가 "(옵션 없음)" 한 줄로 돌려줌)은 우리 옵션이 하나뿐이면 그것과 짝짓는다.
+      if (!hit && row.name === '(옵션 없음)' && infos.length === 1 && !used.has(0)) hit = infos[0];
+      byName = !!hit;
+    }
     const price = Number.isFinite(row.price) && row.price > 0 ? row.price : null;
     const soldOut = row.qty === 0;
     const base = { productId, store: '11st', label: row.name, actual: price, priceKind: '판매가', listPrice: price, maxPrice: null };
@@ -486,10 +497,10 @@ function match11stOptions(productId, allStoreRows, options) {
     used.add(infos.indexOf(hit));
     const expected = Number(hit.option.expected);
     const validExpected = expected > 0;
-    const countNote = parsed.count != null && hit.count != null && parsed.count !== hit.count ? ` · 장수 표기 다름(스토어 ${parsed.count}장/단가표 ${hit.count}장)` : '';
+    const countNote = parsed && parsed.count != null && hit.count != null && parsed.count !== hit.count ? ` · 장수 표기 다름(스토어 ${parsed.count}장/단가표 ${hit.count}장)` : '';
     let status = hit.option.status || soldOut ? '품절' : price == null ? '가격 확인 불가' : !validExpected ? '단가 확인 불가' : price === expected ? '일치' : '불일치';
     if (status === '일치' && countNote) status = '이름 확인 필요';
-    results.push({ ...base, code: hit.option.code || null, expected: validExpected ? expected : null, diff: validExpected && price != null ? price - expected : null, status, source: `규격 매칭${countNote}` });
+    results.push({ ...base, code: hit.option.code || null, expected: validExpected ? expected : null, diff: validExpected && price != null ? price - expected : null, status, source: `${byName ? '이름 매칭' : '규격 매칭'}${countNote}` });
   }
   // 두 옵션의 스토어 가격이 서로의 단가표 가격과 정확히 맞바뀐 경우(예: 600x900이 430x430 가격, 430x430이 600x900 가격) 알려준다 —
   // 옵션 이름과 가격이 어긋나게 등록된 것으로 보이는 흔한 패턴(2026-09-30 실제 1534558353·1548926732).
@@ -504,6 +515,9 @@ function match11stOptions(productId, allStoreRows, options) {
   });
   return results;
 }
+async function st11TabUrl(tabId) {
+  try { const tab = await chrome.tabs.get(tabId); return String(tab?.url || tab?.pendingUrl || ''); } catch { return ''; }
+}
 function st11ProductUrlOk(url, id) { return url.origin==='https://www.11st.co.kr' && url.pathname.replace(/\/$/,'')==='/products/'+id; }
 async function inspect11st(item, supplementCatalog, mode) {
   const id = String(item.productId||'').trim();
@@ -515,8 +529,17 @@ async function inspect11st(item, supplementCatalog, mode) {
     let scan;
     for (let n=0;n<25;n++) {
       await delay(800);
-      try { scan = await chrome.tabs.sendMessage(tab.id,{type:'GET_11ST_SCAN_DATA',mode:mode==='supplement'?'supplement':'options'}); } catch {}
+      try { scan = await chrome.tabs.sendMessage(tab.id,{type:'GET_11ST_SCAN_DATA',mode:mode==='supplement'?'supplement':'options'}); } catch {
+        // 로그인 화면으로 넘어간 상품(성인 인증)은 수집기가 없어 계속 실패한다 — 몇 번 시도해 보고 바로 빠져나간다.
+        if (n >= 2 && /login\\.11st\\.co\\.kr/.test(await st11TabUrl(tab.id))) break;
+      }
       if (scan?.ok || scan?.error) break;
+    }
+    if (!scan?.ok && !scan?.error) {
+      // 성인 인증이 필요한 상품(본드류 등)은 로그인 화면으로 넘어가 수집기가 없다 — 차단이 아니라 이 상품만 읽을 수 없는 것이라 검사를 멈추지 않고 표시만 한다.
+      if (/login\.11st\.co\.kr/.test(await st11TabUrl(tab.id))) {
+        return [{productId:id, store:'11st', status:'성인인증 필요', label:'성인 인증이 필요한 상품이라 검사하지 못했습니다', code:null, actual:null, expected:null, diff:null, source:'11번가에서 직접 확인'}];
+      }
     }
     if (!scan?.ok) throw Error(scan?.error||'11번가 상품 정보 수집 실패 — 로그인·차단·삭제 여부 확인 필요');
     if (String(scan.productId)!==id) throw Error('수집 상품 주소 불일치');
@@ -546,10 +569,11 @@ async function inspectEsmOptions(item, id, marketplace, tab) {
   const used = new Set();
   const results = [];
   for (const row of scan.rows) {
-    const key = esmOptionKey(row.type)+'x'+esmOptionKey(row.size);
-    const optionIndex = options.findIndex((option,index)=>!used.has(index)&&esmOptionKey(option.name)===key);
+    // 단열벽지는 "타입 + 사이즈", 1단 옵션 상품(2K·라이트폼)은 이름만(size가 빔). 우리 이름(option.name)이나 스토어 옵션명(option.storeName)이 같으면 짝.
+    const key = row.size ? esmOptionKey(row.type)+'x'+esmOptionKey(row.size) : esmOptionKey(row.type);
+    const optionIndex = options.findIndex((option,index)=>!used.has(index)&&[option.name,option.storeName].some(name=>name&&esmOptionKey(name)===key));
     const prices = (Array.isArray(row.prices)?row.prices:[]).map(Number).filter(price=>Number.isFinite(price)&&price>0);
-    const label = `${row.type} ${row.size}`;
+    const label = [row.type, row.size].filter(Boolean).join(' ');
     const actual = prices.length ? prices[0] : null;
     if (optionIndex<0) { results.push({productId:id,store:marketplace,label,code:null,actual,expected:null,diff:null,status:'단가표에 없음',source:'매칭 안 됨',priceKind:'등록 판매가'}); continue; }
     used.add(optionIndex);
