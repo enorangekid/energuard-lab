@@ -399,6 +399,45 @@ function esmProductUrlOk(url, marketplace, id) {
   if (marketplace==='auction') return url.origin==='https://itempage3.auction.co.kr'&&url.pathname.toLowerCase()==='/detailview.aspx'&&String(url.searchParams.get('ItemNo')||url.searchParams.get('itemno')||'').toUpperCase()===id;
   return false;
 }
+// 옵션 상품(단열벽지) 옵션 짝짓기 열쇠 — 단가표 이름("단열벽지 고급형1 5T x 10m")과 스토어 옵션("고급형1_5T" + "10m")을 같은 모양으로 맞춘다.
+function esmOptionKey(text) { return String(text||'').replace(/단열벽지|_|\s/g,'').toLowerCase(); }
+async function inspectEsmOptions(item, id, marketplace, tab) {
+  let scan;
+  for (let n=0;n<25;n++) {
+    await delay(600);
+    try { scan = await chrome.tabs.sendMessage(tab.id,{type:'GET_ESM_OPTION_SCAN_DATA'}); } catch {}
+    if (scan?.ok || scan?.error) break;
+  }
+  if (!scan?.ok) throw Error(scan?.error||'ESM 옵션 정보 수집 실패 — 로그인·차단·삭제 여부 확인 필요');
+  if (scan.marketplace!==marketplace||String(scan.productId)!==id) throw Error('수집 상품 주소 불일치');
+  if (!Array.isArray(scan.rows)||!scan.rows.length) throw Error('ESM 옵션 확인 불가');
+  const source = marketplace==='auction' ? '옥션 옵션(원가+추가금)' : 'G마켓 옵션';
+  const options = Array.isArray(item.options) ? item.options : [];
+  const used = new Set();
+  const results = [];
+  for (const row of scan.rows) {
+    const key = esmOptionKey(row.type)+'x'+esmOptionKey(row.size);
+    const optionIndex = options.findIndex((option,index)=>!used.has(index)&&esmOptionKey(option.name)===key);
+    const prices = (Array.isArray(row.prices)?row.prices:[]).map(Number).filter(price=>Number.isFinite(price)&&price>0);
+    const label = `${row.type} ${row.size}`;
+    const actual = prices.length ? prices[0] : null;
+    if (optionIndex<0) { results.push({productId:id,store:marketplace,label,code:null,actual,expected:null,diff:null,status:'단가표에 없음',source:'매칭 안 됨',priceKind:'등록 판매가'}); continue; }
+    used.add(optionIndex);
+    const option = options[optionIndex];
+    const expected = Number(option.expected);
+    const validExpected = expected>0;
+    // 같은 사이즈 안에서 디자인마다 추가금이 다르면(옥션) 하나라도 어긋난 값을 결과로 남긴다.
+    const wrong = validExpected ? prices.find(price=>price!==expected) : undefined;
+    const shown = wrong!==undefined ? wrong : actual;
+    const status = option.status ? '품절' : !prices.length ? '가격 확인 불가' : !validExpected ? '단가 확인 불가' : wrong!==undefined ? '불일치' : '일치';
+    results.push({productId:id,store:marketplace,label,code:option.code||null,actual:shown,expected:validExpected?expected:null,diff:validExpected&&shown!=null?shown-expected:null,status,source:prices.length>1&&wrong!==undefined?`${source} · 디자인별 가격 상이`:source,priceKind:'등록 판매가',listPrice:shown,maxPrice:null});
+  }
+  options.forEach((option,index)=>{
+    if (used.has(index)||option.status) return;
+    results.push({productId:id,store:marketplace,label:option.name,code:option.code||null,actual:null,expected:Number(option.expected)>0?Number(option.expected):null,diff:null,status:'스토어에 없음',source:'매칭 안 됨',priceKind:'등록 판매가'});
+  });
+  return results;
+}
 async function inspectEsm(item) {
   const id=String(item.productId||'').trim();
   const marketplace=item.marketplace;
@@ -408,6 +447,7 @@ async function inspectEsm(item) {
   const tab=await chrome.tabs.create({url:url.href,active:false});
   await chrome.storage.local.set({priceCheckTab:{id:tab.id,url:url.href}});
   try{
+    if(item.optionMode)return await inspectEsmOptions(item,id,marketplace,tab);
     let scan;
     for(let n=0;n<25;n++){
       await delay(600);
@@ -761,6 +801,7 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
           if(it.marketplace==='auction'&&!/^[A-Z]\d+$/.test(id))throw Error('옥션 상품번호 오류');
           if(!['gmarket','auction'].includes(it.marketplace))throw Error('ESM 판매처 오류');
           if(!it.unsupported&&!esmProductUrlOk(new URL(String(it.productUrl||'')),it.marketplace,id))throw Error('허용되지 않은 ESM 상품 주소');
+          if(it.optionMode&&(!Array.isArray(it.options)||!it.options.length))throw Error('ESM 옵션 검사 데이터 오류');
         }
         const channelId='esm';
         state={runId:crypto.randomUUID(),kind:'esm',channelId,running:true,startedAt:Date.now(),done:0,total:p.items.length,rows:[],items:p.items};

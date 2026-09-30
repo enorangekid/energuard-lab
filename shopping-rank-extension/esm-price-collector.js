@@ -36,9 +36,63 @@
     if(!original)original=firstPrice(root,['.price_original','del.price_original','.box__price-original','[class*="price_original"]']);
     const discounted=firstPrice(root,site==='auction'?['.price_coupon','.price > strong','.price strong']:['.price_real strong','.price_real','.box__price-seller strong','.box__price-seller']);
     const registeredPrice=original||discounted;
-    return {ok:!!registeredPrice,marketplace:site,productId:id,productUrl:location.href,title:document.querySelector('h1')?.textContent?.trim()||document.title,registeredPrice,discountedPrice:discounted||null,error:registeredPrice?null:'등록 판매가를 찾지 못했습니다.'};
+    return {ok:!!registeredPrice,marketplace:site,productId:id,productUrl:location.href,title:document.querySelector('h1')?.textContent?.trim()||document.title,registeredPrice,discountedPrice:discounted||null,hasOriginal:!!original,error:registeredPrice?null:'등록 판매가를 찾지 못했습니다.'};
+  }
+
+  // ── 옵션 상품(단열벽지) — G마켓·옥션은 "단열벽지 → 사이즈 → 디자인" 3단 조합 옵션이다(그룹상품이 아님).
+  // 가격은 사이즈 단계에서 정해진다(디자인 단계 가격은 사이즈와 같다).
+  //  · G마켓: 사이즈 목록에 "10m58,400원"처럼 등록가가 그대로 보인다.
+  //  · 옥션: 사이즈 목록엔 가격이 없고, 디자인 목록에 "(+38,800원)"처럼 대표 등록가(원가) 대비 추가금이 보인다 → 원가 + 추가금.
+  // 옵션 목록은 클릭해야 채워지므로 읽기 전용으로 눌러 보기만 한다(주문·장바구니는 건드리지 않는다).
+  const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+  async function waitUntil(fn,timeout=12000,step=250){const end=Date.now()+timeout;for(;;){const value=fn();if(value)return value;if(Date.now()>end)return null;await sleep(step);}}
+  const cleanText=node=>String(node?.textContent||'').replace(/\s+/g,' ').trim();
+  const optionBoxes=site=>{
+    const root=document.querySelector(site==='gmarket'?'.goods_option':'.optiontype.type_selection');
+    return root?[...root.querySelectorAll('.item_options')].filter(box=>!box.classList?.contains('item_delivery')).slice(0,3):[];
+  };
+  const optionLinks=(box,site)=>box?[...box.querySelectorAll(site==='gmarket'?'.select-itemoption-list li a.link':'.select-itemoption-list li a')]:[];
+  async function collectOptions(){
+    const site=market();
+    const base=collect();
+    if(!base.ok)return base;
+    // 할인이 없는 옥션 상품은 "원가" 표시 없이 "판매가"만 보인다 — 그 값이 대표 등록가라 그대로 기준으로 쓴다(collect가 폴백으로 읽음).
+    if(!await waitUntil(()=>optionLinks(optionBoxes(site)[0],site).length))return {ok:false,error:'옵션 목록을 찾지 못했습니다.'};
+    const rows=[];
+    const typeCount=optionLinks(optionBoxes(site)[0],site).length;
+    for(let i=0;i<typeCount;i++){
+      const link=optionLinks(optionBoxes(site)[0],site)[i];
+      const type=String(link.dataset?.optionnm||cleanText(link)).trim();
+      link.click();
+      if(!await waitUntil(()=>optionLinks(optionBoxes(site)[1],site).length))return {ok:false,error:`"${type}" 사이즈 목록을 찾지 못했습니다.`};
+      const sizeCount=optionLinks(optionBoxes(site)[1],site).length;
+      for(let j=0;j<sizeCount;j++){
+        const sizeLink=optionLinks(optionBoxes(site)[1],site)[j];
+        if(site==='gmarket'){
+          const match=cleanText(sizeLink).match(/^(.+?m)\s*([0-9][0-9,]*)\s*원$/i);
+          if(!match)return {ok:false,error:`"${type}" 사이즈 가격을 읽지 못했습니다: ${cleanText(sizeLink)}`};
+          rows.push({type,size:match[1].replace(/\s+/g,''),prices:[Number(match[2].replace(/,/g,''))]});
+        } else {
+          const size=cleanText(sizeLink);
+          sizeLink.click();
+          await sleep(1200);
+          if(!await waitUntil(()=>optionLinks(optionBoxes(site)[2],site).length))return {ok:false,error:`"${type} ${size}" 디자인 목록을 찾지 못했습니다.`};
+          // 추가금이 0원인 디자인은 "(+…원)" 표시가 없고, 품절 디자인은 "(품절)"만 있어 가격을 알 수 없다 → 품절은 빼고, 표시 없는 디자인은 추가금 0으로 본다.
+          const addOns=[...new Set(optionLinks(optionBoxes(site)[2],site).filter(node=>!/품절/.test(cleanText(node))&&!/soldout/.test(String(node.closest?.('li')?.className||''))).map(node=>{
+            const match=cleanText(node).match(/\(([+-]?)\s*([0-9][0-9,]*)\s*원\)/);
+            return match?(match[1]==='-'?-1:1)*Number(match[2].replace(/,/g,'')):0;
+          }))];
+          rows.push({type,size:size.replace(/\s+/g,''),prices:addOns.map(addOn=>base.registeredPrice+addOn)});
+        }
+      }
+    }
+    return {ok:true,marketplace:base.marketplace,productId:base.productId,productUrl:base.productUrl,title:base.title,registeredPrice:base.registeredPrice,rows};
   }
   chrome.runtime.onMessage.addListener((message,_sender,respond)=>{
+    if(message?.type==='GET_ESM_OPTION_SCAN_DATA'){
+      collectOptions().then(respond,error=>respond({ok:false,error:error?.message||'ESM 옵션 수집 실패'}));
+      return true; // 비동기 응답
+    }
     if(message?.type!=='GET_ESM_SCAN_DATA')return;
     try{respond(collect());}catch(error){respond({ok:false,error:error?.message||'ESM 상품 수집 실패'});}
   });
