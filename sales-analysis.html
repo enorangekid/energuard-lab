@@ -1016,7 +1016,7 @@ function parseCoupangAdRows(rawRows) {
     if (!date || (!adGroup && !cost)) return null;
     return {
       date,
-      campaign: norm(pick(row, ["캠페인명"])),
+      campaign: norm(pick(row, ["캠페인명", "캠페인"])),
       adGroup,
       placement: norm(pick(row, ["광고 노출 지면", "노출 지면", "지면"])),
       adType: norm(pick(row, ["광고유형"])),
@@ -5304,7 +5304,10 @@ function coupangReportSumAdItems(items) {
 function coupangReportGroupAdByPlacement(items) {
   const byPlacement = new Map();
   (items || []).forEach(r => {
-    const key = r.placement || "(구분 없음)";
+    // 2026-07부터 쓰기 시작한 "일별 광고그룹" 예약보고서는 지면(검색영역/비검색영역) 컬럼이
+    // 아예 없는 리포트 타입이라(parseCoupangAdRows 참고) placement가 항상 빈 값으로 들어온다 —
+    // 파싱 실패가 아니라 원본 데이터 자체에 없는 것이므로, 그 사실이 드러나는 문구로 보여준다.
+    const key = r.placement || "지면 구분 없음(리포트에 미포함)";
     if (!byPlacement.has(key)) byPlacement.set(key, { placement: key, cost: 0, impressions: 0, clicks: 0, orders: 0, sales: 0 });
     const acc = byPlacement.get(key);
     acc.cost += Number(r.cost) || 0;
