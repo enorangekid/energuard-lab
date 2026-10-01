@@ -621,6 +621,13 @@ function match11stOptions(productId, allStoreRows, options) {
 async function st11TabUrl(tabId) {
   try { const tab = await chrome.tabs.get(tabId); return String(tab?.url || tab?.pendingUrl || ''); } catch { return ''; }
 }
+// 탭이 이 상품 페이지가 아닌 주소로 넘어갔으면 그 주소("호스트+경로")를, 아니면 ''를 돌려준다.
+function st11Redirected(tabUrl, id) {
+  let u; try { u = new URL(String(tabUrl || '')); } catch { return ''; }
+  if (u.hostname === 'www.11st.co.kr' && u.pathname.replace(/\/$/, '') === '/products/' + id) return '';
+  if (u.protocol === 'about:' || u.protocol === 'chrome:' || !u.hostname) return '';
+  return u.hostname + u.pathname;
+}
 function st11ProductUrlOk(url, id) { return url.origin==='https://www.11st.co.kr' && url.pathname.replace(/\/$/,'')==='/products/'+id; }
 async function inspect11st(item, supplementCatalog, mode) {
   const id = String(item.productId||'').trim();
@@ -633,15 +640,21 @@ async function inspect11st(item, supplementCatalog, mode) {
     for (let n=0;n<25;n++) {
       await delay(800);
       try { scan = await chrome.tabs.sendMessage(tab.id,{type:'GET_11ST_SCAN_DATA',mode:mode==='supplement'?'supplement':'options'}); } catch {
-        // 로그인 화면으로 넘어간 상품(성인 인증)은 수집기가 없어 계속 실패한다 — 몇 번 시도해 보고 바로 빠져나간다.
-        if (n >= 2 && /login\\.11st\\.co\\.kr/.test(await st11TabUrl(tab.id))) break;
+        // 상품 주소가 아닌 곳(성인 인증·로그인 화면 등)으로 넘어간 상품은 수집기가 없어 계속 실패한다 — 몇 번 시도해 보고 바로 빠져나간다.
+        if (n >= 2 && st11Redirected(await st11TabUrl(tab.id), id)) break;
       }
       if (scan?.ok || scan?.error) break;
     }
     if (!scan?.ok && !scan?.error) {
-      // 성인 인증이 필요한 상품(본드류 등)은 로그인 화면으로 넘어가 수집기가 없다 — 차단이 아니라 이 상품만 읽을 수 없는 것이라 검사를 멈추지 않고 표시만 한다.
-      if (/login\.11st\.co\.kr/.test(await st11TabUrl(tab.id))) {
-        return [{productId:id, store:'11st', status:'성인인증 필요', label:'성인 인증이 필요한 상품이라 검사하지 못했습니다', code:null, actual:null, expected:null, diff:null, source:'11번가에서 직접 확인'}];
+      // 성인 인증이 필요한 상품(본드류 등)은 인증·로그인 화면으로 넘어가 수집기가 없다 — 차단이 아니라 이 상품만 읽을 수 없는 것이라 검사를 멈추지 않고 표시만 한다.
+      const tabUrl = await st11TabUrl(tab.id);
+      const where = st11Redirected(tabUrl, id);
+      if (where) {
+        if (/adult|certif|identity|auth|login|member|safe|nice/i.test(where)) {
+          return [{productId:id, store:'11st', status:'성인인증 필요', label:'성인 인증이 필요한 상품이라 검사하지 못했습니다', code:null, actual:null, expected:null, diff:null, source:`11번가에서 직접 확인 (이동한 주소 ${where})`}];
+        }
+        // 인증·로그인 주소가 아니면 삭제·판매종료 등으로 다른 페이지로 간 것일 수 있다 — 멈추지 않고 어디로 갔는지 알려 준다.
+        throw Error(`11번가 상품 페이지가 아닌 주소로 이동했습니다 (현재 주소 ${where}) — 상품이 삭제·판매종료됐는지 직접 확인하세요`);
       }
     }
     if (!scan?.ok) throw Error(scan?.error||'11번가 상품 정보 수집 실패 — 로그인·차단·삭제 여부 확인 필요');
@@ -657,13 +670,23 @@ async function inspect11st(item, supplementCatalog, mode) {
 
 // 옵션 상품(단열벽지) 옵션 짝짓기 열쇠 — 단가표 이름("단열벽지 고급형1 5T x 10m")과 스토어 옵션("고급형1_5T" + "10m")을 같은 모양으로 맞춘다.
 function esmOptionKey(text) { return String(text||'').replace(/단열벽지|_|\s/g,'').toLowerCase(); }
-async function inspectEsmOptions(item, id, marketplace, tab) {
-  let scan;
-  for (let n=0;n<25;n++) {
+// ESM 상품 페이지 수집 — G마켓·옥션의 "잠시만 기다리십시오 / 봇 확인" 화면은 몇 초 뒤 저절로 지나가기도 해서(간헐적으로 걸림),
+// 그 화면이 보이면 바로 실패로 보지 않고 약 20초까지 기다리며 다시 읽는다. 끝까지 남아 있으면 그때 실패로 알린다.
+async function esmScanTab(tabId, type) {
+  let scan, botFrom = -1;
+  for (let n=0;n<55;n++) {
     await delay(600);
-    try { scan = await chrome.tabs.sendMessage(tab.id,{type:'GET_ESM_OPTION_SCAN_DATA'}); } catch {}
-    if (scan?.ok || scan?.error) break;
+    try { scan = await chrome.tabs.sendMessage(tabId,{type}); } catch {}
+    if (scan?.ok) break;
+    if (scan?.error) {
+      if (/사이트 확인 화면/.test(scan.error)) { if (botFrom < 0) botFrom = n; if (n - botFrom < 32) continue; }
+      break;
+    }
   }
+  return scan;
+}
+async function inspectEsmOptions(item, id, marketplace, tab) {
+  const scan = await esmScanTab(tab.id, 'GET_ESM_OPTION_SCAN_DATA');
   if (!scan?.ok) throw Error(scan?.error||'ESM 옵션 정보 수집 실패 — 로그인·차단·삭제 여부 확인 필요');
   if (scan.marketplace!==marketplace||String(scan.productId)!==id) throw Error('수집 상품 주소 불일치');
   if (!Array.isArray(scan.rows)||!scan.rows.length) throw Error('ESM 옵션 확인 불가');
@@ -705,12 +728,7 @@ async function inspectEsm(item) {
   await chrome.storage.local.set({priceCheckTab:{id:tab.id,url:url.href}});
   try{
     if(item.optionMode)return await inspectEsmOptions(item,id,marketplace,tab);
-    let scan;
-    for(let n=0;n<25;n++){
-      await delay(600);
-      try{scan=await chrome.tabs.sendMessage(tab.id,{type:'GET_ESM_SCAN_DATA'});}catch{}
-      if(scan?.ok||scan?.error)break;
-    }
+    const scan=await esmScanTab(tab.id,'GET_ESM_SCAN_DATA');
     if(!scan?.ok)throw Error(scan?.error||'ESM 상품 정보 수집 실패 — 로그인·차단·삭제 여부 확인 필요');
     if(scan.marketplace!==marketplace||String(scan.productId)!==id)throw Error('수집 상품 주소 불일치');
     const actual=Number(scan.registeredPrice),expected=Number(item.expected);
@@ -1006,8 +1024,9 @@ async function processNext(){
     if(failed){state.running=false;state.reason='수집 실패로 일시정지';}
     if(state.done>=state.total){state.running=false;state.finishedAt=Date.now();state.reason=failed?'검사 종료 — 수집 실패 포함':'완료';}
     await save(state);
-    // 11번가도 G마켓·옥션처럼 짧은 간격으로 많이 열면 봇 차단이 걸릴 수 있어 상품 사이 대기를 늘린다.
-    if(state.running){await arm();setTimeout(processNext,['11st','coupang'].includes(state.kind)?3000:NEXT_DELAY_MS);}else await chrome.alarms.clear(ALARM);
+    // 11번가·쿠팡·ESM(G마켓·옥션)은 짧은 간격으로 많이 열면 봇 차단이 걸려서 상품 사이 대기를 늘린다. ESM은 일정한 간격이 봇처럼 보이지 않게 무작위로 조금 더 흔든다.
+    const gap=['11st','coupang'].includes(state.kind)?3000:state.kind==='esm'?3000+Math.floor(Math.random()*2500):NEXT_DELAY_MS;
+    if(state.running){await arm();setTimeout(processNext,gap);}else await chrome.alarms.clear(ALARM);
   }catch(error){const state=await readState();if(state){state.running=false;state.reason='실행 오류: '+error.message;await save(state);}await chrome.alarms.clear(ALARM);}
   finally{processing=false;}
 }
