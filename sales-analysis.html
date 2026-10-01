@@ -637,6 +637,13 @@
           <path d="M5 21h14"></path>
         </svg>
       </button>
+      <button type="button" class="store-add-icon" id="coupangReportDownloadBtn" style="display:none;" onclick="downloadCoupangReport()" title="쿠팡 매출·광고 종합 보고서 다운로드(엑셀)" aria-label="보고서 다운로드">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3v12"></path>
+          <path d="m7 10 5 5 5-5"></path>
+          <path d="M5 21h14"></path>
+        </svg>
+      </button>
     </div>
   </div>
 
@@ -4240,6 +4247,7 @@ function render() {
   renderMetrics();
   document.getElementById("adCollectIconBtn").style.display = "none"; // renderAdsPanel의 네이버 탭에서만 필요 시 다시 켠다
   document.getElementById("naverReportDownloadBtn").style.display = activePlatform === "naver" ? "" : "none";
+  document.getElementById("coupangReportDownloadBtn").style.display = activePlatform === "coupang" ? "" : "none";
   if (activeSubtab[activePlatform] === "sales") renderSalesPanel();
   else renderAdsPanel();
   renderMonthQuick(); // 플랫폼/탭이 바뀌면 "채워진 월" 기준도 달라지므로 다시 계산
@@ -5252,6 +5260,380 @@ async function downloadNaverReport() {
     const a = document.createElement("a");
     a.href = url;
     a.download = `네이버_매출광고_보고서_${dateFrom}_${dateTo}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  } catch (err) {
+    alert("보고서 생성 실패: " + (err.message || err));
+  } finally {
+    hideLoading();
+    if (btn) btn.disabled = false;
+  }
+}
+
+// ============================================================================
+// 쿠팡 매출·광고 종합 보고서 다운로드 — 네이버 버전(downloadNaverReport)과 같은 구조.
+// 쿠팡은 "유입채널"/"신규·재구매 고객" 개념이 없어서(이 앱에 그런 데이터가 없음) 그 두 시트는
+// 빼고, 대신 쿠팡 특유의 방문자→조회→장바구니→주문 퍼널을 요약에 넣는다. 2026-10-01 추가.
+// ============================================================================
+
+function coupangReportSumSalesItems(items) {
+  return (items || []).reduce((acc, r) => {
+    acc.visitors += Number(r.visitors) || 0;
+    acc.views += Number(r.views) || 0;
+    acc.carts += Number(r.carts) || 0;
+    acc.orders += Number(r.orders) || 0;
+    acc.qty += Number(r.qty) || 0;
+    acc.sales += Number(r.sales) || 0;
+    return acc;
+  }, { visitors: 0, views: 0, carts: 0, orders: 0, qty: 0, sales: 0 });
+}
+
+function coupangReportSumAdItems(items) {
+  return (items || []).reduce((acc, r) => {
+    acc.cost += Number(r.cost) || 0;
+    acc.impressions += Number(r.impressions) || 0;
+    acc.clicks += Number(r.clicks) || 0;
+    acc.orders += Number(r.orders) || 0;
+    acc.sales += Number(r.sales) || 0;
+    return acc;
+  }, { cost: 0, impressions: 0, clicks: 0, orders: 0, sales: 0 });
+}
+
+function coupangReportGroupAdByPlacement(items) {
+  const byPlacement = new Map();
+  (items || []).forEach(r => {
+    const key = r.placement || "(구분 없음)";
+    if (!byPlacement.has(key)) byPlacement.set(key, { placement: key, cost: 0, impressions: 0, clicks: 0, orders: 0, sales: 0 });
+    const acc = byPlacement.get(key);
+    acc.cost += Number(r.cost) || 0;
+    acc.impressions += Number(r.impressions) || 0;
+    acc.clicks += Number(r.clicks) || 0;
+    acc.orders += Number(r.orders) || 0;
+    acc.sales += Number(r.sales) || 0;
+  });
+  return [...byPlacement.values()].sort((a, b) => b.cost - a.cost);
+}
+
+// 상품(옵션)별 실적은 월별 스냅샷(엑셀 업로드)이라, 요청한 기간과 정확히 일치하는 스냅샷이
+// 있을 때만 쓴다 — 네이버 고객 스냅샷과 같은 이유(2026-10-01, comparePeriodRanges가 계산하는
+// "전기간"은 달력 월 경계와 안 맞을 때가 많아서 엉뚱한 스냅샷을 끌어오면 안 된다).
+async function coupangReportFindExactItemPeriod(dateFrom, dateTo) {
+  try {
+    const result = await callAdFn({ action: "coupangItemPeriods" });
+    const periods = result.periods || [];
+    return periods.find(p => p.from === dateFrom && p.to === dateTo) || null;
+  } catch (_) {
+    return null;
+  }
+}
+
+async function coupangReportFetchPeriod(dateFrom, dateTo, label) {
+  const [salesData, adData, exactItemPeriod] = await Promise.all([
+    callAdFn({ action: "coupangSalesSummary", dateFrom, dateTo }).catch(() => ({ items: [] })),
+    callAdFn({ action: "coupangSummary", dateFrom, dateTo }).catch(() => ({ items: [] })),
+    coupangReportFindExactItemPeriod(dateFrom, dateTo),
+  ]);
+  const sales = coupangReportSumSalesItems(salesData.items);
+  const ad = coupangReportSumAdItems(adData.items);
+  const adByPlacement = coupangReportGroupAdByPlacement(adData.items);
+
+  let items = [];
+  if (exactItemPeriod) {
+    try {
+      const itemData = await callAdFn({ action: "coupangItemSummary", periodFrom: exactItemPeriod.from, periodTo: exactItemPeriod.to });
+      items = (itemData.items || []).slice().sort((a, b) => b.sales - a.sales);
+    } catch (_) { items = []; }
+  }
+
+  return {
+    label, dateFrom, dateTo,
+    sales, ad, adByPlacement,
+    itemPeriod: exactItemPeriod ? `${exactItemPeriod.from}|${exactItemPeriod.to}` : "",
+    items,
+    daily: salesData.items || [],
+  };
+}
+
+async function coupangReportGenerateInsights(cur, prev, year) {
+  const stats = {
+    기간: { 이번기간: `${cur.dateFrom}~${cur.dateTo}`, 전기간: `${prev.dateFrom}~${prev.dateTo}`, 작년동기: `${year.dateFrom}~${year.dateTo}` },
+    매출: {
+      이번기간_매출: cur.sales.sales, 전기간_매출: prev.sales.sales, 작년동기_매출: year.sales.sales,
+      이번기간_주문수: cur.sales.orders, 전기간_주문수: prev.sales.orders, 작년동기_주문수: year.sales.orders,
+      이번기간_방문자수: cur.sales.visitors, 전기간_방문자수: prev.sales.visitors, 작년동기_방문자수: year.sales.visitors,
+      이번기간_조회수: cur.sales.views, 전기간_조회수: prev.sales.views, 작년동기_조회수: year.sales.views,
+      이번기간_장바구니: cur.sales.carts, 전기간_장바구니: prev.sales.carts, 작년동기_장바구니: year.sales.carts,
+    },
+    광고: {
+      이번기간_광고비: cur.ad.cost, 전기간_광고비: prev.ad.cost, 작년동기_광고비: year.ad.cost,
+      이번기간_주문수: cur.ad.orders, 전기간_주문수: prev.ad.orders, 작년동기_주문수: year.ad.orders,
+      이번기간_매출: cur.ad.sales, 전기간_매출: prev.ad.sales, 작년동기_매출: year.ad.sales,
+      영역별_이번기간: cur.adByPlacement.map(p => `${p.placement}: 비용 ${num(p.cost)}원, 주문 ${num(p.orders)}건, 매출 ${num(p.sales)}원`),
+    },
+    상품_TOP5_이번기간: cur.items.length ? cur.items.slice(0, 5).map(it => ({ 상품명: it.productName, 옵션명: it.optionName, 매출: it.sales, 주문: it.orders })) : "상품별 스냅샷 없음(해당 월 업로드 안 됨)",
+  };
+
+  const prompt = `너는 이커머스 데이터 분석가야. 아래는 쿠팡 스토어의 매출·광고 데이터(이번 조회기간 vs 전기간 vs 작년 동기)를 요약한 JSON이야.
+이 데이터를 바탕으로 매출 담당자가 바로 읽을 수 있는 보고서용 문장을 만들어줘.
+
+[출력 형식 - 반드시 아래 JSON 형식으로만 답하고, 그 외 설명은 절대 하지 마]
+{
+  "insights": ["문장1", "문장2", ...],
+  "actions": [{"title": "짧은 제목", "detail": "구체적인 설명 문장"}, ...]
+}
+
+[작성 규칙]
+- insights는 4~7개. 숫자(증감률, 금액, 건수)를 반드시 인용해서 근거를 보여줄 것. 데이터에 없는 숫자나 사실을 지어내지 말 것.
+- 방문자→조회→장바구니→주문으로 이어지는 퍼널에서 눈에 띄게 이탈이 크거나 작은 단계가 있으면 짚어줄 것.
+- actions는 3~6개. "다음 기간에 무엇을 점검/개선해야 하는지"를 담을 것. title은 10자 내외, detail은 1~2문장.
+- 전기간 대비와 작년 동기 대비가 서로 다른 방향(하나는 증가, 하나는 감소)이면 반드시 짚어줄 것.
+- 광고 영역(검색영역/비검색영역)별로 효율 차이가 크면 짚어줄 것.
+- 상품별 스냅샷이 "없음"이면 그 사실만 짧게 언급하고 억지로 숫자를 만들지 말 것.
+- 과장하거나 확신할 수 없는 원인 추정("~때문일 것이다" 식 단정)은 피하고, "~가능성이 있다", "~확인이 필요하다" 톤을 쓸 것.
+- 절대 마크다운(**, # 등) 쓰지 말 것.
+
+데이터: ${JSON.stringify(stats)}`;
+
+  try {
+    const { ok, data } = await fetchAiChat([{ role: "user", parts: [{ text: prompt }] }], { useSearch: false, timeoutMs: 30000 });
+    const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const jsonText = (raw.match(/\{[\s\S]*\}/) || [])[0];
+    if (!ok || !jsonText) throw new Error("AI 응답 파싱 실패");
+    const parsed = JSON.parse(jsonText);
+    return {
+      insights: Array.isArray(parsed.insights) ? parsed.insights : [],
+      actions: Array.isArray(parsed.actions) ? parsed.actions : [],
+    };
+  } catch (err) {
+    return {
+      insights: [`(AI 인사이트 생성 실패: ${err.message || "알 수 없는 오류"} — 아래 표의 숫자는 정상적으로 반영되었습니다.)`],
+      actions: [],
+    };
+  }
+}
+
+async function coupangReportBuildWorkbook(cur, prev, year, ai) {
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "에너가드랩";
+  wb.created = new Date();
+
+  // ---------------- 1. 요약 ----------------
+  const s = wb.addWorksheet("요약", { views: [{ showGridLines: false }] });
+  s.columns = [{ width: 22 }, { width: 18 }, { width: 18 }, { width: 18 }, { width: 13 }, { width: 13 }, { width: 40 }];
+  s.mergeCells("A1:G1");
+  s.getCell("A1").value = `쿠팡 매출·광고 종합 보고서`;
+  s.getCell("A1").font = { name: NAVER_REPORT_FONT, bold: true, size: 16 };
+  s.mergeCells("A2:G2");
+  s.getCell("A2").value = `조회기간: ${cur.dateFrom} ~ ${cur.dateTo}   |   전기간: ${prev.dateFrom} ~ ${prev.dateTo}   |   작년 동기: ${year.dateFrom} ~ ${year.dateTo}   |   생성: ${new Date().toLocaleString("ko-KR")}`;
+  s.getCell("A2").font = { name: NAVER_REPORT_FONT, size: 9, italic: true, color: { argb: "FF666666" } };
+
+  let r = 4;
+  function sectionTitle(text) {
+    s.mergeCells(`A${r}:G${r}`);
+    const cell = s.getCell(`A${r}`);
+    cell.value = text;
+    cell.font = { name: NAVER_REPORT_FONT, bold: true, size: 13 };
+    cell.border = { bottom: { style: "medium", color: { argb: "FF1F4E78" } } };
+    s.getRow(r).height = 22;
+    r += 2;
+  }
+  function kpiTable(rows) {
+    naverReportHeaderRow(s, r, ["지표", "이번 기간", "전기간", "작년 동기", "전기간대비", "작년동기대비", "비고"]);
+    r += 1;
+    rows.forEach(([name, cur_, prev_, year_, fmt, note, opts]) => {
+      naverReportDataCell(s, r, 1, name, { italic: opts && opts.derived });
+      naverReportDataCell(s, r, 2, cur_, { numFmt: fmt });
+      naverReportDataCell(s, r, 3, prev_, { numFmt: fmt });
+      naverReportDataCell(s, r, 4, year_, { numFmt: fmt });
+      const pct1 = prev_ ? (cur_ - prev_) / prev_ : null;
+      const pct2 = year_ ? (cur_ - year_) / year_ : null;
+      naverReportDataCell(s, r, 5, pct1 == null ? "-" : pct1, { numFmt: "+0.0%;-0.0%" });
+      naverReportDataCell(s, r, 6, pct2 == null ? "-" : pct2, { numFmt: "+0.0%;-0.0%" });
+      naverReportDataCell(s, r, 7, note, { align: "left" });
+      s.getCell(r, 7).font = { name: NAVER_REPORT_FONT, size: 9, italic: true, color: { argb: "FF666666" } };
+      r += 1;
+    });
+  }
+
+  sectionTitle("1. 핵심 매출 지표 (방문자 → 조회 → 장바구니 → 주문)");
+  const convCur = cur.sales.views ? cur.sales.orders / cur.sales.views : 0;
+  const convPrev = prev.sales.views ? prev.sales.orders / prev.sales.views : 0;
+  const convYear = year.sales.views ? year.sales.orders / year.sales.views : 0;
+  const aovCur = cur.sales.orders ? cur.sales.sales / cur.sales.orders : 0;
+  const aovPrev = prev.sales.orders ? prev.sales.sales / prev.sales.orders : 0;
+  const aovYear = year.sales.orders ? year.sales.sales / year.sales.orders : 0;
+  kpiTable([
+    ["매출(원)", cur.sales.sales, prev.sales.sales, year.sales.sales, "#,##0", "coupang_sales_daily 합계"],
+    ["주문수(건)", cur.sales.orders, prev.sales.orders, year.sales.orders, "#,##0", ""],
+    ["방문자수(명)", cur.sales.visitors, prev.sales.visitors, year.sales.visitors, "#,##0", ""],
+    ["조회수(회)", cur.sales.views, prev.sales.views, year.sales.views, "#,##0", ""],
+    ["장바구니(건)", cur.sales.carts, prev.sales.carts, year.sales.carts, "#,##0", ""],
+    ["구매전환율", convCur, convPrev, convYear, "0.00%", "주문수 ÷ 조회수", { derived: true }],
+    ["객단가(원)", aovCur, aovPrev, aovYear, "#,##0", "매출 ÷ 주문수", { derived: true }],
+  ]);
+  r += 1;
+
+  sectionTitle("2. 핵심 광고 지표 (14일 기여 기준)");
+  const ctrCur = cur.ad.impressions ? cur.ad.clicks / cur.ad.impressions : 0;
+  const ctrPrev = prev.ad.impressions ? prev.ad.clicks / prev.ad.impressions : 0;
+  const ctrYear = year.ad.impressions ? year.ad.clicks / year.ad.impressions : 0;
+  const cvrCur = cur.ad.clicks ? cur.ad.orders / cur.ad.clicks : 0;
+  const cvrPrev = prev.ad.clicks ? prev.ad.orders / prev.ad.clicks : 0;
+  const cvrYear = year.ad.clicks ? year.ad.orders / year.ad.clicks : 0;
+  const cpaCur = cur.ad.orders ? cur.ad.cost / cur.ad.orders : 0;
+  const cpaPrev = prev.ad.orders ? prev.ad.cost / prev.ad.orders : 0;
+  const cpaYear = year.ad.orders ? year.ad.cost / year.ad.orders : 0;
+  const roasCur = cur.ad.cost ? cur.ad.sales / cur.ad.cost : 0;
+  const roasPrev = prev.ad.cost ? prev.ad.sales / prev.ad.cost : 0;
+  const roasYear = year.ad.cost ? year.ad.sales / year.ad.cost : 0;
+  kpiTable([
+    ["광고비(원)", cur.ad.cost, prev.ad.cost, year.ad.cost, "#,##0", ""],
+    ["노출수(회)", cur.ad.impressions, prev.ad.impressions, year.ad.impressions, "#,##0", ""],
+    ["클릭수(회)", cur.ad.clicks, prev.ad.clicks, year.ad.clicks, "#,##0", ""],
+    ["클릭률", ctrCur, ctrPrev, ctrYear, "0.00%", "클릭수 ÷ 노출수", { derived: true }],
+    ["주문수(건)", cur.ad.orders, prev.ad.orders, year.ad.orders, "#,##0", "14일 기여"],
+    ["구매전환율", cvrCur, cvrPrev, cvrYear, "0.00%", "주문수 ÷ 클릭수", { derived: true }],
+    ["전환당비용(원)", cpaCur, cpaPrev, cpaYear, "#,##0", "광고비 ÷ 주문수", { derived: true }],
+    ["전환매출(원)", cur.ad.sales, prev.ad.sales, year.ad.sales, "#,##0", "14일 기여"],
+    ["광고수익률 ROAS", roasCur, roasPrev, roasYear, "0%", "전환매출 ÷ 광고비", { derived: true }],
+  ]);
+  r += 1;
+
+  sectionTitle("3. 분석 인사이트 (AI 생성)");
+  (ai.insights.length ? ai.insights : ["(생성된 인사이트가 없습니다)"]).forEach(text => {
+    s.mergeCells(r, 1, r, 7);
+    const cell = s.getCell(r, 1);
+    cell.value = "• " + text;
+    cell.font = { name: NAVER_REPORT_FONT, size: 10 };
+    cell.alignment = { wrapText: true, vertical: "top" };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF7F9FC" } };
+    s.getRow(r).height = naverReportEstimateRowHeight(text, 22 + 18 + 18 + 18 + 13 + 13 + 40);
+    r += 1;
+  });
+  r += 1;
+
+  sectionTitle("4. 다음 기간 중점 관찰·개선 포인트 (AI 생성)");
+  (ai.actions.length ? ai.actions : []).forEach(({ title, detail }) => {
+    const titleCell = s.getCell(r, 1);
+    titleCell.value = title || "";
+    titleCell.font = { name: NAVER_REPORT_FONT, bold: true, size: 10 };
+    titleCell.alignment = { vertical: "top", wrapText: true };
+    titleCell.border = naverReportThinBorder();
+    s.mergeCells(r, 2, r, 7);
+    const detailCell = s.getCell(r, 2);
+    detailCell.value = detail || "";
+    detailCell.font = { name: NAVER_REPORT_FONT, size: 10 };
+    detailCell.alignment = { vertical: "top", wrapText: true };
+    detailCell.border = naverReportThinBorder();
+    s.getRow(r).height = naverReportEstimateRowHeight(detail || "", 18 + 18 + 18 + 13 + 13 + 40);
+    r += 1;
+  });
+
+  // ---------------- 2. 일별매출추이 ----------------
+  const d = wb.addWorksheet("일별매출추이", { views: [{ showGridLines: false }] });
+  d.columns = [{ width: 14 }, { width: 15 }, { width: 12 }, { width: 12 }, { width: 12 }, { width: 12 }];
+  d.getCell("A1").value = `일별 매출 추이 (${cur.dateFrom} ~ ${cur.dateTo})`;
+  d.getCell("A1").font = { name: NAVER_REPORT_FONT, bold: true, size: 13 };
+  naverReportHeaderRow(d, 3, ["날짜", "매출", "주문수", "방문자수", "조회수", "장바구니"]);
+  let dr = 4;
+  cur.daily.slice().sort((a, b) => String(a.date).localeCompare(String(b.date))).forEach(row => {
+    naverReportDataCell(d, dr, 1, row.date, { align: "left" });
+    naverReportDataCell(d, dr, 2, Number(row.sales) || 0, { numFmt: "#,##0" });
+    naverReportDataCell(d, dr, 3, Number(row.orders) || 0, { numFmt: "#,##0" });
+    naverReportDataCell(d, dr, 4, Number(row.visitors) || 0, { numFmt: "#,##0" });
+    naverReportDataCell(d, dr, 5, Number(row.views) || 0, { numFmt: "#,##0" });
+    naverReportDataCell(d, dr, 6, Number(row.carts) || 0, { numFmt: "#,##0" });
+    dr += 1;
+  });
+
+  // ---------------- 3. 상품별실적 ----------------
+  const p = wb.addWorksheet("상품별실적", { views: [{ showGridLines: false }] });
+  p.columns = [{ width: 40 }, { width: 22 }, { width: 15 }, { width: 12 }, { width: 12 }];
+  p.getCell("A1").value = "상품(옵션)별 실적 TOP 15 (이번 기간 매출액 기준)";
+  p.getCell("A1").font = { name: NAVER_REPORT_FONT, bold: true, size: 13 };
+  if (!cur.items.length) {
+    p.mergeCells("A3:E3");
+    p.getCell("A3").value = "이 기간과 정확히 일치하는 상품별 스냅샷(쿠팡 셀러 인사이트 업로드)이 없습니다.";
+    p.getCell("A3").font = { name: NAVER_REPORT_FONT, size: 10, italic: true, color: { argb: "FF666666" } };
+  } else {
+    naverReportHeaderRow(p, 3, ["상품명", "옵션명", "매출", "주문수", "수량"]);
+    let pr = 4;
+    cur.items.slice(0, 15).forEach(it => {
+      naverReportDataCell(p, pr, 1, it.productName, { align: "left" });
+      naverReportDataCell(p, pr, 2, it.optionName, { align: "left" });
+      naverReportDataCell(p, pr, 3, it.sales, { numFmt: "#,##0" });
+      naverReportDataCell(p, pr, 4, it.orders, { numFmt: "#,##0" });
+      naverReportDataCell(p, pr, 5, it.qty, { numFmt: "#,##0" });
+      pr += 1;
+    });
+  }
+
+  // ---------------- 4. 광고성과 ----------------
+  const a = wb.addWorksheet("광고성과", { views: [{ showGridLines: false }] });
+  a.columns = [{ width: 18 }, { width: 14 }, { width: 14 }, { width: 12 }, { width: 12 }, { width: 14 }, { width: 10 }];
+  a.getCell("A1").value = "광고 영역별 성과 (14일 기여 기준)";
+  a.getCell("A1").font = { name: NAVER_REPORT_FONT, bold: true, size: 13 };
+  naverReportHeaderRow(a, 3, ["광고 영역", "광고비", "클릭수", "주문수", "전환당비용", "매출", "ROAS"]);
+  let ar = 4;
+  [["이번 기간", cur], ["전기간", prev], ["작년 동기", year]].forEach(([label, period]) => {
+    a.mergeCells(ar, 1, ar, 7);
+    const labelCell = a.getCell(ar, 1);
+    labelCell.value = label;
+    labelCell.font = { name: NAVER_REPORT_FONT, bold: true, size: 10 };
+    labelCell.fill = NAVER_REPORT_SECTION_FILL;
+    ar += 1;
+    (period.adByPlacement.length ? period.adByPlacement : [{ placement: "(데이터 없음)", cost: 0, clicks: 0, orders: 0, sales: 0 }]).forEach(t => {
+      naverReportDataCell(a, ar, 1, t.placement, { align: "left" });
+      naverReportDataCell(a, ar, 2, t.cost, { numFmt: "#,##0" });
+      naverReportDataCell(a, ar, 3, t.clicks, { numFmt: "#,##0" });
+      naverReportDataCell(a, ar, 4, t.orders, { numFmt: "#,##0" });
+      naverReportDataCell(a, ar, 5, t.orders ? t.cost / t.orders : "-", { numFmt: "#,##0" });
+      naverReportDataCell(a, ar, 6, t.sales, { numFmt: "#,##0" });
+      naverReportDataCell(a, ar, 7, t.cost ? t.sales / t.cost : "-", { numFmt: "0%" });
+      ar += 1;
+    });
+  });
+
+  return wb;
+}
+
+async function downloadCoupangReport() {
+  const dateFrom = document.getElementById("dateFrom").value;
+  const dateTo = document.getElementById("dateTo").value;
+  const ranges = comparePeriodRanges(dateFrom, dateTo);
+  if (!ranges) { alert("조회 기간을 확인해 주세요."); return; }
+  const proceed = confirm(
+    `쿠팡 매출·광고 종합 보고서를 만들까요?\n\n` +
+    `이번 기간: ${dateFrom} ~ ${dateTo}\n` +
+    `전기간: ${ranges.prev.from} ~ ${ranges.prev.to}\n` +
+    `작년 동기: ${ranges.year.from} ~ ${ranges.year.to}\n\n` +
+    `AI가 인사이트를 생성하는 과정이 포함돼 10~20초 정도 걸릴 수 있습니다.`
+  );
+  if (!proceed) return;
+
+  const btn = document.getElementById("coupangReportDownloadBtn");
+  if (btn) btn.disabled = true;
+  showLoading("보고서 데이터를 모으는 중...");
+  try {
+    const [cur, prev, year] = await Promise.all([
+      coupangReportFetchPeriod(dateFrom, dateTo, "이번 기간"),
+      coupangReportFetchPeriod(ranges.prev.from, ranges.prev.to, "전기간"),
+      coupangReportFetchPeriod(ranges.year.from, ranges.year.to, "작년 동기"),
+    ]);
+
+    setLoadingMessage("AI가 인사이트를 작성하는 중...");
+    const ai = await coupangReportGenerateInsights(cur, prev, year);
+
+    setLoadingMessage("엑셀 파일을 만드는 중...");
+    const wb = await coupangReportBuildWorkbook(cur, prev, year, ai);
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `쿠팡_매출광고_보고서_${dateFrom}_${dateTo}.xlsx`;
     document.body.appendChild(a);
     a.click();
     a.remove();
