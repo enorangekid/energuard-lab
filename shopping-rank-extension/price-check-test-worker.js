@@ -399,6 +399,109 @@ function esmProductUrlOk(url, marketplace, id) {
   if (marketplace==='auction') return url.origin==='https://itempage3.auction.co.kr'&&url.pathname.toLowerCase()==='/detailview.aspx'&&String(url.searchParams.get('ItemNo')||url.searchParams.get('itemno')||'').toUpperCase()===id;
   return false;
 }
+// ── 쿠팡 ──────────────────────────────────────────────────
+// 상품 상세의 Next.js 데이터에서 같은 Product ID의 vendorItemId별 등록가·할인가를 먼저 묶어 읽는다.
+// 단, 쿠팡이 현재 선택 옵션과 일부 조합만 내려주는 상품도 있으므로 빠진 vendorItemId는 같은 탭에서
+// 해당 옵션 URL로 이동해 한 번씩 보충 수집한다. 매칭은 항상 Product ID + vendorItemId다
+// (단열벽지 일반 3상품은 유형별 대표 옵션 ID 하나씩만 단가표에 넣어 같은 방식으로 검사한다).
+function coupangProductUrlOk(url,id){
+  return url.origin==='https://www.coupang.com'&&url.pathname.replace(/\/$/,'')==='/vp/products/'+id;
+}
+function matchCoupangOptions(productId,storeRows,options){
+  const byId=new Map((storeRows||[]).map(row=>[String(row.optionId||''),row]));
+  const results=[];
+  for(const option of options||[]){
+    const optionId=String(option.optionId||'');
+    const row=optionId?byId.get(optionId):null;
+    if(!row){
+      if(option.status)continue;
+      results.push({productId,optionId,store:'coupang',label:option.name||optionId,code:option.code||null,actual:null,expected:Number(option.expected)||null,diff:null,status:'스토어에 없음',source:'vendorItemId 매칭 안 됨'});
+      continue;
+    }
+    const winner=Boolean(option.winner);
+    const collectedRegistered=Number(row.registeredPrice);
+    const actualFinal=Number(row.finalPrice),expectedFinal=Number(option.expectedFinal);
+    // 위너 상품은 쿠폰을 붙이지 않는다. 페이지 데이터의 originPrice는 비교 대상이 아니며,
+    // 구매자가 실제로 결제하는 위너 판매가(finalPrice)를 단가표의 수동 위너가와 비교한다.
+    const actual=winner?actualFinal:collectedRegistered,expected=Number(option.expected);
+    const validActual=Number.isFinite(actual)&&actual>0,validExpected=Number.isFinite(expected)&&expected>0;
+    const validActualFinal=Number.isFinite(actualFinal)&&actualFinal>0,validExpectedFinal=Number.isFinite(expectedFinal)&&expectedFinal>0;
+    let status;
+    if(row.soldOut||row.invalid)status='품절';
+    else if(!validActual)status='가격 확인 불가';
+    else if(!validExpected)status='단가 확인 불가';
+    else if(actual!==expected)status='불일치';
+    else if(!winner&&validExpectedFinal&&(!validActualFinal||actualFinal!==expectedFinal))status='할인가 불일치';
+    else status='일치';
+    const actualDiscount=winner?NaN:Number(row.discountRate);
+    const source=[
+      winner?'vendorItemId 매칭 · 위너 실제 판매가 기준':'vendorItemId 매칭',
+      row.sellerName&&`판매자 ${row.sellerName}`,
+      Number.isFinite(actualDiscount)&&`할인 ${actualDiscount}%`,
+    ].filter(Boolean).join(' · ');
+    results.push({
+      productId,optionId,store:'coupang',label:row.name||option.name||optionId,code:option.code||null,
+      actual:validActual?actual:null,expected:validExpected?expected:null,diff:validActual&&validExpected?actual-expected:null,
+      actualFinal:validActualFinal?actualFinal:null,expectedFinal:validExpectedFinal?expectedFinal:null,
+      actualDiscount:Number.isFinite(actualDiscount)?actualDiscount:null,
+      expectedDiscount:Number.isFinite(Number(option.expectedDiscount))?Number(option.expectedDiscount):null,
+      status,source,priceKind:'쿠팡 등록가',listPrice:validActual?actual:null,maxPrice:validActualFinal?actualFinal:null,
+    });
+  }
+  return results;
+}
+function coupangAdultError(where){const error=Error('쿠팡 성인 인증이 필요한 상품');error.adult=true;error.where=where||'';return error;}
+async function inspectCoupang(item){
+  const id=String(item.productId||'');
+  const options=Array.isArray(item.options)?item.options:[];
+  const url=new URL(item.productUrl||`https://www.coupang.com/vp/products/${id}?vendorItemId=${options[0]?.optionId||''}`);
+  if(!/^\d+$/.test(id)||!coupangProductUrlOk(url,id))throw Error('허용되지 않은 쿠팡 상품 주소');
+  const tab=await chrome.tabs.create({url:url.href,active:false});
+  await chrome.storage.local.set({priceCheckTab:{id:tab.id,url:url.href}});
+  try{
+    const requested=options.map(option=>String(option.optionId)).filter(id=>/^\d+$/.test(id));
+    const rowsById=new Map();
+    async function scanCurrent(optionIds,requiredId){
+      let last;
+      for(let n=0;n<30;n++){
+        await delay(1000);
+        try{last=await chrome.tabs.sendMessage(tab.id,{type:'GET_COUPANG_SCAN_DATA',optionIds});}catch{}
+        if(last?.blocked)throw Error(last.error||'쿠팡 사이트 확인 화면 또는 접근 차단');
+        if(last?.adult)throw coupangAdultError();
+        if(String(last?.productId)===id&&Array.isArray(last?.rows)){
+          for(const row of last.rows){if(row?.optionId)rowsById.set(String(row.optionId),row);}
+          if(last.ok&&(!requiredId||rowsById.has(String(requiredId))))return true;
+        }
+      }
+      return false;
+    }
+    if(!await scanCurrent(requested,null)){
+      // 인증 화면이 상품 주소가 아닌 다른 주소로 넘어가면 수집기가 붙지 않아 응답이 없다 — 현재 주소로 원인을 구분한다.
+      let tabUrl=null;try{tabUrl=new URL(String((await chrome.tabs.get(tab.id))?.url||''));}catch{}
+      // 성인 인증 화면은 로그인한 상태에서도 login.coupang.com/login/adult.pang 으로 넘어간다(2026-10-01 확인).
+      // 그 주소(adult)면 성인 인증, 그냥 로그인 주소면 로그인이 풀린 것이라 검사를 멈춘다.
+      if(tabUrl&&/adult/i.test(tabUrl.pathname))throw coupangAdultError(tabUrl.hostname+tabUrl.pathname);
+      if(tabUrl&&/^(?:login|member)\.coupang\.com$/.test(tabUrl.hostname))throw Error('쿠팡 로그인이 필요합니다 — 쿠팡에 로그인한 뒤 다시 검사하세요 ('+tabUrl.hostname+tabUrl.pathname+')');
+      throw Error('쿠팡 옵션 가격 수집 실패'+(tabUrl?` (현재 주소 ${tabUrl.hostname}${tabUrl.pathname})`:''));
+    }
+    for(const option of options){
+      const optionId=String(option.optionId||'');
+      if(!optionId||option.status||rowsById.has(optionId))continue;
+      const optionUrl=`https://www.coupang.com/vp/products/${id}?vendorItemId=${optionId}`;
+      await chrome.tabs.update(tab.id,{url:optionUrl});
+      await chrome.storage.local.set({priceCheckTab:{id:tab.id,url:optionUrl}});
+      await scanCurrent([optionId],optionId);
+    }
+    return matchCoupangOptions(id,[...rowsById.values()],options);
+  }catch(error){
+    // 성인 인증이 필요한 상품은 차단이 아니라 이 상품만 읽을 수 없는 것 — 실패로 치지 않고 옵션마다 표시만 한다(11번가와 같은 방식).
+    if(!error?.adult)throw error;
+    return options.map(option=>({
+      productId:id,optionId:String(option.optionId||''),store:'coupang',label:option.name||String(option.optionId||''),code:option.code||null,
+      actual:null,expected:Number(option.expected)||null,diff:null,status:'성인인증 필요',source:'쿠팡에서 직접 확인 — 성인(본인) 인증이 필요한 상품이라 검사하지 못했습니다'+(error.where?` (이동한 주소 ${error.where})`:''),
+    }));
+  }finally{await chrome.tabs.remove(tab.id).catch(()=>{});await chrome.storage.local.remove('priceCheckTab');}
+}
 // ── 11번가 ────────────────────────────────────────────────
 // 11번가 구매자 페이지에는 셀러 재고번호(관리코드)가 안 나온다(2026-09-30 확인). 그래서 옵션을 "규격 열쇠"로 짝짓는다 —
 // 단가표 관리코드(예: St_430_430_10_5)와 스토어 옵션 이름(예: "스티로폼(3호)_10T-430x430(5장)")을 같은 모양의 열쇠로 바꿔 비교한다.
@@ -848,7 +951,7 @@ async function processNext(){
     if(!state || !state.running)return;
     const orphan=(await chrome.storage.local.get('priceCheckTab')).priceCheckTab;
     if(orphan){const old=await chrome.tabs.get(orphan.id).catch(()=>null);if(old?.url===orphan.url)await chrome.tabs.remove(orphan.id).catch(()=>{});await chrome.storage.local.remove('priceCheckTab');}
-    if(!['competitor','hkd','esm','11st'].includes(state.kind) && !state.listVisited){
+    if(!['competitor','hkd','esm','11st','coupang'].includes(state.kind) && !state.listVisited){
       state.listVisited=[];
       // 카테고리별 목록 URL을 지정해뒀으면(state.listUrl, pricing-check-test.js의
       // CATEGORY_LIST_URL) 전체상품(/category/ALL)에서 찾는 대신 그 URL부터 시작한다 —
@@ -874,7 +977,7 @@ async function processNext(){
       if(state.running){await arm();setTimeout(processNext,NEXT_DELAY_MS);}else await chrome.alarms.clear(ALARM);
       return;
     }
-    state.phase = state.kind==='competitor' ? '경쟁사 상품 스캔' : state.kind==='esm' ? 'ESM 등록가 검사' : state.kind==='11st' ? (state.mode==='supplement' ? '11번가 추가상품 검사' : '11번가 옵션 검사') : state.kind==='hkd' ? (state.channelId==='homepage'?'홈페이지 가격 검사':state.mode==='supplement' ? '한국단열 추가상품 검사' : '한국단열 옵션 검사') : (listEligible(state.items[state.done]||{})?'단품 목록 누락 확인':'옵션별 상세 검사');
+    state.phase = state.kind==='competitor' ? '경쟁사 상품 스캔' : state.kind==='esm' ? 'ESM 등록가 검사' : state.kind==='coupang' ? '쿠팡 옵션 검사' : state.kind==='11st' ? (state.mode==='supplement' ? '11번가 추가상품 검사' : '11번가 옵션 검사') : state.kind==='hkd' ? (state.channelId==='homepage'?'홈페이지 가격 검사':state.mode==='supplement' ? '한국단열 추가상품 검사' : '한국단열 옵션 검사') : (listEligible(state.items[state.done]||{})?'단품 목록 누락 확인':'옵션별 상세 검사');
     const item=state.items[state.done];
     if(!item){state.running=false;state.finishedAt=Date.now();await save(state);return;}
     state.currentProduct = state.kind==='competitor' ? item.link : item.productId;await save(state);
@@ -884,6 +987,7 @@ async function processNext(){
     try{
       if (state.kind==='competitor') rows=await inspectCompetitor(item.link,item.entries);
       else if (state.kind==='esm') rows=await inspectEsm(item);
+      else if (state.kind==='coupang') rows=await inspectCoupang(item);
       else if (state.kind==='11st') rows=await inspect11st(item,state.supplements,state.mode);
       else if (state.kind==='hkd') rows=await inspectHkd(item,state.supplements,state.mode);
       else rows=listEligible(item)?[{productId:item.productId,status:'목록 수집 누락',label:'단품 매핑 — 목록에서 가격을 찾지 못했습니다.',source:'상품 목록'}]:await inspect(item,state.pricing);
@@ -891,10 +995,10 @@ async function processNext(){
       const errorMessage=error?.message||'상품 정보 수집 실패';
       // ESM의 판매중지·삭제 상품은 해당 행만 실패로 남기고 다음 상품을 계속 검사한다.
       // 로그인·봇 확인·차단 화면은 뒤 상품도 같은 원인으로 실패하므로 기존처럼 일시정지한다.
-      failed=!['esm','11st'].includes(state.kind)||/(?:사이트 확인 화면|봇|bot|차단|로그인)/i.test(errorMessage);
+      failed=!['esm','11st','coupang'].includes(state.kind)||/(?:사이트 확인 화면|봇|bot|차단|로그인)/i.test(errorMessage);
       rows = state.kind==='competitor'
         ? item.entries.map(e=>({...e,actual:null,diff:null,status:'수집 실패',errorMsg:errorMessage}))
-        : [{productId:item.productId,productUrl:item.productUrl,store:item.marketplace||null,status:'수집 실패',label:errorMessage,source:state.kind==='esm'?(item.marketplace==='auction'?'옥션':'G마켓'):state.kind==='11st'?'11번가':'—',...(state.kind==='11st'?{store:'11st'}:{})}];
+        : [{productId:item.productId,productUrl:item.productUrl,store:state.kind==='coupang'?'coupang':item.marketplace||null,status:'수집 실패',label:errorMessage,source:state.kind==='esm'?(item.marketplace==='auction'?'옥션':'G마켓'):state.kind==='11st'?'11번가':state.kind==='coupang'?'쿠팡':'—',...(state.kind==='11st'?{store:'11st'}:{})}];
     }
     const latest=await readState();
     if(latest?.runId!==state.runId)return;
@@ -903,7 +1007,7 @@ async function processNext(){
     if(state.done>=state.total){state.running=false;state.finishedAt=Date.now();state.reason=failed?'검사 종료 — 수집 실패 포함':'완료';}
     await save(state);
     // 11번가도 G마켓·옥션처럼 짧은 간격으로 많이 열면 봇 차단이 걸릴 수 있어 상품 사이 대기를 늘린다.
-    if(state.running){await arm();setTimeout(processNext,state.kind==='11st'?3000:NEXT_DELAY_MS);}else await chrome.alarms.clear(ALARM);
+    if(state.running){await arm();setTimeout(processNext,['11st','coupang'].includes(state.kind)?3000:NEXT_DELAY_MS);}else await chrome.alarms.clear(ALARM);
   }catch(error){const state=await readState();if(state){state.running=false;state.reason='실행 오류: '+error.message;await save(state);}await chrome.alarms.clear(ALARM);}
   finally{processing=false;}
 }
@@ -976,6 +1080,19 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
         const supplements=Array.isArray(p.supplements)?p.supplements.slice(0,500).filter(s=>s&&typeof s.name==='string').map(s=>({code:s.code?String(s.code):null,name:String(s.name).slice(0,200),group:s.group?String(s.group).slice(0,80):null,expected:Number.isFinite(Number(s.expected))?Number(s.expected):null,use:s.use==='N'?'N':'Y'})):null;
         if(mode==='supplement'&&!(supplements&&supplements.length))throw Error('추가상품 목록이 없습니다');
         state={runId:crypto.randomUUID(),kind:'11st',channelId:'11st',mode,running:true,startedAt:Date.now(),done:0,total:p.items.length,rows:[],items:p.items,...(mode==='supplement'?{supplements}:{})};
+        await save(state);await arm();processNext();return {ok:true};
+      }
+      if(p?.kind==='coupang'){
+        if(!Array.isArray(p.items)||!p.items.length)throw Error('검사할 쿠팡 상품이 없습니다.');
+        for(const it of p.items){
+          const id=String(it.productId||'').trim();
+          if(!/^\d+$/.test(id))throw Error('쿠팡 상품번호 오류');
+          if(!coupangProductUrlOk(new URL(String(it.productUrl||`https://www.coupang.com/vp/products/${id}`)),id))throw Error('허용되지 않은 쿠팡 상품 주소');
+          if(!Array.isArray(it.options)||!it.options.length||it.options.some(option=>!/^\d+$/.test(String(option.optionId||''))))throw Error('쿠팡 옵션 검사 데이터 오류');
+        }
+        if(new Set(p.items.map(item=>String(item.productId))).size!==p.items.length)throw Error('중복 상품번호');
+        const channelId=p.channelId==='coupang_sub'?'coupang_sub':'coupang';
+        state={runId:crypto.randomUUID(),kind:'coupang',channelId,running:true,startedAt:Date.now(),done:0,total:p.items.length,rows:[],items:p.items};
         await save(state);await arm();processNext();return {ok:true};
       }
       if(p?.kind==='hkd'){
