@@ -4831,6 +4831,73 @@ function naverReportCustomerSegment(customer, segment) {
   return row || { segment, visitors: 0, payers: 0, conversion: 0, salesTotal: 0, avgPayment: 0 };
 }
 
+function reportPctChange(current, baseline) {
+  const cur = Number(current) || 0;
+  const base = Number(baseline) || 0;
+  return base ? (cur - base) / base * 100 : null;
+}
+
+function reportExpectedDays(dateFrom, dateTo) {
+  const from = new Date(`${dateFrom}T00:00:00Z`);
+  const to = new Date(`${dateTo}T00:00:00Z`);
+  return Number.isFinite(from.getTime()) && Number.isFinite(to.getTime()) && to >= from
+    ? Math.round((to - from) / 86400000) + 1
+    : 0;
+}
+
+function reportMovers(currentRows, baselineRows, keyFn, nameFn, valueFn, limit = 5) {
+  const current = new Map((currentRows || []).map(row => [String(keyFn(row) || ""), row]));
+  const baseline = new Map((baselineRows || []).map(row => [String(keyFn(row) || ""), row]));
+  const keys = new Set([...current.keys(), ...baseline.keys()]);
+  const rows = [...keys].filter(Boolean).map(key => {
+    const curRow = current.get(key);
+    const baseRow = baseline.get(key);
+    const cur = Number(curRow ? valueFn(curRow) : 0) || 0;
+    const base = Number(baseRow ? valueFn(baseRow) : 0) || 0;
+    return {
+      key,
+      name: String(nameFn(curRow || baseRow) || key),
+      current: cur,
+      baseline: base,
+      delta: cur - base,
+      changeRate: reportPctChange(cur, base),
+      state: !base && cur ? "신규" : base && !cur ? "이탈" : "변동",
+    };
+  }).filter(row => row.current || row.baseline);
+  return {
+    rising: rows.filter(row => row.delta > 0).sort((a, b) => b.delta - a.delta).slice(0, limit),
+    falling: rows.filter(row => row.delta < 0).sort((a, b) => a.delta - b.delta).slice(0, limit),
+  };
+}
+
+function reportPeriodMomentum(dailyRows, valueFn) {
+  const rows = (dailyRows || []).slice().sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  if (rows.length < 4) return { firstAvg: 0, secondAvg: 0, changeRate: null, days: rows.length };
+  const middle = Math.ceil(rows.length / 2);
+  const average = part => part.reduce((sum, row) => sum + (Number(valueFn(row)) || 0), 0) / Math.max(part.length, 1);
+  const firstAvg = average(rows.slice(0, middle));
+  const secondAvg = average(rows.slice(middle));
+  return { firstAvg, secondAvg, changeRate: reportPctChange(secondAvg, firstAvg), days: rows.length };
+}
+
+function reportConcentration(rows, valueFn, count = 5) {
+  const values = (rows || []).map(row => Number(valueFn(row)) || 0).sort((a, b) => b - a);
+  const total = values.reduce((sum, value) => sum + value, 0);
+  return total ? values.slice(0, count).reduce((sum, value) => sum + value, 0) / total * 100 : 0;
+}
+
+function reportChangeSummary(label, current, baseline, baselineLabel) {
+  const rate = reportPctChange(current, baseline);
+  if (rate == null) return `${label}: ${baselineLabel} 비교 기준값 없음`;
+  return `${label}: ${baselineLabel} 대비 ${rate >= 0 ? "증가" : "감소"} ${Math.abs(rate).toFixed(1)}%`;
+}
+
+function reportMoverSummary(label, mover, baselineLabel) {
+  if (!mover) return "";
+  const rate = mover.changeRate == null ? mover.state : `${mover.changeRate >= 0 ? "+" : ""}${mover.changeRate.toFixed(1)}%`;
+  return `${label}: ${mover.name} (${baselineLabel} ${rate}, 증감 ${Math.round(mover.delta).toLocaleString("ko-KR")})`;
+}
+
 // 한 줄에 들어가는 한글 글자 수를 셀 너비(열너비 합)로 어림잡는다. 영문 폰트 기준 열너비 단위를
 // 그대로 쓰면 한글은 그보다 넓게 그려져서(한 글자가 영문 1.7~2자 폭) 실제보다 많이 들어간다고
 // 착각해 줄이 잘린다(2026-10-01 지적) — 보수적으로 1.9로 나눈다.
@@ -4843,7 +4910,7 @@ function naverReportEstimateRowHeight(text, mergedWidthUnits, lineHeightPt = 15,
 async function naverReportFetchPeriod(dateFrom, dateTo, label) {
   const [stat, ads] = await Promise.all([
     callAdFn({ action: "naverStatSummary", dateFrom, dateTo }),
-    callAdFn({ action: "summary", store: DEFAULT_STORE, dateFrom, dateTo }).catch(() => ({ items: [] })),
+    callAdFn({ action: "summary", store: DEFAULT_STORE, dateFrom, dateTo }).catch(error => ({ items: [], loadError: String(error.message || error) })),
   ]);
   const sales = naverReportSumDaily(stat.daily);
   const adItems = (ads.items || []).filter(r => !r.isTotal);
@@ -4857,29 +4924,101 @@ async function naverReportFetchPeriod(dateFrom, dateTo, label) {
   // 요청한 기간과 정확히 일치할 때만 신뢰하고, 아니면 null로 "데이터 없음" 처리한다.
   const requestedPeriodKey = `${dateFrom}|${dateTo}`;
   const customerMatches = stat.customerPeriod === requestedPeriodKey;
+  const expectedDays = reportExpectedDays(dateFrom, dateTo);
   return {
     label, dateFrom, dateTo,
     sales, ad, adByType, channels,
     products: stat.products || [],
+    searchTerms: stat.searchTerms || [],
     customer: {
       period: customerMatches ? stat.customerPeriod : "",
       new: customerMatches ? naverReportCustomerSegment(stat.customer, "신규") : null,
       repeat: customerMatches ? naverReportCustomerSegment(stat.customer, "재구매") : null,
       total: customerMatches ? naverReportCustomerSegment(stat.customer, "전체합산") : null,
       genderAge: customerMatches ? (stat.customerGenderAge || []) : [],
+      interest: customerMatches ? (stat.customerInterest || null) : null,
     },
     daily: stat.daily || [],
+    coverage: {
+      expectedDays,
+      salesDays: new Set((stat.daily || []).map(row => row.date).filter(Boolean)).size,
+      adMissingDates: ads.missingDates || [],
+      adStaleDates: ads.staleDates || [],
+      adCampaigns: adItems.length,
+      adLoadError: ads.loadError || "",
+    },
+  };
+}
+
+function naverReportBuildAnalysis(cur, prev, year) {
+  const noMovers = () => ({ rising: [], falling: [] });
+  const productPrev = cur.products.length && prev.products.length ? reportMovers(cur.products, prev.products, r => r.productId, r => r.productName, r => r.salesTotal) : noMovers();
+  const productYear = cur.products.length && year.products.length ? reportMovers(cur.products, year.products, r => r.productId, r => r.productName, r => r.salesTotal) : noMovers();
+  const channelPrev = cur.channels.totals.visits && prev.channels.totals.visits ? reportMovers(cur.channels.rows, prev.channels.rows, r => r.name, r => r.name, r => r.visits) : noMovers();
+  const channelYear = cur.channels.totals.visits && year.channels.totals.visits ? reportMovers(cur.channels.rows, year.channels.rows, r => r.name, r => r.name, r => r.visits) : noMovers();
+  const searchPrev = cur.searchTerms.length && prev.searchTerms.length ? reportMovers(cur.searchTerms, prev.searchTerms, r => r.term, r => r.term, r => r.visits) : noMovers();
+  const adPrev = cur.adByType.length && prev.adByType.length ? reportMovers(cur.adByType, prev.adByType, r => r.type, r => r.type, r => r.purchaseSales) : noMovers();
+  const salesMomentum = reportPeriodMomentum(cur.daily, row => row.salesNet);
+  const currentSearchConversion = cur.searchTerms.reduce((acc, row) => ({ visits: acc.visits + (Number(row.visits) || 0), pay: acc.pay + (Number(row.payCount) || 0) }), { visits: 0, pay: 0 });
+  const lowQualitySearchTerms = cur.searchTerms
+    .filter(row => Number(row.visits) >= Math.max(20, currentSearchConversion.visits * 0.02))
+    .map(row => ({ term: row.term, visits: Number(row.visits) || 0, conversion: Number(row.conversion) || 0, sales: Number(row.salesTotal) || 0 }))
+    .sort((a, b) => a.conversion - b.conversion || b.visits - a.visits)
+    .slice(0, 5);
+  const highQualitySearchTerms = cur.searchTerms
+    .filter(row => Number(row.payCount) > 0)
+    .map(row => ({ term: row.term, visits: Number(row.visits) || 0, conversion: Number(row.conversion) || 0, sales: Number(row.salesTotal) || 0 }))
+    .sort((a, b) => b.conversion - a.conversion || b.sales - a.sales)
+    .slice(0, 5);
+  const signals = [
+    reportChangeSummary("순매출", cur.sales.salesNet, prev.sales.salesNet, "전기간"),
+    reportChangeSummary("순매출", cur.sales.salesNet, year.sales.salesNet, "작년 동기"),
+    reportMoverSummary("전기간 대비 최대 성장 상품", productPrev.rising[0], "전기간 대비"),
+    reportMoverSummary("전기간 대비 최대 하락 상품", productPrev.falling[0], "전기간 대비"),
+    reportMoverSummary("작년 동기 대비 최대 성장 상품", productYear.rising[0], "작년 동기 대비"),
+    reportMoverSummary("작년 동기 대비 최대 하락 상품", productYear.falling[0], "작년 동기 대비"),
+    reportMoverSummary("유입 급증 채널", channelPrev.rising[0], "전기간 대비"),
+    reportMoverSummary("유입 급감 채널", channelPrev.falling[0], "전기간 대비"),
+    salesMomentum.changeRate == null ? "" : `기간 후반 일평균 순매출: 전반부 대비 ${salesMomentum.changeRate >= 0 ? "증가" : "감소"} ${Math.abs(salesMomentum.changeRate).toFixed(1)}%`,
+  ].filter(Boolean);
+  return {
+    detectedSignals: signals,
+    dataQuality: { current: cur.coverage, previous: prev.coverage, lastYear: year.coverage },
+    overall: {
+      salesVsPrevious: reportPctChange(cur.sales.salesNet, prev.sales.salesNet),
+      salesVsLastYear: reportPctChange(cur.sales.salesNet, year.sales.salesNet),
+      visitsVsPrevious: reportPctChange(cur.sales.visits, prev.sales.visits),
+      conversionVsPrevious: reportPctChange(cur.sales.visits ? cur.sales.payCount / cur.sales.visits : 0, prev.sales.visits ? prev.sales.payCount / prev.sales.visits : 0),
+      adCostVsPrevious: reportPctChange(cur.ad.cost, prev.ad.cost),
+      adSalesVsPrevious: reportPctChange(cur.ad.purchaseSales, prev.ad.purchaseSales),
+      roasVsPrevious: reportPctChange(cur.ad.cost ? cur.ad.purchaseSales / cur.ad.cost : 0, prev.ad.cost ? prev.ad.purchaseSales / prev.ad.cost : 0),
+      top5ProductSalesShare: reportConcentration(cur.products, row => row.salesTotal),
+      periodMomentum: salesMomentum,
+    },
+    products: { vsPrevious: productPrev, vsLastYear: productYear },
+    channels: { vsPrevious: channelPrev, vsLastYear: channelYear },
+    searchTerms: { vsPrevious: searchPrev, lowQuality: lowQualitySearchTerms, highQuality: highQualitySearchTerms },
+    advertising: { vsPreviousByType: adPrev, currentByType: cur.adByType },
+    customers: {
+      newCurrent: cur.customer.new,
+      newPrevious: prev.customer.new,
+      repeatCurrent: cur.customer.repeat,
+      repeatPrevious: prev.customer.repeat,
+      topGenderAge: cur.customer.genderAge.slice().sort((a, b) => (Number(b.salesTotal) || 0) - (Number(a.salesTotal) || 0)).slice(0, 5),
+      interestCurrent: cur.customer.interest,
+      interestPrevious: prev.customer.interest,
+    },
   };
 }
 
 async function naverReportGenerateInsights(cur, prev, year) {
-  const pct = (a, b) => (b ? ((a - b) / b * 100).toFixed(1) : "-");
+  const pct = (a, b) => (b ? `${((a - b) / b * 100).toFixed(1)}%` : "데이터 없음");
   const stats = {
     기간: { 이번기간: `${cur.dateFrom}~${cur.dateTo}`, 전기간: `${prev.dateFrom}~${prev.dateTo}`, 작년동기: `${year.dateFrom}~${year.dateTo}` },
     매출: {
       이번기간_총매출: cur.sales.salesTotal, 전기간_총매출: prev.sales.salesTotal, 작년동기_총매출: year.sales.salesTotal,
-      전기간대비_증감률: pct(cur.sales.salesTotal, prev.sales.salesTotal) + "%",
-      작년동기대비_증감률: pct(cur.sales.salesTotal, year.sales.salesTotal) + "%",
+      전기간대비_증감률: pct(cur.sales.salesTotal, prev.sales.salesTotal),
+      작년동기대비_증감률: pct(cur.sales.salesTotal, year.sales.salesTotal),
       이번기간_방문수: cur.sales.visits, 전기간_방문수: prev.sales.visits, 작년동기_방문수: year.sales.visits,
       이번기간_결제건수: cur.sales.payCount, 전기간_결제건수: prev.sales.payCount, 작년동기_결제건수: year.sales.payCount,
     },
@@ -4901,8 +5040,9 @@ async function naverReportGenerateInsights(cur, prev, year) {
     상품_TOP5_이번기간: cur.products.slice(0, 5).map(p => ({ 상품명: p.productName, 매출: p.salesTotal, 수량: p.qty })),
   };
 
-  const prompt = `너는 이커머스 데이터 분석가야. 아래는 '한국단열' 네이버 스마트스토어의 매출·광고·유입·고객 데이터(이번 조회기간 vs 전기간 vs 작년 동기)를 요약한 JSON이야.
-이 데이터를 바탕으로 매출 담당자가 바로 읽을 수 있는 보고서용 문장을 만들어줘.
+  const analysis = naverReportBuildAnalysis(cur, prev, year);
+  const prompt = `너는 숫자를 나열하는 사람이 아니라, 담당자가 여러 표를 오가며 놓치기 쉬운 변화를 먼저 발견하는 이커머스 분석가야. 아래는 '한국단열' 네이버 스마트스토어의 이번 기간·전기간·작년 동기 데이터와 코드가 미리 계산한 변화 신호야.
+이 자료를 바탕으로 "무슨 변화가 있었고, 왜 중요한지, 무엇을 확인해야 하는지"를 빠르게 이해할 수 있는 보고서 문장을 만들어줘.
 
 [출력 형식 - 반드시 아래 JSON 형식으로만 답하고, 그 외 설명은 절대 하지 마]
 {
@@ -4911,16 +5051,22 @@ async function naverReportGenerateInsights(cur, prev, year) {
 }
 
 [작성 규칙]
-- insights는 4~7개. 숫자(증감률, 금액, 건수)를 반드시 인용해서 근거를 보여줄 것. 데이터에 없는 숫자나 사실을 지어내지 말 것.
+- insights는 5~8개. 각 문장은 반드시 "발견한 변화 → 경영적 의미 → 근거 숫자"가 자연스럽게 이어져야 한다.
+- 단순히 여러 숫자를 차례로 나열하지 말고 상품·유입·광고·고객 지표 사이의 관계를 해석할 것.
+- 특히 작년 동기 주력상품의 급락, 새로 성장한 상품, 평소와 다른 채널 유입, 방문 증가와 전환 악화의 엇갈림, 광고비와 매출의 비대칭을 우선 탐지할 것.
+- detectedSignals와 증감 기여도가 큰 항목을 먼저 다루고, 의미가 작은 변동은 과감히 생략할 것.
+- 숫자(증감률, 금액, 건수)를 반드시 인용해서 근거를 보여줄 것. 데이터에 없는 숫자나 사실을 지어내지 말 것.
 - actions는 3~6개. "다음 기간에 무엇을 점검/개선해야 하는지"를 담을 것. title은 10자 내외, detail은 1~2문장.
 - 전기간 대비와 작년 동기 대비가 서로 다른 방향(하나는 증가, 하나는 감소)이면 반드시 짚어줄 것.
 - 신규 고객과 재구매 고객의 추세가 다르면(한쪽만 성장 등) 반드시 짚어줄 것.
 - 광고 유형(캠페인 타입)별로 효율 차이가 크면(전환이 거의 없는 유형 등) 짚어줄 것.
 - 과장하거나 확신할 수 없는 원인 추정("~때문일 것이다" 식 단정)은 피하고, "~가능성이 있다", "~확인이 필요하다" 톤을 쓸 것.
 - 값이 "데이터 없음"인 항목은 그 기간과 비교하지 말고 조용히 건너뛸 것(숫자를 지어내지 말 것).
+- dataQuality에서 누락일이 있으면 첫 문장에서 분석 한계를 명시하고, 해당 기간의 0을 실제 실적 0으로 단정하지 말 것.
 - 절대 마크다운(**, # 등) 쓰지 말 것.
 
-데이터: ${JSON.stringify(stats)}`;
+핵심 합계: ${JSON.stringify(stats)}
+변화 탐지 결과: ${JSON.stringify(analysis)}`;
 
   try {
     const { ok, data } = await fetchAiChat([{ role: "user", parts: [{ text: prompt }] }], { useSearch: false, timeoutMs: 30000 });
@@ -4934,7 +5080,9 @@ async function naverReportGenerateInsights(cur, prev, year) {
     };
   } catch (err) {
     return {
-      insights: [`(AI 인사이트 생성 실패: ${err.message || "알 수 없는 오류"} — 아래 표의 숫자는 정상적으로 반영되었습니다.)`],
+      insights: analysis.detectedSignals.length
+        ? analysis.detectedSignals
+        : [`(AI 인사이트 생성 실패: ${err.message || "알 수 없는 오류"} — 아래 표의 숫자는 정상적으로 반영되었습니다.)`],
       actions: [],
     };
   }
@@ -5334,13 +5482,14 @@ async function coupangReportFindExactItemPeriod(dateFrom, dateTo) {
 
 async function coupangReportFetchPeriod(dateFrom, dateTo, label) {
   const [salesData, adData, exactItemPeriod] = await Promise.all([
-    callAdFn({ action: "coupangSalesSummary", dateFrom, dateTo }).catch(() => ({ items: [] })),
-    callAdFn({ action: "coupangSummary", dateFrom, dateTo }).catch(() => ({ items: [] })),
+    callAdFn({ action: "coupangSalesSummary", dateFrom, dateTo }).catch(error => ({ items: [], loadError: String(error.message || error) })),
+    callAdFn({ action: "coupangSummary", dateFrom, dateTo }).catch(error => ({ items: [], loadError: String(error.message || error) })),
     coupangReportFindExactItemPeriod(dateFrom, dateTo),
   ]);
   const sales = coupangReportSumSalesItems(salesData.items);
   const ad = coupangReportSumAdItems(adData.items);
   const adByPlacement = coupangReportGroupAdByPlacement(adData.items);
+  const adGroups = groupCoupangAdRows(adData.items || []);
 
   let items = [];
   if (exactItemPeriod) {
@@ -5353,9 +5502,66 @@ async function coupangReportFetchPeriod(dateFrom, dateTo, label) {
   return {
     label, dateFrom, dateTo,
     sales, ad, adByPlacement,
+    adGroups,
     itemPeriod: exactItemPeriod ? `${exactItemPeriod.from}|${exactItemPeriod.to}` : "",
     items,
     daily: salesData.items || [],
+    coverage: {
+      expectedDays: reportExpectedDays(dateFrom, dateTo),
+      salesDays: new Set((salesData.items || []).map(row => row.date).filter(Boolean)).size,
+      adDays: new Set((adData.items || []).map(row => row.date).filter(Boolean)).size,
+      salesLoadError: salesData.loadError || "",
+      adLoadError: adData.loadError || "",
+      hasExactItemSnapshot: !!exactItemPeriod,
+    },
+  };
+}
+
+function coupangReportBuildAnalysis(cur, prev, year) {
+  const noMovers = () => ({ rising: [], falling: [] });
+  const itemPrev = cur.items.length && prev.items.length ? reportMovers(cur.items, prev.items, r => r.optionId, r => `${r.productName}${r.optionName ? ` / ${r.optionName}` : ""}`, r => r.sales) : noMovers();
+  const itemYear = cur.items.length && year.items.length ? reportMovers(cur.items, year.items, r => r.optionId, r => `${r.productName}${r.optionName ? ` / ${r.optionName}` : ""}`, r => r.sales) : noMovers();
+  const adGroupPrev = cur.adGroups.length && prev.adGroups.length ? reportMovers(cur.adGroups, prev.adGroups, r => r.name, r => r.name, r => r.purchaseSales) : noMovers();
+  const adPlacementPrev = cur.adByPlacement.length && prev.adByPlacement.length ? reportMovers(cur.adByPlacement, prev.adByPlacement, r => r.placement, r => r.placement, r => r.sales) : noMovers();
+  const salesMomentum = reportPeriodMomentum(cur.daily, row => row.sales);
+  const funnel = period => ({
+    cartRateFromViews: period.sales.views ? period.sales.carts / period.sales.views * 100 : 0,
+    orderRateFromViews: period.sales.views ? period.sales.orders / period.sales.views * 100 : 0,
+    orderRateFromCarts: period.sales.carts ? period.sales.orders / period.sales.carts * 100 : 0,
+  });
+  const curFunnel = funnel(cur), prevFunnel = funnel(prev), yearFunnel = funnel(year);
+  const signals = [
+    reportChangeSummary("매출", cur.sales.sales, prev.sales.sales, "전기간"),
+    reportChangeSummary("매출", cur.sales.sales, year.sales.sales, "작년 동기"),
+    reportMoverSummary("전기간 대비 최대 성장 상품", itemPrev.rising[0], "전기간 대비"),
+    reportMoverSummary("전기간 대비 최대 하락 상품", itemPrev.falling[0], "전기간 대비"),
+    reportMoverSummary("작년 동기 대비 최대 성장 상품", itemYear.rising[0], "작년 동기 대비"),
+    reportMoverSummary("작년 동기 대비 최대 하락 상품", itemYear.falling[0], "작년 동기 대비"),
+    reportMoverSummary("광고매출 최대 성장 광고그룹", adGroupPrev.rising[0], "전기간 대비"),
+    reportMoverSummary("광고매출 최대 하락 광고그룹", adGroupPrev.falling[0], "전기간 대비"),
+    salesMomentum.changeRate == null ? "" : `기간 후반 일평균 매출: 전반부 대비 ${salesMomentum.changeRate >= 0 ? "증가" : "감소"} ${Math.abs(salesMomentum.changeRate).toFixed(1)}%`,
+  ].filter(Boolean);
+  return {
+    detectedSignals: signals,
+    dataQuality: { current: cur.coverage, previous: prev.coverage, lastYear: year.coverage },
+    overall: {
+      salesVsPrevious: reportPctChange(cur.sales.sales, prev.sales.sales),
+      salesVsLastYear: reportPctChange(cur.sales.sales, year.sales.sales),
+      ordersVsPrevious: reportPctChange(cur.sales.orders, prev.sales.orders),
+      visitorsVsPrevious: reportPctChange(cur.sales.visitors, prev.sales.visitors),
+      adCostVsPrevious: reportPctChange(cur.ad.cost, prev.ad.cost),
+      adSalesVsPrevious: reportPctChange(cur.ad.sales, prev.ad.sales),
+      roasVsPrevious: reportPctChange(cur.ad.cost ? cur.ad.sales / cur.ad.cost : 0, prev.ad.cost ? prev.ad.sales / prev.ad.cost : 0),
+      top5ItemSalesShare: reportConcentration(cur.items, row => row.sales),
+      periodMomentum: salesMomentum,
+    },
+    funnel: { current: curFunnel, previous: prevFunnel, lastYear: yearFunnel },
+    items: { vsPrevious: itemPrev, vsLastYear: itemYear },
+    advertising: {
+      groupsVsPrevious: adGroupPrev,
+      placementsVsPrevious: adPlacementPrev,
+      currentGroups: cur.adGroups.slice().sort((a, b) => (Number(b.cost) || 0) - (Number(a.cost) || 0)).slice(0, 10),
+    },
   };
 }
 
@@ -5378,8 +5584,9 @@ async function coupangReportGenerateInsights(cur, prev, year) {
     상품_TOP5_이번기간: cur.items.length ? cur.items.slice(0, 5).map(it => ({ 상품명: it.productName, 옵션명: it.optionName, 매출: it.sales, 주문: it.orders })) : "상품별 스냅샷 없음(해당 월 업로드 안 됨)",
   };
 
-  const prompt = `너는 이커머스 데이터 분석가야. 아래는 쿠팡 스토어의 매출·광고 데이터(이번 조회기간 vs 전기간 vs 작년 동기)를 요약한 JSON이야.
-이 데이터를 바탕으로 매출 담당자가 바로 읽을 수 있는 보고서용 문장을 만들어줘.
+  const analysis = coupangReportBuildAnalysis(cur, prev, year);
+  const prompt = `너는 숫자를 나열하는 사람이 아니라, 담당자가 여러 표를 오가며 놓치기 쉬운 변화를 먼저 발견하는 이커머스 분석가야. 아래는 쿠팡 스토어의 이번 기간·전기간·작년 동기 데이터와 코드가 미리 계산한 변화 신호야.
+이 자료를 바탕으로 "무슨 변화가 있었고, 왜 중요한지, 무엇을 확인해야 하는지"를 빠르게 이해할 수 있는 보고서 문장을 만들어줘.
 
 [출력 형식 - 반드시 아래 JSON 형식으로만 답하고, 그 외 설명은 절대 하지 마]
 {
@@ -5388,16 +5595,22 @@ async function coupangReportGenerateInsights(cur, prev, year) {
 }
 
 [작성 규칙]
-- insights는 4~7개. 숫자(증감률, 금액, 건수)를 반드시 인용해서 근거를 보여줄 것. 데이터에 없는 숫자나 사실을 지어내지 말 것.
+- insights는 5~8개. 각 문장은 반드시 "발견한 변화 → 경영적 의미 → 근거 숫자"가 자연스럽게 이어져야 한다.
+- 단순히 여러 숫자를 차례로 나열하지 말고 상품·퍼널·광고 지표 사이의 관계를 해석할 것.
+- 특히 작년 동기 주력상품의 급락, 새로 성장한 상품, 방문·조회 증가와 주문 악화의 엇갈림, 광고비와 광고매출의 비대칭을 우선 탐지할 것.
+- detectedSignals와 증감 기여도가 큰 항목을 먼저 다루고, 의미가 작은 변동은 과감히 생략할 것.
+- 숫자(증감률, 금액, 건수)를 반드시 인용해서 근거를 보여줄 것. 데이터에 없는 숫자나 사실을 지어내지 말 것.
 - 방문자→조회→장바구니→주문으로 이어지는 퍼널에서 눈에 띄게 이탈이 크거나 작은 단계가 있으면 짚어줄 것.
 - actions는 3~6개. "다음 기간에 무엇을 점검/개선해야 하는지"를 담을 것. title은 10자 내외, detail은 1~2문장.
 - 전기간 대비와 작년 동기 대비가 서로 다른 방향(하나는 증가, 하나는 감소)이면 반드시 짚어줄 것.
 - 광고 영역(검색영역/비검색영역)별로 효율 차이가 크면 짚어줄 것.
 - 상품별 스냅샷이 "없음"이면 그 사실만 짧게 언급하고 억지로 숫자를 만들지 말 것.
+- dataQuality에서 누락 또는 조회 오류가 있으면 첫 문장에서 분석 한계를 명시하고, 해당 기간의 0을 실제 실적 0으로 단정하지 말 것.
 - 과장하거나 확신할 수 없는 원인 추정("~때문일 것이다" 식 단정)은 피하고, "~가능성이 있다", "~확인이 필요하다" 톤을 쓸 것.
 - 절대 마크다운(**, # 등) 쓰지 말 것.
 
-데이터: ${JSON.stringify(stats)}`;
+핵심 합계: ${JSON.stringify(stats)}
+변화 탐지 결과: ${JSON.stringify(analysis)}`;
 
   try {
     const { ok, data } = await fetchAiChat([{ role: "user", parts: [{ text: prompt }] }], { useSearch: false, timeoutMs: 30000 });
@@ -5411,7 +5624,9 @@ async function coupangReportGenerateInsights(cur, prev, year) {
     };
   } catch (err) {
     return {
-      insights: [`(AI 인사이트 생성 실패: ${err.message || "알 수 없는 오류"} — 아래 표의 숫자는 정상적으로 반영되었습니다.)`],
+      insights: analysis.detectedSignals.length
+        ? analysis.detectedSignals
+        : [`(AI 인사이트 생성 실패: ${err.message || "알 수 없는 오류"} — 아래 표의 숫자는 정상적으로 반영되었습니다.)`],
       actions: [],
     };
   }
