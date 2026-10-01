@@ -4842,16 +4842,23 @@ async function naverReportFetchPeriod(dateFrom, dateTo, label) {
   const ad = naverReportSumAdItems(adItems);
   const adByType = naverReportGroupAdByType(adItems);
   const channels = naverReportBuildChannelRows(stat.visitPaths);
+  // naverStatSummary의 고객 스냅샷은 월 단위로만 저장되는데, comparePeriodRanges가 계산하는
+  // "전기간"은 날짜 수만 맞춘 범위(예: 2026-08-02~08-31)라 정확한 월 경계와 어긋날 때가 많다.
+  // 요청한 기간과 정확히 안 맞으면 서버가 "가장 최근 걸로 대신" 돌려주는데, 그걸 그대로
+  // 보여주면 "이번 기간"과 "전기간"에 같은 달 숫자가 중복으로 찍힌다(2026-10-01 실측) —
+  // 요청한 기간과 정확히 일치할 때만 신뢰하고, 아니면 null로 "데이터 없음" 처리한다.
+  const requestedPeriodKey = `${dateFrom}|${dateTo}`;
+  const customerMatches = stat.customerPeriod === requestedPeriodKey;
   return {
     label, dateFrom, dateTo,
     sales, ad, adByType, channels,
     products: stat.products || [],
     customer: {
-      period: stat.customerPeriod || "",
-      new: naverReportCustomerSegment(stat.customer, "신규"),
-      repeat: naverReportCustomerSegment(stat.customer, "재구매"),
-      total: naverReportCustomerSegment(stat.customer, "전체합산"),
-      genderAge: stat.customerGenderAge || [],
+      period: customerMatches ? stat.customerPeriod : "",
+      new: customerMatches ? naverReportCustomerSegment(stat.customer, "신규") : null,
+      repeat: customerMatches ? naverReportCustomerSegment(stat.customer, "재구매") : null,
+      total: customerMatches ? naverReportCustomerSegment(stat.customer, "전체합산") : null,
+      genderAge: customerMatches ? (stat.customerGenderAge || []) : [],
     },
     daily: stat.daily || [],
   };
@@ -4878,8 +4885,8 @@ async function naverReportGenerateInsights(cur, prev, year) {
       유형별_이번기간: cur.adByType.map(t => `${t.type}: 비용 ${num(t.cost)}원, 구매전환 ${num(t.purchaseConversions)}건, 구매매출 ${num(t.purchaseSales)}원`),
     },
     고객: {
-      신규_이번기간: cur.customer.new, 신규_전기간: prev.customer.new, 신규_작년동기: year.customer.new,
-      재구매_이번기간: cur.customer.repeat, 재구매_전기간: prev.customer.repeat, 재구매_작년동기: year.customer.repeat,
+      신규_이번기간: cur.customer.new || "데이터 없음", 신규_전기간: prev.customer.new || "데이터 없음", 신규_작년동기: year.customer.new || "데이터 없음",
+      재구매_이번기간: cur.customer.repeat || "데이터 없음", 재구매_전기간: prev.customer.repeat || "데이터 없음", 재구매_작년동기: year.customer.repeat || "데이터 없음",
     },
     유입채널_이번기간: cur.channels.rows.map(r => ({ 채널: r.name, 방문: r.visits, 매출: r.salesTotal })),
     유입채널_작년동기: year.channels.rows.map(r => ({ 채널: r.name, 방문: r.visits, 매출: r.salesTotal })),
@@ -4902,6 +4909,7 @@ async function naverReportGenerateInsights(cur, prev, year) {
 - 신규 고객과 재구매 고객의 추세가 다르면(한쪽만 성장 등) 반드시 짚어줄 것.
 - 광고 유형(캠페인 타입)별로 효율 차이가 크면(전환이 거의 없는 유형 등) 짚어줄 것.
 - 과장하거나 확신할 수 없는 원인 추정("~때문일 것이다" 식 단정)은 피하고, "~가능성이 있다", "~확인이 필요하다" 톤을 쓸 것.
+- 값이 "데이터 없음"인 항목은 그 기간과 비교하지 말고 조용히 건너뛸 것(숫자를 지어내지 말 것).
 - 절대 마크다운(**, # 등) 쓰지 말 것.
 
 데이터: ${JSON.stringify(stats)}`;
@@ -5050,11 +5058,16 @@ async function naverReportBuildWorkbook(cur, prev, year, ai) {
       const seg = period.customer[key];
       naverReportDataCell(s, r, 1, label);
       naverReportDataCell(s, r, 2, periodLabel);
-      naverReportDataCell(s, r, 3, seg.visitors, { numFmt: "#,##0" });
-      naverReportDataCell(s, r, 4, seg.payers, { numFmt: "#,##0" });
-      naverReportDataCell(s, r, 5, (Number(seg.conversion) || 0) / 100, { numFmt: "0.0%" });
-      naverReportDataCell(s, r, 6, seg.salesTotal, { numFmt: "#,##0" });
-      naverReportDataCell(s, r, 7, seg.avgPayment, { numFmt: "#,##0" });
+      if (!seg) {
+        s.mergeCells(r, 3, r, 7);
+        naverReportDataCell(s, r, 3, "이 기간과 정확히 일치하는 월별 고객 스냅샷이 없습니다", { italic: true, align: "left" });
+      } else {
+        naverReportDataCell(s, r, 3, seg.visitors, { numFmt: "#,##0" });
+        naverReportDataCell(s, r, 4, seg.payers, { numFmt: "#,##0" });
+        naverReportDataCell(s, r, 5, (Number(seg.conversion) || 0) / 100, { numFmt: "0.0%" });
+        naverReportDataCell(s, r, 6, seg.salesTotal, { numFmt: "#,##0" });
+        naverReportDataCell(s, r, 7, seg.avgPayment, { numFmt: "#,##0" });
+      }
       r += 1;
     });
   });
