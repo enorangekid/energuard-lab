@@ -1034,6 +1034,30 @@ chrome.alarms.onAlarm.addListener(alarm=>{if(alarm.name===ALARM)processNext();})
 chrome.runtime.onStartup.addListener(async()=>{const state=await readState();if(state?.running)await arm();});
 // On a fresh worker instance, ensure an interrupted queue has a wake-up.
 readState().then(async state=>{if(state?.running && !await chrome.alarms.get(ALARM))await arm();});
+// 모음전 옵션 엑셀용(2026-10-01) — 스마트스토어 상품 페이지 하나를 열어 옵션 항목 제목·옵션명·관리코드를 읽어 돌려준다.
+// 검사 큐와 따로 돌고(검사가 실행 중이어도 됨) 가격은 건드리지 않는다. 한국단열·한국단열라이프 상품만 허용한다.
+async function readStoreOptions(rawUrl){
+  let url;try{url=new URL(String(rawUrl||''));}catch{throw Error('상품 주소 오류');}
+  const match=/^\/([^/]+)\/products\/(\d+)\/?$/.exec(url.pathname);
+  if(url.origin!=='https://smartstore.naver.com'||!match||!['hkdy','hkdylife'].includes(match[1]))throw Error('허용되지 않은 상품 주소');
+  const tab=await chrome.tabs.create({url:url.href,active:false});
+  try{
+    let scan;
+    for(let n=0;n<30;n++){
+      await delay(1000);
+      try{scan=await chrome.tabs.sendMessage(tab.id,{type:'GET_COMPETITOR_SCAN_DATA',ignoreSupplements:true});}catch{}
+      if(scan?.ok&&scan.detailUrl)break;
+    }
+    if(!scan?.ok||!scan.detailUrl)throw Error('상품 정보 수집 실패 — 로그인·차단·삭제 여부 확인 필요');
+    endpoint(scan.detailUrl,match[2],'products');
+    if(!Array.isArray(scan.rows)||!scan.rows.length||scan.rows.every(row=>row.label==='(옵션 없음)'))throw Error('이 상품에서 옵션을 읽지 못했습니다');
+    return {
+      ok:true,productId:match[2],groupNames:Array.isArray(scan.optionGroupNames)?scan.optionGroupNames:[],optionKeys:Array.isArray(scan.optionKeys)?scan.optionKeys:[],optionHints:scan.optionHints&&typeof scan.optionHints==='object'?scan.optionHints:{},
+      rows:scan.rows.map(row=>({label:row.label,optionName1:row.optionName1||null,optionName2:row.optionName2||null,optionName3:row.optionName3||null,code:row.code||null,stockQuantity:row.stockQuantity??null,soldOut:!!row.soldOut})),
+      version:chrome.runtime.getManifest().version,
+    };
+  }finally{await chrome.tabs.remove(tab.id).catch(()=>{});}
+}
 let commandBusy=false;
 chrome.runtime.onMessage.addListener((message,sender,respond)=>{
   if(message?.type!=='EG_PRICE_TEST')return;
@@ -1041,6 +1065,7 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
   if(!['localhost','127.0.0.1','enorangekid.github.io'].includes(host))return;
   (async()=>{
     if(message.action==='ping')return {ok:true,version:chrome.runtime.getManifest().version};
+    if(message.action==='moeum')return await readStoreOptions(message.payload?.url);
     if(message.action==='status'){
       const s=await readState();
       if(!s)return {ok:true,state:null};

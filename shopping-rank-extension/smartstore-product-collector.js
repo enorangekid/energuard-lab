@@ -248,6 +248,48 @@
     });
   }
 
+  // 옵션 항목 이름(예: "아이소핑크 두께선택") — 모음전 옵션 엑셀의 첫 열 제목이다(2026-10-01). 응답의 필드명을 이 환경에서 못 봐서
+  // 후보를 순서대로 본다. 못 찾으면 [] — 그때는 화면이 제목을 따로 묻는다. optionKeys는 진단용(응답에서 "option"이 들어간 키 이름).
+  // 상품 상세 API 응답에 제목이 없으면, 페이지가 처음부터 들고 있는 데이터(inline script의 __PRELOADED_STATE__ 등)에서 같은 이름의 필드를 찾는다.
+  function groupNamesFromPage() {
+    try {
+      for (const script of document.scripts || []) {
+        const text = String(script.textContent || "");
+        const at = text.indexOf("optionCombinationGroupNames");
+        if (at < 0) continue;
+        const match = /optionCombinationGroupNames"?\s*:\s*(\{[^{}]*\})/.exec(text.slice(at, at + 600));
+        if (!match) continue;
+        const obj = JSON.parse(match[1].replace(/\\"/g, '"'));
+        const names = [obj.optionGroupName1, obj.optionGroupName2, obj.optionGroupName3].map((v) => String(v || "").trim()).filter(Boolean);
+        if (names.length) return names;
+      }
+    } catch { /* 못 읽으면 빈 목록 */ }
+    return [];
+  }
+  function optionGroupNames() {
+    const d = productData || {};
+    const objects = [d.optionCombinationGroupNames, d.optionGroupNames, d.optionNames, d.optionCombinationGroups];
+    for (const obj of objects) {
+      if (Array.isArray(obj)) {
+        const names = obj.map((v) => (typeof v === "string" ? v : v?.groupName || v?.name || v?.optionGroupName)).map((v) => String(v || "").trim()).filter(Boolean);
+        if (names.length) return names;
+      } else if (obj && typeof obj === "object") {
+        const names = [obj.optionGroupName1, obj.optionGroupName2, obj.optionGroupName3].map((v) => String(v || "").trim()).filter(Boolean);
+        if (names.length) return names;
+      }
+    }
+    return groupNamesFromPage();
+  }
+  // 못 읽었을 때 어디에 있는지 찾는 단서 — 응답에서 "option"이 들어간 키와 값의 모양(글자 수·개수)만 남긴다(값 전체는 길어서 안 보냄).
+  function optionHints() {
+    const d = productData || {};
+    return Object.fromEntries(Object.keys(d).filter((key) => /option|group/i.test(key)).map((key) => {
+      const v = d[key];
+      const shape = Array.isArray(v) ? `배열(${v.length})` : v && typeof v === "object" ? `객체{${Object.keys(v).slice(0, 6).join(",")}}` : typeof v === "string" ? `글자(${v.slice(0, 40)})` : typeof v;
+      return [key, shape];
+    }));
+  }
+
   // 팝업의 "현재 페이지 수집" 버튼이 보내는 요청 — 지금까지 가로챈 데이터로 즉시 응답한다.
   // 페이지를 막 열자마자(응답이 아직 안 왔을 때) 누르면 ok:false로 알려준다.
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
@@ -267,6 +309,9 @@
         rows,
         supplements: supplementRows(productData),
         priceInfo: priceInfo(),
+        optionGroupNames: optionGroupNames(),
+        optionKeys: Object.keys(productData || {}).filter((key) => /option/i.test(key)),
+        optionHints: optionHints(),
       });
     } catch (error) {
       sendResponse({ok:false,reason:"collector_error",error:error?.message || String(error),detailUrl,benefitReady:benefitData != null});
