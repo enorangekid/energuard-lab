@@ -69,17 +69,24 @@
     return [...rows.values()];
   }
 
+  /* 페이지 데이터에 없는 옵션(보통 처음 열린 기본 선택 옵션)은 화면에 보이는 가격으로 읽는다.
+     가격 영역(price-container)의 글자는 "12%56,140원(1개당 5,614원)63,800원7,660원할인"처럼 숫자가 여러 개 붙어 있어서(2026-10-02 실제 화면 확인)
+     글자를 지우고 숫자만 이으면 5,614,015,614 같은 값이 나온다 — "숫자원" 단위로 하나씩 읽는다: "(1개당 …원)"과 "…원할인"을 빼면 첫 가격 = 할인가, 그다음 가격 = 쿠팡 등록가(취소선).
+     페이지 다른 곳의 취소선(del/s — 함께 구매한 상품 등)은 등록가가 아니라서 쓰지 않는다. 등록가를 못 읽으면 null로 두고, 비교는 할인가로만 한다(worker.js matchCoupangOptions). */
+  const priceTexts=text=>{
+    const cleaned=String(text||'').replace(/\s+/g,' ').replace(/\(\s*1개당\s*[\d,]+\s*원\s*\)/g,' ');
+    return [...cleaned.matchAll(/(\d[\d,]*)\s*원(?!\s*할인)/g)].map(m=>number(m[1])).filter(n=>n&&n>100);
+  };
   function visibleFallback(optionId){
     const body=String(document.body?.innerText||'');
-    const prices=[...document.querySelectorAll('[class*="price"], del, s')].map(node=>number(node.textContent)).filter(n=>n&&n>100);
-    const finalPrice=firstNumber(
-      document.querySelector('[class*="final-price"], [class*="sale-price"], .total-price strong')?.textContent,
-      ...prices
-    );
-    const registeredPrice=firstNumber(document.querySelector('del, s, [class*="origin-price"]')?.textContent,finalPrice);
+    const shown=priceTexts(document.querySelector('[class*="price-container"]')?.textContent);
+    let finalPrice=shown[0]??null,registeredPrice=null;
+    if(shown.length===1)registeredPrice=shown[0];
+    else if(shown.length>1&&shown[1]>=shown[0])registeredPrice=shown[1];
+    if(!finalPrice)finalPrice=priceTexts(document.querySelector('[class*="final-price"], [class*="sale-price"], .total-price strong')?.textContent)[0]??null;
     if(!finalPrice)return null;
     const seller=[...document.querySelectorAll('a')].find(a=>/shop\.coupang\.com/.test(a.href||''))?.textContent?.trim()||null;
-    return {optionId:String(optionId||''),name:document.querySelector('h1')?.textContent?.trim()||'',registeredPrice,finalPrice,discountRate:registeredPrice>finalPrice?Math.round((registeredPrice-finalPrice)*100/registeredPrice):0,soldOut:/품절|일시품절/.test(body),invalid:false,sellerName:seller};
+    return {optionId:String(optionId||''),name:document.querySelector('h1')?.textContent?.trim()||'',registeredPrice,finalPrice,discountRate:registeredPrice&&registeredPrice>finalPrice?Math.round((registeredPrice-finalPrice)*100/registeredPrice):0,soldOut:/품절|일시품절/.test(body),invalid:false,sellerName:seller,fallback:true};
   }
 
   function scan(requested){

@@ -423,11 +423,14 @@ function matchCoupangOptions(productId,storeRows,options){
     const actualFinal=Number(row.finalPrice),expectedFinal=Number(option.expectedFinal);
     // 위너 상품은 쿠폰을 붙이지 않는다. 페이지 데이터의 originPrice는 비교 대상이 아니며,
     // 구매자가 실제로 결제하는 위너 판매가(finalPrice)를 단가표의 수동 위너가와 비교한다.
-    const actual=winner?actualFinal:collectedRegistered,expected=Number(option.expected);
+    // 화면 읽기(row.fallback)로 얻었는데 등록가를 못 읽은 옵션은 등록가가 아니라 실제 할인가로만 비교한다(2026-10-02).
+    const registeredUnknown=Boolean(row.fallback)&&!(collectedRegistered>0);
+    const actual=winner?actualFinal:registeredUnknown?NaN:collectedRegistered,expected=Number(option.expected);
     const validActual=Number.isFinite(actual)&&actual>0,validExpected=Number.isFinite(expected)&&expected>0;
     const validActualFinal=Number.isFinite(actualFinal)&&actualFinal>0,validExpectedFinal=Number.isFinite(expectedFinal)&&expectedFinal>0;
     let status;
     if(row.soldOut||row.invalid)status='품절';
+    else if(registeredUnknown&&!winner)status=!validActualFinal?'가격 확인 불가':!validExpectedFinal?'단가 확인 불가':actualFinal===expectedFinal?'일치':'할인가 불일치';
     else if(!validActual)status='가격 확인 불가';
     else if(!validExpected)status='단가 확인 불가';
     else if(actual!==expected)status='불일치';
@@ -435,7 +438,7 @@ function matchCoupangOptions(productId,storeRows,options){
     else status='일치';
     const actualDiscount=winner?NaN:Number(row.discountRate);
     const source=[
-      winner?'vendorItemId 매칭 · 위너 실제 판매가 기준':'vendorItemId 매칭',
+      winner?'vendorItemId 매칭 · 위너 실제 판매가 기준':registeredUnknown?'vendorItemId 매칭 · 화면 표시 가격 기준(등록가는 읽지 못함)':'vendorItemId 매칭',
       row.sellerName&&`판매자 ${row.sellerName}`,
       Number.isFinite(actualDiscount)&&`할인 ${actualDiscount}%`,
     ].filter(Boolean).join(' · ');
