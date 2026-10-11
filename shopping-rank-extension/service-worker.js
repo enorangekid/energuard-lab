@@ -250,7 +250,9 @@ function validateConfig(raw) {
   return {
     storeName,
     keywords,
-    pageCount: Math.min(5, Math.max(1, Number(raw?.pageCount) || 5)),
+    // 최대 10페이지(400위)까지 허용 — 2026-10-12, 상위 3위 상품이 하루 만에 200위 밖으로 사라져서
+    // "더 깊이 밀린 건지 아예 사라진 건지" 확인하려고 늘렸다. 기본값은 그대로 5(200위).
+    pageCount: Math.min(10, Math.max(1, Number(raw?.pageCount) || 5)),
     pageDelay: Math.min(10000, Math.max(1500, Number(raw?.pageDelay) || 1500)),
     mode,
     // N+스토어는 페이지 이동이 아니라 무한스크롤이라 pageCount 개념이 없고, 대신 몇 위까지

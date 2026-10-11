@@ -2381,7 +2381,9 @@ async function runBatchCollect() {
     await startExtensionBatchCollection({
       storeName: selectedStore,
       keywords: list,
-      pageCount: 5,
+      // 10페이지(400위)까지 — 2026-10-12, 상위권 상품이 200위 밖으로 사라진 원인(더 깊이 밀림 vs 노출
+      // 중단)을 구분하려고 200→400으로 늘렸다. 시간은 키워드당 대략 두 배로 늘어난다.
+      pageCount: 10,
       pageDelay: 1500,
     });
     statusEl.textContent = `[${selectedStore}] ${list.length}개 키워드 수집을 시작했습니다. 열린 수집 탭에서 진행 상황을 확인하세요.`;
