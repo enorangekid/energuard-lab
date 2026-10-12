@@ -4898,6 +4898,192 @@ function reportMoverSummary(label, mover, baselineLabel) {
   return `${label}: ${mover.name} (${baselineLabel} ${rate}, 증감 ${Math.round(mover.delta).toLocaleString("ko-KR")})`;
 }
 
+// ── 증감 사실 사전 계산 + AI 문장 사후 검증 ─────────────────────────────
+// 2026-10 검증에서 AI가 구매전환율이 오른 기간을 "전환 악화"로 서술하거나 광고비 증가를 "예산 증액"으로
+// 단정한 사례가 나왔다. 지표별 방향·증감률을 코드에서 확정해 프롬프트에 넣고, 응답 문장도 같은 사실과 대조한다.
+const REPORT_UP_WORDS = ["증가", "상승", "늘어", "늘었", "늘고", "올라", "올랐", "확대", "급증", "성장", "반등", "높아졌", "커졌", "상회"];
+const REPORT_DOWN_WORDS = ["감소", "하락", "줄어", "줄었", "줄고", "떨어", "내려", "축소", "급감", "둔화", "낮아졌", "작아졌", "하회"];
+const REPORT_BASIS_PATTERNS = { year: /작년|전년|지난해|동기/, prev: /전기간|직전 ?기간|이전 ?기간|전월|지난 ?달/ };
+const REPORT_CLAUSE_SPLIT = /지만|으나|반면|면서|하며|으며|이며|했고|이고|였고|하고|인데|는데|[·,;/→()]/;
+// 채널·상품·유형 같은 하위 구분을 말하는 문장은 합계 지표 사실과 직접 비교하지 않는다(오탐 방지).
+const REPORT_SEGMENT_WORDS = /채널|유입 ?경로|쇼핑검색|파워링크|스토어 내부|플러스스토어|네이버 검색|직유입|신규|재구매|상품|제품|옵션|키워드|검색어|유형|ADVoost|디스플레이|카테고리|남성|여성|[0-9]+대|그룹|캠페인|영역|지면/i;
+
+function reportFormatFactValue(def, value) {
+  return def.kind === "rate"
+    ? `${value.toFixed(def.digits ?? 2)}%`
+    : `${Math.round(value).toLocaleString("ko-KR")}${def.unit || ""}`;
+}
+
+// defs: [{ metric, keywords, generic, kind: "amount"|"rate", unit, digits, better: "up"|"down"|null, get(period) }]
+function reportBuildFacts(defs, cur, bases) {
+  const facts = [];
+  defs.forEach(def => {
+    bases.forEach(({ basis, label, period }) => {
+      const c = def.get(cur);
+      const b = def.get(period);
+      const usable = Number.isFinite(c) && Number.isFinite(b) && b !== 0;
+      const fact = {
+        metric: def.metric, keywords: def.keywords, generic: def.generic || [], better: def.better || null,
+        kind: def.kind, basis, baseLabel: label, cur: c, base: b,
+      };
+      if (!usable) {
+        facts.push({ ...fact, direction: "na", rate: null, diffPp: null, text: `${def.metric}: ${label} 비교 기준값 없음(해당 기간 자료가 없거나 0)` });
+        return;
+      }
+      const rate = (c - b) / Math.abs(b) * 100;
+      const direction = Math.abs(rate) < 1 ? "flat" : rate > 0 ? "up" : "down";
+      const signed = value => `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
+      let text;
+      if (def.kind === "rate") {
+        const diffPp = c - b;
+        fact.diffPp = diffPp;
+        const word = direction === "flat" ? "변동 없음(상대 ±1% 미만)" : direction === "up" ? "상승" : "하락";
+        text = `${def.metric}: 이번 ${reportFormatFactValue(def, c)}, ${label} ${reportFormatFactValue(def, b)} → ${word} (${diffPp >= 0 ? "+" : ""}${diffPp.toFixed(def.digits ?? 2)}%p, 상대 ${signed(rate)})`;
+      } else {
+        const word = direction === "flat" ? "변동 없음(±1% 미만)" : direction === "up" ? "증가" : "감소";
+        text = `${def.metric}: 이번 ${reportFormatFactValue(def, c)}, ${label} ${reportFormatFactValue(def, b)} → ${word} (${signed(rate)})`;
+      }
+      facts.push({ ...fact, direction, rate, diffPp: fact.diffPp ?? null, text });
+    });
+  });
+  return facts;
+}
+
+function reportBasesIn(text) {
+  return Object.entries(REPORT_BASIS_PATTERNS).filter(([, re]) => re.test(text)).map(([key]) => key);
+}
+
+function reportFindMetricsInClause(clause, metricDefs) {
+  const lower = clause.toLowerCase();
+  let rest = lower;
+  const explicit = [];
+  const pairs = [];
+  metricDefs.forEach(def => def.keywords.forEach(k => pairs.push({ def, k: k.toLowerCase() })));
+  pairs.sort((a, b) => b.k.length - a.k.length);
+  pairs.forEach(({ def, k }) => {
+    if (!rest.includes(k)) return;
+    if (!explicit.includes(def)) explicit.push(def);
+    rest = rest.split(k).join(" ".repeat(k.length));
+  });
+  if (explicit.length) return { defs: explicit, group: false };
+  const generic = metricDefs.filter(def => (def.generic || []).some(k => rest.includes(k.toLowerCase())));
+  return generic.length ? { defs: generic, group: true } : null;
+}
+
+function reportClauseDirection(clause, better) {
+  if (/않|없|아니|못/.test(clause)) return null;
+  const up = REPORT_UP_WORDS.some(w => clause.includes(w));
+  const down = REPORT_DOWN_WORDS.some(w => clause.includes(w));
+  if (up !== down) return up ? "up" : "down";
+  if (up && down) return null;
+  const good = /개선|호전/.test(clause);
+  const bad = /악화|나빠/.test(clause);
+  if (better && good !== bad) return good ? better : (better === "up" ? "down" : "up");
+  const signed = clause.match(/([+＋]|[-−–])\s*\d+(?:\.\d+)?\s*%/);
+  if (signed) return /[-−–]/.test(signed[1]) ? "down" : "up";
+  return null;
+}
+
+function reportCheckSentence(sentence, facts, metricDefs) {
+  const problems = [];
+  const sentenceBases = reportBasesIn(sentence);
+  const dirKo = { up: "증가", down: "감소" };
+  let lastMetrics = null;
+  let lastBases = [];
+  sentence.split(REPORT_CLAUSE_SPLIT).map(part => part.trim()).filter(Boolean).forEach(clause => {
+    if (REPORT_SEGMENT_WORDS.test(clause)) { lastMetrics = null; return; }
+    const found = reportFindMetricsInClause(clause, metricDefs);
+    const metrics = found || lastMetrics;
+    let bases = reportBasesIn(clause);
+    if (!bases.length) bases = lastBases.length ? lastBases : (sentenceBases.length === 1 ? sentenceBases : []);
+    if (found) lastMetrics = found;
+    if (bases.length) lastBases = bases;
+    if (!metrics || !bases.length || (!metrics.group && metrics.defs.length > 1)) return;
+
+    const better = metrics.defs.length === 1 ? metrics.defs[0].better : null;
+    const aiDir = reportClauseDirection(clause, better);
+    const percents = [...clause.matchAll(/(\d+(?:\.\d+)?)\s*%/g)].map(m => Number(m[1]));
+    if (!aiDir && !percents.length) return;
+
+    bases.forEach(basis => {
+      const candidates = metrics.defs
+        .map(def => facts.find(f => f.metric === def.metric && f.basis === basis))
+        .filter(Boolean);
+      if (!candidates.length) return;
+      const label = candidates[0].baseLabel;
+      const names = candidates.map(f => f.metric).join("/");
+      if (candidates.every(f => f.direction === "na")) {
+        problems.push(`${names}: ${label} 비교 자료가 없는데 증감을 서술함 — "${clause}"`);
+        return;
+      }
+      if (aiDir) {
+        const usable = candidates.filter(f => f.direction === "up" || f.direction === "down");
+        if (usable.length && usable.every(f => f.direction !== aiDir)) {
+          const f = usable[0];
+          problems.push(`${names}: ${label} 대비 실제로는 ${dirKo[f.direction]}(${f.rate >= 0 ? "+" : ""}${f.rate.toFixed(1)}%)인데 본문은 ${dirKo[aiDir]}로 서술함 — "${clause}"`);
+          return;
+        }
+      }
+      if (percents.length === 1 && metrics.defs.length === 1) {
+        const f = candidates[0];
+        if (f.direction === "na") return;
+        const allowed = [Math.abs(f.rate)];
+        if (f.kind === "rate") allowed.push(Math.abs(f.diffPp), f.cur, f.base);
+        const value = percents[0];
+        if (!allowed.some(a => Math.abs(a - value) <= Math.max(0.15, a * 0.01))) {
+          problems.push(`${names}: ${label} 대비 증감률은 ${f.rate >= 0 ? "+" : ""}${f.rate.toFixed(1)}%인데 본문 수치는 ${value}% — "${clause}"`);
+        }
+      }
+    });
+  });
+  return problems;
+}
+
+function reportVerifyInsights(insights, facts) {
+  const seen = new Set();
+  const metricDefs = facts.filter(f => { if (seen.has(f.metric)) return false; seen.add(f.metric); return true; });
+  const issues = [];
+  (insights || []).forEach((item, index) => {
+    [item.title, item.finding, item.meaning, item.check].forEach(text => {
+      String(text || "").split(/\n|[!?]|\.(?!\d)/).map(s => s.trim()).filter(Boolean).forEach(sentence => {
+        reportCheckSentence(sentence, facts, metricDefs).forEach(message => {
+          if (!issues.some(i => i.index === index && i.message === message)) issues.push({ index, message });
+        });
+      });
+    });
+  });
+  return issues;
+}
+
+// AI 호출 → 파싱 → 사실 대조. 어긋나는 문장이 있으면 지적 사항을 붙여 한 번 다시 요청하고,
+// 그래도 남으면 해당 인사이트에 verify 주석으로 남겨 보고서에 표시한다.
+async function reportRequestInsights(prompt, facts) {
+  const ask = async text => {
+    const { ok, data } = await fetchAiChat([{ role: "user", parts: [{ text }] }], { useSearch: false, timeoutMs: 30000 });
+    const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const jsonText = (raw.match(/\{[\s\S]*\}/) || [])[0];
+    if (!ok || !jsonText) throw new Error("AI 응답 파싱 실패");
+    return reportNormalizeInsights(JSON.parse(jsonText).insights);
+  };
+  let insights = await ask(prompt);
+  let issues = reportVerifyInsights(insights, facts);
+  let retried = false;
+  if (issues.length) {
+    retried = true;
+    const feedback = issues.map(i => `- ${i.message}`).join("\n");
+    try {
+      const retry = await ask(`${prompt}\n\n[검증 실패 — 직전 답변에서 확정증감과 어긋난 서술이 발견됐다. 아래 지적을 모두 바로잡아 같은 JSON 형식으로 전체를 다시 작성할 것]\n${feedback}`);
+      const retryIssues = reportVerifyInsights(retry, facts);
+      if (retryIssues.length < issues.length) { insights = retry; issues = retryIssues; }
+    } catch (_) { /* 재시도 실패 시 첫 답변을 검증 주석과 함께 사용 */ }
+  }
+  issues.forEach(issue => {
+    const item = insights[issue.index];
+    if (item) (item.verify = item.verify || []).push(issue.message);
+  });
+  return { insights, verification: { factCount: facts.length, retried, issueCount: issues.length } };
+}
+
 // 한글 폭과 명시적 줄바꿈을 함께 반영해 저장 시 행 높이를 계산한다.
 function naverReportEstimateRowHeight(text, mergedWidthUnits, lineHeightPt = 15, basePadding = 10) {
   const availableWidth = Math.max(1, mergedWidthUnits - 2);
@@ -4968,8 +5154,34 @@ function reportNormalizeInsights(items) {
       evidence: String(item?.evidence || ""),
       check: String(item?.check || ""),
       productIds: Array.isArray(item?.productIds) ? item.productIds.map(String) : [],
+      verify: Array.isArray(item?.verify) ? item.verify.map(String) : [],
     };
   });
+}
+
+function naverReportBuildFacts(cur, prev, year) {
+  const salesOk = p => p.coverage.salesDays > 0;
+  const adOk = p => p.ad.cost > 0 || p.ad.impressions > 0;
+  const sales = fn => p => (salesOk(p) ? fn(p) : null);
+  const ads = fn => p => (adOk(p) ? fn(p) : null);
+  const ratio = (num, den, scale = 1) => (den ? num / den * scale : null);
+  const defs = [
+    { metric: "총매출", keywords: ["총매출", "총 매출", "결제금액"], generic: ["매출"], kind: "amount", unit: "원", better: "up", get: sales(p => p.sales.salesTotal) },
+    { metric: "순매출", keywords: ["순매출", "순 매출"], generic: ["매출"], kind: "amount", unit: "원", better: "up", get: sales(p => p.sales.salesNet) },
+    { metric: "방문수", keywords: ["방문수", "방문 수", "방문자수", "방문자"], generic: ["방문"], kind: "amount", unit: "회", better: "up", get: sales(p => p.sales.visits) },
+    { metric: "결제건수", keywords: ["결제건수", "결제 건수", "결제수", "결제 수", "주문건수", "주문 건수"], kind: "amount", unit: "건", better: "up", get: sales(p => p.sales.payCount) },
+    { metric: "구매전환율", keywords: ["구매전환율", "구매 전환율", "결제전환율", "전환율"], kind: "rate", digits: 2, better: "up", get: sales(p => ratio(p.sales.payCount, p.sales.visits, 100)) },
+    { metric: "객단가", keywords: ["객단가", "평균 결제금액"], kind: "amount", unit: "원", better: "up", get: sales(p => ratio(p.sales.salesTotal, p.sales.payCount)) },
+    { metric: "광고비", keywords: ["광고비", "광고 비용", "광고 집행비"], kind: "amount", unit: "원", better: null, get: ads(p => p.ad.cost) },
+    { metric: "광고 노출수", keywords: ["노출수", "노출 수", "노출"], kind: "amount", unit: "회", better: null, get: ads(p => p.ad.impressions) },
+    { metric: "광고 클릭수", keywords: ["클릭수", "클릭 수", "클릭"], kind: "amount", unit: "회", better: null, get: ads(p => p.ad.clicks) },
+    { metric: "클릭률(CTR)", keywords: ["클릭률", "ctr"], kind: "rate", digits: 2, better: "up", get: ads(p => ratio(p.ad.clicks, p.ad.impressions, 100)) },
+    { metric: "CPC", keywords: ["cpc", "클릭당 비용", "클릭당 광고비", "클릭 단가"], kind: "amount", unit: "원", better: "down", get: ads(p => ratio(p.ad.cost, p.ad.clicks)) },
+    { metric: "광고 구매전환수", keywords: ["구매전환수", "구매 전환수", "전환 건수", "전환수"], kind: "amount", unit: "건", better: "up", get: ads(p => p.ad.purchaseConversions) },
+    { metric: "광고매출", keywords: ["광고매출", "광고 매출", "광고 구매매출", "구매매출"], kind: "amount", unit: "원", better: "up", get: ads(p => p.ad.purchaseSales) },
+    { metric: "ROAS", keywords: ["roas", "광고수익률"], kind: "rate", digits: 0, better: "up", get: ads(p => ratio(p.ad.purchaseSales, p.ad.cost, 100)) },
+  ];
+  return reportBuildFacts(defs, cur, [{ basis: "prev", label: "전기간", period: prev }, { basis: "year", label: "작년 동기", period: year }]);
 }
 
 function reportNormalizeActions(items) {
@@ -5071,6 +5283,8 @@ async function naverReportGenerateInsights(cur, prev, year) {
   };
 
   const analysis = naverReportBuildAnalysis(cur, prev, year);
+  const facts = naverReportBuildFacts(cur, prev, year);
+  stats.확정증감 = facts.map(f => f.text);
   const prompt = `너는 숫자를 나열하는 사람이 아니라, 담당자가 여러 표를 오가며 놓치기 쉬운 변화를 먼저 발견하는 이커머스 분석가야. 아래는 '한국단열' 네이버 스마트스토어의 이번 기간·전기간·작년 동기 데이터와 코드가 미리 계산한 변화 신호야.
 이 자료를 바탕으로 "무슨 변화가 있었고, 왜 중요한지, 무엇을 확인해야 하는지"를 빠르게 이해할 수 있는 보고서 문장을 만들어줘.
 
@@ -5085,7 +5299,8 @@ async function naverReportGenerateInsights(cur, prev, year) {
 - 상품을 언급하면 productIds에 해당 상품의 productId 또는 변화 탐지 products의 key를 문자열로 반드시 포함할 것. 이름을 줄여 쓰더라도 번호는 원본 그대로 사용하고, 상품 언급이 없으면 빈 배열. URL이나 번호를 추측하지 말 것.
 - 비용과 ROAS/CPA 비교 없이 전환 건수만으로 광고 효율을 단정하지 말 것. 상품 증감만으로 세대교체·계절성·경쟁을 확인된 원인처럼 쓰지 말 것.
 - 단순히 여러 숫자를 차례로 나열하지 말고 상품·유입·광고·고객 지표 사이의 관계를 해석할 것.
-- 특히 작년 동기 주력상품의 급락, 새로 성장한 상품, 평소와 다른 채널 유입, 방문 증가와 전환 악화의 엇갈림, 광고비와 매출의 비대칭을 우선 탐지할 것.
+- 핵심 합계의 확정증감은 코드가 계산한 사실이다. 같은 지표를 서술할 때 방향(증가/감소/상승/하락)과 증감률을 그대로 따르고, 다시 계산하거나 반대로 쓰지 말 것. '악화/개선' 같은 평가어도 해당 지표의 확정증감 방향과 일치할 때만 쓸 것.
+- 어떤 지표가 오르고 내렸는지, 어떤 지표 사이에 엇갈림이 있는지는 미리 가정하지 말고 확정증감과 변화 탐지 결과에서만 판단할 것.
 - detectedSignals와 증감 기여도가 큰 항목을 먼저 다루고, 의미가 작은 변동은 과감히 생략할 것.
 - 숫자(증감률, 금액, 건수)를 반드시 인용해서 근거를 보여줄 것. 데이터에 없는 숫자나 사실을 지어내지 말 것.
 - 별도 actions나 우선순위는 만들지 말고 각 insight의 check에 확인할 지표·대상·비교 기준을 한 문장으로 적을 것. 막연한 '전략 강화', '다각적 분석'을 피할 것.
@@ -5101,21 +5316,16 @@ async function naverReportGenerateInsights(cur, prev, year) {
 변화 탐지 결과: ${JSON.stringify(analysis)}`;
 
   try {
-    const { ok, data } = await fetchAiChat([{ role: "user", parts: [{ text: prompt }] }], { useSearch: false, timeoutMs: 30000 });
-    const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-    const jsonText = (raw.match(/\{[\s\S]*\}/) || [])[0];
-    if (!ok || !jsonText) throw new Error("AI 응답 파싱 실패");
-    const parsed = JSON.parse(jsonText);
-    return {
-      insights: reportNormalizeInsights(parsed.insights),
-      actions: reportNormalizeActions(parsed.actions),
-    };
+    const { insights, verification } = await reportRequestInsights(prompt, facts);
+    return { insights, actions: [], facts, verification };
   } catch (err) {
     return {
       insights: reportNormalizeInsights(analysis.detectedSignals.length
         ? analysis.detectedSignals
         : [`(AI 인사이트 생성 실패: ${err.message || "알 수 없는 오류"} — 아래 표의 숫자는 정상적으로 반영되었습니다.)`]),
       actions: [],
+      facts,
+      verification: null,
     };
   }
 }
@@ -5230,8 +5440,19 @@ function reportAnalysisSheet(wb, ai, periods, platform) {
     line("해석", item.meaning);
     if (item.evidence && !item.finding.includes(item.evidence)) line("참고 수치", item.evidence);
     line("확인할 점", item.check);
+    if (item.verify?.length) line("⚠ 코드 검증", `다음 서술은 코드가 계산한 증감과 어긋나므로 표의 숫자를 우선하세요.\n${item.verify.join("\n")}`, { color: "FFC00000" });
     row++;
   });
+  if (Array.isArray(ai.facts) && ai.facts.length) {
+    line("기준 수치", "코드가 계산한 지표별 증감입니다. AI 서술은 이 값과 대조해 검증합니다.", { bold: true });
+    const checked = ai.verification;
+    if (checked) line("검증 결과", checked.issueCount
+      ? `어긋난 서술 ${checked.issueCount}건${checked.retried ? " (재작성 후에도 남은 항목)" : ""}`
+      : `AI 서술 ${checked.retried ? "재작성 후 " : ""}이상 없음`);
+    const baseLabels = [...new Set(ai.facts.map(f => f.baseLabel))];
+    baseLabels.forEach(label => ai.facts.filter(f => f.baseLabel === label).forEach(f => line(label, f.text)));
+    row++;
+  }
   const actions = reportNormalizeActions(ai.actions);
   if (actions.length) line("추가 확인", "이전 형식의 추가 점검 사항", { bold: true });
   actions.forEach(item => {
@@ -5660,6 +5881,32 @@ function coupangReportBuildAnalysis(cur, prev, year) {
   };
 }
 
+function coupangReportBuildFacts(cur, prev, year) {
+  const salesOk = p => p.coverage.salesDays > 0;
+  const adOk = p => p.ad.cost > 0 || p.ad.impressions > 0;
+  const sales = fn => p => (salesOk(p) ? fn(p) : null);
+  const ads = fn => p => (adOk(p) ? fn(p) : null);
+  const ratio = (num, den, scale = 1) => (den ? num / den * scale : null);
+  const defs = [
+    { metric: "매출", keywords: ["총매출", "전체 매출", "쿠팡 매출", "결제금액"], generic: ["매출"], kind: "amount", unit: "원", better: "up", get: sales(p => p.sales.sales) },
+    { metric: "주문수", keywords: ["주문수", "주문 수", "주문건수", "주문 건수"], generic: ["주문"], kind: "amount", unit: "건", better: "up", get: sales(p => p.sales.orders) },
+    { metric: "방문자수", keywords: ["방문자수", "방문자 수", "방문자"], generic: ["방문"], kind: "amount", unit: "명", better: "up", get: sales(p => p.sales.visitors) },
+    { metric: "조회수", keywords: ["조회수", "조회 수", "상품 조회"], generic: ["조회"], kind: "amount", unit: "회", better: "up", get: sales(p => p.sales.views) },
+    { metric: "장바구니수", keywords: ["장바구니"], kind: "amount", unit: "건", better: "up", get: sales(p => p.sales.carts) },
+    { metric: "주문전환율(방문자 기준)", keywords: ["구매전환율", "구매 전환율", "주문전환율", "주문 전환율", "전환율"], kind: "rate", digits: 2, better: "up", get: sales(p => ratio(p.sales.orders, p.sales.visitors, 100)) },
+    { metric: "객단가", keywords: ["객단가", "평균 주문금액"], kind: "amount", unit: "원", better: "up", get: sales(p => ratio(p.sales.sales, p.sales.orders)) },
+    { metric: "광고비", keywords: ["광고비", "광고 비용", "광고 집행비"], kind: "amount", unit: "원", better: null, get: ads(p => p.ad.cost) },
+    { metric: "광고 노출수", keywords: ["노출수", "노출 수", "노출"], kind: "amount", unit: "회", better: null, get: ads(p => p.ad.impressions) },
+    { metric: "광고 클릭수", keywords: ["클릭수", "클릭 수", "클릭"], kind: "amount", unit: "회", better: null, get: ads(p => p.ad.clicks) },
+    { metric: "클릭률(CTR)", keywords: ["클릭률", "ctr"], kind: "rate", digits: 2, better: "up", get: ads(p => ratio(p.ad.clicks, p.ad.impressions, 100)) },
+    { metric: "CPC", keywords: ["cpc", "클릭당 비용", "클릭당 광고비", "클릭 단가"], kind: "amount", unit: "원", better: "down", get: ads(p => ratio(p.ad.cost, p.ad.clicks)) },
+    { metric: "광고 주문수", keywords: ["광고 주문수", "광고주문수", "광고 주문"], kind: "amount", unit: "건", better: "up", get: ads(p => p.ad.orders) },
+    { metric: "광고매출", keywords: ["광고매출", "광고 매출", "광고 전환매출"], kind: "amount", unit: "원", better: "up", get: ads(p => p.ad.sales) },
+    { metric: "ROAS", keywords: ["roas", "광고수익률"], kind: "rate", digits: 0, better: "up", get: ads(p => ratio(p.ad.sales, p.ad.cost, 100)) },
+  ];
+  return reportBuildFacts(defs, cur, [{ basis: "prev", label: "전기간", period: prev }, { basis: "year", label: "작년 동기", period: year }]);
+}
+
 async function coupangReportGenerateInsights(cur, prev, year) {
   const stats = {
     기간: { 이번기간: `${cur.dateFrom}~${cur.dateTo}`, 전기간: `${prev.dateFrom}~${prev.dateTo}`, 작년동기: `${year.dateFrom}~${year.dateTo}` },
@@ -5680,6 +5927,8 @@ async function coupangReportGenerateInsights(cur, prev, year) {
   };
 
   const analysis = coupangReportBuildAnalysis(cur, prev, year);
+  const facts = coupangReportBuildFacts(cur, prev, year);
+  stats.확정증감 = facts.map(f => f.text);
   const prompt = `너는 숫자를 나열하는 사람이 아니라, 담당자가 여러 표를 오가며 놓치기 쉬운 변화를 먼저 발견하는 이커머스 분석가야. 아래는 쿠팡 스토어의 이번 기간·전기간·작년 동기 데이터와 코드가 미리 계산한 변화 신호야.
 이 자료를 바탕으로 "무슨 변화가 있었고, 왜 중요한지, 무엇을 확인해야 하는지"를 빠르게 이해할 수 있는 보고서 문장을 만들어줘.
 
@@ -5694,7 +5943,8 @@ async function coupangReportGenerateInsights(cur, prev, year) {
 - 상품을 언급하면 productIds에 상품_TOP5의 productId 또는 변화 탐지 items의 key(옵션번호)를 문자열로 반드시 포함할 것. 이름을 줄여 쓰더라도 번호는 원본 그대로 사용하고, 상품 언급이 없으면 빈 배열. URL이나 번호를 추측하지 말 것.
 - 비용과 ROAS/CPA 비교 없이 전환 건수만으로 광고 효율을 단정하지 말 것. 상품 증감만으로 세대교체·계절성·경쟁을 확인된 원인처럼 쓰지 말 것.
 - 단순히 여러 숫자를 차례로 나열하지 말고 상품·퍼널·광고 지표 사이의 관계를 해석할 것.
-- 특히 작년 동기 주력상품의 급락, 새로 성장한 상품, 방문·조회 증가와 주문 악화의 엇갈림, 광고비와 광고매출의 비대칭을 우선 탐지할 것.
+- 핵심 합계의 확정증감은 코드가 계산한 사실이다. 같은 지표를 서술할 때 방향(증가/감소/상승/하락)과 증감률을 그대로 따르고, 다시 계산하거나 반대로 쓰지 말 것. '악화/개선' 같은 평가어도 해당 지표의 확정증감 방향과 일치할 때만 쓸 것.
+- 어떤 지표가 오르고 내렸는지, 어떤 지표 사이에 엇갈림이 있는지는 미리 가정하지 말고 확정증감과 변화 탐지 결과에서만 판단할 것.
 - detectedSignals와 증감 기여도가 큰 항목을 먼저 다루고, 의미가 작은 변동은 과감히 생략할 것.
 - 숫자(증감률, 금액, 건수)를 반드시 인용해서 근거를 보여줄 것. 데이터에 없는 숫자나 사실을 지어내지 말 것.
 - 방문자→조회→장바구니→주문으로 이어지는 퍼널에서 눈에 띄게 이탈이 크거나 작은 단계가 있으면 짚어줄 것.
@@ -5710,21 +5960,16 @@ async function coupangReportGenerateInsights(cur, prev, year) {
 변화 탐지 결과: ${JSON.stringify(analysis)}`;
 
   try {
-    const { ok, data } = await fetchAiChat([{ role: "user", parts: [{ text: prompt }] }], { useSearch: false, timeoutMs: 30000 });
-    const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-    const jsonText = (raw.match(/\{[\s\S]*\}/) || [])[0];
-    if (!ok || !jsonText) throw new Error("AI 응답 파싱 실패");
-    const parsed = JSON.parse(jsonText);
-    return {
-      insights: reportNormalizeInsights(parsed.insights),
-      actions: reportNormalizeActions(parsed.actions),
-    };
+    const { insights, verification } = await reportRequestInsights(prompt, facts);
+    return { insights, actions: [], facts, verification };
   } catch (err) {
     return {
       insights: reportNormalizeInsights(analysis.detectedSignals.length
         ? analysis.detectedSignals
         : [`(AI 인사이트 생성 실패: ${err.message || "알 수 없는 오류"} — 아래 표의 숫자는 정상적으로 반영되었습니다.)`]),
       actions: [],
+      facts,
+      verification: null,
     };
   }
 }
