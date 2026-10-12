@@ -5084,6 +5084,295 @@ async function reportRequestInsights(prompt, facts) {
   return { insights, verification: { factCount: facts.length, retried, issueCount: issues.length } };
 }
 
+// ── 달력·계절성·데이터 주의사항 ─────────────────────────────────────────
+// 2026-10 검증에서 "기간 후반 매출 둔화"가 추석 연휴 때문이었던 사례가 나왔다. 영업일/주말/공휴일 구성과
+// 휴가철·연말, 작년 같은 구간의 변화(계절성)를 코드로 계산해 AI에게 넘기고 보고서에도 그대로 싣는다.
+// 공휴일은 코드 안의 정적 표(2024~2027)다. 해마다 말에 다음 해 표를 확인해 보충할 것.
+// 2027년은 법령·보도 기준 예상치이며(노동절 5/1 토요일 대체 없음 가정), 발표 후 확인이 필요하다.
+const REPORT_KR_HOLIDAYS = new Map([
+  ["2024-01-01", "신정"], ["2024-02-09", "설날 연휴"], ["2024-02-10", "설날 연휴"], ["2024-02-11", "설날 연휴"], ["2024-02-12", "설날 대체공휴일"],
+  ["2024-03-01", "삼일절"], ["2024-04-10", "국회의원선거"], ["2024-05-05", "어린이날"], ["2024-05-06", "어린이날 대체공휴일"], ["2024-05-15", "부처님오신날"],
+  ["2024-06-06", "현충일"], ["2024-08-15", "광복절"], ["2024-09-16", "추석 연휴"], ["2024-09-17", "추석 연휴"], ["2024-09-18", "추석 연휴"],
+  ["2024-10-01", "국군의날(임시)"], ["2024-10-03", "개천절"], ["2024-10-09", "한글날"], ["2024-12-25", "성탄절"],
+  ["2025-01-01", "신정"], ["2025-01-27", "설날 연휴(임시)"], ["2025-01-28", "설날 연휴"], ["2025-01-29", "설날 연휴"], ["2025-01-30", "설날 연휴"],
+  ["2025-03-01", "삼일절"], ["2025-03-03", "삼일절 대체공휴일"], ["2025-05-05", "어린이날·부처님오신날"], ["2025-05-06", "어린이날 대체공휴일"],
+  ["2025-06-03", "대통령선거"], ["2025-06-06", "현충일"], ["2025-08-15", "광복절"], ["2025-10-03", "개천절"],
+  ["2025-10-05", "추석 연휴"], ["2025-10-06", "추석 연휴"], ["2025-10-07", "추석 연휴"], ["2025-10-08", "추석 대체공휴일"], ["2025-10-09", "한글날"], ["2025-12-25", "성탄절"],
+  ["2026-01-01", "신정"], ["2026-02-16", "설날 연휴"], ["2026-02-17", "설날 연휴"], ["2026-02-18", "설날 연휴"], ["2026-03-01", "삼일절"], ["2026-03-02", "삼일절 대체공휴일"],
+  ["2026-05-01", "노동절"], ["2026-05-05", "어린이날"], ["2026-05-24", "부처님오신날"], ["2026-05-25", "부처님오신날 대체공휴일"], ["2026-06-03", "지방선거"],
+  ["2026-06-06", "현충일"], ["2026-07-17", "제헌절"], ["2026-08-15", "광복절"], ["2026-08-17", "광복절 대체공휴일"],
+  ["2026-09-24", "추석 연휴"], ["2026-09-25", "추석 연휴"], ["2026-09-26", "추석 연휴"], ["2026-10-03", "개천절"], ["2026-10-05", "개천절 대체공휴일"],
+  ["2026-10-09", "한글날"], ["2026-12-25", "성탄절"],
+  ["2027-01-01", "신정"], ["2027-02-05", "설날 연휴"], ["2027-02-06", "설날 연휴"], ["2027-02-07", "설날 연휴"], ["2027-02-08", "설날 대체공휴일"],
+  ["2027-03-01", "삼일절"], ["2027-05-01", "노동절"], ["2027-05-05", "어린이날"], ["2027-05-13", "부처님오신날"], ["2027-06-06", "현충일"],
+  ["2027-08-15", "광복절"], ["2027-08-16", "광복절 대체공휴일"], ["2027-09-14", "추석 연휴"], ["2027-09-15", "추석 연휴"], ["2027-09-16", "추석 연휴"],
+  ["2027-10-03", "개천절"], ["2027-10-04", "개천절 대체공휴일"], ["2027-10-09", "한글날"], ["2027-10-11", "한글날 대체공휴일"],
+  ["2027-12-25", "성탄절"], ["2027-12-27", "성탄절 대체공휴일"],
+]);
+const REPORT_HOLIDAY_TABLE_YEARS = [2024, 2027];
+const REPORT_NATIVE_CHANNEL_CUTOVER = "2026-07-21";
+
+function reportDateAdd(dateStr, days) {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function reportDateList(from, to) {
+  const out = [];
+  for (let d = from; d <= to && out.length < 800; d = reportDateAdd(d, 1)) out.push(d);
+  return out;
+}
+
+function reportDayType(dateStr) {
+  const dow = new Date(`${dateStr}T00:00:00Z`).getUTCDay();
+  if (dow === 0 || dow === 6) return "weekend";
+  return REPORT_KR_HOLIDAYS.has(dateStr) ? "holiday" : "working";
+}
+
+function reportHolidayLabel(name) {
+  return String(name || "").replace(/ ?(연휴|대체공휴일)/g, "").replace(/\((임시)\)/g, "").trim();
+}
+
+function reportShortDate(dateStr) {
+  return String(dateStr).slice(5);
+}
+
+function reportCalendarProfile(dateFrom, dateTo) {
+  const dates = reportDateList(dateFrom, dateTo);
+  const counts = { working: 0, weekend: 0, holiday: 0 };
+  dates.forEach(d => { counts[reportDayType(d)] += 1; });
+
+  // 연휴: 쉬는 날(주말+공휴일)이 3일 이상 이어지고 공휴일이 하나 이상 낀 구간. 조회 기간 경계 밖까지 이어질 수 있다.
+  const runs = [];
+  let run = [];
+  const flush = () => {
+    if (run.length >= 3 && run.some(d => REPORT_KR_HOLIDAYS.has(d)) && run.some(d => d >= dateFrom && d <= dateTo)) {
+      const names = [...new Set(run.map(d => reportHolidayLabel(REPORT_KR_HOLIDAYS.get(d))).filter(Boolean))];
+      runs.push({
+        from: run[0], to: run[run.length - 1], days: run.length,
+        inRangeDays: run.filter(d => d >= dateFrom && d <= dateTo).length,
+        name: names.join("·"),
+      });
+    }
+    run = [];
+  };
+  reportDateList(reportDateAdd(dateFrom, -7), reportDateAdd(dateTo, 7)).forEach(d => {
+    if (reportDayType(d) === "working") flush(); else run.push(d);
+  });
+  flush();
+
+  const inSeason = (from, to) => dates.filter(d => { const md = d.slice(5); return from <= to ? md >= from && md <= to : md >= from || md <= to; }).length;
+  const seasons = [
+    { label: "여름 휴가철(7/20~8/20 기준)", days: inSeason("07-20", "08-20") },
+    { label: "연말연시(12/20~1/5)", days: inSeason("12-20", "01-05") },
+  ].filter(s => s.days > 0);
+
+  const tableCovered = Number(dateFrom.slice(0, 4)) >= REPORT_HOLIDAY_TABLE_YEARS[0] && Number(dateTo.slice(0, 4)) <= REPORT_HOLIDAY_TABLE_YEARS[1];
+  const parts = [`${dates.length}일 = 영업일 ${counts.working} + 주말 ${counts.weekend} + 평일 공휴일 ${counts.holiday}`];
+  runs.forEach(r => parts.push(`연휴 ${r.name} ${r.from}~${reportShortDate(r.to)}(${r.days}일${r.inRangeDays < r.days ? `, 조회 기간 내 ${r.inRangeDays}일` : ""})`));
+  seasons.forEach(s => parts.push(`${s.label} ${s.days}일 포함`));
+  if (!tableCovered) parts.push("공휴일 표 범위(2024~2027) 밖이라 공휴일 반영 안 됨");
+  return { dateFrom, dateTo, days: dates.length, ...counts, runs, seasons, tableCovered, summary: parts.join(" / ") };
+}
+
+// 일자별 값을 영업일/주말/공휴일로 나눠 일평균을 낸다. valueFn은 일별 행에서 값을 꺼낸다.
+function reportDailyBreakdown(rows, valueFn, dateFrom, dateTo) {
+  const acc = { working: { sum: 0, n: 0 }, weekend: { sum: 0, n: 0 }, holiday: { sum: 0, n: 0 } };
+  (rows || []).forEach(row => {
+    const d = String(row.date || "").slice(0, 10);
+    if (!d || d < dateFrom || d > dateTo) return;
+    const bucket = acc[reportDayType(d)];
+    bucket.sum += Number(valueFn(row)) || 0;
+    bucket.n += 1;
+  });
+  const total = acc.working.sum + acc.weekend.sum + acc.holiday.sum;
+  const days = acc.working.n + acc.weekend.n + acc.holiday.n;
+  const avg = b => (b.n ? b.sum / b.n : null);
+  return {
+    total, days, perDay: days ? total / days : null,
+    workingPerDay: avg(acc.working), weekendPerDay: avg(acc.weekend), holidayPerDay: avg(acc.holiday),
+    workingDays: acc.working.n, weekendDays: acc.weekend.n, holidayDays: acc.holiday.n,
+  };
+}
+
+// 명절(설날·추석) 위치가 기간마다 다르면 증감을 그대로 비교하기 어렵다. 해당 연도 표에서 연휴 위치를 찾아 알려준다.
+function reportFestivalNotes(cur, prev, year) {
+  const notes = [];
+  const years = [...new Set([cur, prev, year].flatMap(p => [p.dateFrom.slice(0, 4), p.dateTo.slice(0, 4)]))].sort();
+  ["설날", "추석"].forEach(name => {
+    const where = p => {
+      const hit = p.calendar.runs.filter(r => r.name.split("·").includes(name));
+      return hit.length ? hit.map(r => `${r.from}~${reportShortDate(r.to)}`).join(", ") : "";
+    };
+    const states = [cur, prev, year].map(where);
+    if (!states.some(Boolean) || states.every(s => s === states[0])) return;
+    const positions = [];
+    years.forEach(y => {
+      const days = [...REPORT_KR_HOLIDAYS.entries()].filter(([d, n]) => d.startsWith(y) && n.startsWith(name)).map(([d]) => d);
+      if (days.length) positions.push(`${y}년 ${name} 연휴 ${days[0]}~${reportShortDate(days[days.length - 1])}`);
+    });
+    notes.push(`${name} 연휴 포함 여부가 기간마다 다름 — 이번 ${states[0] || "없음"} / 전기간 ${states[1] || "없음"} / 작년 동기 ${states[2] || "없음"}${positions.length ? ` (${positions.join(", ")})` : ""}`);
+  });
+  return notes;
+}
+
+function reportDataNotes(platform, cur, prev, year) {
+  const notes = [];
+  const len = reportExpectedDays(cur.dateFrom, cur.dateTo);
+  notes.push(`전기간은 직전 달력월이 아니라 같은 일수(${len}일)만큼 앞으로 민 구간(${prev.dateFrom}~${prev.dateTo})입니다. 작년 동기는 같은 월일 구간(${year.dateFrom}~${year.dateTo})입니다.`);
+  [["이번 기간", cur], ["전기간", prev], ["작년 동기", year]].forEach(([label, p]) => {
+    const expected = p.coverage.expectedDays;
+    if (expected && p.coverage.salesDays < expected) notes.push(`${label} 매출 자료가 ${p.coverage.salesDays}/${expected}일뿐이라 합계가 실제보다 작게 나올 수 있습니다.`);
+  });
+  if (platform === "naver") {
+    const regime = p => (p.dateTo < REPORT_NATIVE_CHANNEL_CUTOVER ? "전" : p.dateFrom >= REPORT_NATIVE_CHANNEL_CUTOVER ? "후" : "혼합");
+    if (new Set([cur, prev, year].map(regime)).size > 1) {
+      notes.push(`네이버가 ${REPORT_NATIVE_CHANNEL_CUTOVER}부터 채널 통계 분류를 바꿔 '네이버플러스스토어' 유입이 '스토어 내부'로 잡힙니다. 이 날짜를 사이에 둔 기간 비교는 두 채널을 합산해 봐야 하며, 채널별 증감은 분류 변화의 영향이 섞여 있습니다.`);
+    }
+    if (!cur.customer.period || !prev.customer.period || !year.customer.period) {
+      notes.push("신규·재구매 고객 통계는 월 단위 스냅샷이라 기간이 정확히 일치할 때만 사용합니다. 일치하지 않는 기간은 비교에서 제외됩니다.");
+    }
+  }
+  return notes;
+}
+
+// 일별 매출만 가볍게 길게(약 13개월) 가져와 작년 같은 구간의 변화와 최근 12개월 수준을 계산한다.
+async function reportFetchSeasonality(platform, cur, year) {
+  const len = reportExpectedDays(cur.dateFrom, cur.dateTo);
+  const start = [reportDateAdd(cur.dateFrom, -400), reportDateAdd(year.dateFrom, -(len + 1))].sort()[0];
+  try {
+    let rows;
+    if (platform === "naver") {
+      const data = await callAdFn({ action: "naverDailyOnly", dateFrom: start, dateTo: cur.dateTo });
+      rows = (data.daily || []).map(r => ({ date: String(r.date || "").slice(0, 10), value: Number(r.salesTotal) || 0 }));
+    } else {
+      const data = await callAdFn({ action: "coupangSalesSummary", dateFrom: start, dateTo: cur.dateTo });
+      rows = (data.items || []).map(r => ({ date: String(r.date || "").slice(0, 10), value: Number(r.sales) || 0 }));
+    }
+    const sumRange = (a, b) => rows.reduce((acc, r) => (r.date >= a && r.date <= b ? { sum: acc.sum + r.value, n: acc.n + 1 } : acc), { sum: 0, n: 0 });
+    const lyPrevFrom = reportDateAdd(year.dateFrom, -len);
+    const lyPrevTo = reportDateAdd(year.dateFrom, -1);
+    const lyCur = sumRange(year.dateFrom, year.dateTo);
+    const lyPrev = sumRange(lyPrevFrom, lyPrevTo);
+    const lastYearTransition = lyCur.n >= len * 0.9 && lyPrev.n >= len * 0.9 && lyPrev.sum
+      ? { prevFrom: lyPrevFrom, prevTo: lyPrevTo, prevSum: lyPrev.sum, curFrom: year.dateFrom, curTo: year.dateTo, curSum: lyCur.sum, rate: (lyCur.sum - lyPrev.sum) / lyPrev.sum * 100 }
+      : null;
+
+    const byMonth = new Map();
+    rows.forEach(r => {
+      const month = r.date.slice(0, 7);
+      const o = byMonth.get(month) || { month, total: 0, days: 0 };
+      o.total += r.value; o.days += 1;
+      byMonth.set(month, o);
+    });
+    const daysIn = month => new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).getUTCDate();
+    // 이번 기간이 속한 달은 빼고, 그 직전의 완결된 달들만 기준 수준으로 쓴다.
+    const curMonth = cur.dateFrom.slice(0, 7);
+    const monthly = [...byMonth.values()]
+      .filter(m => m.month < curMonth && m.days >= daysIn(m.month))
+      .map(m => ({ ...m, perDay: m.total / m.days }))
+      .sort((a, b) => a.month.localeCompare(b.month))
+      .slice(-12);
+    let stats = null;
+    if (monthly.length >= 6) {
+      const total = monthly.reduce((s, m) => s + m.total, 0);
+      const days = monthly.reduce((s, m) => s + m.days, 0);
+      const sorted = monthly.slice().sort((a, b) => a.perDay - b.perDay);
+      stats = { months: monthly.length, perDay: total / days, min: sorted[0], max: sorted[sorted.length - 1] };
+    }
+    return { lastYearTransition, monthly, stats };
+  } catch (_) {
+    return null;
+  }
+}
+
+// 기간 객체에 달력 구성과 영업일/주말 일평균을 붙인다. 지표 정의(valueFn)는 플랫폼마다 다르다.
+function reportAttachCalendar(periods, valueFn) {
+  periods.forEach(p => {
+    p.calendar = reportCalendarProfile(p.dateFrom, p.dateTo);
+    p.dayStats = reportDailyBreakdown(p.daily, valueFn, p.dateFrom, p.dateTo);
+  });
+}
+
+async function reportBuildContext(platform, cur, prev, year) {
+  const money = v => `${Math.round(v).toLocaleString("ko-KR")}원`;
+  const seasonality = await reportFetchSeasonality(platform, cur, year);
+  const salesLabel = platform === "naver" ? "총매출" : "매출";
+  const lines = [];
+  [["이번 기간", cur], ["전기간", prev], ["작년 동기", year]].forEach(([label, p]) => {
+    lines.push({ label: `달력 · ${label}`, text: `${p.dateFrom}~${p.dateTo}: ${p.calendar.summary}` });
+  });
+  const festival = reportFestivalNotes(cur, prev, year);
+  festival.forEach(text => lines.push({ label: "달력 · 명절", text }));
+  [["이번 기간", cur], ["전기간", prev], ["작년 동기", year]].forEach(([label, p]) => {
+    const s = p.dayStats;
+    if (!s.days) return;
+    const parts = [`일평균 ${money(s.perDay)}`];
+    if (s.workingPerDay != null) parts.push(`영업일 일평균 ${money(s.workingPerDay)}(${s.workingDays}일)`);
+    if (s.weekendPerDay != null) parts.push(`주말 일평균 ${money(s.weekendPerDay)}(${s.weekendDays}일)`);
+    if (s.holidayPerDay != null) parts.push(`평일 공휴일 일평균 ${money(s.holidayPerDay)}(${s.holidayDays}일)`);
+    lines.push({ label: `${salesLabel} · ${label}`, text: parts.join(", ") });
+  });
+  if (seasonality?.lastYearTransition) {
+    const t = seasonality.lastYearTransition;
+    const sign = v => `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`;
+    const thisYear = reportPctChange(cur.dayStats.total, prev.dayStats.total);
+    lines.push({
+      label: "계절성",
+      text: `작년 같은 구간 ${salesLabel} 변화: ${t.prevFrom}~${reportShortDate(t.prevTo)} → ${t.curFrom}~${reportShortDate(t.curTo)} ${sign(t.rate)}${thisYear == null ? "" : ` (올해 전기간→이번 기간 ${sign(thisYear)})`}`,
+    });
+  }
+  if (seasonality?.stats) {
+    const s = seasonality.stats;
+    const curPerDay = cur.dayStats.perDay;
+    lines.push({
+      label: "계절성",
+      text: `직전 ${s.months}개월(완결 월) 일평균 ${salesLabel}: 평균 ${money(s.perDay)}, 최저 ${s.min.month} ${money(s.min.perDay)} ~ 최고 ${s.max.month} ${money(s.max.perDay)}${curPerDay ? `, 이번 기간 일평균은 이 평균 대비${reportPctChange(curPerDay, s.perDay) >= 0 ? "+" : ""}${reportPctChange(curPerDay, s.perDay).toFixed(1)}%` : ""}`,
+    });
+  }
+  const notes = reportDataNotes(platform, cur, prev, year);
+  return {
+    lines, notes, seasonality,
+    prompt: {
+      달력: Object.fromEntries([["이번기간", cur], ["전기간", prev], ["작년동기", year]].map(([k, p]) => [k, p.calendar.summary])),
+      명절: festival,
+      일평균_영업일_주말: lines.filter(l => l.label.startsWith(salesLabel)).map(l => `${l.label.split(" · ")[1]}: ${l.text}`),
+      계절성: lines.filter(l => l.label === "계절성").map(l => l.text),
+      데이터주의: notes,
+    },
+  };
+}
+
+// 스토어 내부와 네이버플러스스토어는 2026-07-21 분류 변경으로 서로 넘어갔으므로 합산해서 비교한다.
+function naverReportMergeStoreChannels(rows) {
+  const names = ["네이버 서비스 - 스토어 내부", "네이버 서비스 - 네이버플러스스토어"];
+  const merged = { name: "네이버 서비스 - 스토어 내부+플러스스토어(합산)", visits: 0, payCount: 0, salesTotal: 0 };
+  const rest = [];
+  (rows || []).forEach(r => {
+    if (!names.includes(r.name)) { rest.push(r); return; }
+    merged.visits += Number(r.visits) || 0;
+    merged.payCount += Number(r.payCount) || 0;
+    merged.salesTotal += Number(r.salesTotal) || 0;
+  });
+  return [...rest, merged];
+}
+
+// 기간 후반 둔화 같은 신호는 후반부에 연휴가 있었는지, 영업일만 놓고 봐도 같은지를 함께 알려준다.
+function reportMomentumNote(period, valueFn) {
+  const rows = (period.daily || []).slice().sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  if (rows.length < 4) return "";
+  const middle = Math.ceil(rows.length / 2);
+  const secondFrom = String(rows[middle].date).slice(0, 10);
+  const working = rows.filter(r => reportDayType(String(r.date).slice(0, 10)) === "working");
+  const m = reportPeriodMomentum(working, valueFn);
+  const second = reportCalendarProfile(secondFrom, period.dateTo);
+  const parts = [];
+  if (m.changeRate != null) parts.push(`영업일만 비교하면 전반부 대비 ${m.changeRate >= 0 ? "+" : ""}${m.changeRate.toFixed(1)}%`);
+  if (second.runs.length) parts.push(`후반부(${reportShortDate(secondFrom)}~)에 ${second.runs.map(r => `${r.name} 연휴 ${r.days}일`).join(", ")} 포함`);
+  return parts.join("; ");
+}
+
 // 한글 폭과 명시적 줄바꿈을 함께 반영해 저장 시 행 높이를 계산한다.
 function naverReportEstimateRowHeight(text, mergedWidthUnits, lineHeightPt = 15, basePadding = 10) {
   const availableWidth = Math.max(1, mergedWidthUnits - 2);
@@ -5180,6 +5469,8 @@ function naverReportBuildFacts(cur, prev, year) {
     { metric: "광고 구매전환수", keywords: ["구매전환수", "구매 전환수", "전환 건수", "전환수"], kind: "amount", unit: "건", better: "up", get: ads(p => p.ad.purchaseConversions) },
     { metric: "광고매출", keywords: ["광고매출", "광고 매출", "광고 구매매출", "구매매출"], kind: "amount", unit: "원", better: "up", get: ads(p => p.ad.purchaseSales) },
     { metric: "ROAS", keywords: ["roas", "광고수익률"], kind: "rate", digits: 0, better: "up", get: ads(p => ratio(p.ad.purchaseSales, p.ad.cost, 100)) },
+    { metric: "일평균 총매출", keywords: ["일평균 총매출", "일평균 매출", "하루 평균 매출", "일평균"], kind: "amount", unit: "원", better: "up", get: sales(p => p.dayStats?.perDay ?? null) },
+    { metric: "영업일 일평균 총매출", keywords: ["영업일 일평균 총매출", "영업일 일평균 매출", "영업일 기준 일평균", "영업일 일평균", "평일 일평균", "영업일당 매출"], kind: "amount", unit: "원", better: "up", get: sales(p => p.dayStats?.workingPerDay ?? null) },
   ];
   return reportBuildFacts(defs, cur, [{ basis: "prev", label: "전기간", period: prev }, { basis: "year", label: "작년 동기", period: year }]);
 }
@@ -5196,11 +5487,14 @@ function naverReportBuildAnalysis(cur, prev, year) {
   const noMovers = () => ({ rising: [], falling: [] });
   const productPrev = cur.products.length && prev.products.length ? reportMovers(cur.products, prev.products, r => r.productId, r => r.productName, r => r.salesTotal, 3) : noMovers();
   const productYear = cur.products.length && year.products.length ? reportMovers(cur.products, year.products, r => r.productId, r => r.productName, r => r.salesTotal, 3) : noMovers();
-  const channelPrev = cur.channels.totals.visits && prev.channels.totals.visits ? reportMovers(cur.channels.rows, prev.channels.rows, r => r.name, r => r.name, r => r.visits, 3) : noMovers();
-  const channelYear = cur.channels.totals.visits && year.channels.totals.visits ? reportMovers(cur.channels.rows, year.channels.rows, r => r.name, r => r.name, r => r.visits, 3) : noMovers();
+  // 2026-07-21 채널 분류 변경 때문에 스토어 내부와 플러스스토어는 합산해서 비교한다.
+  const curChannels = naverReportMergeStoreChannels(cur.channels.rows);
+  const channelPrev = cur.channels.totals.visits && prev.channels.totals.visits ? reportMovers(curChannels, naverReportMergeStoreChannels(prev.channels.rows), r => r.name, r => r.name, r => r.visits, 3) : noMovers();
+  const channelYear = cur.channels.totals.visits && year.channels.totals.visits ? reportMovers(curChannels, naverReportMergeStoreChannels(year.channels.rows), r => r.name, r => r.name, r => r.visits, 3) : noMovers();
   const searchPrev = cur.searchTerms.length && prev.searchTerms.length ? reportMovers(cur.searchTerms, prev.searchTerms, r => r.term, r => r.term, r => r.visits, 3) : noMovers();
   const adPrev = cur.adByType.length && prev.adByType.length ? reportMovers(cur.adByType, prev.adByType, r => r.type, r => r.type, r => r.purchaseSales, 3) : noMovers();
   const salesMomentum = reportPeriodMomentum(cur.daily, row => row.salesNet);
+  const momentumNote = reportMomentumNote(cur, row => row.salesNet);
   const currentSearchConversion = cur.searchTerms.reduce((acc, row) => ({ visits: acc.visits + (Number(row.visits) || 0), pay: acc.pay + (Number(row.payCount) || 0) }), { visits: 0, pay: 0 });
   const lowQualitySearchTerms = cur.searchTerms
     .filter(row => Number(row.visits) >= Math.max(20, currentSearchConversion.visits * 0.02))
@@ -5221,7 +5515,7 @@ function naverReportBuildAnalysis(cur, prev, year) {
     reportMoverSummary("작년 동기 대비 최대 하락 상품", productYear.falling[0], "작년 동기 대비"),
     reportMoverSummary("유입 급증 채널", channelPrev.rising[0], "전기간 대비"),
     reportMoverSummary("유입 급감 채널", channelPrev.falling[0], "전기간 대비"),
-    salesMomentum.changeRate == null ? "" : `기간 후반 일평균 순매출: 전반부 대비 ${salesMomentum.changeRate >= 0 ? "증가" : "감소"} ${Math.abs(salesMomentum.changeRate).toFixed(1)}%`,
+    salesMomentum.changeRate == null ? "" : `기간 후반 일평균 순매출: 전반부 대비 ${salesMomentum.changeRate >= 0 ? "증가" : "감소"} ${Math.abs(salesMomentum.changeRate).toFixed(1)}%${momentumNote ? ` (${momentumNote})` : ""}`,
   ].filter(Boolean);
   return {
     detectedSignals: signals,
@@ -5282,9 +5576,14 @@ async function naverReportGenerateInsights(cur, prev, year) {
     상품_TOP5_이번기간: cur.products.slice(0, 5).map(p => ({ productId: String(p.productId), 상품명: p.productName, 매출: p.salesTotal, 수량: p.qty })),
   };
 
+  reportAttachCalendar([cur, prev, year], row => row.salesTotal);
   const analysis = naverReportBuildAnalysis(cur, prev, year);
   const facts = naverReportBuildFacts(cur, prev, year);
+  const context = await reportBuildContext("naver", cur, prev, year);
   stats.확정증감 = facts.map(f => f.text);
+  stats.달력_계절성 = context.prompt;
+  stats.유입채널_이번기간 = naverReportMergeStoreChannels(cur.channels.rows).map(r => ({ 채널: r.name, 방문: r.visits, 매출: r.salesTotal }));
+  stats.유입채널_작년동기 = naverReportMergeStoreChannels(year.channels.rows).map(r => ({ 채널: r.name, 방문: r.visits, 매출: r.salesTotal }));
   const prompt = `너는 숫자를 나열하는 사람이 아니라, 담당자가 여러 표를 오가며 놓치기 쉬운 변화를 먼저 발견하는 이커머스 분석가야. 아래는 '한국단열' 네이버 스마트스토어의 이번 기간·전기간·작년 동기 데이터와 코드가 미리 계산한 변화 신호야.
 이 자료를 바탕으로 "무슨 변화가 있었고, 왜 중요한지, 무엇을 확인해야 하는지"를 빠르게 이해할 수 있는 보고서 문장을 만들어줘.
 
@@ -5301,6 +5600,10 @@ async function naverReportGenerateInsights(cur, prev, year) {
 - 단순히 여러 숫자를 차례로 나열하지 말고 상품·유입·광고·고객 지표 사이의 관계를 해석할 것.
 - 핵심 합계의 확정증감은 코드가 계산한 사실이다. 같은 지표를 서술할 때 방향(증가/감소/상승/하락)과 증감률을 그대로 따르고, 다시 계산하거나 반대로 쓰지 말 것. '악화/개선' 같은 평가어도 해당 지표의 확정증감 방향과 일치할 때만 쓸 것.
 - 어떤 지표가 오르고 내렸는지, 어떤 지표 사이에 엇갈림이 있는지는 미리 가정하지 말고 확정증감과 변화 탐지 결과에서만 판단할 것.
+- 달력_계절성에서 영업일 수·연휴·휴가철·연말연시 구성이 비교 기간 사이에 다르면 증감의 원인 후보로 먼저 언급하고, 영업일 일평균 확정증감을 함께 인용할 것(원인을 단정하지 말 것). 추석·설날 같은 명절 위치가 다르면 반드시 짚을 것.
+- 기간 후반 둔화·가속 같은 흐름은 연휴 포함 여부와 영업일 기준 비교를 먼저 확인한 뒤 서술할 것.
+- 계절성의 작년 같은 구간 변화가 올해 변화와 같은 방향이면 계절적 패턴일 가능성을, 다르면 올해 고유 변화일 가능성을 언급하고, 12개월 범위에서 이번 기간의 위치를 참고할 것.
+- 데이터주의에 적힌 한계(자료 누락, 채널 분류 변경, 기간 정의)는 관련 항목을 서술할 때 그대로 반영할 것. 스토어 내부와 네이버플러스스토어는 합산 값으로 비교할 것.
 - detectedSignals와 증감 기여도가 큰 항목을 먼저 다루고, 의미가 작은 변동은 과감히 생략할 것.
 - 숫자(증감률, 금액, 건수)를 반드시 인용해서 근거를 보여줄 것. 데이터에 없는 숫자나 사실을 지어내지 말 것.
 - 별도 actions나 우선순위는 만들지 말고 각 insight의 check에 확인할 지표·대상·비교 기준을 한 문장으로 적을 것. 막연한 '전략 강화', '다각적 분석'을 피할 것.
@@ -5317,7 +5620,7 @@ async function naverReportGenerateInsights(cur, prev, year) {
 
   try {
     const { insights, verification } = await reportRequestInsights(prompt, facts);
-    return { insights, actions: [], facts, verification };
+    return { insights, actions: [], facts, verification, context };
   } catch (err) {
     return {
       insights: reportNormalizeInsights(analysis.detectedSignals.length
@@ -5326,6 +5629,7 @@ async function naverReportGenerateInsights(cur, prev, year) {
       actions: [],
       facts,
       verification: null,
+      context,
     };
   }
 }
@@ -5443,6 +5747,12 @@ function reportAnalysisSheet(wb, ai, periods, platform) {
     if (item.verify?.length) line("⚠ 코드 검증", `다음 서술은 코드가 계산한 증감과 어긋나므로 표의 숫자를 우선하세요.\n${item.verify.join("\n")}`, { color: "FFC00000" });
     row++;
   });
+  if (ai.context?.lines?.length || ai.context?.notes?.length) {
+    line("달력·계절성", "코드가 계산한 달력 구성과 계절 흐름입니다. 비교 기간 사이에 달력 조건이 다르면 증감의 일부가 달력 효과일 수 있습니다.", { bold: true });
+    (ai.context.lines || []).forEach(item => line(item.label, item.text));
+    (ai.context.notes || []).forEach(text => line("데이터 참고", text, { italic: true, color: "FF666666" }));
+    row++;
+  }
   if (Array.isArray(ai.facts) && ai.facts.length) {
     line("기준 수치", "코드가 계산한 지표별 증감입니다. AI 서술은 이 값과 대조해 검증합니다.", { bold: true });
     const checked = ai.verification;
@@ -5840,6 +6150,7 @@ function coupangReportBuildAnalysis(cur, prev, year) {
   const adGroupPrev = cur.adGroups.length && prev.adGroups.length ? reportMovers(cur.adGroups, prev.adGroups, r => r.name, r => r.name, r => r.purchaseSales) : noMovers();
   const adPlacementPrev = cur.adByPlacement.length && prev.adByPlacement.length ? reportMovers(cur.adByPlacement, prev.adByPlacement, r => r.placement, r => r.placement, r => r.sales) : noMovers();
   const salesMomentum = reportPeriodMomentum(cur.daily, row => row.sales);
+  const momentumNote = reportMomentumNote(cur, row => row.sales);
   const funnel = period => ({
     cartRateFromViews: period.sales.views ? period.sales.carts / period.sales.views * 100 : 0,
     orderRateFromViews: period.sales.views ? period.sales.orders / period.sales.views * 100 : 0,
@@ -5855,7 +6166,7 @@ function coupangReportBuildAnalysis(cur, prev, year) {
     reportMoverSummary("작년 동기 대비 최대 하락 상품", itemYear.falling[0], "작년 동기 대비"),
     reportMoverSummary("광고매출 최대 성장 광고그룹", adGroupPrev.rising[0], "전기간 대비"),
     reportMoverSummary("광고매출 최대 하락 광고그룹", adGroupPrev.falling[0], "전기간 대비"),
-    salesMomentum.changeRate == null ? "" : `기간 후반 일평균 매출: 전반부 대비 ${salesMomentum.changeRate >= 0 ? "증가" : "감소"} ${Math.abs(salesMomentum.changeRate).toFixed(1)}%`,
+    salesMomentum.changeRate == null ? "" : `기간 후반 일평균 매출: 전반부 대비 ${salesMomentum.changeRate >= 0 ? "증가" : "감소"} ${Math.abs(salesMomentum.changeRate).toFixed(1)}%${momentumNote ? ` (${momentumNote})` : ""}`,
   ].filter(Boolean);
   return {
     detectedSignals: signals,
@@ -5903,6 +6214,8 @@ function coupangReportBuildFacts(cur, prev, year) {
     { metric: "광고 주문수", keywords: ["광고 주문수", "광고주문수", "광고 주문"], kind: "amount", unit: "건", better: "up", get: ads(p => p.ad.orders) },
     { metric: "광고매출", keywords: ["광고매출", "광고 매출", "광고 전환매출"], kind: "amount", unit: "원", better: "up", get: ads(p => p.ad.sales) },
     { metric: "ROAS", keywords: ["roas", "광고수익률"], kind: "rate", digits: 0, better: "up", get: ads(p => ratio(p.ad.sales, p.ad.cost, 100)) },
+    { metric: "일평균 매출", keywords: ["일평균 매출", "하루 평균 매출", "일평균"], kind: "amount", unit: "원", better: "up", get: sales(p => p.dayStats?.perDay ?? null) },
+    { metric: "영업일 일평균 매출", keywords: ["영업일 일평균 매출", "영업일 기준 일평균", "영업일 일평균", "평일 일평균", "영업일당 매출"], kind: "amount", unit: "원", better: "up", get: sales(p => p.dayStats?.workingPerDay ?? null) },
   ];
   return reportBuildFacts(defs, cur, [{ basis: "prev", label: "전기간", period: prev }, { basis: "year", label: "작년 동기", period: year }]);
 }
@@ -5926,9 +6239,12 @@ async function coupangReportGenerateInsights(cur, prev, year) {
     상품_TOP5_이번기간: cur.items.length ? cur.items.slice(0, 5).map(it => ({ productId: String(it.optionId), 상품명: it.productName, 옵션명: it.optionName, 매출: it.sales, 주문: it.orders })) : "상품별 스냅샷 없음(해당 월 업로드 안 됨)",
   };
 
+  reportAttachCalendar([cur, prev, year], row => row.sales);
   const analysis = coupangReportBuildAnalysis(cur, prev, year);
   const facts = coupangReportBuildFacts(cur, prev, year);
+  const context = await reportBuildContext("coupang", cur, prev, year);
   stats.확정증감 = facts.map(f => f.text);
+  stats.달력_계절성 = context.prompt;
   const prompt = `너는 숫자를 나열하는 사람이 아니라, 담당자가 여러 표를 오가며 놓치기 쉬운 변화를 먼저 발견하는 이커머스 분석가야. 아래는 쿠팡 스토어의 이번 기간·전기간·작년 동기 데이터와 코드가 미리 계산한 변화 신호야.
 이 자료를 바탕으로 "무슨 변화가 있었고, 왜 중요한지, 무엇을 확인해야 하는지"를 빠르게 이해할 수 있는 보고서 문장을 만들어줘.
 
@@ -5945,6 +6261,10 @@ async function coupangReportGenerateInsights(cur, prev, year) {
 - 단순히 여러 숫자를 차례로 나열하지 말고 상품·퍼널·광고 지표 사이의 관계를 해석할 것.
 - 핵심 합계의 확정증감은 코드가 계산한 사실이다. 같은 지표를 서술할 때 방향(증가/감소/상승/하락)과 증감률을 그대로 따르고, 다시 계산하거나 반대로 쓰지 말 것. '악화/개선' 같은 평가어도 해당 지표의 확정증감 방향과 일치할 때만 쓸 것.
 - 어떤 지표가 오르고 내렸는지, 어떤 지표 사이에 엇갈림이 있는지는 미리 가정하지 말고 확정증감과 변화 탐지 결과에서만 판단할 것.
+- 달력_계절성에서 영업일 수·연휴·휴가철·연말연시 구성이 비교 기간 사이에 다르면 증감의 원인 후보로 먼저 언급하고, 영업일 일평균 확정증감을 함께 인용할 것(원인을 단정하지 말 것). 추석·설날 같은 명절 위치가 다르면 반드시 짚을 것.
+- 기간 후반 둔화·가속 같은 흐름은 연휴 포함 여부와 영업일 기준 비교를 먼저 확인한 뒤 서술할 것.
+- 계절성의 작년 같은 구간 변화가 올해 변화와 같은 방향이면 계절적 패턴일 가능성을, 다르면 올해 고유 변화일 가능성을 언급하고, 12개월 범위에서 이번 기간의 위치를 참고할 것.
+- 데이터주의에 적힌 한계(자료 누락, 기간 정의)는 관련 항목을 서술할 때 그대로 반영할 것.
 - detectedSignals와 증감 기여도가 큰 항목을 먼저 다루고, 의미가 작은 변동은 과감히 생략할 것.
 - 숫자(증감률, 금액, 건수)를 반드시 인용해서 근거를 보여줄 것. 데이터에 없는 숫자나 사실을 지어내지 말 것.
 - 방문자→조회→장바구니→주문으로 이어지는 퍼널에서 눈에 띄게 이탈이 크거나 작은 단계가 있으면 짚어줄 것.
@@ -5961,7 +6281,7 @@ async function coupangReportGenerateInsights(cur, prev, year) {
 
   try {
     const { insights, verification } = await reportRequestInsights(prompt, facts);
-    return { insights, actions: [], facts, verification };
+    return { insights, actions: [], facts, verification, context };
   } catch (err) {
     return {
       insights: reportNormalizeInsights(analysis.detectedSignals.length
@@ -5970,6 +6290,7 @@ async function coupangReportGenerateInsights(cur, prev, year) {
       actions: [],
       facts,
       verification: null,
+      context,
     };
   }
 }
