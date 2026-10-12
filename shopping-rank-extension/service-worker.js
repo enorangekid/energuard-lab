@@ -250,8 +250,8 @@ function validateConfig(raw) {
   return {
     storeName,
     keywords,
-    // 최대 10페이지(400위)까지 허용 — 2026-10-12, 상위 3위 상품이 하루 만에 200위 밖으로 사라져서
-    // "더 깊이 밀린 건지 아예 사라진 건지" 확인하려고 늘렸다. 기본값은 그대로 5(200위).
+    // 기본은 5페이지(200위). 최대 10페이지(400위)까지는 호출하는 쪽(키워드 일괄 수집의 "400위까지
+    // 수집" 체크)이 명시적으로 pageCount를 10으로 보낼 때만 허용한다 — 2026-10-12.
     pageCount: Math.min(10, Math.max(1, Number(raw?.pageCount) || 5)),
     pageDelay: Math.min(10000, Math.max(1500, Number(raw?.pageDelay) || 1500)),
     mode,

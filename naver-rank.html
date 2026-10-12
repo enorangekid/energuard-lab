@@ -146,6 +146,12 @@
   }
   #batchRunBtn:hover { background: var(--accent-dark); }
   #batchRunBtn:disabled { background: #f0b8a1; cursor: wait; }
+  .batch-deep-label {
+    display: inline-flex; align-items: center; gap: 6px; margin-bottom: 10px;
+    font-size: 13px; font-weight: 600; color: var(--ink); cursor: pointer; user-select: none;
+  }
+  .batch-deep-label input { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
+  .batch-deep-hint { font-weight: 400; color: var(--sub); }
   .batch-status { margin-top: 10px; font-size: 13px; color: var(--sub); }
   .batch-status b { color: var(--ink); font-family: var(--font-mono); }
   .batch-list { margin-top: 8px; max-height: 220px; overflow-y: auto; }
@@ -545,6 +551,10 @@
       <div class="batch-divider">보조</div>
       <div class="batch-grid" id="batchSubGrid"></div>
       <div class="batch-run-wrap" id="batchRunWrap">
+        <label class="batch-deep-label" title="체크하면 상위 400위(10페이지)까지 수집합니다. 기본은 200위(5페이지)이고, 400위는 시간이 약 2배 걸립니다.">
+          <input type="checkbox" id="batchDeepScan">
+          400위까지 수집 <span class="batch-deep-hint">(기본 200위 · 시간 약 2배)</span>
+        </label>
         <button type="button" id="batchRunBtn" onclick="runBatchCollect()">선택한 0개 키워드 수집 시작</button>
       </div>
       <div class="batch-status" id="batchStatus" style="display:none;"></div>
@@ -2373,20 +2383,23 @@ async function runBatchCollect() {
   const btn = document.getElementById("batchRunBtn");
   const statusEl = document.getElementById("batchStatus");
   const listEl = document.getElementById("batchList");
+  // 기본은 5페이지(200위). "400위까지 수집"을 체크했을 때만 10페이지(400위)로 늘린다 —
+  // 2026-10-12, 상위 3위 상품이 200위 밖으로 밀린 걸 확인하려고 만든 옵션이고, 시간이 약 2배 걸려서
+  // 항상 켜두지 않고 필요할 때만 쓰게 한다.
+  const deepScan = !!document.getElementById("batchDeepScan")?.checked;
+  const depthLabel = deepScan ? "400위" : "200위";
   btn.disabled = true;
   statusEl.style.display = "block";
   listEl.innerHTML = "";
-  statusEl.textContent = `[${selectedStore}] 선택한 ${list.length}개 키워드를 확장프로그램으로 전달하는 중입니다.`;
+  statusEl.textContent = `[${selectedStore}] 선택한 ${list.length}개 키워드(${depthLabel}까지)를 확장프로그램으로 전달하는 중입니다.`;
   try {
     await startExtensionBatchCollection({
       storeName: selectedStore,
       keywords: list,
-      // 10페이지(400위)까지 — 2026-10-12, 상위권 상품이 200위 밖으로 사라진 원인(더 깊이 밀림 vs 노출
-      // 중단)을 구분하려고 200→400으로 늘렸다. 시간은 키워드당 대략 두 배로 늘어난다.
-      pageCount: 10,
+      pageCount: deepScan ? 10 : 5,
       pageDelay: 1500,
     });
-    statusEl.textContent = `[${selectedStore}] ${list.length}개 키워드 수집을 시작했습니다. 열린 수집 탭에서 진행 상황을 확인하세요.`;
+    statusEl.textContent = `[${selectedStore}] ${list.length}개 키워드 수집을 시작했습니다(${depthLabel}까지). 열린 수집 탭에서 진행 상황을 확인하세요.`;
   } catch (error) {
     statusEl.textContent = error?.message || "확장프로그램 연결에 실패했습니다.";
     btn.disabled = false;
