@@ -2938,10 +2938,10 @@ function coupangSalesDetailCardHtml() {
   const avgOrder = t.orders ? t.sales / t.orders : 0;
   const dashTiles = [
     { label: "일 평균 매출", value: money(avgDailySales), note: `${num(dayCount)}일 평균`,
-      cmp: coupangSalesDashCompareHtml(avgDailySales, p => dayCount ? p.sales / dayCount : 0) },
+      cmp: coupangSalesDashCompareHtml(avgDailySales, p => { const d = p.dayCount || dayCount; return d ? p.sales / d : 0; }) },
     { label: "매출 최고일", value: peakDay ? peakDay.date : "-", note: peakDay ? `매출 ${money(peakDay.sales)}` : "데이터 없음", cmp: "" },
     { label: "일 평균 주문건수", value: num(Math.round(avgDailyOrders)) + "건", note: `${num(dayCount)}일 평균`,
-      cmp: coupangSalesDashCompareHtml(avgDailyOrders, p => dayCount ? p.orders / dayCount : 0) },
+      cmp: coupangSalesDashCompareHtml(avgDailyOrders, p => { const d = p.dayCount || dayCount; return d ? p.orders / d : 0; }) },
     { label: "구매전환율", value: formatPercentValue(conv), note: "주문 ÷ 조회",
       cmp: coupangSalesDashCompareHtml(conv, p => p.convRate, "rate") },
     { label: "객단가", value: money(avgOrder), note: "매출 ÷ 주문",
@@ -3685,8 +3685,8 @@ function naverSummaryCardHtml() {
 
 // 매출분석 대시보드 전용 비교칩 — naverSalesCompare(전기간/전년)에는 salesNet/refundAmount/
 // products 같은 "원본 합계"만 있고 일평균·환불율·TOP비중 같은 파생 지표는 없어서, prevKeyFn으로
-// 비교기간 데이터에서 같은 방식으로 직접 계산해 비교한다. dayCount는 comparePeriodRanges가
-// 항상 조회기간과 같은 일수로 이전/전년 기간을 만들어주므로 현재 dayCount를 그대로 나눠 쓴다.
+// 비교기간 데이터에서 같은 방식으로 직접 계산해 비교한다. 달력 월 단위 조회면 전월 일수가
+// 조회 기간과 다를 수 있어서(30일 vs 31일) 일평균은 비교기간 자체의 dayCount로 나눈다.
 function naverSalesDashCompareHtml(curVal, prevKeyFn, type = "abs") {
   const compare = naverSalesCompare;
   if (!compare || compare.key !== currentAdLoadKey()) {
@@ -3732,7 +3732,7 @@ function naverSalesDetailCardHtml() {
   const truncName = name => name.length > 16 ? name.slice(0, 16) + "…" : name;
   const dashTiles = [
     { label: "일 평균 매출(순)", value: money(avgDailyNet), note: `${num(dayCount)}일 평균`,
-      cmp: naverSalesDashCompareHtml(avgDailyNet, p => dayCount ? p.salesNet / dayCount : 0) },
+      cmp: naverSalesDashCompareHtml(avgDailyNet, p => { const d = p.dayCount || dayCount; return d ? p.salesNet / d : 0; }) },
     { label: "매출 최고일", value: peakDay ? peakDay.date : "-", note: peakDay ? `순매출 ${money(peakDay.salesNet)}` : "데이터 없음", cmp: "" },
     { label: "판매 상품 수", value: num(soldProductCount) + "개", note: `전체 ${num(naverStat.products.length)}개 중`,
       cmp: naverSalesDashCompareHtml(soldProductCount, p => (p.products || []).filter(x => x.salesTotal > 0).length) },
@@ -4436,7 +4436,7 @@ async function fetchCoupangAdCompareTotals(dateFrom, dateTo) {
 async function loadAdCompare() {
   const dateFrom = document.getElementById("dateFrom").value;
   const dateTo = document.getElementById("dateTo").value;
-  const ranges = comparePeriodRanges(dateFrom, dateTo);
+  const ranges = reportComparisonRanges(dateFrom, dateTo);
   const key = currentAdLoadKey();
   if (!ranges) { adCompare = { key, prev: null, year: null }; return; }
   adCompare = { key, prev: null, year: null };
@@ -4452,7 +4452,7 @@ async function loadAdCompare() {
 async function loadCoupangAdCompare() {
   const dateFrom = document.getElementById("dateFrom").value;
   const dateTo = document.getElementById("dateTo").value;
-  const ranges = comparePeriodRanges(dateFrom, dateTo);
+  const ranges = reportComparisonRanges(dateFrom, dateTo);
   const key = currentAdLoadKey();
   if (!ranges) { coupangAdCompare = { key, prev: null, year: null }; return; }
   coupangAdCompare = { key, prev: null, year: null };
@@ -4485,6 +4485,7 @@ async function fetchNaverSalesCompareTotals(dateFrom, dateTo) {
     }, { visits: 0, payCount: 0, salesNet: 0, salesTotal: 0, refundAmount: 0 });
     return {
       hasData: true,
+      dayCount: daily.length,
       salesNet: t.salesNet,
       salesTotal: t.salesTotal,
       refundAmount: t.refundAmount,
@@ -4515,6 +4516,7 @@ async function fetchCoupangSalesCompareTotals(dateFrom, dateTo) {
     }, { visitors: 0, views: 0, carts: 0, orders: 0, qty: 0, sales: 0 });
     return {
       hasData: true,
+      dayCount: rows.length,
       sales: t.sales,
       orders: t.orders,
       visitors: t.visitors,
@@ -4533,7 +4535,7 @@ async function fetchCoupangSalesCompareTotals(dateFrom, dateTo) {
 async function loadNaverSalesCompare() {
   const dateFrom = document.getElementById("dateFrom").value;
   const dateTo = document.getElementById("dateTo").value;
-  const ranges = comparePeriodRanges(dateFrom, dateTo);
+  const ranges = reportComparisonRanges(dateFrom, dateTo);
   const key = currentAdLoadKey();
   if (!ranges) { naverSalesCompare = { key, prev: null, year: null }; return; }
   naverSalesCompare = { key, prev: null, year: null };
@@ -4552,7 +4554,7 @@ async function loadNaverSalesCompare() {
 async function loadCoupangSalesCompare() {
   const dateFrom = document.getElementById("dateFrom").value;
   const dateTo = document.getElementById("dateTo").value;
-  const ranges = comparePeriodRanges(dateFrom, dateTo);
+  const ranges = reportComparisonRanges(dateFrom, dateTo);
   const key = currentAdLoadKey();
   if (!ranges) { coupangSalesCompare = { key, prev: null, year: null }; return; }
   coupangSalesCompare = { key, prev: null, year: null };
