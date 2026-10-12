@@ -4285,6 +4285,74 @@ function comparePeriodRanges(dateFrom, dateTo) {
   };
 }
 
+// 보고서 전용 비교 기간 — 조회 기간이 달력 월 단위(1일~말일)면 일수를 맞춰 밀지 않고
+// "전달 / 작년 같은 달"로 달력 월 그대로 맞춘다. 그 외에는 comparePeriodRanges와 같다.
+function reportIsFullMonths(dateFrom, dateTo) {
+  const from = new Date(`${dateFrom}T00:00:00Z`);
+  const to = new Date(`${dateTo}T00:00:00Z`);
+  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || to < from) return false;
+  const lastDay = new Date(Date.UTC(to.getUTCFullYear(), to.getUTCMonth() + 1, 0)).getUTCDate();
+  return from.getUTCDate() === 1 && to.getUTCDate() === lastDay;
+}
+
+// 달력 월 범위 바로 앞의 같은 개월 수 범위(예: 2026-09 → 2026-08, 2026-07~09 → 2026-04~06).
+function reportPrecedingMonths(dateFrom, dateTo) {
+  if (!reportIsFullMonths(dateFrom, dateTo)) return null;
+  const from = new Date(`${dateFrom}T00:00:00Z`);
+  const to = new Date(`${dateTo}T00:00:00Z`);
+  const months = (to.getUTCFullYear() - from.getUTCFullYear()) * 12 + to.getUTCMonth() - from.getUTCMonth() + 1;
+  const start = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth() - months, 1));
+  const end = new Date(from.getTime() - 86400000);
+  return { from: start.toISOString().slice(0, 10), to: end.toISOString().slice(0, 10), months };
+}
+
+function reportComparisonRanges(dateFrom, dateTo) {
+  const base = comparePeriodRanges(dateFrom, dateTo);
+  if (!base) return null;
+  const preceding = reportPrecedingMonths(dateFrom, dateTo);
+  if (!preceding) return { ...base, aligned: false, months: 0 };
+  const from = new Date(`${dateFrom}T00:00:00Z`);
+  const to = new Date(`${dateTo}T00:00:00Z`);
+  const yearFrom = new Date(Date.UTC(from.getUTCFullYear() - 1, from.getUTCMonth(), 1));
+  const yearTo = new Date(Date.UTC(to.getUTCFullYear() - 1, to.getUTCMonth() + 1, 0));
+  return {
+    prev: { from: preceding.from, to: preceding.to },
+    year: { from: yearFrom.toISOString().slice(0, 10), to: yearTo.toISOString().slice(0, 10) },
+    aligned: true,
+    months: preceding.months,
+  };
+}
+
+function reportPeriodLabels(ranges) {
+  if (ranges?.aligned && ranges.months === 1) return { cur: "이번달", prev: "전달", year: "작년 같은 달" };
+  if (ranges?.aligned) return { cur: "이번 기간", prev: `직전 ${ranges.months}개월`, year: "작년 같은 기간" };
+  return { cur: "이번 기간", prev: "전기간", year: "작년 동기" };
+}
+
+// 코드 안 문구는 "이번 기간/전기간/작년 동기"로 쓰여 있다. 보고서 표시용으로 선택된 기준에 맞춰 바꾼다.
+function reportRelabel(text, labels) {
+  if (typeof text !== "string" || !labels || (labels.cur === "이번 기간" && labels.prev === "전기간" && labels.year === "작년 동기")) return text;
+  const compact = s => s.replace(/\s+/g, "");
+  return text
+    .replace(/작년 ?동기/g, m => (m.includes(" ") ? labels.year : compact(labels.year)))
+    .replace(/이번 ?기간/g, m => (m.includes(" ") ? labels.cur : compact(labels.cur)))
+    .replace(/전기간 ?대비/g, `${labels.prev} 대비`)
+    .replace(/전기간/g, labels.prev);
+}
+
+function reportRelabelWorkbook(wb, labels) {
+  wb.worksheets.forEach(ws => ws.eachRow({ includeEmpty: false }, row => row.eachCell({ includeEmpty: false }, cell => {
+    const v = cell.value;
+    if (typeof v === "string") {
+      const next = reportRelabel(v, labels);
+      if (next !== v) cell.value = next;
+    } else if (v && typeof v === "object" && typeof v.text === "string") {
+      const next = reportRelabel(v.text, labels);
+      if (next !== v.text) cell.value = { ...v, text: next };
+    }
+  })));
+}
+
 // 상대 변화율(%) — 광고비·클릭수처럼 값 자체를 비교할 때
 function pctChangeChip(label, cur, prev) {
   if (prev == null) return `<span class="cmp">${esc(label)} 데이터 없음</span>`;
@@ -4903,7 +4971,7 @@ function reportMoverSummary(label, mover, baselineLabel) {
 // 단정한 사례가 나왔다. 지표별 방향·증감률을 코드에서 확정해 프롬프트에 넣고, 응답 문장도 같은 사실과 대조한다.
 const REPORT_UP_WORDS = ["증가", "상승", "늘어", "늘었", "늘고", "올라", "올랐", "확대", "급증", "성장", "반등", "높아졌", "커졌", "상회"];
 const REPORT_DOWN_WORDS = ["감소", "하락", "줄어", "줄었", "줄고", "떨어", "내려", "축소", "급감", "둔화", "낮아졌", "작아졌", "하회"];
-const REPORT_BASIS_PATTERNS = { year: /작년|전년|지난해|동기/, prev: /전기간|직전 ?기간|이전 ?기간|전월|지난 ?달/ };
+const REPORT_BASIS_PATTERNS = { year: /작년|전년|지난해|동기/, prev: /전기간|직전 ?기간|이전 ?기간|직전 ?\d+개월|전월|전달|지난 ?달/ };
 const REPORT_CLAUSE_SPLIT = /지만|으나|반면|면서|하며|으며|이며|했고|이고|였고|하고|인데|는데|[·,;/→()]/;
 // 채널·상품·유형 같은 하위 구분을 말하는 문장은 합계 지표 사실과 직접 비교하지 않는다(오탐 방지).
 const REPORT_SEGMENT_WORDS = /채널|유입 ?경로|쇼핑검색|파워링크|스토어 내부|플러스스토어|네이버 검색|직유입|신규|재구매|상품|제품|옵션|키워드|검색어|유형|ADVoost|디스플레이|카테고리|남성|여성|[0-9]+대|그룹|캠페인|영역|지면/i;
@@ -5223,7 +5291,7 @@ function reportFestivalNotes(cur, prev, year) {
       const days = [...REPORT_KR_HOLIDAYS.entries()].filter(([d, n]) => d.startsWith(y) && n.startsWith(name)).map(([d]) => d);
       if (days.length) positions.push(`${y}년 ${name} 연휴 ${days[0]}~${reportShortDate(days[days.length - 1])}`);
     });
-    notes.push(`${name} 연휴 포함 여부가 기간마다 다름 — 이번 ${states[0] || "없음"} / 전기간 ${states[1] || "없음"} / 작년 동기 ${states[2] || "없음"}${positions.length ? ` (${positions.join(", ")})` : ""}`);
+    notes.push(`${name} 연휴 포함 여부가 기간마다 다름 — 이번 기간 ${states[0] || "없음"} / 전기간 ${states[1] || "없음"} / 작년 동기 ${states[2] || "없음"}${positions.length ? ` (${positions.join(", ")})` : ""}`);
   });
   return notes;
 }
@@ -5231,7 +5299,15 @@ function reportFestivalNotes(cur, prev, year) {
 function reportDataNotes(platform, cur, prev, year) {
   const notes = [];
   const len = reportExpectedDays(cur.dateFrom, cur.dateTo);
-  notes.push(`전기간은 직전 달력월이 아니라 같은 일수(${len}일)만큼 앞으로 민 구간(${prev.dateFrom}~${prev.dateTo})입니다. 작년 동기는 같은 월일 구간(${year.dateFrom}~${year.dateTo})입니다.`);
+  if (reportIsFullMonths(cur.dateFrom, cur.dateTo) && reportIsFullMonths(prev.dateFrom, prev.dateTo)) {
+    notes.push(`${prev.label}은 직전 달력월(${prev.dateFrom}~${prev.dateTo}), ${year.label}은 작년 같은 월(${year.dateFrom}~${year.dateTo})입니다.`);
+    const days = [cur, prev, year].map(p => reportExpectedDays(p.dateFrom, p.dateTo));
+    if (new Set(days).size > 1) {
+      notes.push(`일수가 다릅니다(${cur.label} ${days[0]}일 / ${prev.label} ${days[1]}일 / ${year.label} ${days[2]}일). 합계 증감에는 일수 차이가 섞여 있으니 일평균 증감을 함께 보세요.`);
+    }
+  } else {
+    notes.push(`전기간은 직전 달력월이 아니라 같은 일수(${len}일)만큼 앞으로 민 구간(${prev.dateFrom}~${prev.dateTo})입니다. 작년 동기는 같은 월일 구간(${year.dateFrom}~${year.dateTo})입니다.`);
+  }
   [["이번 기간", cur], ["전기간", prev], ["작년 동기", year]].forEach(([label, p]) => {
     const expected = p.coverage.expectedDays;
     if (expected && p.coverage.salesDays < expected) notes.push(`${label} 매출 자료가 ${p.coverage.salesDays}/${expected}일뿐이라 합계가 실제보다 작게 나올 수 있습니다.`);
@@ -5251,7 +5327,7 @@ function reportDataNotes(platform, cur, prev, year) {
 // 일별 매출만 가볍게 길게(약 13개월) 가져와 작년 같은 구간의 변화와 최근 12개월 수준을 계산한다.
 async function reportFetchSeasonality(platform, cur, year) {
   const len = reportExpectedDays(cur.dateFrom, cur.dateTo);
-  const start = [reportDateAdd(cur.dateFrom, -400), reportDateAdd(year.dateFrom, -(len + 1))].sort()[0];
+  const start = [reportDateAdd(cur.dateFrom, -400), reportDateAdd(year.dateFrom, -(len + 32))].sort()[0];
   try {
     let rows;
     if (platform === "naver") {
@@ -5262,11 +5338,14 @@ async function reportFetchSeasonality(platform, cur, year) {
       rows = (data.items || []).map(r => ({ date: String(r.date || "").slice(0, 10), value: Number(r.sales) || 0 }));
     }
     const sumRange = (a, b) => rows.reduce((acc, r) => (r.date >= a && r.date <= b ? { sum: acc.sum + r.value, n: acc.n + 1 } : acc), { sum: 0, n: 0 });
-    const lyPrevFrom = reportDateAdd(year.dateFrom, -len);
-    const lyPrevTo = reportDateAdd(year.dateFrom, -1);
+    // 달력 월 단위 조회면 작년의 직전 달(예: 2025-08 → 2025-09)과 비교하고, 아니면 같은 일수만큼 앞 구간을 쓴다.
+    const lyPreceding = reportPrecedingMonths(year.dateFrom, year.dateTo);
+    const lyPrevFrom = lyPreceding ? lyPreceding.from : reportDateAdd(year.dateFrom, -len);
+    const lyPrevTo = lyPreceding ? lyPreceding.to : reportDateAdd(year.dateFrom, -1);
+    const lyPrevLen = reportExpectedDays(lyPrevFrom, lyPrevTo);
     const lyCur = sumRange(year.dateFrom, year.dateTo);
     const lyPrev = sumRange(lyPrevFrom, lyPrevTo);
-    const lastYearTransition = lyCur.n >= len * 0.9 && lyPrev.n >= len * 0.9 && lyPrev.sum
+    const lastYearTransition = lyCur.n >= len * 0.9 && lyPrev.n >= lyPrevLen * 0.9 && lyPrev.sum
       ? { prevFrom: lyPrevFrom, prevTo: lyPrevTo, prevSum: lyPrev.sum, curFrom: year.dateFrom, curTo: year.dateTo, curSum: lyCur.sum, rate: (lyCur.sum - lyPrev.sum) / lyPrev.sum * 100 }
       : null;
 
@@ -5686,7 +5765,7 @@ function naverReportBuildFacts(cur, prev, year) {
     { metric: "일평균 총매출", keywords: ["일평균 총매출", "일평균 매출", "하루 평균 매출", "일평균"], kind: "amount", unit: "원", better: "up", get: sales(p => p.dayStats?.perDay ?? null) },
     { metric: "영업일 일평균 총매출", keywords: ["영업일 일평균 총매출", "영업일 일평균 매출", "영업일 기준 일평균", "영업일 일평균", "평일 일평균", "영업일당 매출"], kind: "amount", unit: "원", better: "up", get: sales(p => p.dayStats?.workingPerDay ?? null) },
   ];
-  return reportBuildFacts(defs, cur, [{ basis: "prev", label: "전기간", period: prev }, { basis: "year", label: "작년 동기", period: year }]);
+  return reportBuildFacts(defs, cur, [{ basis: "prev", label: prev.label || "전기간", period: prev }, { basis: "year", label: year.label || "작년 동기", period: year }]);
 }
 
 function reportNormalizeActions(items) {
@@ -5839,7 +5918,7 @@ async function naverReportGenerateInsights(cur, prev, year) {
 변화 탐지 결과: ${JSON.stringify(analysis)}`;
 
   try {
-    const { insights, verification } = await reportRequestInsights(prompt, facts);
+    const { insights, verification } = await reportRequestInsights(reportRelabel(prompt, { cur: cur.label, prev: prev.label, year: year.label }), facts);
     return { insights, actions: [], facts, verification, context };
   } catch (err) {
     return {
@@ -6235,13 +6314,14 @@ async function naverReportBuildWorkbook(cur, prev, year, ai) {
 async function downloadNaverReport() {
   const dateFrom = document.getElementById("dateFrom").value;
   const dateTo = document.getElementById("dateTo").value;
-  const ranges = comparePeriodRanges(dateFrom, dateTo);
+  const ranges = reportComparisonRanges(dateFrom, dateTo);
   if (!ranges) { alert("조회 기간을 확인해 주세요."); return; }
+  const labels = reportPeriodLabels(ranges);
   const proceed = confirm(
-    `네이버 매출·광고 종합 보고서를 만들까요? (v2: 요약 / 분석·실행 분리)\n\n` +
-    `이번 기간: ${dateFrom} ~ ${dateTo}\n` +
-    `전기간: ${ranges.prev.from} ~ ${ranges.prev.to}\n` +
-    `작년 동기: ${ranges.year.from} ~ ${ranges.year.to}\n\n` +
+    `네이버 매출·광고 종합 보고서를 만들까요?\n\n` +
+    `${labels.cur}: ${dateFrom} ~ ${dateTo}\n` +
+    `${labels.prev}: ${ranges.prev.from} ~ ${ranges.prev.to}\n` +
+    `${labels.year}: ${ranges.year.from} ~ ${ranges.year.to}\n\n` +
     `AI가 인사이트를 생성하는 과정이 포함돼 10~20초 정도 걸릴 수 있습니다.`
   );
   if (!proceed) return;
@@ -6251,9 +6331,9 @@ async function downloadNaverReport() {
   showLoading("보고서 데이터를 모으는 중...");
   try {
     const [cur, prev, year] = await Promise.all([
-      naverReportFetchPeriod(dateFrom, dateTo, "이번 기간"),
-      naverReportFetchPeriod(ranges.prev.from, ranges.prev.to, "전기간"),
-      naverReportFetchPeriod(ranges.year.from, ranges.year.to, "작년 동기"),
+      naverReportFetchPeriod(dateFrom, dateTo, labels.cur),
+      naverReportFetchPeriod(ranges.prev.from, ranges.prev.to, labels.prev),
+      naverReportFetchPeriod(ranges.year.from, ranges.year.to, labels.year),
     ]);
 
     setLoadingMessage("AI가 인사이트를 작성하는 중...");
@@ -6261,6 +6341,7 @@ async function downloadNaverReport() {
 
     setLoadingMessage("엑셀 파일을 만드는 중...");
     const wb = await naverReportBuildWorkbook(cur, prev, year, ai);
+    reportRelabelWorkbook(wb, labels);
     const buffer = await wb.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
     const url = URL.createObjectURL(blob);
@@ -6450,7 +6531,7 @@ function coupangReportBuildFacts(cur, prev, year) {
     { metric: "일평균 매출", keywords: ["일평균 매출", "하루 평균 매출", "일평균"], kind: "amount", unit: "원", better: "up", get: sales(p => p.dayStats?.perDay ?? null) },
     { metric: "영업일 일평균 매출", keywords: ["영업일 일평균 매출", "영업일 기준 일평균", "영업일 일평균", "평일 일평균", "영업일당 매출"], kind: "amount", unit: "원", better: "up", get: sales(p => p.dayStats?.workingPerDay ?? null) },
   ];
-  return reportBuildFacts(defs, cur, [{ basis: "prev", label: "전기간", period: prev }, { basis: "year", label: "작년 동기", period: year }]);
+  return reportBuildFacts(defs, cur, [{ basis: "prev", label: prev.label || "전기간", period: prev }, { basis: "year", label: year.label || "작년 동기", period: year }]);
 }
 
 async function coupangReportGenerateInsights(cur, prev, year) {
@@ -6518,7 +6599,7 @@ async function coupangReportGenerateInsights(cur, prev, year) {
 변화 탐지 결과: ${JSON.stringify(analysis)}`;
 
   try {
-    const { insights, verification } = await reportRequestInsights(prompt, facts);
+    const { insights, verification } = await reportRequestInsights(reportRelabel(prompt, { cur: cur.label, prev: prev.label, year: year.label }), facts);
     return { insights, actions: [], facts, verification, context };
   } catch (err) {
     return {
@@ -6695,13 +6776,14 @@ async function coupangReportBuildWorkbook(cur, prev, year, ai) {
 async function downloadCoupangReport() {
   const dateFrom = document.getElementById("dateFrom").value;
   const dateTo = document.getElementById("dateTo").value;
-  const ranges = comparePeriodRanges(dateFrom, dateTo);
+  const ranges = reportComparisonRanges(dateFrom, dateTo);
   if (!ranges) { alert("조회 기간을 확인해 주세요."); return; }
+  const labels = reportPeriodLabels(ranges);
   const proceed = confirm(
-    `쿠팡 매출·광고 종합 보고서를 만들까요? (v2: 요약 / 분석·실행 분리)\n\n` +
-    `이번 기간: ${dateFrom} ~ ${dateTo}\n` +
-    `전기간: ${ranges.prev.from} ~ ${ranges.prev.to}\n` +
-    `작년 동기: ${ranges.year.from} ~ ${ranges.year.to}\n\n` +
+    `쿠팡 매출·광고 종합 보고서를 만들까요?\n\n` +
+    `${labels.cur}: ${dateFrom} ~ ${dateTo}\n` +
+    `${labels.prev}: ${ranges.prev.from} ~ ${ranges.prev.to}\n` +
+    `${labels.year}: ${ranges.year.from} ~ ${ranges.year.to}\n\n` +
     `AI가 인사이트를 생성하는 과정이 포함돼 10~20초 정도 걸릴 수 있습니다.`
   );
   if (!proceed) return;
@@ -6711,9 +6793,9 @@ async function downloadCoupangReport() {
   showLoading("보고서 데이터를 모으는 중...");
   try {
     const [cur, prev, year] = await Promise.all([
-      coupangReportFetchPeriod(dateFrom, dateTo, "이번 기간"),
-      coupangReportFetchPeriod(ranges.prev.from, ranges.prev.to, "전기간"),
-      coupangReportFetchPeriod(ranges.year.from, ranges.year.to, "작년 동기"),
+      coupangReportFetchPeriod(dateFrom, dateTo, labels.cur),
+      coupangReportFetchPeriod(ranges.prev.from, ranges.prev.to, labels.prev),
+      coupangReportFetchPeriod(ranges.year.from, ranges.year.to, labels.year),
     ]);
 
     setLoadingMessage("AI가 인사이트를 작성하는 중...");
@@ -6721,6 +6803,7 @@ async function downloadCoupangReport() {
 
     setLoadingMessage("엑셀 파일을 만드는 중...");
     const wb = await coupangReportBuildWorkbook(cur, prev, year, ai);
+    reportRelabelWorkbook(wb, labels);
     const buffer = await wb.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
     const url = URL.createObjectURL(blob);
