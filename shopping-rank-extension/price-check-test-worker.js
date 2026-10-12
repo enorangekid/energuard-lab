@@ -1061,6 +1061,28 @@ async function readStoreOptions(rawUrl){
     };
   }finally{await chrome.tabs.remove(tab.id).catch(()=>{});}
 }
+// 11번가 옵션 엑셀용(2026-10-08) — 11번가 상품 페이지 하나를 열어 옵션 이름·판매가·재고·옵션 고유번호를 읽어 돌려준다(2단 옵션은 "1단 / 2단"으로 합친 이름).
+// 검사 큐와 따로 돌고 읽기 전용이다. 구매자 페이지에는 판매중지(사용안함) 옵션과 셀러재고코드가 안 나온다.
+async function readSt11Options(rawUrl){
+  let url;try{url=new URL(String(rawUrl||''));}catch{throw Error('상품 주소 오류');}
+  const id=(/^\/products\/(\d+)\/?$/.exec(url.pathname)||[])[1];
+  if(!id||!st11ProductUrlOk(url,id))throw Error('허용되지 않은 11번가 상품 주소');
+  const tab=await chrome.tabs.create({url:`https://www.11st.co.kr/products/${id}`,active:false});
+  try{
+    let scan;
+    for(let n=0;n<25;n++){
+      await delay(800);
+      try{scan=await chrome.tabs.sendMessage(tab.id,{type:'GET_11ST_SCAN_DATA',mode:'options'});}catch{
+        if(n>=2){const where=st11Redirected(await st11TabUrl(tab.id),id);if(where)throw Error(`11번가 상품 페이지가 아닌 주소로 이동했습니다 (현재 주소 ${where}) — 성인 인증·삭제·판매종료 상품일 수 있습니다`);}
+      }
+      if(scan?.ok||scan?.error)break;
+    }
+    if(!scan?.ok)throw Error(scan?.error||'11번가 상품 정보 수집 실패 — 로그인·차단·삭제 여부 확인 필요');
+    if(String(scan.productId)!==id)throw Error('수집 상품 주소 불일치');
+    if(!Array.isArray(scan.rows)||!scan.rows.length||scan.rows.every(row=>row.name==='(옵션 없음)'))throw Error('이 상품에서 옵션을 읽지 못했습니다');
+    return {ok:true,productId:id,title:scan.title||'',levels:scan.levels??null,levelNames:Array.isArray(scan.levelNames)?scan.levelNames.map(String):[],rows:scan.rows.map(row=>({name:row.name,parts:Array.isArray(row.parts)?row.parts.map(String):null,stck:row.stck||null,price:row.price??null,qty:row.qty??null})),version:chrome.runtime.getManifest().version};
+  }finally{await chrome.tabs.remove(tab.id).catch(()=>{});}
+}
 let commandBusy=false;
 chrome.runtime.onMessage.addListener((message,sender,respond)=>{
   if(message?.type!=='EG_PRICE_TEST')return;
@@ -1069,6 +1091,7 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
   (async()=>{
     if(message.action==='ping')return {ok:true,version:chrome.runtime.getManifest().version};
     if(message.action==='moeum')return await readStoreOptions(message.payload?.url);
+    if(message.action==='st11options')return await readSt11Options(message.payload?.url);
     if(message.action==='status'){
       const s=await readState();
       if(!s)return {ok:true,state:null};

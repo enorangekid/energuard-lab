@@ -3,6 +3,8 @@
 //  · 옵션: 각 옵션 항목(li.option_item)에 이름·판매가·재고·옵션 고유번호가 data 속성으로 붙어 있다(dtloptnm·price·stckqty·stckno).
 //    1단 옵션은 바로 읽고, 2단 조합 옵션(예: 열반사 "종류 → 타입", 스티로폼 "종류 → 규격")은 첫 단계 항목을 눌러야 다음 단계 목록(가격 포함)이
 //    채워지므로 눌러 가며 마지막 단계에서 읽는다. 첫 단계 가격은 범위("141,500 ~ 243,000")라 쓰지 않는다.
+//    2단 옵션은 먼저 페이지가 클릭 때 부르는 주소(/products/번호/last-options?optNoArr=1:k — 다음 단계 옵션 JSON)를 직접 불러 한 번에 읽고(2026-10-08, 클릭 대기 없이 빠름),
+//    그게 안 되거나 값이 이상하면 위의 클릭 방식으로 되돌아간다.
 //  · 추가상품: "부자재" 영역(.bot_addPrd_section)의 항목 이름·판매가.
 // 셀러가 입력하는 재고번호(관리코드)는 구매자 페이지에 나오지 않는다(2026-09-30 확인) — 그래서 이름·규격으로 짝짓는다(worker.js).
 (() => {
@@ -33,19 +35,61 @@
     qty: li.dataset?.stckqty != null && li.dataset.stckqty !== '' ? Number(li.dataset.stckqty) : null,
   });
 
+  /* 2단 옵션 빠른 읽기 — 첫 단계 항목마다 last-options JSON을 직접 불러(같은 출처 fetch) 다음 단계 옵션을 읽는다. 첫 단계 항목의 data-optno("1:k")가 요청 값이고,
+     응답 infoList의 addPrc가 옵션 추가금이라 판매가 = (첫 단계 항목 가격 범위의 낮은 값 − 그 항목의 minaddprc) + addPrc. 클릭 방식과 같은 모양의 행을 돌려주고,
+     어디서든 이상하면 null을 돌려줘서 클릭 방식으로 되돌아가게 한다(11번가가 주소를 바꿨을 때 대비). */
+  async function fastTwoLevelRows() {
+    const sections = optionSections();
+    const id = productId();
+    if (sections.length !== 2 || !id) return null;
+    const firsts = itemsOf(sections[0]);
+    if (!firsts.length) return null;
+    async function readFirst(li) {
+      const first = rowOf(li);
+      if (first.qty === 0 || /disabled|soldout/.test(String(li.className || ''))) {
+        // 품절 첫 단계 항목은 클릭 방식과 똑같이 처리한다(가격이 하나면 품절 행으로 남긴다).
+        return first.price && !first.rangePrice ? [{ ...first, qty: 0, parts: [first.name] }] : [];
+      }
+      const optNo = li.dataset?.optno, minAdd = Number(li.dataset?.minaddprc), low = numberOf(String(li.dataset?.price || '').split('~')[0]);
+      if (!optNo || !(low > 0) || !Number.isFinite(minAdd)) throw Error('첫 단계 옵션 정보 부족');
+      const response = await fetch(`/products/${id}/last-options?optNoArr=${encodeURIComponent(optNo)}&selOptCnt=2&strNo=0&xSiteCode=&partnerPrdNos=`, { credentials: 'include', headers: { Accept: 'application/json' } });
+      if (!response.ok) throw Error(`last-options ${response.status}`);
+      const list = (await response.json())?.infoList;
+      if (!Array.isArray(list) || !list.length) throw Error('last-options 응답 없음');
+      return list.map(info => {
+        const name = String(info.dtlOptNm || '').trim(), addPrc = Number(info.addPrc), qty = Number(info.stckQty);
+        if (!name || !Number.isFinite(addPrc) || !Number.isFinite(qty)) throw Error('last-options 값 이상');
+        return { name: `${first.name} / ${name}`, parts: [first.name, name], stck: info.stckNo != null ? String(info.stckNo) : null, price: low - minAdd + addPrc, rangePrice: false, qty };
+      });
+    }
+    try {
+      const groups = [];
+      for (let i = 0; i < firsts.length; i += 4) groups.push(...await Promise.all(firsts.slice(i, i + 4).map(readFirst))); // 4개씩 한꺼번에(순서는 그대로)
+      const rows = groups.flat();
+      return rows.length && rows.every(row => row.price > 0) ? rows : null;
+    } catch { return null; }
+  }
+
+  // 옵션 단계별 항목 이름("필수옵션선택"·"제품선택 / 디자인선택"·"옵션명 1 / 옵션명 2") — 단계 머리글 "이름 옵션 보기"에서 읽는다. 옵션 엑셀 열 제목이 이 이름이다.
+  const levelNames = () => optionSections().map(section => cleanText(section.firstElementChild).replace(/\s*옵션\s*보기\s*$/, '').trim());
+
   async function collectOptions() {
     if (!await waitUntil(() => itemsOf(optionSections()[0]).length, 6000)) {
       // 옵션이 없는 단품 상품(옵션 영역이 아예 없음)은 상품 가격 하나만 읽는다 — 우리 옵션이 하나뿐이면 worker가 그것과 짝짓는다.
       // 첫 "금액 원" 하나만 읽는다(같은 칸에 "판매가 안내…11번가…" 설명이 붙어 있어 숫자를 다 붙이면 틀린다).
       const singleMatch = String(document.querySelector('.b_product_info_price dd.price, .price_block dd.price')?.textContent || '').match(/([0-9][0-9,]*)\s*원/);
       const single = singleMatch ? Number(singleMatch[1].replace(/,/g, '')) : null;
-      if (single) return { ok: true, rows: [{ name: '(옵션 없음)', stck: null, price: single, rangePrice: false, qty: null }] };
+      if (single) return { ok: true, levels: 0, levelNames: [], rows: [{ name: '(옵션 없음)', parts: ['(옵션 없음)'], stck: null, price: single, rangePrice: false, qty: null }] };
       return { ok: false, error: '옵션 목록을 찾지 못했습니다.' };
     }
     // 페이지 스크립트가 옵션 클릭 동작을 붙일 시간을 준다(로딩이 끝나고 잠시 더).
     await waitUntil(() => document.readyState === 'complete', 10000);
     await sleep(500); // 클릭이 안 먹으면 아래에서 다시 누르므로 길게 기다리지 않는다
     const levels = optionSections().length;
+    if (levels === 2) {
+      const fast = await fastTwoLevelRows();
+      if (fast) return { ok: true, levels, levelNames: levelNames(), rows: fast };
+    }
     const rows = [];
     async function explore(level, path) {
       const count = itemsOf(optionSections()[level]).length;
@@ -55,10 +99,10 @@
         const row = rowOf(li);
         if (level === levels - 1) {
           if (!row.price) return { ok: false, error: `"${[...path, row.name].join(' / ')}" 가격을 읽지 못했습니다.` };
-          rows.push({ ...row, name: [...path, row.name].join(' / ') });
+          rows.push({ ...row, name: [...path, row.name].join(' / '), parts: [...path, row.name] });
         } else if (row.qty === 0 || /disabled|soldout/.test(String(li.className || ''))) {
           // 품절 1단계 항목(예: "SSEN 폼건")은 눌러도 다음 단계 목록이 없다 — 가격이 하나면 품절(재고 0) 행으로 남기고 다음으로 넘어간다.
-          if (row.price && !row.rangePrice) rows.push({ ...row, name: [...path, row.name].join(' / '), qty: 0 });
+          if (row.price && !row.rangePrice) rows.push({ ...row, name: [...path, row.name].join(' / '), parts: [...path, row.name], qty: 0 });
         } else {
           // 옵션 목록(li)은 서버에서 먼저 그려지고 클릭 동작은 페이지 스크립트가 나중에 붙인다 — 너무 일찍 누르면 아무 일도 안 일어난다
           // (2026-09-30 실검사에서 "다음 단계 옵션 목록을 찾지 못했습니다" 4건). 그래서 못 찾으면 몇 번 더 눌러 본다.
@@ -80,7 +124,7 @@
       return null;
     }
     const failed = await explore(0, []);
-    return failed || { ok: true, rows };
+    return failed || { ok: true, levels, levelNames: levelNames(), rows };
   }
 
   function collectSupplements() {
@@ -105,7 +149,7 @@
     }
     const options = await collectOptions();
     if (!options.ok) return options;
-    return { ...base, rows: options.rows };
+    return { ...base, levels: options.levels, levelNames: options.levelNames, rows: options.rows };
   }
 
   chrome.runtime.onMessage.addListener((message, _sender, respond) => {
