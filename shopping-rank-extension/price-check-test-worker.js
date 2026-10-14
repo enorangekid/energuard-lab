@@ -901,6 +901,32 @@ async function inspectCompetitor(link, entries) {
   } finally { await chrome.tabs.remove(tab.id).catch(()=>{}); await chrome.storage.local.remove('priceCheckTab'); }
 }
 
+// 한국단열 단가표 '경쟁사 가격 확인'(2026-10-14, kind:'compscan') — inspectCompetitor와 같은 수집(GET_COMPETITOR_SCAN_DATA)을 쓰되
+// 옵션을 두께로 짝짓지 않고 옵션명·최종가·품절을 있는 그대로 돌려준다. 옵션 짝짓기(일반/고급·접착·1M)는 단가표 화면이 한다.
+async function scanCompetitorRaw(item) {
+  const url = new URL(String(item.link || ''));
+  if (url.origin !== 'https://smartstore.naver.com' || !/^\/[^/]+\/products\/\d+\/?$/.test(url.pathname)) throw Error('허용되지 않은 경쟁사 상품 주소');
+  const tab = await chrome.tabs.create({url:url.href,active:false});
+  await chrome.storage.local.set({priceCheckTab:{id:tab.id,url:url.href}});
+  try {
+    let scan;
+    for (let n=0;n<25;n++) {
+      await delay(1000);
+      try { scan = await chrome.tabs.sendMessage(tab.id,{type:'GET_COMPETITOR_SCAN_DATA'}); } catch {}
+      if (scan?.ok && scan.benefitReady && scan.detailUrl && scan.benefitUrl) break;
+    }
+    if (!scan?.ok || !Array.isArray(scan.rows) || !scan.rows.length) {
+      const detail = scan?.error || scan?.reason;
+      throw Error(`페이지 판매가 확인 불가${detail ? ` (${detail})` : ''} — 로그인·차단·삭제 여부 확인 필요`);
+    }
+    return scan.rows.map(r => ({
+      name: item.name, link: item.link, productName: scan.productName || '', label: r.label || '',
+      optionName1: r.optionName1 || '', optionName2: r.optionName2 || '', optionName3: r.optionName3 || '',
+      finalPrice: Number.isFinite(r.finalPrice) ? r.finalPrice : null, soldOut: !!r.soldOut, status: '수집',
+    }));
+  } finally { await chrome.tabs.remove(tab.id).catch(()=>{}); await chrome.storage.local.remove('priceCheckTab'); }
+}
+
 // One product per alarm; queue and fixed live snapshot survive popup/worker closure.
 async function readState(){return (await chrome.storage.local.get('priceTest')).priceTest;}
 async function arm(){await chrome.alarms.create(ALARM,{delayInMinutes:0.5});}
@@ -972,7 +998,7 @@ async function processNext(){
     if(!state || !state.running)return;
     const orphan=(await chrome.storage.local.get('priceCheckTab')).priceCheckTab;
     if(orphan){const old=await chrome.tabs.get(orphan.id).catch(()=>null);if(old?.url===orphan.url)await chrome.tabs.remove(orphan.id).catch(()=>{});await chrome.storage.local.remove('priceCheckTab');}
-    if(!['competitor','hkd','esm','11st','coupang'].includes(state.kind) && !state.listVisited){
+    if(!['competitor','compscan','hkd','esm','11st','coupang'].includes(state.kind) && !state.listVisited){
       state.listVisited=[];
       // 카테고리별 목록 URL을 지정해뒀으면(state.listUrl, pricing-check-test.js의
       // CATEGORY_LIST_URL) 전체상품(/category/ALL)에서 찾는 대신 그 URL부터 시작한다 —
@@ -998,15 +1024,16 @@ async function processNext(){
       if(state.running){await arm();setTimeout(processNext,NEXT_DELAY_MS);}else await chrome.alarms.clear(ALARM);
       return;
     }
-    state.phase = state.kind==='competitor' ? '경쟁사 상품 스캔' : state.kind==='esm' ? 'ESM 등록가 검사' : state.kind==='coupang' ? '쿠팡 옵션 검사' : state.kind==='11st' ? (state.mode==='supplement' ? '11번가 추가상품 검사' : '11번가 옵션 검사') : state.kind==='hkd' ? (state.channelId==='homepage'?'홈페이지 가격 검사':state.mode==='supplement' ? '한국단열 추가상품 검사' : '한국단열 옵션 검사') : (listEligible(state.items[state.done]||{})?'단품 목록 누락 확인':'옵션별 상세 검사');
+    state.phase = state.kind==='compscan' ? '경쟁사 가격 수집' : state.kind==='competitor' ? '경쟁사 상품 스캔' : state.kind==='esm' ? 'ESM 등록가 검사' : state.kind==='coupang' ? '쿠팡 옵션 검사' : state.kind==='11st' ? (state.mode==='supplement' ? '11번가 추가상품 검사' : '11번가 옵션 검사') : state.kind==='hkd' ? (state.channelId==='homepage'?'홈페이지 가격 검사':state.mode==='supplement' ? '한국단열 추가상품 검사' : '한국단열 옵션 검사') : (listEligible(state.items[state.done]||{})?'단품 목록 누락 확인':'옵션별 상세 검사');
     const item=state.items[state.done];
     if(!item){state.running=false;state.finishedAt=Date.now();await save(state);return;}
-    state.currentProduct = state.kind==='competitor' ? item.link : item.productId;await save(state);
+    state.currentProduct = ['competitor','compscan'].includes(state.kind) ? item.link : item.productId;await save(state);
     // Watchdog also recovers a worker interrupted during this product.
     await arm();
     let rows,failed=false;
     try{
-      if (state.kind==='competitor') rows=await inspectCompetitor(item.link,item.entries);
+      if (state.kind==='compscan') rows=await scanCompetitorRaw(item);
+      else if (state.kind==='competitor') rows=await inspectCompetitor(item.link,item.entries);
       else if (state.kind==='esm') rows=await inspectEsm(item);
       else if (state.kind==='coupang') rows=await inspectCoupang(item);
       else if (state.kind==='11st') rows=await inspect11st(item,state.supplements,state.mode);
@@ -1016,8 +1043,10 @@ async function processNext(){
       const errorMessage=error?.message||'상품 정보 수집 실패';
       // ESM의 판매중지·삭제 상품은 해당 행만 실패로 남기고 다음 상품을 계속 검사한다.
       // 로그인·봇 확인·차단 화면은 뒤 상품도 같은 원인으로 실패하므로 기존처럼 일시정지한다.
-      failed=!['esm','11st','coupang'].includes(state.kind)||/(?:사이트 확인 화면|봇|bot|차단|로그인)/i.test(errorMessage);
-      rows = state.kind==='competitor'
+      failed=!['esm','11st','coupang','compscan'].includes(state.kind)||/(?:사이트 확인 화면|봇|bot|차단|로그인)/i.test(errorMessage);
+      rows = state.kind==='compscan'
+        ? [{name:item.name,link:item.link,status:'수집 실패',errorMsg:errorMessage}]
+        : state.kind==='competitor'
         ? item.entries.map(e=>({...e,actual:null,diff:null,status:'수집 실패',errorMsg:errorMessage}))
         : [{productId:item.productId,productUrl:item.productUrl,store:state.kind==='coupang'?'coupang':item.marketplace||null,status:'수집 실패',label:errorMessage,source:state.kind==='esm'?(item.marketplace==='auction'?'옥션':'G마켓'):state.kind==='11st'?'11번가':state.kind==='coupang'?'쿠팡':'—',...(state.kind==='11st'?{store:'11st'}:{})}];
     }
@@ -1121,6 +1150,17 @@ chrome.runtime.onMessage.addListener((message,sender,respond)=>{
           if(!Array.isArray(it.entries)||!it.entries.length)throw Error('검사 데이터 오류');
         }
         state={runId:crypto.randomUUID(),kind:'competitor',running:true,startedAt:Date.now(),done:0,total:p.items.length,rows:[],items:p.items};
+        await save(state);await arm();processNext();return {ok:true};
+      }
+      if(p?.kind==='compscan'){
+        if(!Array.isArray(p.items) || !p.items.length)throw Error('수집할 경쟁사 링크가 없습니다.');
+        if(p.items.length>30)throw Error('한 번에 30개 링크까지만 수집할 수 있습니다.');
+        for(const it of p.items){
+          const u=new URL(String(it.link||''));
+          if(u.origin!=='https://smartstore.naver.com'||!/^\/[^/]+\/products\/\d+\/?$/.test(u.pathname))throw Error('허용되지 않은 경쟁사 상품 주소');
+          if(typeof it.name!=='string'||!it.name.trim())throw Error('경쟁사 이름 오류');
+        }
+        state={runId:crypto.randomUUID(),kind:'compscan',running:true,startedAt:Date.now(),done:0,total:p.items.length,rows:[],items:p.items.map(it=>({link:it.link,name:String(it.name).trim()}))};
         await save(state);await arm();processNext();return {ok:true};
       }
       if(p?.kind==='esm'){
