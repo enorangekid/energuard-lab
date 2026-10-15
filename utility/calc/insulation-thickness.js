@@ -167,7 +167,9 @@ function calculate() {
   }
 
   const thicknessExact = (kValue / uValue) * 1000;
-  const thicknessFinal = Math.ceil(thicknessExact / 5) * 5;
+  // 부동소수점 오차로 정확히 5의 배수인 값이 한 칸 위로 올림되는 걸 막는다
+  // (예: 비드법 2종 3호 0.033 ÷ 0.150 = 220.00000000000003 → 225로 표시되던 문제)
+  const thicknessFinal = Math.ceil(Math.round(thicknessExact * 1000) / 1000 / 5) * 5;
 
   const materialName = document.getElementById('materialBtn').querySelector('span').textContent.trim();
   const partName     = document.getElementById('partBtn').querySelector('span').textContent.trim();
