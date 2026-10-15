@@ -919,10 +919,21 @@ async function scanCompetitorRaw(item) {
       const detail = scan?.error || scan?.reason;
       throw Error(`페이지 판매가 확인 불가${detail ? ` (${detail})` : ''} — 로그인·차단·삭제 여부 확인 필요`);
     }
-    return scan.rows.map(r => ({
+    // 진단용(0.32.6): 최종가가 화면과 다를 때 원인을 보려고 '기준가 + 옵션 추가금'과 가격 후보를 같이 돌려준다.
+    // 최종가 = 기준가(할인 적용, product-benefits 첫 응답) + 옵션 추가금(optionCombinations[].price).
+    const info = scan.priceInfo || {};
+    return scan.rows.map((r, i) => ({
       name: item.name, link: item.link, productName: scan.productName || '', label: r.label || '',
       optionName1: r.optionName1 || '', optionName2: r.optionName2 || '', optionName3: r.optionName3 || '',
       finalPrice: Number.isFinite(r.finalPrice) ? r.finalPrice : null, soldOut: !!r.soldOut, status: '수집',
+      delta: Number.isFinite(r.delta) ? r.delta : null,
+      salePrice: Number.isFinite(r.salePrice) ? r.salePrice : null,
+      instantPrice: Number.isFinite(r.instantPrice) ? r.instantPrice : null,
+      basePay: Number.isFinite(info.benefitTotalPay) ? info.benefitTotalPay : null,
+      baseSale: Number.isFinite(info.salePrice) ? info.salePrice : null,
+      comboCount: scan.rows.length,
+      minQty: Number.isFinite(info.minQty) && info.minQty >= 1 ? info.minQty : 1,
+      ...(i === 0 ? { productPriceFields: info.productPriceFields || null, benefitSummary: info.benefitSummary || null, optionKeys: scan.optionKeys || null, quantityFields: info.quantityFields || null } : {}),
     }));
   } finally { await chrome.tabs.remove(tab.id).catch(()=>{}); await chrome.storage.local.remove('priceCheckTab'); }
 }

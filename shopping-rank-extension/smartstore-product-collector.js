@@ -182,10 +182,35 @@
     }
     return null;
   }
+  // 최소 구매수량(2026-10-15, 나라단열 10T: 최소 5개라 상품 대표가 25,000원 = 5개 금액, 1개는 5,000원). 필드 이름을 이 환경에서 못 봐서
+  // 후보를 순서대로 보고, 못 찾으면 '최소·구매·수량' 꼴 이름의 숫자 필드를 한 단계 아래까지 훑는다. 못 찾으면 1.
+  function minPurchaseQty() {
+    const d = productData || {};
+    const direct = [d.purchaseQuantityInfo?.minPurchaseQuantity, d.minPurchaseQuantity, d.purchaseQuantityInfo?.minQuantity, d.minOrderQuantity, d.minPurchaseQty, d.minQuantity];
+    for (const raw of direct) { const n = Number(raw); if (Number.isFinite(n) && n >= 1) return Math.floor(n); }
+    const scan = (obj) => {
+      for (const [k, v] of Object.entries(obj || {})) {
+        if (/min/i.test(k) && /(purchase|order|quantity|qty)/i.test(k)) { const n = Number(v); if (Number.isFinite(n) && n >= 1) return Math.floor(n); }
+      }
+      return null;
+    };
+    const top = scan(d);
+    if (top != null) return top;
+    for (const v of Object.values(d)) { if (v && typeof v === "object" && !Array.isArray(v)) { const n = scan(v); if (n != null) return n; } }
+    return 1;
+  }
+  // 수량·구매 관련 필드를 그대로 남겨 최소 구매수량을 어디서 읽었는지(또는 못 읽었는지) 진단할 수 있게 한다.
+  function quantityFields() {
+    const out = {};
+    const take = (obj, prefix) => { for (const [k, v] of Object.entries(obj || {})) { if (/quantity|qty|purchase/i.test(k) && (typeof v === "number" || typeof v === "string" || typeof v === "boolean")) out[prefix + k] = v; } };
+    take(productData, "");
+    for (const [k, v] of Object.entries(productData || {})) { if (v && typeof v === "object" && !Array.isArray(v)) take(v, k + "."); }
+    return out;
+  }
   // 가격 후보를 그대로 남겨서 검사 결과에서 어느 값을 썼는지 볼 수 있게 한다.
   function priceInfo() {
     const pick = (obj) => Object.fromEntries(Object.entries(obj || {}).filter(([k, v]) => /price|discount|sale|benefit/i.test(k) && (typeof v === "number" || typeof v === "string")));
-    return { salePrice: baseSalePrice(), instantBase: instantBasePrice(), benefitTotalPay: benefitPayAmount(), productPriceFields: pick(productData), benefitSummary: pick(benefitData?.optimalDiscount?.totalDiscountResult?.summary) };
+    return { salePrice: baseSalePrice(), instantBase: instantBasePrice(), benefitTotalPay: benefitPayAmount(), productPriceFields: pick(productData), benefitSummary: pick(benefitData?.optimalDiscount?.totalDiscountResult?.summary), minQty: minPurchaseQty(), quantityFields: quantityFields() };
   }
   // 옵션 관리코드 — 필드명이 응답마다 확실하지 않아 후보를 순서대로 본다.
   function optionCode(c) {
