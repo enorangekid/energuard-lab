@@ -12,9 +12,9 @@
     body,button,input,select,textarea,table,code,kbd,samp,pre { font-family:Pretendard,"Noto Sans KR","Malgun Gothic",system-ui,sans-serif; }
     body { margin:0; color:var(--ink); background:#eef1ef; font-size:15px; line-height:1.7; }
     a { color:var(--brand); text-underline-offset:3px; }
-    .toolbar { display:flex; justify-content:flex-end; gap:8px; width:min(960px,calc(100% - 32px)); margin:18px auto 10px; }
+    .toolbar { display:flex; justify-content:flex-end; gap:8px; width:min(1120px,calc(100% - 32px)); margin:18px auto 10px; }
     .toolbar a,.toolbar button { min-height:36px; padding:0 13px; border:1px solid #cbd2ce; border-radius:5px; color:#3d4843; background:#fff; font:inherit; font-size:13px; text-decoration:none; cursor:pointer; }
-    .document { width:min(960px,calc(100% - 32px)); margin:0 auto 48px; padding:54px 62px 64px; background:#fff; border:1px solid #dfe4e1; box-shadow:0 4px 20px rgba(31,47,41,.06); }
+    .document { width:min(1120px,calc(100% - 32px)); margin:0 auto 48px; padding:54px 58px 64px; background:#fff; border:1px solid #dfe4e1; box-shadow:0 4px 20px rgba(31,47,41,.06); }
     .document-head { padding-bottom:26px; border-bottom:2px solid #303936; }
     .document-head .category { margin:0 0 9px; color:var(--brand); font-size:13px; font-weight:700; letter-spacing:.05em; }
     .document-head h1 { margin:0; font-size:clamp(28px,4vw,40px); line-height:1.28; letter-spacing:-.03em; }
@@ -43,14 +43,20 @@
     .report strong { color:#203e35; }
     .report code { padding:0; color:inherit; background:none; font-size:inherit; }
     .report del,.report s { text-decoration:none; }
-    .table-wrap { width:100%; margin:16px 0 25px; overflow-x:auto; border:1px solid #cfd6d2; }
-    table { width:100%; min-width:620px; border-collapse:collapse; font-size:12.5px; line-height:1.5; }
-    table.wide-table { min-width:960px; }
+    .table-wrap { width:100%; margin:16px 0 25px; overflow-x:visible; border:1px solid #cfd6d2; }
+    table { width:100%; min-width:0; border-collapse:collapse; table-layout:auto; font-size:12.5px; line-height:1.5; }
+    table.wide-table { font-size:11.5px; line-height:1.42; }
+    table.wide-table th,table.wide-table td { padding:7px 6px; }
     th { color:#202825; background:#e8ecea; font-weight:700; text-align:left; }
-    th,td { padding:9px 10px; border-right:1px solid #d8dedb; border-bottom:1px solid #d8dedb; vertical-align:top; }
+    th,td { padding:9px 10px; border-right:1px solid #d8dedb; border-bottom:1px solid #d8dedb; vertical-align:top; overflow-wrap:anywhere; word-break:keep-all; }
     th:last-child,td:last-child { border-right:0; }
     tr:last-child td { border-bottom:0; }
     tbody tr:nth-child(even) { background:#fafbfa; }
+    th.own-head { color:#fff; background:#2f6756; border-color:#477d6d; }
+    td.own-cell { color:#183d32; background:#edf6f2; font-weight:700; box-shadow:inset 1px 0 #a9c9bd,inset -1px 0 #a9c9bd; }
+    tr.own-row > td { background:#edf6f2; font-weight:700; }
+    tr.own-row > td:first-child { color:#183d32; border-left:3px solid #2f6756; }
+    td.price-cell { white-space:nowrap; }
     .loading { padding:42px 0; color:var(--muted); text-align:center; }
     .note { margin:34px 0 0; padding-top:16px; color:var(--muted); font-size:12px; border-top:1px solid var(--line); }
     @media (max-width:700px) {
@@ -58,6 +64,11 @@
       .toolbar { width:calc(100% - 24px); margin:12px auto; }
       .meta { grid-template-columns:88px 1fr; }
       .toc nav { grid-template-columns:1fr; }
+      table { font-size:10px; line-height:1.35; }
+      table.wide-table { table-layout:fixed; font-size:9px; }
+      th,td,table.wide-table th,table.wide-table td { padding:5px 3px; }
+      table.wide-table th,table.wide-table td { word-break:break-all; }
+      td.price-cell { white-space:normal; }
     }
     @media print {
       body { background:#fff; font-size:10.5pt; }
@@ -105,9 +116,10 @@
   <script>
     const slugify=(value,index)=>`section-${index}-${value.replace(/[^가-힣a-zA-Z0-9]+/g,'-').replace(/^-|-$/g,'').toLowerCase()}`;
     function wrapTables(root){root.querySelectorAll('table').forEach((table)=>{if(table.rows[0]&&table.rows[0].cells.length>=7)table.classList.add('wide-table');if(table.parentElement.classList.contains('table-wrap'))return;const wrapper=document.createElement('div');wrapper.className='table-wrap';table.parentNode.insertBefore(wrapper,table);wrapper.appendChild(table);});}
+    function decorateTables(root){root.querySelectorAll('table').forEach((table)=>{const headerRow=table.rows[0];if(!headerRow)return;[...headerRow.cells].forEach((header,index)=>{if(/한국단열|빌트론|자사/.test(header.textContent)){header.classList.add('own-head');[...table.rows].slice(1).forEach((row)=>row.cells[index]?.classList.add('own-cell'));}});[...table.rows].slice(1).forEach((row)=>{const firstCell=row.cells[0]?.textContent.trim()||'';if(firstCell.startsWith('한국단열')||firstCell.startsWith('빌트론'))row.classList.add('own-row');[...row.cells].forEach((cell)=>{if(/^[+-]?[\d,]+(?:\.\d+)?(?:원|%)?$/.test(cell.textContent.trim())||cell.textContent.trim()==='—')cell.classList.add('price-cell');});});});}
     function buildToc(root){const toc=document.getElementById('toc');toc.innerHTML='';root.querySelectorAll('h2').forEach((heading,index)=>{heading.id=slugify(heading.textContent,index);const link=document.createElement('a');link.href=`#${heading.id}`;link.textContent=heading.textContent;toc.appendChild(link);});}
     function breakLongParagraphs(root){root.querySelectorAll('p').forEach((paragraph)=>{if(paragraph.textContent.trim().length<90)return;const walker=document.createTreeWalker(paragraph,NodeFilter.SHOW_TEXT);const nodes=[];while(walker.nextNode())nodes.push(walker.currentNode);nodes.forEach((node)=>{if(!/\.\s+/.test(node.nodeValue))return;const parts=node.nodeValue.split(/(\.\s+)/);const fragment=document.createDocumentFragment();for(let index=0;index<parts.length;index+=2){if(parts[index])fragment.appendChild(document.createTextNode(parts[index]));if(parts[index+1]){fragment.appendChild(document.createTextNode('.'));fragment.appendChild(document.createElement('br'));}}node.replaceWith(fragment);});});}
-    fetch('report.md').then((response)=>{if(!response.ok)throw new Error(`HTTP ${response.status}`);return response.text();}).then((markdown)=>{const report=document.getElementById('report');report.innerHTML=window.marked?marked.parse(markdown,{gfm:true}):`<pre>${markdown.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}</pre>`;wrapTables(report);breakLongParagraphs(report);buildToc(report);}).catch(()=>{document.getElementById('report').innerHTML='<p>보고서를 불러오지 못했습니다. 상단의 “원문 내려받기”를 이용해 주세요.</p>';document.getElementById('toc').textContent='목차를 불러오지 못했습니다.';});
+    fetch('report.md').then((response)=>{if(!response.ok)throw new Error(`HTTP ${response.status}`);return response.text();}).then((markdown)=>{const report=document.getElementById('report');report.innerHTML=window.marked?marked.parse(markdown,{gfm:true}):`<pre>${markdown.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}</pre>`;wrapTables(report);decorateTables(report);breakLongParagraphs(report);buildToc(report);}).catch(()=>{document.getElementById('report').innerHTML='<p>보고서를 불러오지 못했습니다. 상단의 “원문 내려받기”를 이용해 주세요.</p>';document.getElementById('toc').textContent='목차를 불러오지 못했습니다.';});
   </script>
 </body>
 </html>
