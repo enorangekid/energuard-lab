@@ -45,6 +45,7 @@
     .report del,.report s { text-decoration:none; }
     .table-wrap { width:100%; margin:16px 0 25px; overflow-x:auto; border:1px solid #cfd6d2; }
     table { width:100%; min-width:620px; border-collapse:collapse; font-size:12.5px; line-height:1.5; }
+    table.wide-table { min-width:960px; }
     th { color:#202825; background:#e8ecea; font-weight:700; text-align:left; }
     th,td { padding:9px 10px; border-right:1px solid #d8dedb; border-bottom:1px solid #d8dedb; vertical-align:top; }
     th:last-child,td:last-child { border-right:0; }
@@ -103,7 +104,7 @@
   </main>
   <script>
     const slugify=(value,index)=>`section-${index}-${value.replace(/[^가-힣a-zA-Z0-9]+/g,'-').replace(/^-|-$/g,'').toLowerCase()}`;
-    function wrapTables(root){root.querySelectorAll('table').forEach((table)=>{if(table.parentElement.classList.contains('table-wrap'))return;const wrapper=document.createElement('div');wrapper.className='table-wrap';table.parentNode.insertBefore(wrapper,table);wrapper.appendChild(table);});}
+    function wrapTables(root){root.querySelectorAll('table').forEach((table)=>{if(table.rows[0]&&table.rows[0].cells.length>=7)table.classList.add('wide-table');if(table.parentElement.classList.contains('table-wrap'))return;const wrapper=document.createElement('div');wrapper.className='table-wrap';table.parentNode.insertBefore(wrapper,table);wrapper.appendChild(table);});}
     function buildToc(root){const toc=document.getElementById('toc');toc.innerHTML='';root.querySelectorAll('h2').forEach((heading,index)=>{heading.id=slugify(heading.textContent,index);const link=document.createElement('a');link.href=`#${heading.id}`;link.textContent=heading.textContent;toc.appendChild(link);});}
     function breakLongParagraphs(root){root.querySelectorAll('p').forEach((paragraph)=>{if(paragraph.textContent.trim().length<90)return;const walker=document.createTreeWalker(paragraph,NodeFilter.SHOW_TEXT);const nodes=[];while(walker.nextNode())nodes.push(walker.currentNode);nodes.forEach((node)=>{if(!/\.\s+/.test(node.nodeValue))return;const parts=node.nodeValue.split(/(\.\s+)/);const fragment=document.createDocumentFragment();for(let index=0;index<parts.length;index+=2){if(parts[index])fragment.appendChild(document.createTextNode(parts[index]));if(parts[index+1]){fragment.appendChild(document.createTextNode('.'));fragment.appendChild(document.createElement('br'));}}node.replaceWith(fragment);});});}
     fetch('report.md').then((response)=>{if(!response.ok)throw new Error(`HTTP ${response.status}`);return response.text();}).then((markdown)=>{const report=document.getElementById('report');report.innerHTML=window.marked?marked.parse(markdown,{gfm:true}):`<pre>${markdown.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}</pre>`;wrapTables(report);breakLongParagraphs(report);buildToc(report);}).catch(()=>{document.getElementById('report').innerHTML='<p>보고서를 불러오지 못했습니다. 상단의 “원문 내려받기”를 이용해 주세요.</p>';document.getElementById('toc').textContent='목차를 불러오지 못했습니다.';});
