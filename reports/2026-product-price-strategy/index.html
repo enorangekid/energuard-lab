@@ -9,7 +9,8 @@
     :root { --ink:#202624; --muted:#66706c; --line:#d8dedb; --soft:#f4f6f5; --brand:#27594a; }
     * { box-sizing: border-box; }
     html { scroll-behavior: smooth; }
-    body { margin:0; color:var(--ink); background:#eef1ef; font-family:Pretendard,"Noto Sans KR","Malgun Gothic",system-ui,sans-serif; font-size:15px; line-height:1.7; }
+    body,button,input,select,textarea,table,code,kbd,samp,pre { font-family:Pretendard,"Noto Sans KR","Malgun Gothic",system-ui,sans-serif; }
+    body { margin:0; color:var(--ink); background:#eef1ef; font-size:15px; line-height:1.7; }
     a { color:var(--brand); text-underline-offset:3px; }
     .toolbar { display:flex; justify-content:flex-end; gap:8px; width:min(960px,calc(100% - 32px)); margin:18px auto 10px; }
     .toolbar a,.toolbar button { min-height:36px; padding:0 13px; border:1px solid #cbd2ce; border-radius:5px; color:#3d4843; background:#fff; font:inherit; font-size:13px; text-decoration:none; cursor:pointer; }
@@ -40,6 +41,8 @@
     .report p br { display:block; content:""; margin-top:3px; }
     .report ul,.report ol { padding-left:22px; }
     .report strong { color:#203e35; }
+    .report code { padding:0; color:inherit; background:none; font-size:inherit; }
+    .report del,.report s { text-decoration:none; }
     .table-wrap { width:100%; margin:16px 0 25px; overflow-x:auto; border:1px solid #cfd6d2; }
     table { width:100%; min-width:620px; border-collapse:collapse; font-size:12.5px; line-height:1.5; }
     th { color:#202825; background:#e8ecea; font-weight:700; text-align:left; }
@@ -79,7 +82,7 @@
       <dl class="meta">
         <dt>보고일</dt><dd>2026년 10월 16일</dd>
         <dt>작성 대상</dt><dd>에너가드컴퍼니 · 한국단열</dd>
-        <dt>조사 기간</dt><dd>2026년 10월 13~16일</dd>
+        <dt>조사 기간</dt><dd>2026년 10월 13–16일</dd>
         <dt>검토 제품</dt><dd>PE폼, 난방필름 단열재, 단열벽지, 열반사단열재</dd>
       </dl>
     </header>
