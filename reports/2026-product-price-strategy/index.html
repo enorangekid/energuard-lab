@@ -11,9 +11,9 @@
     html { scroll-behavior: smooth; }
     body { margin:0; color:var(--ink); background:#eef1ef; font-family:Pretendard,"Noto Sans KR","Malgun Gothic",system-ui,sans-serif; font-size:15px; line-height:1.7; }
     a { color:var(--brand); text-underline-offset:3px; }
-    .toolbar { display:flex; justify-content:flex-end; gap:8px; width:min(1040px,calc(100% - 32px)); margin:18px auto 10px; }
+    .toolbar { display:flex; justify-content:flex-end; gap:8px; width:min(960px,calc(100% - 32px)); margin:18px auto 10px; }
     .toolbar a,.toolbar button { min-height:36px; padding:0 13px; border:1px solid #cbd2ce; border-radius:5px; color:#3d4843; background:#fff; font:inherit; font-size:13px; text-decoration:none; cursor:pointer; }
-    .document { width:min(1040px,calc(100% - 32px)); margin:0 auto 48px; padding:54px 62px 64px; background:#fff; border:1px solid #dfe4e1; box-shadow:0 4px 20px rgba(31,47,41,.06); }
+    .document { width:min(960px,calc(100% - 32px)); margin:0 auto 48px; padding:54px 62px 64px; background:#fff; border:1px solid #dfe4e1; box-shadow:0 4px 20px rgba(31,47,41,.06); }
     .document-head { padding-bottom:26px; border-bottom:2px solid #303936; }
     .document-head .category { margin:0 0 9px; color:var(--brand); font-size:13px; font-weight:700; letter-spacing:.05em; }
     .document-head h1 { margin:0; font-size:clamp(28px,4vw,40px); line-height:1.28; letter-spacing:-.03em; }
@@ -36,7 +36,8 @@
     .report h2:first-of-type { margin-top:0; }
     .report h3 { margin:32px 0 12px; color:#2d5146; font-size:19px; }
     .report h4 { margin:24px 0 9px; font-size:16px; }
-    .report p { margin:9px 0 15px; }
+    .report p { margin:9px 0 17px; line-height:1.85; }
+    .report p br { display:block; content:""; margin-top:3px; }
     .report ul,.report ol { padding-left:22px; }
     .report strong { color:#203e35; }
     .table-wrap { width:100%; margin:16px 0 25px; overflow-x:auto; border:1px solid #cfd6d2; }
@@ -102,7 +103,8 @@
     const slugify=(value,index)=>`section-${index}-${value.replace(/[^가-힣a-zA-Z0-9]+/g,'-').replace(/^-|-$/g,'').toLowerCase()}`;
     function wrapTables(root){root.querySelectorAll('table').forEach((table)=>{if(table.parentElement.classList.contains('table-wrap'))return;const wrapper=document.createElement('div');wrapper.className='table-wrap';table.parentNode.insertBefore(wrapper,table);wrapper.appendChild(table);});}
     function buildToc(root){const toc=document.getElementById('toc');toc.innerHTML='';root.querySelectorAll('h2').forEach((heading,index)=>{heading.id=slugify(heading.textContent,index);const link=document.createElement('a');link.href=`#${heading.id}`;link.textContent=heading.textContent;toc.appendChild(link);});}
-    fetch('report.md').then((response)=>{if(!response.ok)throw new Error(`HTTP ${response.status}`);return response.text();}).then((markdown)=>{const report=document.getElementById('report');report.innerHTML=window.marked?marked.parse(markdown,{gfm:true}):`<pre>${markdown.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}</pre>`;wrapTables(report);buildToc(report);}).catch(()=>{document.getElementById('report').innerHTML='<p>보고서를 불러오지 못했습니다. 상단의 “원문 내려받기”를 이용해 주세요.</p>';document.getElementById('toc').textContent='목차를 불러오지 못했습니다.';});
+    function breakLongParagraphs(root){root.querySelectorAll('p').forEach((paragraph)=>{if(paragraph.textContent.trim().length<90)return;const walker=document.createTreeWalker(paragraph,NodeFilter.SHOW_TEXT);const nodes=[];while(walker.nextNode())nodes.push(walker.currentNode);nodes.forEach((node)=>{if(!/\.\s+/.test(node.nodeValue))return;const parts=node.nodeValue.split(/(\.\s+)/);const fragment=document.createDocumentFragment();for(let index=0;index<parts.length;index+=2){if(parts[index])fragment.appendChild(document.createTextNode(parts[index]));if(parts[index+1]){fragment.appendChild(document.createTextNode('.'));fragment.appendChild(document.createElement('br'));}}node.replaceWith(fragment);});});}
+    fetch('report.md').then((response)=>{if(!response.ok)throw new Error(`HTTP ${response.status}`);return response.text();}).then((markdown)=>{const report=document.getElementById('report');report.innerHTML=window.marked?marked.parse(markdown,{gfm:true}):`<pre>${markdown.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}</pre>`;wrapTables(report);breakLongParagraphs(report);buildToc(report);}).catch(()=>{document.getElementById('report').innerHTML='<p>보고서를 불러오지 못했습니다. 상단의 “원문 내려받기”를 이용해 주세요.</p>';document.getElementById('toc').textContent='목차를 불러오지 못했습니다.';});
   </script>
 </body>
 </html>
