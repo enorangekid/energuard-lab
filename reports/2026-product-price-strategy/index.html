@@ -17,6 +17,16 @@
     .toolbar button.primary { color:#fff; background:var(--brand); border-color:var(--brand); font-weight:700; }
     .toolbar .edit-state { align-self:center; margin-right:auto; color:var(--muted); font-size:12.5px; }
     .toolbar [hidden] { display:none !important; }
+    /* 의견 상자: 내 의견(파란색) / 검토 의견(보라색) — 본문(분석)과 구분 */
+    .report blockquote.op { margin:18px 0; padding:14px 18px 12px; border:1px solid; border-left-width:5px; border-radius:0 6px 6px 0; }
+    .report blockquote.op > p:first-child { margin:0 0 8px; font-size:12.5px; font-weight:800; letter-spacing:.04em; }
+    .report blockquote.op > :last-child { margin-bottom:0; }
+    .report blockquote.op ul,.report blockquote.op ol { margin:6px 0; padding-left:22px; }
+    .report blockquote.op li + li { margin-top:5px; }
+    .report blockquote.op-mine { background:#f1f6fb; border-color:#b9d0e6; border-left-color:#2f6f9f; }
+    .report blockquote.op-mine > p:first-child { color:#2f6f9f; }
+    .report blockquote.op-claude { background:#f6f2fa; border-color:#d5c6e3; border-left-color:#7b57a0; }
+    .report blockquote.op-claude > p:first-child { color:#7b57a0; }
     .editor { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
     .editor textarea { width:100%; min-height:70vh; padding:14px; border:1px solid #b9c3be; border-radius:4px; color:var(--ink); background:#fbfcfb; font-family:Consolas,"Malgun Gothic",monospace; font-size:13.5px; line-height:1.6; resize:vertical; tab-size:2; }
     .editor textarea:focus { outline:2px solid var(--brand); outline-offset:-1px; }
@@ -209,12 +219,13 @@
     const store={get(k){try{return localStorage.getItem(k);}catch(e){return null;}},set(k,v){try{localStorage.setItem(k,v);return true;}catch(e){return false;}},del(k){try{localStorage.removeItem(k);}catch(e){}}};
     const $=(id)=>document.getElementById(id);
     const escapeHtml=(t)=>t.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+    function decorateOpinions(root){root.querySelectorAll('blockquote').forEach((q)=>{const label=q.firstElementChild?.textContent.trim();if(label==='내 의견'){q.classList.add('op','op-mine');}else if(label==='검토 의견'||label==='Claude 의견'){q.classList.add('op','op-claude');}});}
     const mdToHtml=(markdown)=>window.marked?marked.parse(markdown,{gfm:true}):`<pre>${escapeHtml(markdown)}</pre>`;
     let currentMd='',originalMd='',editing=false;
     function renderReport(markdown){
       const report=$('report');
       report.innerHTML=mdToHtml(markdown);
-      wrapTables(report);decorateTables(report);breakLongParagraphs(report);buildToc(report);buildFloatToc(report);
+      wrapTables(report);decorateTables(report);decorateOpinions(report);breakLongParagraphs(report);buildToc(report);buildFloatToc(report);
     }
     function refreshState(){
       const edited=store.get(KEY_MD)!==null||store.get(KEY_HEAD)!==null||store.get(KEY_SUM)!==null;
@@ -232,7 +243,7 @@
       report.innerHTML=`<p class="editor-help">본문은 마크다운으로 편집합니다. 오른쪽 미리보기에 바로 반영되고, [저장]을 눌러야 이 브라우저에 보관됩니다. 표는 <code>| 칸 | 칸 |</code> 형식, 제목은 <code>## 제목</code>·<code>### 소제목</code> 형식입니다.</p><div class="editor"><textarea id="mdInput" spellcheck="false"></textarea><div class="preview" id="mdPreview"></div></div>`;
       const input=$('mdInput'),preview=$('mdPreview');
       input.value=currentMd;
-      const draw=()=>{preview.innerHTML=mdToHtml(input.value);wrapTables(preview);decorateTables(preview);};
+      const draw=()=>{preview.innerHTML=mdToHtml(input.value);wrapTables(preview);decorateTables(preview);decorateOpinions(preview);};
       input.addEventListener('input',draw);
       input.addEventListener('keydown',(e)=>{if(e.key==='Tab'){e.preventDefault();input.setRangeText('  ',input.selectionStart,input.selectionEnd,'end');draw();}});
       draw();refreshState();input.focus();
