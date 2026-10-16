@@ -79,6 +79,7 @@
     tr.own-row > td { background:#edf6f2; font-weight:700; }
     tr.own-row > td:first-child { color:#183d32; border-left:3px solid #2f6756; }
     td.price-cell { white-space:nowrap; }
+    tr.grp-start > td { border-top:2px solid #9fb0a8; }
     .loading { padding:42px 0; color:var(--muted); text-align:center; }
     .note { margin:34px 0 0; padding-top:16px; color:var(--muted); font-size:12px; border-top:1px solid var(--line); }
     /* 떠다니는 목차(왼쪽) — 넓은 화면에서는 문서 왼쪽에 고정, 좁은 화면에서는 왼쪽 아래 [목차] 단추로 연다 */
@@ -170,7 +171,7 @@
   <script>
     const slugify=(value,index)=>`section-${index}-${value.replace(/[^가-힣a-zA-Z0-9]+/g,'-').replace(/^-|-$/g,'').toLowerCase()}`;
     function wrapTables(root){root.querySelectorAll('table').forEach((table)=>{if(table.rows[0]&&table.rows[0].cells.length>=7)table.classList.add('wide-table');if(table.parentElement.classList.contains('table-wrap'))return;const wrapper=document.createElement('div');wrapper.className='table-wrap';table.parentNode.insertBefore(wrapper,table);wrapper.appendChild(table);});}
-    function decorateTables(root){root.querySelectorAll('table').forEach((table)=>{const headerRow=table.rows[0];if(!headerRow)return;[...headerRow.cells].forEach((header,index)=>{if(/한국단열|빌트론|자사/.test(header.textContent)){header.classList.add('own-head');[...table.rows].slice(1).forEach((row)=>row.cells[index]?.classList.add('own-cell'));}});[...table.rows].slice(1).forEach((row)=>{const firstCell=row.cells[0]?.textContent.trim()||'';if(firstCell.startsWith('한국단열')||firstCell.startsWith('빌트론'))row.classList.add('own-row');[...row.cells].forEach((cell)=>{if(/^[+-]?[\d,]+(?:\.\d+)?(?:원|%)?$/.test(cell.textContent.trim())||cell.textContent.trim()==='—')cell.classList.add('price-cell');});});});}
+    function decorateTables(root){root.querySelectorAll('table').forEach((table)=>{const headerRow=table.rows[0];if(!headerRow)return;[...headerRow.cells].forEach((header,index)=>{if(/한국단열|빌트론|자사/.test(header.textContent)){header.classList.add('own-head');[...table.rows].slice(1).forEach((row)=>row.cells[index]?.classList.add('own-cell'));}});[...table.rows].slice(1).forEach((row)=>{const firstCell=row.cells[0]?.textContent.trim()||'';const secondCell=row.cells[1]?.textContent.trim()||'';if(firstCell.startsWith('한국단열')||firstCell.startsWith('빌트론')||(headerRow.cells[1]?.textContent.trim()==='판매처'&&secondCell.startsWith('한국단열')))row.classList.add('own-row');if(headerRow.cells[1]?.textContent.trim()==='판매처'&&firstCell)row.classList.add('grp-start');[...row.cells].forEach((cell)=>{if(/^[+-]?[\d,]+(?:\.\d+)?(?:원|%)?$/.test(cell.textContent.trim())||cell.textContent.trim()==='—')cell.classList.add('price-cell');});});});}
     function buildToc(root){const toc=document.getElementById('toc');toc.innerHTML='';root.querySelectorAll('h2').forEach((heading,index)=>{heading.id=slugify(heading.textContent,index);const link=document.createElement('a');link.href=`#${heading.id}`;link.textContent=heading.textContent;toc.appendChild(link);});}
     let floatTocCleanup=null;
     function buildFloatToc(root){
