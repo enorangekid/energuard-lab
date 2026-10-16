@@ -14,6 +14,18 @@
     a { color:var(--brand); text-underline-offset:3px; }
     .toolbar { display:flex; justify-content:flex-end; gap:8px; width:min(1120px,calc(100% - 32px)); margin:18px auto 10px; }
     .toolbar a,.toolbar button { min-height:36px; padding:0 13px; border:1px solid #cbd2ce; border-radius:5px; color:#3d4843; background:#fff; font:inherit; font-size:13px; text-decoration:none; cursor:pointer; }
+    .toolbar button.primary { color:#fff; background:var(--brand); border-color:var(--brand); font-weight:700; }
+    .toolbar .edit-state { align-self:center; margin-right:auto; color:var(--muted); font-size:12.5px; }
+    .toolbar [hidden] { display:none !important; }
+    .editor { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+    .editor textarea { width:100%; min-height:70vh; padding:14px; border:1px solid #b9c3be; border-radius:4px; color:var(--ink); background:#fbfcfb; font-family:Consolas,"Malgun Gothic",monospace; font-size:13.5px; line-height:1.6; resize:vertical; tab-size:2; }
+    .editor textarea:focus { outline:2px solid var(--brand); outline-offset:-1px; }
+    .editor .preview { min-width:0; max-height:80vh; overflow:auto; padding:0 14px 14px; border:1px dashed var(--line); border-radius:4px; }
+    .editor-help { margin:0 0 10px; padding:9px 12px; color:#4d5954; background:var(--soft); border-left:3px solid var(--brand); font-size:12.5px; line-height:1.55; }
+    body.editing .float-toc,body.editing .float-toc-open,body.editing .toc { display:none !important; }
+    body.editing [data-editable] { outline:1px dashed #9db3aa; outline-offset:3px; }
+    body.editing [data-editable]:focus { outline:2px solid var(--brand); }
+    @media (max-width:900px) { .editor { grid-template-columns:1fr; } .editor textarea { min-height:50vh; } }
     .document { width:min(1120px,calc(100% - 32px)); margin:0 auto 48px; padding:54px 58px 64px; background:#fff; border:1px solid #dfe4e1; box-shadow:0 4px 20px rgba(31,47,41,.06); }
     .document-head { padding-bottom:26px; border-bottom:2px solid #303936; }
     .document-head .category { margin:0 0 9px; color:var(--brand); font-size:13px; font-weight:700; letter-spacing:.05em; }
@@ -59,6 +71,28 @@
     td.price-cell { white-space:nowrap; }
     .loading { padding:42px 0; color:var(--muted); text-align:center; }
     .note { margin:34px 0 0; padding-top:16px; color:var(--muted); font-size:12px; border-top:1px solid var(--line); }
+    /* 떠다니는 목차(왼쪽) — 넓은 화면에서는 문서 왼쪽에 고정, 좁은 화면에서는 왼쪽 아래 [목차] 단추로 연다 */
+    .report h2,.report h3 { scroll-margin-top:18px; }
+    .float-toc { position:fixed; top:64px; left:max(16px,calc((100% - 1120px) / 2 - 252px)); z-index:30; width:236px; max-height:calc(100vh - 80px); display:flex; flex-direction:column; background:#fff; border:1px solid #cfd6d2; border-radius:0; box-shadow:none; font-size:13px; }
+    .float-toc-title { display:flex; justify-content:space-between; align-items:center; padding:11px 14px; color:#25302c; font-weight:700; border-bottom:1px solid var(--line); }
+    .float-toc-title button { display:none; border:0; background:none; font-size:20px; line-height:1; color:#66706c; cursor:pointer; }
+    .float-toc nav { overflow-y:auto; padding:6px 6px 10px; }
+    .float-toc nav a { display:block; padding:5px 10px; color:#46514c; text-decoration:none; border-left:3px solid transparent; line-height:1.4; }
+    .float-toc nav a:hover { background:#f1f5f3; }
+    .float-toc nav a.h2 { margin-top:2px; font-weight:600; }
+    .float-toc nav a.h3 { display:none; padding-left:24px; font-size:12px; color:#66706c; }
+    .float-toc nav a.h3.open { display:block; }
+    .float-toc nav a.active { color:var(--brand); background:#eaf3ef; border-left-color:var(--brand); font-weight:700; }
+    .float-toc-open { display:none; position:fixed; left:14px; bottom:18px; z-index:31; min-height:40px; padding:0 16px; border:0; border-radius:0; color:#fff; background:var(--brand); font:inherit; font-size:14px; font-weight:700; box-shadow:0 2px 8px rgba(31,47,41,.25); cursor:pointer; }
+    @media (min-width:1180px) {
+      .document,.toolbar { margin-left:max(268px,calc((100% - 1120px) / 2)); margin-right:auto; width:min(1120px,calc(100% - 300px)); }
+    }
+    @media (max-width:1179px) {
+      .float-toc { display:none; top:auto; bottom:68px; left:12px; width:min(300px,calc(100% - 24px)); max-height:62vh; box-shadow:0 4px 14px rgba(31,47,41,.18); }
+      .float-toc.open { display:flex; }
+      .float-toc-title button { display:block; }
+      .float-toc-open { display:block; }
+    }
     @media (max-width:700px) {
       .document { width:100%; margin:0; padding:34px 20px 46px; border:0; box-shadow:none; }
       .toolbar { width:calc(100% - 24px); margin:12px auto; }
@@ -72,7 +106,8 @@
     }
     @media print {
       body { background:#fff; font-size:10.5pt; }
-      .toolbar { display:none; }
+      .toolbar,.float-toc,.float-toc-open { display:none !important; }
+      body.editing [data-editable] { outline:0; }
       .document { width:100%; margin:0; padding:0; border:0; box-shadow:none; }
       .document-head h1 { font-size:27pt; }
       .summary,.toc,.table-wrap { break-inside:avoid; }
@@ -84,25 +119,34 @@
 </head>
 <body>
   <div class="toolbar" aria-label="문서 기능">
-    <a href="report.md" download>원문 내려받기</a>
-    <button type="button" onclick="window.print()">인쇄·PDF 저장</button>
+    <span class="edit-state" id="editState" hidden></span>
+    <button type="button" id="editResetBtn" hidden>원본으로 되돌리기</button>
+    <button type="button" id="editCancelBtn" hidden>취소</button>
+    <button type="button" id="editSaveBtn" class="primary" hidden>저장</button>
+    <button type="button" id="editBtn">편집</button>
   </div>
+  <aside class="float-toc" id="floatToc" aria-label="목차">
+    <div class="float-toc-title"><span>목차</span><button type="button" id="floatTocClose" aria-label="목차 닫기">×</button></div>
+    <nav id="floatTocNav"></nav>
+  </aside>
+  <button type="button" class="float-toc-open" id="floatTocOpen">목차</button>
   <main class="document">
-    <header class="document-head">
+    <header class="document-head" id="docHead" data-editable>
       <p class="category">가격 경쟁력 분석 및 판매 전략 보고서</p>
       <h1>2026 자체 생산 제품<br>가격 경쟁력 분석</h1>
       <dl class="meta">
         <dt>보고일</dt><dd>2026년 10월 16일</dd>
         <dt>작성 대상</dt><dd>에너가드컴퍼니 · 한국단열</dd>
-        <dt>검토 제품</dt><dd>PE폼, 난방필름 단열재, 단열벽지, 열반사단열재</dd>
+        <dt>검토 제품</dt><dd>PE폼, 난방필름 단열재, 단열벽지, 열반사단열재, 아이소핑크, 스티로폼·네오폴</dd>
       </dl>
     </header>
-    <section class="summary" aria-labelledby="summary-title">
+    <section class="summary" id="docSummary" data-editable aria-labelledby="summary-title">
       <h2 id="summary-title">핵심 검토 사항</h2>
       <ul>
         <li><strong>난방필름 50m</strong>: 경쟁사 최저가 대비 26,000원 높아 우선 조정 검토가 필요함.</li>
         <li><strong>단열벽지</strong>: 10m·20m 상위 옵션의 가격 부담이 크므로 단계적 조정이 필요함.</li>
         <li><strong>빌트론 열반사단열재</strong>: 장척 및 접착형을 중심으로 상품가와 배송비 구조를 함께 재검토해야 함.</li>
+        <li><strong>아이소핑크·스티로폼·네오폴</strong>: 900×1800 무료배송 묶음은 대부분 경쟁 우위이며, 600×900의 일부 두께만 선별 점검하면 됨.</li>
         <li><strong>PE폼</strong>: 규격형 제품을 우선 출시하고 수요 확인 후 맞춤 재단 판매로 확대하는 방안이 적절함.</li>
       </ul>
     </section>
@@ -118,8 +162,107 @@
     function wrapTables(root){root.querySelectorAll('table').forEach((table)=>{if(table.rows[0]&&table.rows[0].cells.length>=7)table.classList.add('wide-table');if(table.parentElement.classList.contains('table-wrap'))return;const wrapper=document.createElement('div');wrapper.className='table-wrap';table.parentNode.insertBefore(wrapper,table);wrapper.appendChild(table);});}
     function decorateTables(root){root.querySelectorAll('table').forEach((table)=>{const headerRow=table.rows[0];if(!headerRow)return;[...headerRow.cells].forEach((header,index)=>{if(/한국단열|빌트론|자사/.test(header.textContent)){header.classList.add('own-head');[...table.rows].slice(1).forEach((row)=>row.cells[index]?.classList.add('own-cell'));}});[...table.rows].slice(1).forEach((row)=>{const firstCell=row.cells[0]?.textContent.trim()||'';if(firstCell.startsWith('한국단열')||firstCell.startsWith('빌트론'))row.classList.add('own-row');[...row.cells].forEach((cell)=>{if(/^[+-]?[\d,]+(?:\.\d+)?(?:원|%)?$/.test(cell.textContent.trim())||cell.textContent.trim()==='—')cell.classList.add('price-cell');});});});}
     function buildToc(root){const toc=document.getElementById('toc');toc.innerHTML='';root.querySelectorAll('h2').forEach((heading,index)=>{heading.id=slugify(heading.textContent,index);const link=document.createElement('a');link.href=`#${heading.id}`;link.textContent=heading.textContent;toc.appendChild(link);});}
+    let floatTocCleanup=null;
+    function buildFloatToc(root){
+      if(floatTocCleanup)floatTocCleanup();
+      const nav=document.getElementById('floatTocNav');nav.innerHTML='';
+      const items=[];let h2Index=-1;
+      root.querySelectorAll('h2,h3').forEach((heading,index)=>{
+        if(!heading.id)heading.id=slugify(heading.textContent,`f${index}`);
+        const level=heading.tagName==='H2'?'h2':'h3';
+        if(level==='h2')h2Index+=1;
+        const link=document.createElement('a');link.href=`#${heading.id}`;link.className=level;link.textContent=heading.textContent;link.dataset.group=String(h2Index);
+        link.addEventListener('click',(event)=>{event.preventDefault();heading.scrollIntoView({behavior:'smooth',block:'start'});history.replaceState(null,'',`#${heading.id}`);if(window.innerWidth<1180)closeFloatToc();});
+        nav.appendChild(link);items.push({heading,link,level,group:h2Index});
+      });
+      const tocBox=document.getElementById('floatToc');
+      const alignToc=()=>{
+        if(window.innerWidth<1180){tocBox.style.top='';tocBox.style.maxHeight='';return;}
+        const docTop=document.querySelector('.document').getBoundingClientRect().top;   // 본문 윗선(스크롤하면 위로 올라간다)
+        const top=Math.max(16,docTop);
+        tocBox.style.top=top+'px';tocBox.style.maxHeight=`calc(100vh - ${top+16}px)`;
+      };
+      let ticking=false;
+      const update=()=>{
+        ticking=false;
+        alignToc();
+        let current=items[0];
+        items.forEach((item)=>{if(item.heading.getBoundingClientRect().top<=120)current=item;});
+        items.forEach((item)=>{
+          item.link.classList.toggle('active',item===current);
+          item.link.classList.toggle('open',item.level==='h3'&&current&&item.group===current.group);
+        });
+        const active=nav.querySelector('a.active');
+        if(active){const box=nav.getBoundingClientRect(),el=active.getBoundingClientRect();if(el.top<box.top||el.bottom>box.bottom)nav.scrollTop+=el.top-box.top-box.height/3;}
+      };
+      const onScroll=()=>{alignToc();if(!ticking){ticking=true;requestAnimationFrame(update);}};
+      window.addEventListener('scroll',onScroll,{passive:true});
+      window.addEventListener('resize',update);
+      floatTocCleanup=()=>{window.removeEventListener('scroll',onScroll);window.removeEventListener('resize',update);};
+      update();
+    }
+    function closeFloatToc(){document.getElementById('floatToc').classList.remove('open');}
+    document.getElementById('floatTocOpen').addEventListener('click',()=>document.getElementById('floatToc').classList.toggle('open'));
+    document.getElementById('floatTocClose').addEventListener('click',closeFloatToc);
     function breakLongParagraphs(root){root.querySelectorAll('p').forEach((paragraph)=>{if(paragraph.textContent.trim().length<90)return;const walker=document.createTreeWalker(paragraph,NodeFilter.SHOW_TEXT);const nodes=[];while(walker.nextNode())nodes.push(walker.currentNode);nodes.forEach((node)=>{if(!/\.\s+/.test(node.nodeValue))return;const parts=node.nodeValue.split(/(\.\s+)/);const fragment=document.createDocumentFragment();for(let index=0;index<parts.length;index+=2){if(parts[index])fragment.appendChild(document.createTextNode(parts[index]));if(parts[index+1]){fragment.appendChild(document.createTextNode('.'));fragment.appendChild(document.createElement('br'));}}node.replaceWith(fragment);});});}
-    fetch('report.md').then((response)=>{if(!response.ok)throw new Error(`HTTP ${response.status}`);return response.text();}).then((markdown)=>{const report=document.getElementById('report');report.innerHTML=window.marked?marked.parse(markdown,{gfm:true}):`<pre>${markdown.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}</pre>`;wrapTables(report);decorateTables(report);breakLongParagraphs(report);buildToc(report);}).catch(()=>{document.getElementById('report').innerHTML='<p>보고서를 불러오지 못했습니다. 상단의 “원문 내려받기”를 이용해 주세요.</p>';document.getElementById('toc').textContent='목차를 불러오지 못했습니다.';});
+    const KEY_MD='pps2026-report-md',KEY_HEAD='pps2026-head-html',KEY_SUM='pps2026-summary-html';
+    const store={get(k){try{return localStorage.getItem(k);}catch(e){return null;}},set(k,v){try{localStorage.setItem(k,v);return true;}catch(e){return false;}},del(k){try{localStorage.removeItem(k);}catch(e){}}};
+    const $=(id)=>document.getElementById(id);
+    const escapeHtml=(t)=>t.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+    const mdToHtml=(markdown)=>window.marked?marked.parse(markdown,{gfm:true}):`<pre>${escapeHtml(markdown)}</pre>`;
+    let currentMd='',originalMd='',editing=false;
+    function renderReport(markdown){
+      const report=$('report');
+      report.innerHTML=mdToHtml(markdown);
+      wrapTables(report);decorateTables(report);breakLongParagraphs(report);buildToc(report);buildFloatToc(report);
+    }
+    function refreshState(){
+      const edited=store.get(KEY_MD)!==null||store.get(KEY_HEAD)!==null||store.get(KEY_SUM)!==null;
+      const state=$('editState');
+      state.hidden=editing?false:!edited;
+      state.textContent=editing?'편집 중 — 상단 제목·핵심 검토 사항(점선 칸)도 바로 고칠 수 있습니다.':'수정본을 보고 있습니다 (이 브라우저에만 저장됨)';
+      $('editBtn').hidden=editing;
+      $('editSaveBtn').hidden=!editing;$('editCancelBtn').hidden=!editing;
+      $('editResetBtn').hidden=!edited;
+    }
+    function startEdit(){
+      editing=true;document.body.classList.add('editing');
+      document.querySelectorAll('[data-editable]').forEach((el)=>{el.contentEditable='true';});
+      const report=$('report');
+      report.innerHTML=`<p class="editor-help">본문은 마크다운으로 편집합니다. 오른쪽 미리보기에 바로 반영되고, [저장]을 눌러야 이 브라우저에 보관됩니다. 표는 <code>| 칸 | 칸 |</code> 형식, 제목은 <code>## 제목</code>·<code>### 소제목</code> 형식입니다.</p><div class="editor"><textarea id="mdInput" spellcheck="false"></textarea><div class="preview" id="mdPreview"></div></div>`;
+      const input=$('mdInput'),preview=$('mdPreview');
+      input.value=currentMd;
+      const draw=()=>{preview.innerHTML=mdToHtml(input.value);wrapTables(preview);decorateTables(preview);};
+      input.addEventListener('input',draw);
+      input.addEventListener('keydown',(e)=>{if(e.key==='Tab'){e.preventDefault();input.setRangeText('  ',input.selectionStart,input.selectionEnd,'end');draw();}});
+      draw();refreshState();input.focus();
+    }
+    function endEdit(){
+      editing=false;document.body.classList.remove('editing');
+      document.querySelectorAll('[data-editable]').forEach((el)=>{el.removeAttribute('contenteditable');});
+      renderReport(currentMd);refreshState();
+    }
+    $('editBtn').addEventListener('click',startEdit);
+    $('editSaveBtn').addEventListener('click',()=>{
+      currentMd=$('mdInput').value;
+      const ok=[store.set(KEY_MD,currentMd),store.set(KEY_HEAD,$('docHead').innerHTML),store.set(KEY_SUM,$('docSummary').innerHTML)].every(Boolean);
+      if(!ok)alert('이 브라우저에서 저장 공간을 쓸 수 없어 보관하지 못했습니다. 화면에는 반영됩니다.');
+      endEdit();
+    });
+    $('editCancelBtn').addEventListener('click',()=>{
+      if(!confirm('편집한 내용을 버리고 닫을까요?'))return;
+      const head=store.get(KEY_HEAD),sum=store.get(KEY_SUM);
+      if(head!==null)$('docHead').innerHTML=head;if(sum!==null)$('docSummary').innerHTML=sum;
+      if(head===null||sum===null)location.reload();   // 저장본이 없으면 처음 문구로 되돌린다
+      else endEdit();
+    });
+    $('editResetBtn').addEventListener('click',()=>{
+      if(!confirm('이 브라우저에 저장된 수정 내용을 지우고 처음 보고서로 되돌릴까요?'))return;
+      store.del(KEY_MD);store.del(KEY_HEAD);store.del(KEY_SUM);location.reload();
+    });
+    window.addEventListener('beforeunload',(e)=>{if(editing){e.preventDefault();e.returnValue='';}});
+    {const head=store.get(KEY_HEAD),sum=store.get(KEY_SUM);if(head!==null)$('docHead').innerHTML=head;if(sum!==null)$('docSummary').innerHTML=sum;}
+    fetch('report.md').then((response)=>{if(!response.ok)throw new Error(`HTTP ${response.status}`);return response.text();}).then((markdown)=>{originalMd=markdown;const saved=store.get(KEY_MD);currentMd=saved!==null?saved:markdown;renderReport(currentMd);refreshState();}).catch(()=>{$('report').innerHTML='<p>보고서를 불러오지 못했습니다. 잠시 후 다시 열어 주세요.</p>';$('toc').textContent='목차를 불러오지 못했습니다.';});
   </script>
 </body>
 </html>
