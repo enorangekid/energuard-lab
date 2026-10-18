@@ -2015,6 +2015,12 @@ async function saveSearchSnapshot(config, keywordMeta, products, runId, context)
   }));
   previousKeywordProducts.forEach((previous, code) => {
     if (targetByCode.has(code)) return;
+    // 위 폴백(naver_product_id를 임시 코드로 저장)으로 한 번 생긴 "유령 코드"는 어제 이력에 남아 있어서,
+    // 진짜 코드가 정상으로 잡히는 날에도 매일 순위 없음(이탈) 행이 이월 저장돼 한 상품이 둘로 쪼개졌다
+    // (2026-10-19, 동인→세경 상품명 변경 건으로 발견). 이 코드가 이미 진짜 코드로 매핑되는
+    // naver_product_id이면 같은 상품이므로 이월하지 않는다.
+    const realCodeOfId = context.naverIdToCode?.get(code);
+    if (realCodeOfId && realCodeOfId !== code) return;
     const allowedPrev = PRODUCT_KEYWORD_WHITELIST[code];
     if (allowedPrev && !allowedPrev.includes(keywordMeta.keyword)) return;
     targetPayload.push({
