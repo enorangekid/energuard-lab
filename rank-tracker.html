@@ -2860,6 +2860,26 @@ async function fetchJsonPaged(path, { pageSize = 1000, maxRows = 100000 } = {}) 
   return rows;
 }
 
+// 아이템 추적 카드의 키워드 옆 월간 검색량 — 키워드 랭킹 카드와 같은 값이다(키워드 수집 때 서버가
+// keyword_search_volume_monthly에 월별로 저장). 아이템 추적 이력(tracked_item_history)에는 검색량
+// 컬럼이 없어서 비어 있던 칸을 이 테이블의 가장 최근 월 값으로 채운다.
+let trackedKeywordVolumes = new Map();
+async function loadTrackedKeywordVolumes() {
+  trackedKeywordVolumes = new Map();
+  try {
+    const keywords = [...new Set(trackedItems.flatMap(itemKeywords))];
+    if (!keywords.length) return;
+    const list = keywords.map(k => `"${String(k).replace(/"/g, "")}"`).join(",");
+    const rows = await fetchJsonPaged(
+      `/rest/v1/keyword_search_volume_monthly?select=keyword,snapshot_month,total&keyword=in.(${encodeURIComponent(list)})&order=snapshot_month.desc`
+    );
+    rows.forEach(r => {
+      // 최신 월부터 정렬돼 있으니 키워드별 첫 값이 가장 최근 값
+      if (r.total != null && !trackedKeywordVolumes.has(r.keyword)) trackedKeywordVolumes.set(r.keyword, Number(r.total));
+    });
+  } catch (_) { /* 검색량만 비어 보이고 나머지는 그대로 */ }
+}
+
 async function loadTrackedData() {
   const list = document.getElementById("trackedItemList");
   list.innerHTML = `<div class="empty">불러오는 중...</div>`;
@@ -2872,6 +2892,7 @@ async function loadTrackedData() {
     if (!itemsRes.ok) throw new Error("조회 실패 (" + itemsRes.status + ")");
     trackedItems = await itemsRes.json();
     trackedHistory = historyRows;
+    await loadTrackedKeywordVolumes(); // 실패해도 검색량 칸만 비고 나머지는 정상 표시
     trackedLoaded = true;
     renderItemGroupFilter();
     renderTrackedItems();
@@ -3341,7 +3362,7 @@ function renderTrackedItemCard(item) {
           <span class="keyword-main">${esc(s.collectedDate || "미수집")}</span>
           ${s.rank === undefined ? `<span class="rank-badge">미수집</span>` : rankBadgeHtml(s.rank)}
           ${deltaHtml(s.delta)}
-          <span class="keyword-volume"></span>
+          ${volumeHtml(trackedKeywordVolumes.get(s.keyword) ?? null)}
         </div>
         ${renderRankTrend(s)}
       </div>`).join("");
