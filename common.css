@@ -1200,6 +1200,68 @@ header.topbar .topbar-icon-btn svg {
 
 .ai-msg-tag-fix { color: var(--accent, #e85d2f); }
 
+/* 수량 계산 선택형 대화 — 말풍선 안의 선택 버튼/입력칸 */
+.ai-qty-q { margin-bottom: 8px; font-weight: 700; }
+.ai-choice-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.ai-choice-btn {
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--line, #e8ecf2);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink, #1a1f2e);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.ai-choice-btn:hover { border-color: #f0b79d; background: #fffaf7; }
+.ai-choice-btn.primary {
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--accent, #e85d2f) 0%, var(--accent-dark, #d04420) 100%);
+  color: #fff;
+}
+.ai-choice-btn.primary:hover { filter: brightness(1.05); }
+.ai-choice-btn.ghost { border-style: dashed; color: var(--sub, #5a6378); }
+.ai-qty-row { display: flex; align-items: center; gap: 4px; margin-top: 6px; }
+.ai-qty-in {
+  width: 62px;
+  height: 30px;
+  padding: 0 6px;
+  border: 1px solid var(--line, #e8ecf2);
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 12px;
+  background: #fff;
+}
+.ai-qty-in:focus, .ai-qty-unit:focus { outline: none; border-color: #f0b79d; }
+.ai-qty-unit {
+  height: 30px;
+  padding: 0 2px;
+  border: 1px solid var(--line, #e8ecf2);
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 12px;
+  background: #fff;
+}
+.ai-qty-x { color: var(--sub, #5a6378); font-size: 12px; padding: 0 2px; }
+.ai-qty-foot { margin-top: 8px; text-align: right; }
+.ai-qty-cancel {
+  border: none;
+  background: none;
+  color: var(--sub, #5a6378);
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.ai-qty-bubble.is-locked { opacity: 0.6; }
+.ai-qty-bubble.is-locked .ai-qty-foot { display: none; }
+.ai-qty-bubble.is-locked .ai-choice-btn,
+.ai-qty-bubble.is-locked .ai-qty-in,
+.ai-qty-bubble.is-locked .ai-qty-unit { cursor: default; pointer-events: none; }
+
 /* 맞춤법 검사 — 고쳐진 부분만 색+볼드로 강조 */
 .ai-diff-fix {
   background: rgba(232, 93, 47, 0.14);

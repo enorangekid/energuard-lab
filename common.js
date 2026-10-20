@@ -632,6 +632,7 @@ function bindAiWorkPanel() {
       activeInquiryStore = storeTab.dataset.inquiryStore;
       document.querySelectorAll("#__aiInquiryStoreTabs .ai-lang-tab").forEach(b => b.classList.toggle("active", b.dataset.inquiryStore === activeInquiryStore));
     }
+    if (handleAiQtyClick(e)) return;
     if (e.target.closest("[data-ai-send-chat]")) sendAiWorkChat();
     if (e.target.closest("[data-ai-generate-inquiry]")) generateAiInquiryAnswer();
     if (e.target.closest("[data-ai-clear-inquiry]")) clearAiInquiry();
@@ -649,6 +650,11 @@ function bindAiWorkPanel() {
     if (e.target === chatInput && e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       sendAiWorkChat();
+    }
+    // 수량 계산 입력칸에서 Enter = 그 말풍선의 [다음] 버튼
+    if (e.key === "Enter" && e.target.classList && e.target.classList.contains("ai-qty-in")) {
+      const submit = e.target.closest(".ai-qty-bubble")?.querySelector(".ai-choice-btn.primary");
+      if (submit) { e.preventDefault(); submit.click(); }
     }
     if (e.key === "Escape") closeAiWorkPanel();
   });
@@ -688,21 +694,18 @@ async function sendAiWorkChat() {
   if (!text) return;
   input.value = "";
   resizeAiTextarea(input, 120);
+  cancelAiQtyFlow(true); // 진행 중이던 수량 계산 버튼은 새 질문을 보내면 닫는다
   appendAiChatMessage("user", text);
-  aiWorkChatHistory.push({ role: "user", parts: [{ text }] });
-  trimAiWorkChatHistory();
   showAiTyping();
 
-  // 판상형 단열재 수량 질문은 AI가 어림짐작하지 않고, 실제 계산기(calc/insulation-board.html)와
-  // 같은 산식으로 정확히 계산한 값으로 답한다. 계산 요청이 아니면 null → 일반 대화로 넘어간다.
-  const calcAnswer = await tryInsulationBoardCalc(text);
-  if (calcAnswer) {
+  // 판상형 단열재 수량 질문은 AI가 어림짐작하지 않고, 면적·규격·차감·할증률을 버튼으로 확인한 뒤
+  // 실제 계산기(calc/insulation-board.html)와 같은 산식으로 계산한다. 수량 질문이 아니면 일반 대화.
+  if (await startAiQtyFlow(text)) {
     hideAiTyping();
-    appendAiChatMessage("model", calcAnswer, { calc: true });
-    aiWorkChatHistory.push({ role: "model", parts: [{ text: calcAnswer }] });
-    trimAiWorkChatHistory();
     return;
   }
+  aiWorkChatHistory.push({ role: "user", parts: [{ text }] });
+  trimAiWorkChatHistory();
 
   try {
     const { ok, data } = await fetchAiChat(aiWorkChatHistory.slice(-AI_CHAT_HISTORY_LIMIT));
@@ -719,64 +722,344 @@ async function sendAiWorkChat() {
   }
 }
 
-// ── 판상형 단열재 수량 계산기 연동 (파일럿) ──────────────────────────────
-// calc/insulation-board.js의 calculate() 산식을 그대로 포팅. 평수만 알아도(가로×세로가
-// 아니어도) 계산 가능하도록 areaPyeong 경로를 추가한 것 외엔 실제 계산기와 동일하다.
-const AI_CALC_KEYWORD_RE = /판상형|아이소핑크|비드법|단열재.{0,6}(장|수량)|단열재.{0,10}필요|몇\s*장/;
-async function tryInsulationBoardCalc(question) {
-  if (!AI_CALC_KEYWORD_RE.test(question)) return null;
+// ── 판상형 단열재 수량 계산기 연동 (선택형 대화) ─────────────────────────
+// 수량을 묻는 질문이면 calc/insulation-board.js와 같은 산식으로 계산하되, 면적·단열재 규격·차감 면적·
+// 할증률을 AI가 어림짐작하지 않고 대화창의 버튼/입력칸으로 하나씩 확인한 뒤 최종 수량을 알려 준다.
+// 질문 문장에 이미 들어 있는 값은 다시 묻지 않는다(AI는 문장에서 숫자를 뽑는 데만 쓴다).
+const AI_CALC_KEYWORD_RE = /판상형|아이소핑크|비드법|스티로폼|단열재.{0,6}(장|수량)|단열재.{0,10}필요|몇\s*장/;
+const AI_QTY_BOARDS = [
+  { key: "iso_900", kind: "아이소핑크", w: 900, h: 1800 },
+  { key: "iso_600", kind: "아이소핑크", w: 600, h: 900 },
+  { key: "st_900", kind: "스티로폼", w: 900, h: 1800 },
+  { key: "st_600", kind: "스티로폼", w: 600, h: 900 },
+];
+let aiQtyFlow = null; // { id, question, data: { area, board, deducts, loss } }
+let aiQtySeq = 0;
 
-  const extractPrompt = `다음 문장이 "판상형 단열재(아이소핑크, 비드법 단열재 등) 수량 계산" 요청인지 판단해줘.
+function qtyToMm(value, unit) {
+  const v = parseFloat(value) || 0;
+  if (unit === "cm") return v * 10;
+  if (unit === "m") return v * 1000;
+  return v;
+}
+
+function qtyLengthText(mm) {
+  if (mm >= 1000 && mm % 100 === 0) return `${mm / 1000}m`;
+  return `${Math.round(mm * 10) / 10}mm`;
+}
+
+// 질문 문장에서 이미 알려 준 값만 뽑는다. 언급이 없는 항목은 null(= 나중에 버튼으로 물어봄).
+async function extractAiQtyHints(question) {
+  const prompt = `다음 문장이 "판상형 단열재(아이소핑크, 스티로폼 등) 수량 계산" 요청인지 판단하고, 문장에 직접 적힌 값만 뽑아줘.
 아래 JSON 형식으로만 답하고, 그 외의 설명이나 말은 절대 하지 마.
 
-{"match": true 또는 false, "areaM2": 숫자 또는 null, "areaPyeong": 숫자 또는 null, "wallWidthMm": 숫자 또는 null, "wallHeightMm": 숫자 또는 null, "boardWidthMm": 숫자, "boardHeightMm": 숫자, "lossRate": 숫자}
+{"match": true 또는 false, "areaM2": 숫자 또는 null, "areaPyeong": 숫자 또는 null, "wallWidthMm": 숫자 또는 null, "wallHeightMm": 숫자 또는 null, "boardWidthMm": 숫자 또는 null, "boardHeightMm": 숫자 또는 null, "lossRate": 숫자 또는 null, "kind": "아이소핑크" 또는 "스티로폼" 또는 null}
 
-- "헤베", "㎡", "제곱미터", "평방미터", "m2"처럼 면적을 제곱미터 단위로 직접 말했으면 areaM2만 채우고 나머지(areaPyeong/wallWidthMm/wallHeightMm)는 null.
-- 평수(평)만 언급됐으면 areaPyeong만 채우고 나머지는 null.
-- 가로×세로(m, cm, mm 등 길이 두 개)가 따로 언급됐으면 mm 단위로 환산해 wallWidthMm/wallHeightMm를 채우고 나머지는 null.
-- 면적을 특정할 수 없으면 match를 false로.
-- 단열재 규격 언급이 없으면 boardWidthMm=900, boardHeightMm=1800 (표준 규격).
-- 할증률 언급이 없으면 lossRate=5.
-- 계산 요청이 아니면 {"match": false} 만 답해.
+- 단열재 수량(몇 장 필요한지)을 묻는 요청이 아니면 {"match": false} 만 답해.
+- "헤베", "㎡", "제곱미터", "평방미터", "m2"처럼 면적을 제곱미터로 직접 말했으면 areaM2만 채워.
+- 평수(평)만 언급됐으면 areaPyeong만 채워.
+- 가로×세로(m, cm, mm 등 길이 두 개)가 따로 언급됐으면 mm로 환산해 wallWidthMm/wallHeightMm를 채워.
+- 면적 정보가 없으면 면적 항목은 모두 null.
+- 단열재 규격(예: 900x1800)을 직접 말했을 때만 boardWidthMm/boardHeightMm를 채우고, 말하지 않았으면 null. 절대 기본값을 넣지 마.
+- 할증률을 직접 말했을 때만 lossRate를 채우고, 아니면 null. 절대 기본값을 넣지 마.
+- kind는 문장에 아이소핑크/스티로폼(비드법 포함)이 언급됐을 때만 채워.
 
 문장: "${question}"`;
-
   try {
-    const { data } = await fetchAiChat([{ role: "user", parts: [{ text: extractPrompt }] }], { useSearch: false, timeoutMs: 12000 });
+    const { data } = await fetchAiChat([{ role: "user", parts: [{ text: prompt }] }], { useSearch: false, timeoutMs: 12000 });
     const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
     const jsonText = (raw.match(/\{[\s\S]*\}/) || [])[0];
     if (!jsonText) return null;
     const parsed = JSON.parse(jsonText);
-    if (!parsed || !parsed.match) return null;
-
-    const boardWidthMm = Number(parsed.boardWidthMm) || 900;
-    const boardHeightMm = Number(parsed.boardHeightMm) || 1800;
-    const lossRate = Number.isFinite(Number(parsed.lossRate)) ? Number(parsed.lossRate) : 5;
-
-    let netAreaM2 = null;
-    if (Number(parsed.areaM2) > 0) {
-      netAreaM2 = Number(parsed.areaM2);
-    } else if (Number(parsed.areaPyeong) > 0) {
-      netAreaM2 = Number(parsed.areaPyeong) * 3.30579;
-    } else if (Number(parsed.wallWidthMm) > 0 && Number(parsed.wallHeightMm) > 0) {
-      netAreaM2 = (Number(parsed.wallWidthMm) * Number(parsed.wallHeightMm)) / 1_000_000;
-    }
-    if (!(netAreaM2 > 0) || !(boardWidthMm > 0) || !(boardHeightMm > 0)) return null;
-
-    const boardAreaM2 = (boardWidthMm * boardHeightMm) / 1_000_000;
-    const baseCount = netAreaM2 / boardAreaM2;
-    const finalCount = Math.ceil(baseCount * (1 + lossRate / 100));
-    const netAreaText = (Math.round(netAreaM2 * 100) / 100).toFixed(2);
-    const boardAreaText = (Math.round(boardAreaM2 * 100) / 100).toFixed(2);
-
-    return `면적: 약 ${netAreaText}㎡\n` +
-      `단열재 규격: ${boardWidthMm}×${boardHeightMm}mm (1장 ${boardAreaText}㎡)\n` +
-      `할증률: ${lossRate}%\n\n` +
-      `필요 수량: 총 ${finalCount}장\n\n` +
-      `(현장 여건이나 차감면적(창문·문 등)에 따라 실제 수량은 달라질 수 있습니다.)`;
+    return parsed && parsed.match ? parsed : null;
   } catch (err) {
     return null; // 추출 실패 시 조용히 일반 대화로 넘어간다
   }
+}
+
+// 수량 질문이면 선택형 대화를 시작하고 true, 아니면 false(일반 대화로 처리).
+async function startAiQtyFlow(question) {
+  if (!AI_CALC_KEYWORD_RE.test(question)) return false;
+  const hints = await extractAiQtyHints(question);
+  if (!hints) return false;
+
+  const data = { area: null, board: null, deducts: null, loss: null, kind: hints.kind || null };
+  const known = [];
+  if (Number(hints.wallWidthMm) > 0 && Number(hints.wallHeightMm) > 0) {
+    const areaM2 = (Number(hints.wallWidthMm) * Number(hints.wallHeightMm)) / 1_000_000;
+    data.area = { areaMm2: Number(hints.wallWidthMm) * Number(hints.wallHeightMm), label: `${qtyLengthText(Number(hints.wallWidthMm))} × ${qtyLengthText(Number(hints.wallHeightMm))}` };
+    known.push(`시공 면적: ${data.area.label} (${areaM2.toFixed(2)}㎡)`);
+  } else if (Number(hints.areaM2) > 0) {
+    data.area = { areaMm2: Number(hints.areaM2) * 1_000_000, label: `${Number(hints.areaM2)}㎡` };
+    known.push(`시공 면적: ${Number(hints.areaM2)}㎡`);
+  } else if (Number(hints.areaPyeong) > 0) {
+    data.area = { areaMm2: Number(hints.areaPyeong) * 3.30579 * 1_000_000, label: `${Number(hints.areaPyeong)}평` };
+    known.push(`시공 면적: ${Number(hints.areaPyeong)}평 (약 ${(Number(hints.areaPyeong) * 3.30579).toFixed(2)}㎡)`);
+  }
+  if (Number(hints.boardWidthMm) > 0 && Number(hints.boardHeightMm) > 0) {
+    data.board = { w: Number(hints.boardWidthMm), h: Number(hints.boardHeightMm), label: `${data.kind || "단열재"} ${Number(hints.boardWidthMm)}×${Number(hints.boardHeightMm)}mm` };
+    known.push(`단열재 규격: ${data.board.label}`);
+  }
+  if (Number.isFinite(Number(hints.lossRate)) && hints.lossRate !== null) {
+    data.loss = Number(hints.lossRate);
+    known.push(`할증률: ${data.loss}%`);
+  }
+
+  aiQtyFlow = { id: "qty" + (++aiQtySeq), question, data };
+  if (known.length) {
+    appendAiChatMessage("model", "질문에서 확인한 내용이에요.\n" + known.join("\n"), { calc: true });
+  } else {
+    appendAiChatMessage("model", "수량 계산을 도와드릴게요. 몇 가지만 선택해 주세요.", { calc: true });
+  }
+  askAiQtyNext();
+  return true;
+}
+
+function cancelAiQtyFlow(silent) {
+  document.querySelectorAll(".ai-qty-bubble:not(.is-locked)").forEach(lockAiQtyBubble);
+  const had = !!aiQtyFlow;
+  aiQtyFlow = null;
+  if (had && !silent) appendAiChatMessage("model", "수량 계산을 취소했어요.");
+}
+
+function lockAiQtyBubble(bubble) {
+  bubble.classList.add("is-locked");
+  bubble.querySelectorAll("button, input, select").forEach(el => { el.disabled = true; });
+}
+
+function appendAiQtyBubble(innerHtml) {
+  const box = document.getElementById("__aiChatMessages");
+  if (!box || !aiQtyFlow) return null;
+  const div = document.createElement("div");
+  div.className = "ai-msg ai-msg-bot ai-msg-calc";
+  div.innerHTML = `<div class="ai-msg-avatar">${AI_AVATAR_ICON}</div><div class="ai-msg-bubble ai-qty-bubble" data-flow="${aiQtyFlow.id}">${innerHtml}<div class="ai-qty-foot"><button type="button" class="ai-qty-cancel" data-qty-act="cancel">취소</button></div></div>`;
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+  return div.querySelector(".ai-qty-bubble");
+}
+
+function setAiQtyBubbleBody(bubble, innerHtml) {
+  bubble.innerHTML = `${innerHtml}<div class="ai-qty-foot"><button type="button" class="ai-qty-cancel" data-qty-act="cancel">취소</button></div>`;
+  const box = document.getElementById("__aiChatMessages");
+  if (box) box.scrollTop = box.scrollHeight;
+  const firstInput = bubble.querySelector("input");
+  if (firstInput) firstInput.focus();
+}
+
+function aiQtyChoiceBtn(label, act, value) {
+  return `<button type="button" class="ai-choice-btn" data-qty-act="${act}" data-v="${value}">${escapeAiText(label)}</button>`;
+}
+
+function aiQtyLengthRow(prefix, defaultUnit) {
+  const unitOptions = ["m", "cm", "mm"].map(u => `<option value="${u}"${u === defaultUnit ? " selected" : ""}>${u}</option>`).join("");
+  return `<div class="ai-qty-row">
+    <input type="number" class="ai-qty-in" data-role="${prefix}-w" placeholder="가로" min="0" step="any" />
+    <select class="ai-qty-unit" data-role="${prefix}-wu">${unitOptions}</select>
+    <span class="ai-qty-x">×</span>
+    <input type="number" class="ai-qty-in" data-role="${prefix}-h" placeholder="세로" min="0" step="any" />
+    <select class="ai-qty-unit" data-role="${prefix}-hu">${unitOptions}</select>
+  </div>`;
+}
+
+// 아직 모르는 항목 중 첫 번째를 묻는다. 다 알면 결과를 낸다.
+function askAiQtyNext() {
+  if (!aiQtyFlow) return;
+  const d = aiQtyFlow.data;
+  if (!d.area) {
+    appendAiQtyBubble(`<div class="ai-qty-q">시공할 면적을 어떻게 입력하시겠어요?</div>
+      <div class="ai-choice-row">${aiQtyChoiceBtn("가로×세로", "area-mode", "wh")}${aiQtyChoiceBtn("면적(㎡)", "area-mode", "m2")}${aiQtyChoiceBtn("평수", "area-mode", "pyeong")}</div>`);
+  } else if (!d.board) {
+    const ordered = AI_QTY_BOARDS.slice().sort((a, b) => (b.kind === d.kind) - (a.kind === d.kind));
+    appendAiQtyBubble(`<div class="ai-qty-q">단열재 종류와 규격을 선택해 주세요.</div>
+      <div class="ai-choice-row">${ordered.map(b => aiQtyChoiceBtn(`${b.kind} ${b.w}×${b.h}`, "board-pick", b.key)).join("")}${aiQtyChoiceBtn("직접 입력", "board-pick", "custom")}</div>`);
+  } else if (!d.deducts) {
+    appendAiQtyBubble(`<div class="ai-qty-q">창문·문처럼 차감할 면적이 있나요?</div>
+      <div class="ai-choice-row">${aiQtyChoiceBtn("없음", "deduct-pick", "no")}${aiQtyChoiceBtn("있음", "deduct-pick", "yes")}</div>`);
+  } else if (d.loss === null) {
+    appendAiQtyBubble(`<div class="ai-qty-q">할증률(여유분)은 얼마로 할까요?</div>
+      <div class="ai-choice-row">${aiQtyChoiceBtn("5% (기본)", "loss-pick", "5")}${aiQtyChoiceBtn("10%", "loss-pick", "10")}${aiQtyChoiceBtn("직접 입력", "loss-pick", "custom")}</div>`);
+  } else {
+    finishAiQtyFlow();
+  }
+}
+
+// 사용자가 고른 내용을 오른쪽 말풍선으로 남기고, 지난 질문 말풍선은 잠근 뒤 다음 질문으로 넘어간다.
+function answerAiQty(bubble, text) {
+  lockAiQtyBubble(bubble);
+  appendAiChatMessage("user", text);
+  askAiQtyNext();
+}
+
+function handleAiQtyClick(e) {
+  const btn = e.target.closest("[data-qty-act]");
+  if (!btn || btn.disabled) return false;
+  const bubble = btn.closest(".ai-qty-bubble");
+  if (!bubble || !aiQtyFlow || bubble.dataset.flow !== aiQtyFlow.id) return true;
+  const act = btn.dataset.qtyAct;
+  const v = btn.dataset.v;
+  const d = aiQtyFlow.data;
+  const num = role => parseFloat(bubble.querySelector(`[data-role="${role}"]`)?.value);
+  const unit = role => bubble.querySelector(`[data-role="${role}"]`)?.value || "m";
+  const invalid = msg => { showToast(msg); return true; };
+
+  if (act === "cancel") { cancelAiQtyFlow(false); return true; }
+
+  if (act === "area-mode") {
+    if (v === "wh") {
+      setAiQtyBubbleBody(bubble, `<div class="ai-qty-q">벽(시공면)의 가로와 세로 길이를 입력해 주세요. 벽이 여러 면이면 추가할 수 있어요.</div>
+        <div class="ai-qty-walls">${aiQtyLengthRow("wall0", "m")}</div>
+        <div class="ai-choice-row"><button type="button" class="ai-choice-btn ghost" data-qty-act="wall-add">+ 벽 추가</button><button type="button" class="ai-choice-btn primary" data-qty-act="area-wh-submit">다음</button></div>`);
+    } else {
+      const label = v === "m2" ? "면적(㎡)" : "평수";
+      setAiQtyBubbleBody(bubble, `<div class="ai-qty-q">${label}을 입력해 주세요.</div>
+        <div class="ai-qty-row"><input type="number" class="ai-qty-in" data-role="area-single" placeholder="${v === "m2" ? "예: 10" : "예: 15"}" min="0" step="any" /><span class="ai-qty-x">${v === "m2" ? "㎡" : "평"}</span></div>
+        <div class="ai-choice-row"><button type="button" class="ai-choice-btn primary" data-qty-act="area-single-submit" data-v="${v}">다음</button></div>`);
+    }
+    return true;
+  }
+  if (act === "wall-add") {
+    const walls = bubble.querySelector(".ai-qty-walls");
+    const idx = walls.querySelectorAll(".ai-qty-row").length;
+    walls.insertAdjacentHTML("beforeend", aiQtyLengthRow("wall" + idx, "m"));
+    return true;
+  }
+  if (act === "area-wh-submit") {
+    let totalMm2 = 0;
+    const parts = [];
+    const rows = bubble.querySelectorAll(".ai-qty-walls .ai-qty-row");
+    for (let i = 0; i < rows.length; i++) {
+      const wRaw = num(`wall${i}-w`), hRaw = num(`wall${i}-h`);
+      if (!wRaw && !hRaw && rows.length > 1) continue; // 비워 둔 추가 칸은 무시
+      const w = qtyToMm(wRaw, unit(`wall${i}-wu`)), h = qtyToMm(hRaw, unit(`wall${i}-hu`));
+      if (!(w > 0) || !(h > 0)) return invalid("벽의 가로와 세로를 모두 입력해 주세요.");
+      totalMm2 += w * h;
+      parts.push(`${qtyLengthText(w)} × ${qtyLengthText(h)}`);
+    }
+    if (!(totalMm2 > 0)) return invalid("벽의 가로와 세로를 입력해 주세요.");
+    d.area = { areaMm2: totalMm2, label: parts.join(" + ") };
+    answerAiQty(bubble, `시공 면적: ${d.area.label} (${(totalMm2 / 1_000_000).toFixed(2)}㎡)`);
+    return true;
+  }
+  if (act === "area-single-submit") {
+    const value = num("area-single");
+    if (!(value > 0)) return invalid("0보다 큰 값을 입력해 주세요.");
+    const areaMm2 = (v === "m2" ? value : value * 3.30579) * 1_000_000;
+    d.area = { areaMm2, label: v === "m2" ? `${value}㎡` : `${value}평` };
+    answerAiQty(bubble, v === "m2" ? `시공 면적: ${value}㎡` : `시공 면적: ${value}평 (약 ${(value * 3.30579).toFixed(2)}㎡)`);
+    return true;
+  }
+
+  if (act === "board-pick") {
+    if (v === "custom") {
+      setAiQtyBubbleBody(bubble, `<div class="ai-qty-q">단열재의 가로·세로 규격을 입력해 주세요.</div>
+        ${aiQtyLengthRow("board", "mm")}
+        <div class="ai-choice-row"><button type="button" class="ai-choice-btn primary" data-qty-act="board-submit">다음</button></div>`);
+      return true;
+    }
+    const b = AI_QTY_BOARDS.find(x => x.key === v);
+    if (!b) return true;
+    d.board = { w: b.w, h: b.h, label: `${b.kind} ${b.w}×${b.h}mm` };
+    answerAiQty(bubble, `단열재: ${d.board.label}`);
+    return true;
+  }
+  if (act === "board-submit") {
+    const w = qtyToMm(num("board-w"), unit("board-wu")), h = qtyToMm(num("board-h"), unit("board-hu"));
+    if (!(w > 0) || !(h > 0)) return invalid("가로와 세로를 모두 입력해 주세요.");
+    d.board = { w, h, label: `${w}×${h}mm` };
+    answerAiQty(bubble, `단열재: ${d.board.label}`);
+    return true;
+  }
+
+  if (act === "deduct-pick") {
+    if (v === "no") {
+      d.deducts = [];
+      answerAiQty(bubble, "차감 면적: 없음");
+    } else {
+      setAiQtyBubbleBody(bubble, `<div class="ai-qty-q">차감할 창·문의 가로와 세로를 입력해 주세요. 여러 개면 추가할 수 있어요.</div>
+        <div class="ai-qty-walls">${aiQtyLengthRow("ded0", "m")}</div>
+        <div class="ai-choice-row"><button type="button" class="ai-choice-btn ghost" data-qty-act="ded-add">+ 차감 추가</button><button type="button" class="ai-choice-btn primary" data-qty-act="ded-submit">다음</button></div>`);
+    }
+    return true;
+  }
+  if (act === "ded-add") {
+    const list = bubble.querySelector(".ai-qty-walls");
+    const idx = list.querySelectorAll(".ai-qty-row").length;
+    list.insertAdjacentHTML("beforeend", aiQtyLengthRow("ded" + idx, "m"));
+    return true;
+  }
+  if (act === "ded-submit") {
+    const items = [];
+    const rows = bubble.querySelectorAll(".ai-qty-walls .ai-qty-row");
+    for (let i = 0; i < rows.length; i++) {
+      const wRaw = num(`ded${i}-w`), hRaw = num(`ded${i}-h`);
+      if (!wRaw && !hRaw) continue; // 비워 둔 칸은 무시
+      const w = qtyToMm(wRaw, unit(`ded${i}-wu`)), h = qtyToMm(hRaw, unit(`ded${i}-hu`));
+      if (!(w > 0) || !(h > 0)) return invalid("차감 면적의 가로와 세로를 모두 입력해 주세요.");
+      items.push({ w, h });
+    }
+    d.deducts = items;
+    answerAiQty(bubble, items.length
+      ? `차감 면적: ${items.map(x => `${qtyLengthText(x.w)} × ${qtyLengthText(x.h)}`).join(", ")}`
+      : "차감 면적: 없음");
+    return true;
+  }
+
+  if (act === "loss-pick") {
+    if (v === "custom") {
+      setAiQtyBubbleBody(bubble, `<div class="ai-qty-q">할증률(%)을 입력해 주세요.</div>
+        <div class="ai-qty-row"><input type="number" class="ai-qty-in" data-role="loss" placeholder="예: 7" min="0" step="any" /><span class="ai-qty-x">%</span></div>
+        <div class="ai-choice-row"><button type="button" class="ai-choice-btn primary" data-qty-act="loss-submit">계산하기</button></div>`);
+      return true;
+    }
+    d.loss = Number(v);
+    answerAiQty(bubble, `할증률: ${d.loss}%`);
+    return true;
+  }
+  if (act === "loss-submit") {
+    const value = num("loss");
+    if (!(value >= 0)) return invalid("0 이상의 값을 입력해 주세요.");
+    d.loss = value;
+    answerAiQty(bubble, `할증률: ${value}%`);
+    return true;
+  }
+  return true;
+}
+
+// 계산기(calc/insulation-board.js)와 같은 순서·산식으로 최종 수량을 낸다.
+function finishAiQtyFlow() {
+  const flow = aiQtyFlow;
+  if (!flow) return;
+  const { area, board, deducts, loss } = flow.data;
+  const deductMm2 = deducts.reduce((sum, x) => sum + x.w * x.h, 0);
+  const netMm2 = Math.max(0, area.areaMm2 - deductMm2);
+  const netM2 = netMm2 / 1_000_000;
+  const boardM2 = (board.w * board.h) / 1_000_000;
+  aiQtyFlow = null;
+
+  let answer;
+  if (!(netM2 > 0)) {
+    answer = "차감 면적이 시공 면적보다 크거나 같아서 계산할 수 없어요. 입력한 값을 다시 확인해 주세요.";
+  } else {
+    const baseCount = netM2 / boardM2;
+    const finalCount = Math.ceil(baseCount * (1 + loss / 100));
+    const extra = Math.max(0, finalCount - Math.ceil(baseCount));
+    const round2 = n => (Math.round(n * 100) / 100).toFixed(2);
+    answer = [
+      `시공 면적: ${round2(area.areaMm2 / 1_000_000)}㎡ (${area.label})`,
+      deducts.length ? `차감 면적: ${round2(deductMm2 / 1_000_000)}㎡ (${deducts.map(x => `${qtyLengthText(x.w)} × ${qtyLengthText(x.h)}`).join(", ")})` : "차감 면적: 없음",
+      `순 면적: ${round2(netM2)}㎡`,
+      `단열재: ${board.label} (1장 ${round2(boardM2)}㎡)`,
+      `할증률: ${loss}%`,
+      "",
+      `필요 수량: 총 ${finalCount}장 (여유분 ${extra}장 포함)`,
+      "",
+      "※ 현장 여건에 따라 실제 수량은 달라질 수 있습니다.",
+    ].join("\n");
+  }
+  appendAiChatMessage("model", answer, { calc: true });
+  aiWorkChatHistory.push({ role: "user", parts: [{ text: flow.question }] });
+  aiWorkChatHistory.push({ role: "model", parts: [{ text: answer }] });
+  trimAiWorkChatHistory();
 }
 
 // ── 맞춤법 검사 탭 ──────────────────────────────────────────────
