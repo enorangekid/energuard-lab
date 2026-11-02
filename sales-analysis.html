@@ -693,7 +693,7 @@
 <button id="__aiChatFab" class="ai-chat-fab" type="button" aria-label="AI 업무도우미 열기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.6 8.6 0 0 1-7.7 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.6a8.4 8.4 0 0 1-.9-3.8 8.6 8.6 0 0 1 4.7-7.7 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5Z"></path><path d="M8.2 11.8h.01"></path><path d="M12 11.8h.01"></path><path d="M15.8 11.8h.01"></path></svg></button>
 
 <!-- common.js는 showLoading/hideLoading 등을 정의하므로, 이를 호출하는 아래 메인 스크립트보다 먼저 로드되어야 한다 -->
-<script src="common.js?v=20260812-logout1"></script>
+<script src="common.js?v=20261102-report-ai"></script>
 <script>
 const SUPABASE_URL = "https://eukwfypbfqojbaihfqye.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_MiBvlf3d6ulcVBsi7Odcgw_PTXSmXKj";
@@ -4975,7 +4975,10 @@ function reportMoverSummary(label, mover, baselineLabel) {
 const REPORT_UP_WORDS = ["증가", "상승", "늘어", "늘었", "늘고", "올라", "올랐", "확대", "급증", "성장", "반등", "높아졌", "커졌", "상회"];
 const REPORT_DOWN_WORDS = ["감소", "하락", "줄어", "줄었", "줄고", "떨어", "내려", "축소", "급감", "둔화", "낮아졌", "작아졌", "하회"];
 const REPORT_BASIS_PATTERNS = { year: /작년|전년|지난해|동기/, prev: /전기간|직전 ?기간|이전 ?기간|직전 ?\d+개월|전월|전달|지난 ?달/ };
-const REPORT_CLAUSE_SPLIT = /지만|으나|반면|면서|하며|으며|이며|했고|이고|였고|하고|인데|는데|[·,;/→()]/;
+// 쉼표는 숫자 자릿수 구분(572,492)에서는 자르지 않는다. 숫자 가운데서 잘리면 뒤 조각이 앞 지표의 증감률과 엉뚱하게 비교된다.
+const REPORT_CLAUSE_SPLIT = /지만|으나|반면|면서|하며|으며|이며|했고|이고|였고|하고|인데|는데|[·;/→()]|,(?!\d)|(?<!\d),/;
+// 증분 ROAS·결제자당 매출처럼 AI가 새로 계산한 파생 지표는 합계 사실과 직접 비교할 수 없다(오탐 방지).
+const REPORT_DERIVED_METRIC = /증분|[가-힣]당\s*(?:매출|광고비|비용|결제금액)|기여도|비중/;
 // 채널·상품·유형 같은 하위 구분을 말하는 문장은 합계 지표 사실과 직접 비교하지 않는다(오탐 방지).
 const REPORT_SEGMENT_WORDS = /채널|유입 ?경로|쇼핑검색|파워링크|스토어 내부|플러스스토어|네이버 검색|직유입|신규|재구매|상품|제품|옵션|키워드|검색어|유형|ADVoost|디스플레이|카테고리|남성|여성|[0-9]+대|그룹|캠페인|영역|지면/i;
 
@@ -5064,7 +5067,7 @@ function reportCheckSentence(sentence, facts, metricDefs) {
   let lastMetrics = null;
   let lastBases = [];
   sentence.split(REPORT_CLAUSE_SPLIT).map(part => part.trim()).filter(Boolean).forEach(clause => {
-    if (REPORT_SEGMENT_WORDS.test(clause)) { lastMetrics = null; return; }
+    if (REPORT_SEGMENT_WORDS.test(clause) || (REPORT_DERIVED_METRIC.test(clause) && !/클릭당/.test(clause))) { lastMetrics = null; return; }
     const found = reportFindMetricsInClause(clause, metricDefs);
     const metrics = found || lastMetrics;
     let bases = reportBasesIn(clause);
@@ -5112,15 +5115,29 @@ function reportCheckSentence(sentence, facts, metricDefs) {
   return problems;
 }
 
-function reportVerifyInsights(insights, facts) {
+function reportVerifyInsights(insights, facts, customerAmounts = []) {
   const seen = new Set();
   const metricDefs = facts.filter(f => { if (seen.has(f.metric)) return false; seen.add(f.metric); return true; });
   const issues = [];
   (insights || []).forEach((item, index) => {
+    [item.finding, item.meaning].forEach(text => {
+      const sentence = String(text || "");
+      customerAmounts.forEach(({ label, current, deltas = [] }) => {
+        if (current == null || !sentence.includes(label)) return;
+        for (const match of sentence.matchAll(/([\d,]+)원(?:의)?\s*(?:매출액?|총매출)?\s*[을를]?\s*(?:기록|달성)/g)) {
+          const value = Number(match[1].replace(/,/g, ""));
+          if (value !== current && deltas.includes(value)) issues.push({ index, message: `${label} 이번 기간 매출은 ${current.toLocaleString()}원입니다. ${value.toLocaleString()}원은 증감액입니다. 증감액을 이번 기간 매출처럼 쓰지 말고 실제 금액을 명시하세요.` });
+        }
+      });
+      if (/잠재 고객.*성공|전략이 효과를 보인 것으로 판단|고객들이 스토어를 적극적으로 탐색/.test(sentence)) {
+        issues.push({ index, message: `방문 집계만으로 고객 획득 성공·전략 효과·적극적인 탐색 행동을 단정하지 마세요: ${sentence}` });
+      }
+    });
     // 광고비는 CPC 경매 방식이라 노출·클릭률·CPC 변화만으로도 늘어난다. 예산을 올렸다는 전제는 데이터에 없다.
     [item.title, item.finding, item.meaning].forEach(text => {
       String(text || "").split(/\n|[!?]|\.(?!\d)/).map(s => s.trim()).filter(Boolean).forEach(sentence => {
-        if (REPORT_BUDGET_CLAIM.test(sentence)) {
+        // "예산 확대보다는 …" 처럼 증액을 부정·배제하는 문장은 단정이 아니다.
+        if (REPORT_BUDGET_CLAIM.test(sentence) && !/보다는|보다\s|아니라|아닌|않|없|단정|가정|확인되지|알 수 없/.test(sentence)) {
           const message = `광고비 증가를 예산 증액으로 단정함(CPC 경매 구조라 노출·클릭률·CPC 변화로도 늘어남) — "${sentence.slice(0, 60)}"`;
           if (!issues.some(i => i.index === index && i.message === message)) issues.push({ index, message });
         }
@@ -5139,31 +5156,59 @@ function reportVerifyInsights(insights, facts) {
 
 // AI 호출 → 파싱 → 사실 대조. 어긋나는 문장이 있으면 지적 사항을 붙여 한 번 다시 요청하고,
 // 그래도 남으면 해당 인사이트에 verify 주석으로 남겨 보고서에 표시한다.
-async function reportRequestInsights(prompt, facts) {
+async function reportRequestInsights(prompt, facts, customerAmounts = []) {
+  prompt += `\n\n[보고서 해석 품질 규칙]
+- current(이번 기간) 값은 실적, delta(증감) 값은 차이 금액이다. '매출 X원을 기록'에는 실제 실적만 쓰고 차이는 'Y원 증가/감소'로 따로 쓸 것. 신규·재구매 고객 매출 검증 자료: ${JSON.stringify(customerAmounts)}
+- 방문수는 고유한 신규 고객 수가 아니다. 전체 전환율과 신규 고객 결제자 비율은 분모가 달라 직접 비교해 '전략 성공'으로 해석하지 말 것.
+- 마케팅 성공·고객 선호·경쟁력 변화는 입증되지 않았다고 구분하고, meaning에는 지표 간 관계와 아직 모르는 원인을 쓸 것. 자료에 없는 LTV·이탈률·장바구니 포기율을 있는 것처럼 분석하지 말 것.`;
+  let usedModel = "";
+  let inputChars = 0;
   const ask = async text => {
-    const { ok, data } = await fetchAiChat([{ role: "user", parts: [{ text }] }], { useSearch: false, timeoutMs: 30000 });
-    const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-    const jsonText = (raw.match(/\{[\s\S]*\}/) || [])[0];
-    if (!ok || !jsonText) throw new Error("AI 응답 파싱 실패");
-    return reportNormalizeInsights(JSON.parse(jsonText).insights);
+    text = text.trim();
+    inputChars = text.length;
+    console.info(`[보고서 AI] 입력 ${text.length.toLocaleString()}자`);
+    if (text.length > 96000) throw new Error(`보고서 입력이 너무 깁니다. (${text.length.toLocaleString()}자 / 최대 96,000자)`);
+    const { ok, status, data } = await fetchAiChat([{ role: "user", parts: [{ text }] }], { useSearch: false, timeoutMs: 140000, reportMode: true });
+    if (!ok || data?.error) {
+      const reason = typeof data?.error === "string" ? data.error : data?.error?.message;
+      throw new Error(`AI 요청 실패${status ? ` (HTTP ${status})` : ""}: ${reason || "서버 응답을 확인해 주세요."}${data?.model ? ` [모델 ${data.model}]` : ""} [입력 ${text.length.toLocaleString()}자]`);
+    }
+    if (!data?.reportInput?.complete || data.reportInput.characters !== text.length) {
+      throw new Error("AI 서버의 보고서 입력 검증이 확인되지 않았습니다. gemini-chat 함수 업데이트가 필요합니다.");
+    }
+    const candidate = data?.candidates?.[0];
+    if (candidate?.finishReason && candidate.finishReason !== "STOP") throw new Error(`AI 응답이 완성되지 않았습니다. (${candidate.finishReason})`);
+    if (data?.promptFeedback?.blockReason) throw new Error(`AI 요청이 차단되었습니다. (${data.promptFeedback.blockReason})`);
+    const raw = (candidate?.content?.parts || []).filter(part => !part.thought).map(part => part.text || "").join("").trim();
+    let parsed;
+    try { parsed = JSON.parse(raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "")); }
+    catch (_) { throw new Error("AI 응답을 보고서 JSON으로 읽지 못했습니다. 다시 생성해 주세요."); }
+    if (!Array.isArray(parsed.insights) || !parsed.insights.length || parsed.insights.some(item =>
+      !item || ["title", "finding", "meaning", "check"].some(key => typeof item[key] !== "string" || !item[key].trim()))) {
+      throw new Error("AI 분석에 제목·변화·해석·확인할 점이 누락되었습니다. 불완전한 보고서는 저장하지 않습니다.");
+    }
+    usedModel = data.reportModel || data.modelVersion || "모델 정보 없음";
+    return reportNormalizeInsights(parsed.insights);
   };
   let insights = await ask(prompt);
-  let issues = reportVerifyInsights(insights, facts);
+  let issues = reportVerifyInsights(insights, facts, customerAmounts);
   let retried = false;
   if (issues.length) {
     retried = true;
     const feedback = issues.map(i => `- ${i.message}`).join("\n");
     try {
       const retry = await ask(`${prompt}\n\n[검증 실패 — 직전 답변에서 확정증감과 어긋난 서술이 발견됐다. 아래 지적을 모두 바로잡아 같은 JSON 형식으로 전체를 다시 작성할 것]\n${feedback}`);
-      const retryIssues = reportVerifyInsights(retry, facts);
+      const retryIssues = reportVerifyInsights(retry, facts, customerAmounts);
       if (retryIssues.length < issues.length) { insights = retry; issues = retryIssues; }
     } catch (_) { /* 재시도 실패 시 첫 답변을 검증 주석과 함께 사용 */ }
   }
+  // 검증기는 키워드 매칭이라 오탐이 날 수 있다. AI 응답 자체가 온전하면 다운로드는 막지 않고,
+  // 재작성 후에도 남은 지적은 해당 인사이트에 "⚠ 코드 검증" 주석으로 보고서에 남긴다.
   issues.forEach(issue => {
     const item = insights[issue.index];
-    if (item) (item.verify = item.verify || []).push(issue.message);
+    if (item) item.verify = [...(item.verify || []), issue.message];
   });
-  return { insights, verification: { factCount: facts.length, retried, issueCount: issues.length } };
+  return { insights, verification: { factCount: facts.length, retried, issueCount: issues.length, model: usedModel, inputChars } };
 }
 
 // ── 달력·계절성·데이터 주의사항 ─────────────────────────────────────────
@@ -5192,7 +5237,7 @@ const REPORT_KR_HOLIDAYS = new Map([
   ["2027-12-25", "성탄절"], ["2027-12-27", "성탄절 대체공휴일"],
 ]);
 const REPORT_HOLIDAY_TABLE_YEARS = [2024, 2027];
-const REPORT_NATIVE_CHANNEL_CUTOVER = "2026-07-21";
+const REPORT_STORE_INTERNAL_NOTE = "'네이버 서비스 > 스토어 내부'는 고객이 우리 스토어 안의 다른 페이지를 거쳐 상품 상세페이지에 방문한 경우입니다. 최초 유입원이 아니라 상품 상세페이지 도달 직전 경로를 뜻합니다. 증가하더라도 외부 신규 유입이나 특정 광고·검색 채널의 유입 증가로 단정할 수 없습니다.";
 
 function reportDateAdd(dateStr, days) {
   const d = new Date(`${dateStr}T00:00:00Z`);
@@ -5316,10 +5361,7 @@ function reportDataNotes(platform, cur, prev, year) {
     if (expected && p.coverage.salesDays < expected) notes.push(`${label} 매출 자료가 ${p.coverage.salesDays}/${expected}일뿐이라 합계가 실제보다 작게 나올 수 있습니다.`);
   });
   if (platform === "naver") {
-    const regime = p => (p.dateTo < REPORT_NATIVE_CHANNEL_CUTOVER ? "전" : p.dateFrom >= REPORT_NATIVE_CHANNEL_CUTOVER ? "후" : "혼합");
-    if (new Set([cur, prev, year].map(regime)).size > 1) {
-      notes.push(`네이버가 ${REPORT_NATIVE_CHANNEL_CUTOVER}부터 채널 통계 분류를 바꿔 '네이버플러스스토어' 유입이 '스토어 내부'로 잡힙니다. 이 날짜를 사이에 둔 기간 비교는 두 채널을 합산해 봐야 하며, 채널별 증감은 분류 변화의 영향이 섞여 있습니다.`);
-    }
+    notes.push(REPORT_STORE_INTERNAL_NOTE);
     if (!cur.customer.period || !prev.customer.period || !year.customer.period) {
       notes.push("신규·재구매 고객 통계는 월 단위 스냅샷이라 기간이 정확히 일치할 때만 사용합니다. 일치하지 않는 기간은 비교에서 제외됩니다.");
     }
@@ -5435,20 +5477,6 @@ async function reportBuildContext(platform, cur, prev, year) {
       데이터주의: notes,
     },
   };
-}
-
-// 스토어 내부와 네이버플러스스토어는 2026-07-21 분류 변경으로 서로 넘어갔으므로 합산해서 비교한다.
-function naverReportMergeStoreChannels(rows) {
-  const names = ["네이버 서비스 - 스토어 내부", "네이버 서비스 - 네이버플러스스토어"];
-  const merged = { name: "네이버 서비스 - 스토어 내부+플러스스토어(합산)", visits: 0, payCount: 0, salesTotal: 0 };
-  const rest = [];
-  (rows || []).forEach(r => {
-    if (!names.includes(r.name)) { rest.push(r); return; }
-    merged.visits += Number(r.visits) || 0;
-    merged.payCount += Number(r.payCount) || 0;
-    merged.salesTotal += Number(r.salesTotal) || 0;
-  });
-  return [...rest, merged];
 }
 
 // 기간 후반 둔화 같은 신호는 후반부에 연휴가 있었는지, 영업일만 놓고 봐도 같은지를 함께 알려준다.
@@ -5608,10 +5636,8 @@ function reportBuildDecomposition(platform, cur, prev, year) {
         const driver = f.delta < 0 ? f.topFalling : f.topRising;
         const text = `${f.family}: 이번 ${won(f.cur)}, ${label} ${won(f.base)} → ${signedWon(f.delta)}(${signedPct(f.rate)}), 매출 발생 상품 ${f.products.base}개 → ${f.products.cur}개${driver ? `, 가장 크게 ${f.delta < 0 ? "줄어든" : "늘어난"} 상품 ${driver.name}(${signedWon(driver.delta)})` : ""}`;
         lines.push({ label: `상품군 · ${label}`, text });
-        prompt.상품군.push({
-          기준: label, 상품군: f.family, 이번: f.cur, 기준값: f.base, 증감: f.delta, 증감률: f.rate == null ? null : Number(f.rate.toFixed(1)),
-          대표상품: driver ? { productId: String(driver.id), 상품명: driver.name, 증감: driver.delta } : null,
-        });
+        // JSON 객체 대신 한 줄 문장으로 넣어 입력 길이를 줄인다. 대표 상품은 번호와 앞 28자만 쓴다.
+        prompt.상품군.push(`${label} 대비 ${f.family}: 이번 ${won(f.cur)}, 기준 ${won(f.base)} → ${signedWon(f.delta)}(${signedPct(f.rate)})${driver ? `, 대표 상품 ${String(driver.name).slice(0, 28)}(productId ${driver.id}) ${signedWon(driver.delta)}` : ""}`);
       });
       const life = reportProductLifecycle(curRows, baseRows, idFn, valueFn);
       const total = life.added.sales - life.lost.sales + life.continuing.delta;
@@ -5781,14 +5807,14 @@ function reportNormalizeActions(items) {
 
 function naverReportBuildAnalysis(cur, prev, year) {
   const noMovers = () => ({ rising: [], falling: [] });
-  const productPrev = cur.products.length && prev.products.length ? reportMovers(cur.products, prev.products, r => r.productId, r => r.productName, r => r.salesTotal, 3) : noMovers();
-  const productYear = cur.products.length && year.products.length ? reportMovers(cur.products, year.products, r => r.productId, r => r.productName, r => r.salesTotal, 3) : noMovers();
-  // 2026-07-21 채널 분류 변경 때문에 스토어 내부와 플러스스토어는 합산해서 비교한다.
-  const curChannels = naverReportMergeStoreChannels(cur.channels.rows);
-  const channelPrev = cur.channels.totals.visits && prev.channels.totals.visits ? reportMovers(curChannels, naverReportMergeStoreChannels(prev.channels.rows), r => r.name, r => r.name, r => r.visits, 3) : noMovers();
-  const channelYear = cur.channels.totals.visits && year.channels.totals.visits ? reportMovers(curChannels, naverReportMergeStoreChannels(year.channels.rows), r => r.name, r => r.name, r => r.visits, 3) : noMovers();
-  const searchPrev = cur.searchTerms.length && prev.searchTerms.length ? reportMovers(cur.searchTerms, prev.searchTerms, r => r.term, r => r.term, r => r.visits, 3) : noMovers();
-  const adPrev = cur.adByType.length && prev.adByType.length ? reportMovers(cur.adByType, prev.adByType, r => r.type, r => r.type, r => r.purchaseSales, 3) : noMovers();
+  const productPrev = cur.products.length && prev.products.length ? reportMovers(cur.products, prev.products, r => r.productId, r => r.productName, r => r.salesTotal, 2) : noMovers();
+  const productYear = cur.products.length && year.products.length ? reportMovers(cur.products, year.products, r => r.productId, r => r.productName, r => r.salesTotal, 2) : noMovers();
+  // Keep last-touch paths separate; they do not identify the original acquisition source.
+  const curChannels = cur.channels.rows;
+  const channelPrev = cur.channels.totals.visits && prev.channels.totals.visits ? reportMovers(curChannels, prev.channels.rows, r => r.name, r => r.name, r => r.visits, 2) : noMovers();
+  const channelYear = cur.channels.totals.visits && year.channels.totals.visits ? reportMovers(curChannels, year.channels.rows, r => r.name, r => r.name, r => r.visits, 2) : noMovers();
+  const searchPrev = cur.searchTerms.length && prev.searchTerms.length ? reportMovers(cur.searchTerms, prev.searchTerms, r => r.term, r => r.term, r => r.visits, 2) : noMovers();
+  const adPrev = cur.adByType.length && prev.adByType.length ? reportMovers(cur.adByType, prev.adByType, r => r.type, r => r.type, r => r.purchaseSales, 2) : noMovers();
   const salesMomentum = reportPeriodMomentum(cur.daily, row => row.salesNet);
   const momentumNote = reportMomentumNote(cur, row => row.salesNet);
   const currentSearchConversion = cur.searchTerms.reduce((acc, row) => ({ visits: acc.visits + (Number(row.visits) || 0), pay: acc.pay + (Number(row.payCount) || 0) }), { visits: 0, pay: 0 });
@@ -5802,6 +5828,15 @@ function naverReportBuildAnalysis(cur, prev, year) {
     .map(row => ({ term: row.term, visits: Number(row.visits) || 0, conversion: Number(row.conversion) || 0, sales: Number(row.salesTotal) || 0 }))
     .sort((a, b) => b.conversion - a.conversion || b.sales - a.sales)
     .slice(0, 3);
+  const coverageIssues = [["이번 기간", cur], ["전기간", prev], ["작년 동기", year]].flatMap(([label, p]) => {
+    const c = p.coverage;
+    const problems = [];
+    if (c.salesDays < c.expectedDays) problems.push(`판매 자료 ${c.expectedDays}일 중 ${c.salesDays}일`);
+    if (c.adMissingDates.length) problems.push(`광고 자료 누락일 ${c.adMissingDates.length}일`);
+    if (c.adStaleDates.length) problems.push(`광고 자료 갱신 지연일 ${c.adStaleDates.length}일`);
+    if (c.adLoadError) problems.push("광고 자료 불러오기 실패");
+    return problems.length ? [`${label}: ${problems.join(", ")}`] : [];
+  });
   const signals = [
     reportChangeSummary("순매출", cur.sales.salesNet, prev.sales.salesNet, "전기간"),
     reportChangeSummary("순매출", cur.sales.salesNet, year.sales.salesNet, "작년 동기"),
@@ -5815,27 +5850,17 @@ function naverReportBuildAnalysis(cur, prev, year) {
   ].filter(Boolean);
   return {
     detectedSignals: signals,
-    dataQuality: { current: cur.coverage, previous: prev.coverage, lastYear: year.coverage },
+    // 확정증감과 겹치는 값(전기간 대비 합계 증감률)은 빼고, 누락일이 있을 때만 자료 상태를 알린다.
+    ...(coverageIssues.length ? { dataQuality: coverageIssues } : {}),
     overall: {
-      salesVsPrevious: reportPctChange(cur.sales.salesNet, prev.sales.salesNet),
-      salesVsLastYear: reportPctChange(cur.sales.salesNet, year.sales.salesNet),
-      visitsVsPrevious: reportPctChange(cur.sales.visits, prev.sales.visits),
-      conversionVsPrevious: reportPctChange(cur.sales.visits ? cur.sales.payCount / cur.sales.visits : 0, prev.sales.visits ? prev.sales.payCount / prev.sales.visits : 0),
-      adCostVsPrevious: reportPctChange(cur.ad.cost, prev.ad.cost),
-      adSalesVsPrevious: reportPctChange(cur.ad.purchaseSales, prev.ad.purchaseSales),
-      roasVsPrevious: reportPctChange(cur.ad.cost ? cur.ad.purchaseSales / cur.ad.cost : 0, prev.ad.cost ? prev.ad.purchaseSales / prev.ad.cost : 0),
       top5ProductSalesShare: reportConcentration(cur.products, row => row.salesTotal),
       periodMomentum: salesMomentum,
     },
     products: { vsPrevious: productPrev, vsLastYear: productYear },
     channels: { vsPrevious: channelPrev, vsLastYear: channelYear },
     searchTerms: { vsPrevious: searchPrev, lowQuality: lowQualitySearchTerms, highQuality: highQualitySearchTerms },
-    advertising: { vsPreviousByType: adPrev, currentByType: cur.adByType.slice(0, 5) },
+    advertising: { vsPreviousByType: adPrev },
     customers: {
-      newCurrent: cur.customer.new,
-      newPrevious: prev.customer.new,
-      repeatCurrent: cur.customer.repeat,
-      repeatPrevious: prev.customer.repeat,
       topGenderAge: cur.customer.genderAge.slice().sort((a, b) => (Number(b.salesTotal) || 0) - (Number(a.salesTotal) || 0)).slice(0, 3),
       interestCurrent: cur.customer.interest,
       interestPrevious: prev.customer.interest,
@@ -5847,22 +5872,7 @@ async function naverReportGenerateInsights(cur, prev, year) {
   const pct = (a, b) => (b ? `${((a - b) / b * 100).toFixed(1)}%` : "데이터 없음");
   const stats = {
     기간: { 이번기간: `${cur.dateFrom}~${cur.dateTo}`, 전기간: `${prev.dateFrom}~${prev.dateTo}`, 작년동기: `${year.dateFrom}~${year.dateTo}` },
-    매출: {
-      이번기간_총매출: cur.sales.salesTotal, 전기간_총매출: prev.sales.salesTotal, 작년동기_총매출: year.sales.salesTotal,
-      전기간대비_증감률: pct(cur.sales.salesTotal, prev.sales.salesTotal),
-      작년동기대비_증감률: pct(cur.sales.salesTotal, year.sales.salesTotal),
-      이번기간_방문수: cur.sales.visits, 전기간_방문수: prev.sales.visits, 작년동기_방문수: year.sales.visits,
-      이번기간_결제건수: cur.sales.payCount, 전기간_결제건수: prev.sales.payCount, 작년동기_결제건수: year.sales.payCount,
-    },
-    광고: {
-      이번기간_광고비: cur.ad.cost, 전기간_광고비: prev.ad.cost, 작년동기_광고비: year.ad.cost,
-      이번기간_구매전환수: cur.ad.purchaseConversions, 전기간_구매전환수: prev.ad.purchaseConversions, 작년동기_구매전환수: year.ad.purchaseConversions,
-      이번기간_구매매출: cur.ad.purchaseSales, 전기간_구매매출: prev.ad.purchaseSales, 작년동기_구매매출: year.ad.purchaseSales,
-      이번기간_ROAS: cur.ad.cost ? (cur.ad.purchaseSales / cur.ad.cost * 100).toFixed(0) + "%" : "-",
-      전기간_ROAS: prev.ad.cost ? (prev.ad.purchaseSales / prev.ad.cost * 100).toFixed(0) + "%" : "-",
-      작년동기_ROAS: year.ad.cost ? (year.ad.purchaseSales / year.ad.cost * 100).toFixed(0) + "%" : "-",
-      유형별_이번기간: cur.adByType.map(t => `${t.type}: 비용 ${num(t.cost)}원, 구매전환 ${num(t.purchaseConversions)}건, 구매매출 ${num(t.purchaseSales)}원`),
-    },
+    광고유형별_이번기간: cur.adByType.map(t => `${t.type}: 비용 ${num(t.cost)}원, 구매전환 ${num(t.purchaseConversions)}건, 구매매출 ${num(t.purchaseSales)}원`),
     고객: {
       신규_이번기간: cur.customer.new || "데이터 없음", 신규_전기간: prev.customer.new || "데이터 없음", 신규_작년동기: year.customer.new || "데이터 없음",
       재구매_이번기간: cur.customer.repeat || "데이터 없음", 재구매_전기간: prev.customer.repeat || "데이터 없음", 재구매_작년동기: year.customer.repeat || "데이터 없음",
@@ -5881,58 +5891,43 @@ async function naverReportGenerateInsights(cur, prev, year) {
   stats.확정증감 = facts.map(f => f.text);
   stats.달력_계절성 = context.prompt;
   stats.기여도분해 = decomposition.prompt;
-  stats.유입채널_이번기간 = naverReportMergeStoreChannels(cur.channels.rows).map(r => ({ 채널: r.name, 방문: r.visits, 매출: r.salesTotal }));
-  stats.유입채널_작년동기 = naverReportMergeStoreChannels(year.channels.rows).map(r => ({ 채널: r.name, 방문: r.visits, 매출: r.salesTotal }));
-  const prompt = `너는 숫자를 나열하는 사람이 아니라, 담당자가 여러 표를 오가며 놓치기 쉬운 변화를 먼저 발견하는 이커머스 분석가야. 아래는 '한국단열' 네이버 스마트스토어의 이번 기간·전기간·작년 동기 데이터와 코드가 미리 계산한 변화 신호야.
-이 자료를 바탕으로 "무슨 변화가 있었고, 왜 중요한지, 무엇을 확인해야 하는지"를 빠르게 이해할 수 있는 보고서 문장을 만들어줘.
+  const prompt = `너는 이커머스 분석가야. 아래는 '한국단열' 네이버 스마트스토어의 이번 기간·전기간·작년 동기 데이터와, 코드가 미리 계산한 변화 신호야. 담당자가 표를 오가며 놓치기 쉬운 변화를 "무슨 변화가 있었고, 왜 중요한지, 무엇을 확인할지"로 정리해줘.
 
-[출력 형식 - 반드시 아래 JSON 형식으로만 답하고, 그 외 설명은 절대 하지 마]
-{
-  "insights": [{"title": "비교 기준이 드러나는 핵심 결론", "finding": "변화와 근거 숫자", "meaning": "의미와 해석 한계", "check": "이 변화에 대해 구체적으로 확인할 내용", "productIds": ["언급한 상품번호"]}, ...]
-}
+[출력 형식 - 아래 JSON으로만 답하고 다른 설명은 쓰지 마]
+{"insights": [{"title": "비교 기준이 드러나는 핵심 결론", "finding": "변화와 근거 숫자", "meaning": "의미와 해석의 한계", "check": "확인할 지표·대상을 한 문장", "productIds": ["언급한 상품번호"]}]}
+- insights는 5~7개, 각 항목은 간결하게. title은 30자 이내, meaning에서 finding의 숫자를 반복하지 말 것.
+- 상품을 언급하면 productIds에 원본 상품번호를 문자열로 넣을 것(없으면 빈 배열). 같은 상품·같은 변화를 두 항목에서 반복하지 말 것.
 
 [작성 규칙]
-- insights는 5~8개. 각 문장은 반드시 "발견한 변화 → 경영적 의미 → 근거 숫자"가 자연스럽게 이어져야 한다.
-- title은 30자 이내. finding에 비교 기준과 핵심 숫자를 함께 적고 meaning에서 숫자를 반복하지 말 것. 전기간 상승·전년 하락이면 제목에도 양쪽 방향을 반영할 것.
-- 상품을 언급하면 productIds에 해당 상품의 productId 또는 변화 탐지 products의 key를 문자열로 반드시 포함할 것. 이름을 줄여 쓰더라도 번호는 원본 그대로 사용하고, 상품 언급이 없으면 빈 배열. URL이나 번호를 추측하지 말 것.
-- 비용과 ROAS/CPA 비교 없이 전환 건수만으로 광고 효율을 단정하지 말 것. 상품 증감만으로 세대교체·계절성·경쟁을 확인된 원인처럼 쓰지 말 것.
-- 단순히 여러 숫자를 차례로 나열하지 말고 상품·유입·광고·고객 지표 사이의 관계를 해석할 것.
-- 핵심 합계의 확정증감은 코드가 계산한 사실이다. 같은 지표를 서술할 때 방향(증가/감소/상승/하락)과 증감률을 그대로 따르고, 다시 계산하거나 반대로 쓰지 말 것. '악화/개선' 같은 평가어도 해당 지표의 확정증감 방향과 일치할 때만 쓸 것.
-- 어떤 지표가 오르고 내렸는지, 어떤 지표 사이에 엇갈림이 있는지는 미리 가정하지 말고 확정증감과 변화 탐지 결과에서만 판단할 것.
-- 달력_계절성에서 영업일 수·연휴·휴가철·연말연시 구성이 비교 기간 사이에 다르면 증감의 원인 후보로 먼저 언급하고, 영업일 일평균 확정증감을 함께 인용할 것(원인을 단정하지 말 것). 추석·설날 같은 명절 위치가 다르면 반드시 짚을 것.
-- 기간 후반 둔화·가속 같은 흐름은 연휴 포함 여부와 영업일 기준 비교를 먼저 확인한 뒤 서술할 것.
-- 계절성의 작년 같은 구간 변화가 올해 변화와 같은 방향이면 계절적 패턴일 가능성을, 다르면 올해 고유 변화일 가능성을 언급하고, 12개월 범위에서 이번 기간의 위치를 참고할 것.
-- 데이터주의에 적힌 한계(자료 누락, 채널 분류 변경, 기간 정의)는 관련 항목을 서술할 때 그대로 반영할 것. 스토어 내부와 네이버플러스스토어는 합산 값으로 비교할 것.
-- 기여도분해(매출요인·광고비요인·상품군·상품구성·광고유형_증분효율·신규고객요인)의 값으로 변화가 어느 요인·상품군·상품 구성에서 컸는지 설명하되, 요인 크기와 원인 확정은 구분해서 쓸 것. 개별 상품보다 상품군 단위의 큰 변화(예: 한 상품군 전체의 급감)를 먼저 찾을 것.
-- 광고비는 CPC 경매 방식이라 노출수·클릭률·CPC 변화만으로도 늘어난다. 담당자가 예산을 올렸다고 가정하거나 '예산 증액/확대/집행 확대'라고 쓰지 말고, 광고비요인의 분해 값으로 설명할 것. 광고비 증가분의 효율은 광고유형_증분효율의 증분 ROAS로 말하고, 증분 ROAS 없이 평균 ROAS만으로 확대·축소를 권하지 말 것.
-- 표본주의에 적힌 지표(결제자 수가 적은 재구매 고객 등)는 증감률을 단정하지 말고 표본이 작다고 명시할 것.
-- detectedSignals와 증감 기여도가 큰 항목을 먼저 다루고, 의미가 작은 변동은 과감히 생략할 것.
-- 숫자(증감률, 금액, 건수)를 반드시 인용해서 근거를 보여줄 것. 데이터에 없는 숫자나 사실을 지어내지 말 것.
-- 별도 actions나 우선순위는 만들지 말고 각 insight의 check에 확인할 지표·대상·비교 기준을 한 문장으로 적을 것. 막연한 '전략 강화', '다각적 분석'을 피할 것.
-- 전기간 대비와 작년 동기 대비가 서로 다른 방향(하나는 증가, 하나는 감소)이면 반드시 짚어줄 것.
-- 신규 고객과 재구매 고객의 추세가 다르면(한쪽만 성장 등) 반드시 짚어줄 것.
-- 광고 유형(캠페인 타입)별로 효율 차이가 크면(전환이 거의 없는 유형 등) 짚어줄 것.
-- 과장하거나 확신할 수 없는 원인 추정("~때문일 것이다" 식 단정)은 피하고, "~가능성이 있다", "~확인이 필요하다" 톤을 쓸 것.
-- 값이 "데이터 없음"인 항목은 그 기간과 비교하지 말고 조용히 건너뛸 것(숫자를 지어내지 말 것).
-- dataQuality에서 누락일이 있으면 첫 문장에서 분석 한계를 명시하고, 해당 기간의 0을 실제 실적 0으로 단정하지 말 것.
-- 절대 마크다운(**, # 등) 쓰지 말 것.
+- 확정증감은 코드가 계산한 사실이다. 방향과 증감률을 그대로 따르고, 다시 계산하거나 반대로 쓰지 말 것. '악화/개선' 같은 평가어도 확정증감 방향과 맞을 때만 쓸 것.
+- 숫자를 인용해 근거를 보이되, 자료에 없는 숫자·사실은 만들지 말 것. "데이터 없음" 항목은 건너뛸 것.
+- 증감 기여가 큰 변화부터 다루고, 기여도분해로 어느 요인·상품군(개별 상품보다 상품군 단위)에서 변했는지 설명할 것. 요인의 크기와 원인 확정은 구분할 것.
+- 달력_계절성: 영업일 수·연휴 구성이 기간마다 다르면 원인 후보로 먼저 짚고 영업일 일평균을 함께 인용할 것. 연휴가 있으면 기간의 앞쪽인지 뒤쪽인지 확인한 뒤 '기간 후반 가속·둔화'를 해석하고, 그 기간에 있는 연휴를 없다고 쓰지 말 것.
+- 전기간·작년 동기의 방향이 서로 다르거나, 신규·재구매 고객 추세가 다르거나, 광고 유형별 효율 차이가 크면 짚을 것.
+- 광고비는 CPC 경매라 노출·클릭률·CPC 변화만으로도 늘어난다. '예산 증액'으로 쓰지 말고 광고비요인과 증분 ROAS로 설명하며, 비용·ROAS 없이 전환 건수만으로 효율을 단정하지 말 것.
+- '네이버 서비스 > 스토어 내부'는 상품 상세 도달 직전 경로일 뿐 최초 유입원이 아니다. 외부 유입·신규 고객·프로모션 성과로 단정하지 말고, 네이버플러스스토어와 합산하지 말 것.
+- 고객 통계(신규 방문자 등)와 유입 통계(방문수)는 집계 기준이 달라 방향이 달라도 모순이 아니다. 직접 비교하지 말고 기준을 밝힐 것.
+- 표본주의 지표는 증감률을 단정하지 말고, 데이터주의·dataQuality의 한계는 해당 항목에 반영할 것(누락 기간의 0을 실제 0으로 보지 말 것).
+- 원인은 "~가능성이 있다/확인이 필요하다" 톤으로 쓰고 마크다운은 쓰지 말 것.
 
 핵심 합계: ${JSON.stringify(stats)}
 변화 탐지 결과: ${JSON.stringify(analysis)}`;
 
+  const sizeOf = value => JSON.stringify(value).length;
+  const sections = `지시문 ${(prompt.length - sizeOf(stats) - sizeOf(analysis)).toLocaleString()}자, ` +
+    Object.entries(stats).map(([key, value]) => `${key} ${sizeOf(value).toLocaleString()}자`).join(", ") +
+    `, 변화탐지결과 ${sizeOf(analysis).toLocaleString()}자`;
+  console.info(`[보고서 AI] 구성: ${sections}`);
   try {
-    const { insights, verification } = await reportRequestInsights(reportRelabel(prompt, { cur: cur.label, prev: prev.label, year: year.label }), facts);
-    return { insights, actions: [], facts, verification, context };
+    const { insights, verification } = await reportRequestInsights(reportRelabel(prompt, { cur: cur.label, prev: prev.label, year: year.label }), facts, [
+      ...[["신규 고객", "new"], ["재구매 고객", "repeat"]].map(([label, key]) => ({
+        label, current: cur.customer[key]?.salesTotal ?? null,
+        deltas: [prev, year].filter(period => period.customer[key] && cur.customer[key]).map(period => Math.abs(cur.customer[key].salesTotal - period.customer[key].salesTotal)),
+      })),
+    ]);
+    return { insights, actions: [], facts, verification: { ...verification, sections }, context };
   } catch (err) {
-    return {
-      insights: reportNormalizeInsights(analysis.detectedSignals.length
-        ? analysis.detectedSignals
-        : [`(AI 인사이트 생성 실패: ${err.message || "알 수 없는 오류"} — 아래 표의 숫자는 정상적으로 반영되었습니다.)`]),
-      actions: [],
-      facts,
-      verification: null,
-      context,
-    };
+    throw new Error(`AI 분석을 완료하지 못해 다운로드를 중단했습니다. ${err.message || "알 수 없는 오류"} [입력 구성: ${sections}]`);
   }
 }
 
@@ -6011,7 +6006,20 @@ function reportAnalysisSheet(wb, ai, periods, platform) {
   let row = 1;
   function line(label, text, options = {}) {
     if (!text) return;
-    const chunks = reportReadableText(text).split("\n").flatMap(part => part.match(/.{1,120}/gu) || [""]);
+    // 120자를 넘으면 글자 중간이 아니라 가까운 공백에서 줄을 나눈다.
+    const wrap = part => {
+      const chars = Array.from(part);
+      const out = [];
+      while (chars.length > 120) {
+        let cut = chars.slice(0, 120).lastIndexOf(" ");
+        if (cut < 60) cut = 120;
+        out.push(chars.splice(0, cut).join("").trimEnd());
+        while (chars[0] === " ") chars.shift();
+      }
+      out.push(chars.join(""));
+      return out;
+    };
+    const chunks = reportReadableText(text).split("\n").flatMap(wrap);
     chunks.forEach((chunk, index) => {
       naverReportDataCell(ws, row, 1, index ? "" : label, { bold: true });
       naverReportDataCell(ws, row, 2, chunk, options);
@@ -6037,6 +6045,7 @@ function reportAnalysisSheet(wb, ai, periods, platform) {
   }
   line("분석 리포트", "핵심 변화와 다음 실행", { bold: true });
   line("조회 기간", `${periods[0].dateFrom} ~ ${periods[0].dateTo}`);
+  if (ai.verification?.model) line("분석 모델", ai.verification.model);
   line("참고", "원인 해석은 추가 확인이 필요합니다. 파란 밑줄의 상품명을 누르면 해당 상품을 확인할 수 있습니다.", { italic: true, color: "FF666666" });
   const notes = ai.context?.notes || [];
   if (notes.length) {
@@ -6058,26 +6067,8 @@ function reportAnalysisSheet(wb, ai, periods, platform) {
     if (item.verify?.length) line("⚠ 코드 검증", `다음 서술은 코드가 계산한 증감과 어긋나므로 표의 숫자를 우선하세요.\n${item.verify.join("\n")}`, { color: "FFC00000" });
     row++;
   });
-  if (ai.context?.lines?.length) {
-    line("달력·계절성", "코드가 계산한 달력 구성과 계절 흐름입니다. 비교 기간 사이에 달력 조건이 다르면 증감의 일부가 달력 효과일 수 있습니다.", { bold: true });
-    ai.context.lines.forEach(item => line(item.label, item.text));
-    row++;
-  }
-  if (ai.context?.decomposition?.length) {
-    line("기여도 분해", "증감을 요인별로 쪼갠 코드 계산값입니다. 원인을 확정하는 값이 아니라 어디서 변했는지의 크기입니다.", { bold: true });
-    ai.context.decomposition.forEach(item => line(item.label, item.text));
-    row++;
-  }
-  if (Array.isArray(ai.facts) && ai.facts.length) {
-    line("기준 수치", "코드가 계산한 지표별 증감입니다. AI 서술은 이 값과 대조해 검증합니다.", { bold: true });
-    const checked = ai.verification;
-    if (checked) line("검증 결과", checked.issueCount
-      ? `어긋난 서술 ${checked.issueCount}건${checked.retried ? " (재작성 후에도 남은 항목)" : ""}`
-      : `AI 서술 ${checked.retried ? "재작성 후 " : ""}이상 없음`);
-    const baseLabels = [...new Set(ai.facts.map(f => f.baseLabel))];
-    baseLabels.forEach(label => ai.facts.filter(f => f.baseLabel === label).forEach(f => line(label, f.text)));
-    row++;
-  }
+  // 달력·기여도 분해·기준 수치 표는 AI 입력용 계산값이라 보고서에는 싣지 않는다(읽는 사람에게 불필요).
+  // 코드 검증에서 어긋난 서술은 위 인사이트마다 "⚠ 코드 검증"으로 남는다.
   const actions = reportNormalizeActions(ai.actions);
   if (actions.length) line("추가 확인", "이전 형식의 추가 점검 사항", { bold: true });
   actions.forEach(item => {
@@ -6325,7 +6316,7 @@ async function downloadNaverReport() {
     `${labels.cur}: ${dateFrom} ~ ${dateTo}\n` +
     `${labels.prev}: ${ranges.prev.from} ~ ${ranges.prev.to}\n` +
     `${labels.year}: ${ranges.year.from} ~ ${ranges.year.to}\n\n` +
-    `AI가 인사이트를 생성하는 과정이 포함돼 10~20초 정도 걸릴 수 있습니다.`
+    `AI 보고서 분석은 요청당 최대 140초 기다리며, 수치 검증 후 재작성할 수 있습니다. 분석 실패 시 파일을 저장하지 않고 원인을 알려드립니다.`
   );
   if (!proceed) return;
 
@@ -6605,15 +6596,7 @@ async function coupangReportGenerateInsights(cur, prev, year) {
     const { insights, verification } = await reportRequestInsights(reportRelabel(prompt, { cur: cur.label, prev: prev.label, year: year.label }), facts);
     return { insights, actions: [], facts, verification, context };
   } catch (err) {
-    return {
-      insights: reportNormalizeInsights(analysis.detectedSignals.length
-        ? analysis.detectedSignals
-        : [`(AI 인사이트 생성 실패: ${err.message || "알 수 없는 오류"} — 아래 표의 숫자는 정상적으로 반영되었습니다.)`]),
-      actions: [],
-      facts,
-      verification: null,
-      context,
-    };
+    throw new Error(`AI 분석을 완료하지 못해 다운로드를 중단했습니다. ${err.message || "알 수 없는 오류"}`);
   }
 }
 
@@ -6787,7 +6770,7 @@ async function downloadCoupangReport() {
     `${labels.cur}: ${dateFrom} ~ ${dateTo}\n` +
     `${labels.prev}: ${ranges.prev.from} ~ ${ranges.prev.to}\n` +
     `${labels.year}: ${ranges.year.from} ~ ${ranges.year.to}\n\n` +
-    `AI가 인사이트를 생성하는 과정이 포함돼 10~20초 정도 걸릴 수 있습니다.`
+    `AI 보고서 분석은 요청당 최대 140초 기다리며, 수치 검증 후 재작성할 수 있습니다. 분석 실패 시 파일을 저장하지 않고 원인을 알려드립니다.`
   );
   if (!proceed) return;
 

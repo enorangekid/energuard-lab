@@ -148,18 +148,25 @@ async function fetchAiJson(url, body, { timeoutMs = 25000 } = {}) {
     },
     body: JSON.stringify(body),
     signal: controller.signal,
-  }).then((res) => res.json().then((data) => ({ ok: res.ok, data })));
+  }).then(async res => {
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); }
+    catch (_) { data = { error: `AI 서버 응답이 JSON 형식이 아닙니다. (HTTP ${res.status})` }; }
+    return { ok: res.ok, status: res.status, data };
+  });
+  let timer;
   const timeout = new Promise((_, reject) => {
-    setTimeout(() => {
+    timer = setTimeout(() => {
       controller.abort();
       reject(new Error("응답이 너무 오래 걸려 중단했습니다. 잠시 후 다시 시도해 주세요."));
     }, timeoutMs);
   });
-  return Promise.race([request, timeout]);
+  return Promise.race([request, timeout]).finally(() => clearTimeout(timer));
 }
 
-async function fetchAiChat(chatHistory, { useSearch, timeoutMs } = {}) {
-  return fetchAiJson(AI_CHAT_URL, { chatHistory, useSearch }, { timeoutMs });
+async function fetchAiChat(chatHistory, { useSearch, timeoutMs, reportMode } = {}) {
+  return fetchAiJson(AI_CHAT_URL, { chatHistory, useSearch, reportMode }, { timeoutMs });
 }
 
 async function fetchAiInquiry(inquiry, { store, mode, timeoutMs } = {}) {
