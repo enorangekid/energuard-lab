@@ -389,9 +389,10 @@ async function inspect(item, pricing) {
 // 한국단열(hkdy) 몰별 적용 검사 — 기대가격은 관리자 화면이 옵션별로 계산해 넘긴다(item.options).
 // 에너가드 검사와 같이 할인 적용가(할인 응답의 기준가+옵션추가금)로 비교하므로 할인 응답을 기다린다.
 // 할인이 없는 상품은 할인 응답 자체가 안 올 수 있어서, 끝까지 안 오면 상세의 판매가로 비교한다.
-// 한국단열 스토어 두 곳(한국단열 hkdy · 한국단열라이프 hkdylife — 같은 스마트스토어 구조, 2026-09-30)의 상품 주소만 허용한다.
+// 한국단열 스토어 두 곳(한국단열 hkdy · 한국단열라이프 hkdylife — 같은 스마트스토어 구조, 2026-09-30)과
+// 에너가드컴퍼니 스토어(energuardcompany — 에너가드론 검사, 2026-11-09 추가)의 상품 주소만 허용한다.
 function hkdProductPathOk(pathname, id) {
-  return /^\/(hkdy|hkdylife)\/products\/\d+$/.test(String(pathname||'').replace(/\/$/,'')) && String(pathname).replace(/\/$/,'').endsWith('/products/'+id);
+  return /^\/(hkdy|hkdylife|energuardcompany)\/products\/\d+$/.test(String(pathname||'').replace(/\/$/,'')) && String(pathname).replace(/\/$/,'').endsWith('/products/'+id);
 }
 
 function esmProductUrlOk(url, marketplace, id) {
